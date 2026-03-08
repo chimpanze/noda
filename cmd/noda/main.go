@@ -18,7 +18,10 @@ import (
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
+	"github.com/chimpanze/noda/plugins/core/event"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
+	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
+	streamplugin "github.com/chimpanze/noda/plugins/stream"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
@@ -476,6 +479,7 @@ func buildCoreNodeRegistry() *registry.NodeRegistry {
 	_ = nodeReg.RegisterFromPlugin(&response.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&dbplugin.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&cacheplugin.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&event.Plugin{})
 	return nodeReg
 }
 
@@ -487,4 +491,7 @@ func registerCorePlugins(plugins *registry.PluginRegistry) {
 	plugins.Register(&response.Plugin{})
 	plugins.Register(&dbplugin.Plugin{})
 	plugins.Register(&cacheplugin.Plugin{})
+	plugins.Register(&streamplugin.Plugin{})
+	plugins.Register(&pubsubplugin.Plugin{})
+	plugins.Register(&event.Plugin{})
 }

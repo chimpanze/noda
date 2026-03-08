@@ -78,22 +78,22 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/stream/plugin.go`:
+- [x] Create `plugins/stream/plugin.go`:
   - Name: `"stream"`, Prefix: `"stream"`
   - HasServices: true
   - CreateService: create go-redis client for Streams operations
-- [ ] Implement core operations:
+- [x] Implement core operations:
   - `Publish(ctx, topic, payload)` — `XADD` to the stream
   - `Subscribe(topic, group, consumer)` — `XREADGROUP` loop
   - `Ack(topic, group, messageID)` — `XACK`
-- [ ] Consumer group creation: auto-create group if it doesn't exist (`XGROUP CREATE ... MKSTREAM`)
-- [ ] Service also exposes `emit` operation for use by `event.emit` node and Wasm `noda_call`
+- [x] Consumer group creation: auto-create group if it doesn't exist (`XGROUP CREATE ... MKSTREAM`)
+- [x] Service also exposes `emit` operation for use by `event.emit` node and Wasm `noda_call`
 
 **Tests:**
-- [ ] Publish message to stream
-- [ ] Subscribe reads published messages
-- [ ] Ack removes message from pending
-- [ ] Consumer group auto-creation
+- [x] Publish message to stream
+- [x] Subscribe reads published messages
+- [x] Ack removes message from pending
+- [x] Consumer group auto-creation
 
 **Acceptance criteria:** Redis Streams publish/subscribe/ack works.
 
@@ -105,19 +105,19 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/pubsub/plugin.go`:
+- [x] Create `plugins/pubsub/plugin.go`:
   - Name: `"pubsub"`, Prefix: `"pubsub"`
   - HasServices: true
   - CreateService: create go-redis PubSub client
-- [ ] Implement core operations:
+- [x] Implement core operations:
   - `Publish(ctx, channel, payload)` — `PUBLISH`
   - `Subscribe(channel, handler)` — `SUBSCRIBE` with message callback
-- [ ] Service also exposes `emit` operation for use by `event.emit` node and Wasm `noda_call`
+- [x] Service also exposes `emit` operation for use by `event.emit` node and Wasm `noda_call`
 
 **Tests:**
-- [ ] Publish → subscriber receives message
-- [ ] Multiple subscribers all receive
-- [ ] Unsubscribe stops delivery
+- [x] Publish → subscriber receives message
+- [x] Multiple subscribers all receive
+- [x] Unsubscribe stops delivery
 
 **Acceptance criteria:** Redis PubSub publish/subscribe works.
 
@@ -129,18 +129,18 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/core/event/plugin.go` and `plugins/core/event/emit.go`:
+- [x] Create `plugins/core/event/plugin.go` and `plugins/core/event/emit.go`:
   - Prefix: `"event"`, Node: `event.emit`
   - ServiceDeps: `stream` (optional), `pubsub` (optional) — required based on `mode`
   - ConfigSchema: `mode` (static: `"stream"|"pubsub"`), `topic` (expression), `payload` (expression)
-- [ ] Execute: resolve `topic` and `payload`, call the appropriate service's emit operation
-- [ ] Startup validation: verify the slot matching `mode` is filled
+- [x] Execute: resolve `topic` and `payload`, call the appropriate service's emit operation
+- [x] Startup validation: verify the slot matching `mode` is filled
 
 **Tests:**
-- [ ] Stream mode emits to stream service
-- [ ] PubSub mode emits to pubsub service
-- [ ] Missing slot for configured mode → startup error
-- [ ] Topic and payload expressions resolve correctly
+- [x] Stream mode emits to stream service
+- [x] PubSub mode emits to pubsub service
+- [x] Missing slot for configured mode → startup error
+- [x] Topic and payload expressions resolve correctly
 
 **Acceptance criteria:** Events publish to the correct service based on mode.
 
@@ -152,23 +152,23 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/worker/runtime.go`
-- [ ] Implement `WorkerRuntime`:
+- [x] Create `internal/worker/runtime.go`
+- [x] Implement `WorkerRuntime`:
   - Load worker configs
   - For each worker: create a consumer that reads from the configured stream topic and consumer group
   - On message: run trigger mapping (message payload → `$.input`), execute the linked workflow
   - Concurrency: configurable number of concurrent message processors per worker
   - On workflow success: ack the message
   - On workflow failure: nack (message returns to pending for redelivery)
-- [ ] `$.trigger` metadata: `{ type: "event", timestamp, trace_id, topic, group }`
-- [ ] Graceful shutdown: stop consuming, wait for in-flight workflows to complete
+- [x] `$.trigger` metadata: `{ type: "event", timestamp, trace_id, topic, group }`
+- [x] Graceful shutdown: stop consuming, wait for in-flight workflows to complete
 
 **Tests:**
-- [ ] Worker consumes messages and executes workflows
-- [ ] Trigger mapping populates `$.input` from message payload
-- [ ] Concurrency: multiple messages processed concurrently
-- [ ] Success → message acked
-- [ ] Failure → message redelivered
+- [x] Worker consumes messages and executes workflows
+- [x] Trigger mapping populates `$.input` from message payload
+- [x] Concurrency: multiple messages processed concurrently
+- [x] Success → message acked
+- [x] Failure → message redelivered
 
 **Acceptance criteria:** Workers consume and process events reliably.
 
@@ -180,18 +180,18 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/worker/middleware.go`
-- [ ] Implement worker middleware wrapping message processing:
+- [x] Create `internal/worker/middleware.go`
+- [x] Implement worker middleware wrapping message processing:
   - `worker.log` — log message received, processing time, success/failure
   - `worker.timeout` — enforce timeout on workflow execution via context deadline
   - `worker.recover` — catch panics during workflow execution
-- [ ] Middleware chain applied per worker from config
-- [ ] Same config pattern as HTTP middleware (array of middleware names) but separate implementation
+- [x] Middleware chain applied per worker from config
+- [x] Same config pattern as HTTP middleware (array of middleware names) but separate implementation
 
 **Tests:**
-- [ ] Logging middleware produces structured logs with message metadata
-- [ ] Timeout middleware cancels workflow after deadline
-- [ ] Recovery middleware catches panics
+- [x] Logging middleware produces structured logs with message metadata
+- [x] Timeout middleware cancels workflow after deadline
+- [x] Recovery middleware catches panics
 
 **Acceptance criteria:** Worker middleware applies cross-cutting concerns.
 
@@ -203,18 +203,18 @@
 
 **Subtasks:**
 
-- [ ] Track delivery attempts per message (using Redis Stream's pending entry info or a counter)
-- [ ] When a message has been attempted `dead_letter.after` times:
+- [x] Track delivery attempts per message (using Redis Stream's pending entry info or a counter)
+- [x] When a message has been attempted `dead_letter.after` times:
   - Publish the original message to the dead letter topic (configured per worker)
   - Ack the original message (remove from main stream)
   - Log the dead letter event with trace ID and error details
-- [ ] Worker error mapping: log errors with full context (trace_id, node_id, error details)
+- [x] Worker error mapping: log errors with full context (trace_id, node_id, error details)
 
 **Tests:**
-- [ ] Message fails N times → moves to dead letter topic
-- [ ] Original message acked after dead letter
-- [ ] Dead letter message contains original payload and error info
-- [ ] Error logging includes trace ID
+- [x] Message fails N times → moves to dead letter topic
+- [x] Original message acked after dead letter
+- [x] Dead letter message contains original payload and error info
+- [x] Error logging includes trace ID
 
 **Acceptance criteria:** Persistently failing messages are safely moved to dead letter.
 
@@ -224,10 +224,10 @@
 
 **Subtasks:**
 
-- [ ] Test: HTTP request → workflow emits event → worker consumes → worker workflow executes → side effect observable
-- [ ] Test: Worker failure → retry → dead letter
-- [ ] Test: Multiple workers consuming same topic with consumer group (no duplicate processing)
-- [ ] Write `noda test` files for worker workflows
+- [x] Test: HTTP request → workflow emits event → worker consumes → worker workflow executes → side effect observable
+- [x] Test: Worker failure → retry → dead letter
+- [x] Test: Multiple workers consuming same topic with consumer group (no duplicate processing)
+- [x] Write `noda test` files for worker workflows
 
 **Acceptance criteria:** Full async event processing pipeline works.
 

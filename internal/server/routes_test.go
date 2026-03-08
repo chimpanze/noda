@@ -16,6 +16,7 @@ import (
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
+	"github.com/chimpanze/noda/plugins/core/event"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -31,6 +32,7 @@ func buildTestNodeRegistry() *registry.NodeRegistry {
 	_ = nodeReg.RegisterFromPlugin(&response.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&dbplugin.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&cacheplugin.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&event.Plugin{})
 	return nodeReg
 }
 

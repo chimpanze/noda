@@ -18,6 +18,17 @@ type CacheService interface {
 	Exists(ctx context.Context, key string) (bool, error)
 }
 
+// StreamService provides durable message streaming (Redis Streams).
+type StreamService interface {
+	Publish(ctx context.Context, topic string, payload any) (string, error) // returns message ID
+	Ack(ctx context.Context, topic string, group string, messageID string) error
+}
+
+// PubSubService provides real-time fan-out messaging (Redis PubSub).
+type PubSubService interface {
+	Publish(ctx context.Context, channel string, payload any) error
+}
+
 // ConnectionService provides WebSocket and SSE messaging.
 type ConnectionService interface {
 	Send(ctx context.Context, channel string, data any) error
