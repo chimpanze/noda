@@ -1,0 +1,56 @@
+package util
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/chimpanze/noda/pkg/api"
+)
+
+type delayDescriptor struct{}
+
+func (d *delayDescriptor) Name() string                           { return "delay" }
+func (d *delayDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
+func (d *delayDescriptor) ConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"timeout": map[string]any{"type": "string"},
+		},
+		"required": []any{"timeout"},
+	}
+}
+
+type delayExecutor struct {
+	duration time.Duration
+}
+
+func newDelayExecutor(config map[string]any) api.NodeExecutor {
+	timeoutStr, _ := config["timeout"].(string)
+	d, err := time.ParseDuration(timeoutStr)
+	if err != nil {
+		// Return executor that will report the error
+		return &delayExecutor{duration: -1}
+	}
+	return &delayExecutor{duration: d}
+}
+
+func (e *delayExecutor) Outputs() []string { return []string{"success", "error"} }
+
+func (e *delayExecutor) Execute(ctx context.Context, _ api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
+	if e.duration < 0 {
+		timeoutStr, _ := config["timeout"].(string)
+		return "", nil, fmt.Errorf("util.delay: invalid duration %q", timeoutStr)
+	}
+
+	select {
+	case <-time.After(e.duration):
+		return "success", nil, nil
+	case <-ctx.Done():
+		return "", nil, &api.TimeoutError{
+			Duration:  e.duration,
+			Operation: "util.delay",
+		}
+	}
+}

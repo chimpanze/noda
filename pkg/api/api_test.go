@@ -41,8 +41,9 @@ type mockExecutionContext struct{}
 func (m *mockExecutionContext) Input() any                                    { return map[string]any{"key": "value"} }
 func (m *mockExecutionContext) Auth() *api.AuthData                           { return nil }
 func (m *mockExecutionContext) Trigger() api.TriggerData                      { return api.TriggerData{Type: "http", Timestamp: time.Now(), TraceID: "abc"} }
-func (m *mockExecutionContext) Resolve(_ string) (any, error)                 { return "resolved", nil }
-func (m *mockExecutionContext) Log(_ string, _ string, _ map[string]any)      {}
+func (m *mockExecutionContext) Resolve(_ string) (any, error)                            { return "resolved", nil }
+func (m *mockExecutionContext) ResolveWithVars(_ string, _ map[string]any) (any, error)  { return "resolved", nil }
+func (m *mockExecutionContext) Log(_ string, _ string, _ map[string]any)                 {}
 
 type mockStorageService struct{}
 

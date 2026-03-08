@@ -23,5 +23,6 @@ type ExecutionContext interface {
 	Auth() *AuthData // nil if no auth
 	Trigger() TriggerData
 	Resolve(expression string) (any, error)
+	ResolveWithVars(expression string, extraVars map[string]any) (any, error)
 	Log(level string, message string, fields map[string]any)
 }

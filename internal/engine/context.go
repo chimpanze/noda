@@ -101,6 +101,21 @@ func (c *ExecutionContextImpl) Resolve(expression string) (any, error) {
 	return resolver.Resolve(expression)
 }
 
+// ResolveWithVars evaluates an expression with additional variables in scope.
+// Extra vars are overlaid on top of the standard context (input, auth, node outputs).
+func (c *ExecutionContextImpl) ResolveWithVars(expression string, extraVars map[string]any) (any, error) {
+	c.mu.RLock()
+	context := c.buildExprContext()
+	c.mu.RUnlock()
+
+	for k, v := range extraVars {
+		context[k] = v
+	}
+
+	resolver := expr.NewResolver(c.compiler, context)
+	return resolver.Resolve(expression)
+}
+
 // Log writes a structured log entry with trace context.
 func (c *ExecutionContextImpl) Log(level string, message string, fields map[string]any) {
 	attrs := []any{
