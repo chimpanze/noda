@@ -1,6 +1,8 @@
 # Binaries
 /noda
 /bin/
+/dist/
+/tmp/
 *.exe
 *.exe~
 *.dll
