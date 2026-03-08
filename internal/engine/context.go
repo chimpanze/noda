@@ -1,0 +1,190 @@
+package engine
+
+import (
+	"log/slog"
+	"sync"
+	"sync/atomic"
+
+	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/pkg/api"
+	"github.com/google/uuid"
+)
+
+// ExecutionContextImpl implements api.ExecutionContext for workflow execution.
+type ExecutionContextImpl struct {
+	input   any
+	auth    *api.AuthData
+	trigger api.TriggerData
+
+	mu      sync.RWMutex
+	outputs map[string]any // nodeID (or alias) → output data
+	aliases map[string]string // nodeID → alias (from "as" field)
+
+	compiler *expr.Compiler
+	logger   *slog.Logger
+
+	workflowID  string
+	currentNode atomic.Value // set during node execution
+}
+
+// NewExecutionContext creates a new execution context for a workflow run.
+func NewExecutionContext(opts ...ExecutionContextOption) *ExecutionContextImpl {
+	ctx := &ExecutionContextImpl{
+		outputs: make(map[string]any),
+		aliases: make(map[string]string),
+		trigger: api.TriggerData{
+			TraceID: uuid.New().String(),
+		},
+		compiler: expr.NewCompilerWithFunctions(),
+		logger:   slog.Default(),
+	}
+	for _, opt := range opts {
+		opt(ctx)
+	}
+	return ctx
+}
+
+// ExecutionContextOption configures an ExecutionContext.
+type ExecutionContextOption func(*ExecutionContextImpl)
+
+// WithInput sets the input data.
+func WithInput(input any) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.input = input }
+}
+
+// WithAuth sets the auth data.
+func WithAuth(auth *api.AuthData) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.auth = auth }
+}
+
+// WithTrigger sets the trigger data.
+func WithTrigger(trigger api.TriggerData) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) {
+		if trigger.TraceID == "" {
+			trigger.TraceID = uuid.New().String()
+		}
+		c.trigger = trigger
+	}
+}
+
+// WithWorkflowID sets the workflow ID for logging.
+func WithWorkflowID(id string) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.workflowID = id }
+}
+
+// WithLogger sets the logger.
+func WithLogger(logger *slog.Logger) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.logger = logger }
+}
+
+// WithCompiler sets the expression compiler.
+func WithCompiler(compiler *expr.Compiler) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.compiler = compiler }
+}
+
+// Input returns the workflow input data.
+func (c *ExecutionContextImpl) Input() any { return c.input }
+
+// Auth returns the auth data, or nil if not authenticated.
+func (c *ExecutionContextImpl) Auth() *api.AuthData { return c.auth }
+
+// Trigger returns the trigger data including trace ID.
+func (c *ExecutionContextImpl) Trigger() api.TriggerData { return c.trigger }
+
+// Resolve evaluates an expression against the current context including node outputs.
+func (c *ExecutionContextImpl) Resolve(expression string) (any, error) {
+	c.mu.RLock()
+	context := c.buildExprContext()
+	c.mu.RUnlock()
+
+	resolver := expr.NewResolver(c.compiler, context)
+	return resolver.Resolve(expression)
+}
+
+// Log writes a structured log entry with trace context.
+func (c *ExecutionContextImpl) Log(level string, message string, fields map[string]any) {
+	attrs := []any{
+		"trace_id", c.trigger.TraceID,
+		"workflow_id", c.workflowID,
+	}
+	if nodeID, _ := c.currentNode.Load().(string); nodeID != "" {
+		attrs = append(attrs, "node_id", nodeID)
+	}
+	for k, v := range fields {
+		attrs = append(attrs, k, v)
+	}
+
+	switch level {
+	case "debug":
+		c.logger.Debug(message, attrs...)
+	case "warn":
+		c.logger.Warn(message, attrs...)
+	case "error":
+		c.logger.Error(message, attrs...)
+	default:
+		c.logger.Info(message, attrs...)
+	}
+}
+
+// SetOutput stores a node's output data.
+func (c *ExecutionContextImpl) SetOutput(nodeID string, data any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	key := nodeID
+	if alias, ok := c.aliases[nodeID]; ok {
+		key = alias
+	}
+	c.outputs[key] = data
+}
+
+// GetOutput retrieves a node's output data.
+func (c *ExecutionContextImpl) GetOutput(nodeID string) (any, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	// Check alias first
+	if alias, ok := c.aliases[nodeID]; ok {
+		v, found := c.outputs[alias]
+		return v, found
+	}
+	v, ok := c.outputs[nodeID]
+	return v, ok
+}
+
+// RegisterAlias registers an "as" alias for a node.
+func (c *ExecutionContextImpl) RegisterAlias(nodeID, alias string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.aliases[nodeID] = alias
+}
+
+// SetCurrentNode sets the current node ID for logging context.
+func (c *ExecutionContextImpl) SetCurrentNode(nodeID string) {
+	c.currentNode.Store(nodeID)
+}
+
+// EvictOutput removes an output from the context.
+func (c *ExecutionContextImpl) EvictOutput(key string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.outputs, key)
+}
+
+// buildExprContext creates the expression evaluation context map.
+func (c *ExecutionContextImpl) buildExprContext() map[string]any {
+	ctx := make(map[string]any)
+	ctx["input"] = c.input
+	if c.auth != nil {
+		ctx["auth"] = map[string]any{
+			"userId": c.auth.UserID,
+			"roles":  c.auth.Roles,
+			"claims": c.auth.Claims,
+		}
+	}
+	// Add all node outputs as top-level context entries
+	for k, v := range c.outputs {
+		ctx[k] = v
+	}
+	return ctx
+}
