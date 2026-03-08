@@ -17,6 +17,7 @@ import (
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
+	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
@@ -474,6 +475,7 @@ func buildCoreNodeRegistry() *registry.NodeRegistry {
 	_ = nodeReg.RegisterFromPlugin(&workflow.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&response.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&dbplugin.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&cacheplugin.Plugin{})
 	return nodeReg
 }
 
@@ -484,4 +486,5 @@ func registerCorePlugins(plugins *registry.PluginRegistry) {
 	plugins.Register(&workflow.Plugin{})
 	plugins.Register(&response.Plugin{})
 	plugins.Register(&dbplugin.Plugin{})
+	plugins.Register(&cacheplugin.Plugin{})
 }

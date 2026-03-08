@@ -11,17 +11,17 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/cache/plugin.go`:
+- [x] Create `plugins/cache/plugin.go`:
   - Name: `"cache"`, Prefix: `"cache"`
   - HasServices: true
   - CreateService: parse Redis URL, create go-redis client, configure pool
   - HealthCheck: `client.Ping()`
   - Shutdown: close client
-- [ ] Implement `api.CacheService` interface on the service instance so other plugins can use it
+- [x] Implement `api.CacheService` interface on the service instance so other plugins can use it
 
 **Tests:**
-- [ ] Plugin registers, creates Redis connection, health checks, shuts down
-- [ ] Service implements `CacheService` interface
+- [x] Plugin registers, creates Redis connection, health checks, shuts down
+- [x] Service implements `CacheService` interface
 
 **Acceptance criteria:** Redis connections managed through plugin lifecycle.
 
@@ -33,20 +33,20 @@
 
 **Subtasks:**
 
-- [ ] `cache.get`: resolve `key`, call `client.Get()`, return `{ "value": any }`. Missing key → `NotFoundError`.
-- [ ] `cache.set`: resolve `key`, `value`, `ttl` (optional, seconds). Call `client.Set()`.
-- [ ] `cache.del`: resolve `key`, call `client.Del()`.
-- [ ] `cache.exists`: resolve `key`, call `client.Exists()`, return `{ "exists": bool }`.
-- [ ] All nodes: ServiceDeps `{ "cache": { prefix: "cache", required: true } }`, pass `context.Context` to Redis calls.
-- [ ] Value serialization: store as JSON in Redis, deserialize on read.
+- [x] `cache.get`: resolve `key`, call `client.Get()`, return `{ "value": any }`. Missing key → `NotFoundError`.
+- [x] `cache.set`: resolve `key`, `value`, `ttl` (optional, seconds). Call `client.Set()`.
+- [x] `cache.del`: resolve `key`, call `client.Del()`.
+- [x] `cache.exists`: resolve `key`, call `client.Exists()`, return `{ "exists": bool }`.
+- [x] All nodes: ServiceDeps `{ "cache": { prefix: "cache", required: true } }`, pass `context.Context` to Redis calls.
+- [x] Value serialization: store as JSON in Redis, deserialize on read.
 
 **Tests:**
-- [ ] Set then get round-trip
-- [ ] Get missing key → NotFoundError
-- [ ] TTL expiration — set with TTL, wait, get → NotFoundError
-- [ ] Del removes key
-- [ ] Exists returns true/false correctly
-- [ ] Complex values (maps, arrays) serialize and deserialize
+- [x] Set then get round-trip
+- [x] Get missing key → NotFoundError
+- [x] TTL expiration — set with TTL, wait, get → NotFoundError
+- [x] Del removes key
+- [x] Exists returns true/false correctly
+- [x] Complex values (maps, arrays) serialize and deserialize
 
 **Acceptance criteria:** All cache operations work with Redis.
 
@@ -56,8 +56,8 @@
 
 **Subtasks:**
 
-- [ ] Test: HTTP request → workflow caches a value → subsequent request reads from cache
-- [ ] Test: Cache with TTL → value expires
+- [x] Test: HTTP request → workflow caches a value → subsequent request reads from cache
+- [x] Test: Cache with TTL → value expires
 
 **Acceptance criteria:** Cache works in HTTP request workflows.
 
