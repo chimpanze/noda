@@ -13,14 +13,14 @@
     "check": {
       "type": "control.if",
       "config": {
-        "condition": "{{ nodes.fetch != null }}"
+        "condition": "{{ fetch != nil }}"
       }
     },
     "respond-ok": {
       "type": "response.json",
       "config": {
         "status": 200,
-        "body": "{{ nodes.fetch }}"
+        "body": "{{ fetch }}"
       }
     },
     "respond-not-found": {
@@ -33,7 +33,7 @@
   },
   "edges": [
     { "from": "fetch", "to": "check" },
-    { "from": "check", "output": "true", "to": "respond-ok" },
-    { "from": "check", "output": "false", "to": "respond-not-found" }
+    { "from": "check", "output": "then", "to": "respond-ok" },
+    { "from": "check", "output": "else", "to": "respond-not-found" }
   ]
 }

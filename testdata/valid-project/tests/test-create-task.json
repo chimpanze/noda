@@ -9,20 +9,59 @@
         "description": "A test task"
       },
       "mocks": {
-        "validate": { "output": {} },
+        "validate": {
+          "output": {
+            "title": "Test Task",
+            "description": "A test task"
+          }
+        },
         "insert": {
           "output": {
             "id": "uuid-123",
             "title": "Test Task",
             "status": "todo"
           }
+        },
+        "respond": {
+          "output": {
+            "status": 201,
+            "body": {
+              "id": "uuid-123",
+              "title": "Test Task",
+              "status": "todo"
+            }
+          }
         }
       },
       "expect": {
         "status": "success",
         "output": {
-          "response.status": 201
+          "respond.status": 201
         }
+      }
+    },
+    {
+      "name": "database failure",
+      "input": {
+        "title": "Test Task",
+        "description": "A test task"
+      },
+      "mocks": {
+        "validate": {
+          "output": {
+            "title": "Test Task",
+            "description": "A test task"
+          }
+        },
+        "insert": {
+          "error": { "message": "connection refused" }
+        },
+        "respond": {
+          "output": { "status": 201 }
+        }
+      },
+      "expect": {
+        "status": "success"
       }
     }
   ]

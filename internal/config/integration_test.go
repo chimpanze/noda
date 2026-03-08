@@ -30,7 +30,7 @@ func TestIntegration_ValidProject(t *testing.T) {
 	assert.Len(t, rc.Workers, 1)
 	assert.Len(t, rc.Schedules, 1)
 	assert.Len(t, rc.Connections, 1)
-	assert.Len(t, rc.Tests, 1)
+	assert.True(t, len(rc.Tests) >= 1, "should have at least 1 test")
 }
 
 func TestIntegration_InvalidProject(t *testing.T) {

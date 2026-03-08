@@ -40,6 +40,14 @@ func (r *NodeRegistry) RegisterFromPlugin(plugin api.Plugin) error {
 	return nil
 }
 
+// RegisterFactory registers a single node type with a factory function.
+// This is used by the testing framework to register mock node factories.
+func (r *NodeRegistry) RegisterFactory(nodeType string, factory func(map[string]any) api.NodeExecutor) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.factories[nodeType] = factory
+}
+
 // GetDescriptor looks up a node descriptor by full type (e.g., "db.query").
 func (r *NodeRegistry) GetDescriptor(nodeType string) (api.NodeDescriptor, bool) {
 	r.mu.RLock()
