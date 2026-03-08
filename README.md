@@ -2,9 +2,45 @@
 
 A configuration-driven API runtime for Go. Build production-grade REST APIs, background workers, scheduled jobs, real-time connections, and stateful services entirely through JSON configuration, a visual workflow editor, and Wasm modules.
 
-## Status
+## Prerequisites
 
-**Planning phase.** Architecture fully designed. Implementation not yet started.
+- Go 1.25+
+- Docker and Docker Compose
+- libvips (for image processing, included in Docker image)
+
+## Quick Start
+
+```bash
+# Clone and start with Docker Compose
+docker compose up --build
+
+# Or build and run locally
+make build
+./dist/noda version
+```
+
+## Development
+
+```bash
+make build          # Build binary to dist/noda
+make test           # Run tests with race detector
+make test-coverage  # Generate coverage report
+make lint           # Run golangci-lint
+make fmt            # Format code
+make dev            # Start with Docker Compose
+make clean          # Remove build artifacts
+```
+
+## Project Structure
+
+```
+cmd/noda/           CLI entry point
+pkg/api/            Public interfaces (plugin author contract)
+internal/           Core runtime packages
+plugins/            Plugin implementations
+testdata/           Test fixtures
+docs/               Architecture and planning docs
+```
 
 ## Documentation
 
@@ -40,4 +76,4 @@ Detailed task breakdowns for each milestone are in [docs/milestones/](docs/miles
 
 ## License
 
-TBD
+MIT — see [LICENSE](LICENSE)
