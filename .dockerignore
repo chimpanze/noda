@@ -1,0 +1,14 @@
+.git
+.idea
+.vscode
+testdata
+docs
+dist
+tmp
+*.md
+!go.mod
+!go.sum
+.env
+.env.*
+coverage.out
+coverage.html
