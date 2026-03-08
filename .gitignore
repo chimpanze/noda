@@ -1,0 +1,56 @@
+# Binaries
+/noda
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go build artifacts
+*.test
+*.out
+/vendor/
+
+# Go workspace
+go.work.sum
+
+# Test coverage
+coverage.out
+coverage.html
+
+# Wasm modules (compiled)
+*.wasm
+
+# Editor frontend build
+/editor/node_modules/
+/editor/dist/
+/editor/.vite/
+
+# Environment and secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.crt
+
+# Docker
+docker-compose.override.yml
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test fixtures (generated)
+/testdata/tmp/
+
+# Logs
+*.log
