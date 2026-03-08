@@ -1,0 +1,29 @@
+{
+  "id": "test-create-task",
+  "workflow": "create-task",
+  "tests": [
+    {
+      "name": "creates task successfully",
+      "input": {
+        "title": "Test Task",
+        "description": "A test task"
+      },
+      "mocks": {
+        "validate": { "output": {} },
+        "insert": {
+          "output": {
+            "id": "uuid-123",
+            "title": "Test Task",
+            "status": "todo"
+          }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "response.status": 201
+        }
+      }
+    }
+  ]
+}

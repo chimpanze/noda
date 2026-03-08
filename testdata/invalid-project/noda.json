@@ -1,0 +1,10 @@
+{
+  "services": {
+    "main-db": {
+      "plugin": "postgres"
+    },
+    "app-cache": {
+      "plugin": "cache"
+    }
+  }
+}

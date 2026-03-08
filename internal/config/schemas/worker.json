@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "services": {
+      "type": "object",
+      "properties": {
+        "stream": { "type": "string" }
+      },
+      "required": ["stream"]
+    },
+    "subscribe": {
+      "type": "object",
+      "properties": {
+        "topic": { "type": "string" },
+        "group": { "type": "string" }
+      },
+      "required": ["topic", "group"]
+    },
+    "concurrency": { "type": "integer" },
+    "middleware": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "workflow": { "type": "string" },
+        "input": { "type": "object" }
+      },
+      "required": ["workflow"]
+    },
+    "dead_letter": {
+      "type": "object",
+      "properties": {
+        "topic": { "type": "string" },
+        "after": { "type": "integer" }
+      }
+    }
+  },
+  "required": ["id", "services", "subscribe", "trigger"]
+}

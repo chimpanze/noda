@@ -1,0 +1,51 @@
+{
+  "services": {
+    "main-db": {
+      "plugin": "postgres",
+      "config": {
+        "url": "postgres://localhost:5432/noda_dev?sslmode=disable"
+      }
+    },
+    "read-db": {
+      "plugin": "postgres",
+      "config": {
+        "url": "postgres://localhost:5432/noda_dev?sslmode=disable"
+      }
+    },
+    "app-cache": {
+      "plugin": "cache",
+      "config": {
+        "url": "redis://localhost:6379/0"
+      }
+    },
+    "main-stream": {
+      "plugin": "stream",
+      "config": {
+        "url": "redis://localhost:6379/1"
+      }
+    },
+    "realtime": {
+      "plugin": "pubsub",
+      "config": {
+        "url": "redis://localhost:6379/2"
+      }
+    }
+  },
+  "security": {
+    "jwt": {
+      "secret": "dev-secret-change-in-production",
+      "algorithm": "HS256",
+      "token_lookup": "header:Authorization"
+    }
+  },
+  "middleware_presets": {
+    "authenticated": ["auth.jwt"],
+    "admin_only": ["auth.jwt", "casbin.enforce"]
+  },
+  "route_groups": {
+    "/api/v1/admin": {
+      "middleware_preset": "admin_only",
+      "tags": ["admin"]
+    }
+  }
+}

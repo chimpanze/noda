@@ -1,0 +1,17 @@
+{
+  "id": "process-notifications",
+  "services": {
+    "stream": "main-stream"
+  },
+  "subscribe": {
+    "topic": "task.created",
+    "group": "notification-workers"
+  },
+  "concurrency": 5,
+  "trigger": {
+    "workflow": "create-task",
+    "input": {
+      "task_id": "{{ message.payload.task_id }}"
+    }
+  }
+}

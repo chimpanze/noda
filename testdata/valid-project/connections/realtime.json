@@ -1,0 +1,19 @@
+{
+  "sync": {
+    "pubsub": "realtime"
+  },
+  "endpoints": {
+    "tasks-live": {
+      "type": "websocket",
+      "path": "/ws/tasks",
+      "middleware": ["auth.jwt"],
+      "channels": {
+        "pattern": "tasks.{{ auth.sub }}",
+        "max_per_channel": 5
+      },
+      "ping_interval": "30s",
+      "on_connect": "get-task",
+      "on_disconnect": "get-task"
+    }
+  }
+}

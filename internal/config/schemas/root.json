@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "services": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "plugin": { "type": "string" },
+          "config": { "type": "object" }
+        },
+        "required": ["plugin"]
+      }
+    },
+    "security": {
+      "type": "object",
+      "properties": {
+        "jwt": {
+          "type": "object",
+          "properties": {
+            "secret": { "type": "string" },
+            "algorithm": { "type": "string" },
+            "token_lookup": { "type": "string" }
+          }
+        },
+        "api_keys": { "type": "object" },
+        "casbin": { "type": "object" }
+      }
+    },
+    "middleware_presets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string" }
+      }
+    },
+    "route_groups": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "middleware_preset": { "type": "string" },
+          "middleware": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "tags": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        }
+      }
+    },
+    "wasm_runtimes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "module": { "type": "string" },
+          "tick_rate": { "type": "integer" },
+          "encoding": { "type": "string", "enum": ["json", "msgpack"] },
+          "services": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "connections": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "allow_outbound": {
+            "type": "object",
+            "properties": {
+              "http": { "type": "array", "items": { "type": "string" } },
+              "ws": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "config": { "type": "object" }
+        },
+        "required": ["module", "tick_rate"]
+      }
+    },
+    "connections": {
+      "type": "object",
+      "properties": {
+        "sync": {
+          "type": "object",
+          "properties": {
+            "pubsub": { "type": "string" }
+          },
+          "required": ["pubsub"]
+        },
+        "endpoints": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["websocket", "sse"] },
+              "path": { "type": "string" },
+              "middleware": { "type": "array", "items": { "type": "string" } },
+              "channels": {
+                "type": "object",
+                "properties": {
+                  "pattern": { "type": "string" },
+                  "max_per_channel": { "type": "integer" }
+                }
+              },
+              "ping_interval": { "type": "string" },
+              "max_message_size": { "type": "string" },
+              "retry": { "type": "string" },
+              "heartbeat": { "type": "string" },
+              "on_connect": { "type": "string" },
+              "on_message": { "type": "string" },
+              "on_disconnect": { "type": "string" }
+            },
+            "required": ["type", "path"]
+          }
+        }
+      }
+    }
+  }
+}

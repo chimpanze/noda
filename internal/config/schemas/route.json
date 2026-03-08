@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "method": {
+      "type": "string",
+      "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"]
+    },
+    "path": { "type": "string" },
+    "summary": { "type": "string" },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "middleware": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "params": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "object" }
+      }
+    },
+    "query": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "object" }
+      }
+    },
+    "body": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "object" },
+        "content_type": { "type": "string" }
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "workflow": { "type": "string" },
+        "input": { "type": "object" },
+        "files": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "raw_body": { "type": "boolean" }
+      },
+      "required": ["workflow"]
+    },
+    "response": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "schema": { "type": "object" }
+        }
+      }
+    }
+  },
+  "required": ["id", "method", "path", "trigger"]
+}

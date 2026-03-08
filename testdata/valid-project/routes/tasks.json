@@ -1,0 +1,15 @@
+{
+  "id": "list-tasks",
+  "method": "GET",
+  "path": "/api/v1/tasks",
+  "summary": "List all tasks",
+  "tags": ["tasks"],
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "list-tasks",
+    "input": {
+      "page": "{{ query.page ?? 1 }}",
+      "per_page": "{{ query.per_page ?? 20 }}"
+    }
+  }
+}

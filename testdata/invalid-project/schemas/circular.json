@@ -1,0 +1,14 @@
+{
+  "A": {
+    "type": "object",
+    "properties": {
+      "child": { "$ref": "schemas/B" }
+    }
+  },
+  "B": {
+    "type": "object",
+    "properties": {
+      "child": { "$ref": "schemas/A" }
+    }
+  }
+}

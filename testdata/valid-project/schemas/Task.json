@@ -1,0 +1,14 @@
+{
+  "Task": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
+      "assignee_id": { "type": "string" },
+      "created_at": { "type": "string" }
+    },
+    "required": ["id", "title", "status"]
+  }
+}

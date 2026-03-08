@@ -1,0 +1,11 @@
+{
+  "id": "bad-ref-route",
+  "method": "POST",
+  "path": "/api/missing",
+  "trigger": {
+    "workflow": "non-existent-workflow"
+  },
+  "body": {
+    "schema": { "$ref": "schemas/NonExistent" }
+  }
+}

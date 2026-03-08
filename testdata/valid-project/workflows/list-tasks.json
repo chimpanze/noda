@@ -1,0 +1,37 @@
+{
+  "id": "list-tasks",
+  "name": "List Tasks",
+  "nodes": {
+    "query": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "tasks",
+        "limit": "{{ input.per_page }}",
+        "offset": "{{ (input.page - 1) * input.per_page }}"
+      }
+    },
+    "count": {
+      "type": "db.query",
+      "services": { "database": "read-db" },
+      "config": {
+        "table": "tasks",
+        "count": true
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "items": "{{ nodes.query }}",
+          "total": "{{ nodes.count }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "query", "to": "respond" },
+    { "from": "count", "to": "respond" }
+  ]
+}

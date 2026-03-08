@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "workflow": { "type": "string" },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "input": { "type": "object" },
+          "mocks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "output": {},
+                "output_name": { "type": "string" },
+                "error": {
+                  "type": "object",
+                  "properties": {
+                    "code": { "type": "string" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "expect": {
+            "type": "object",
+            "properties": {
+              "status": { "type": "string", "enum": ["success", "error"] },
+              "output": { "type": "object" },
+              "error_node": { "type": "string" }
+            },
+            "required": ["status"]
+          }
+        },
+        "required": ["name", "expect"]
+      }
+    }
+  },
+  "required": ["id", "workflow", "tests"]
+}

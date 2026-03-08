@@ -1,0 +1,10 @@
+{
+  "services": {
+    "main-db": {
+      "plugin": "postgres",
+      "config": {
+        "url": "postgres://noda:noda@localhost:5432/noda_dev?sslmode=disable"
+      }
+    }
+  }
+}

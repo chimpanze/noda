@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "id": { "type": "string" },
+    "cron": { "type": "string" },
+    "timezone": { "type": "string" },
+    "description": { "type": "string" },
+    "services": {
+      "type": "object",
+      "properties": {
+        "lock": { "type": "string" }
+      }
+    },
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "workflow": { "type": "string" },
+        "input": { "type": "object" }
+      },
+      "required": ["workflow"]
+    },
+    "lock": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "ttl": { "type": "string" }
+      }
+    }
+  },
+  "required": ["id", "cron", "trigger"]
+}

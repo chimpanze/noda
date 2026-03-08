@@ -1,0 +1,16 @@
+{
+  "id": "cleanup-tokens",
+  "cron": "0 */6 * * *",
+  "timezone": "UTC",
+  "services": {
+    "lock": "app-cache"
+  },
+  "trigger": {
+    "workflow": "list-tasks",
+    "input": {}
+  },
+  "lock": {
+    "enabled": true,
+    "ttl": "300s"
+  }
+}

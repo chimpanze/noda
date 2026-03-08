@@ -1,0 +1,20 @@
+{
+  "User": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "email": { "type": "string" },
+      "name": { "type": "string" },
+      "created_at": { "type": "string" }
+    },
+    "required": ["id", "email", "name"]
+  },
+  "Pagination": {
+    "type": "object",
+    "properties": {
+      "page": { "type": "integer" },
+      "per_page": { "type": "integer" },
+      "total": { "type": "integer" }
+    }
+  }
+}
