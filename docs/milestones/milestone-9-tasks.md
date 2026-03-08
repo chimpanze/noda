@@ -11,23 +11,23 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/db/plugin.go`:
+- [x] Create `plugins/db/plugin.go`:
   - Name: `"postgres"`, Prefix: `"db"`
   - HasServices: true
   - CreateService: parse connection URL from config, create GORM connection pool, configure pool settings (max open, max idle, connection lifetime)
   - HealthCheck: `db.Ping()`
   - Shutdown: close connection pool
   - Nodes: registers `db.query`, `db.exec`, `db.create`, `db.update`, `db.delete`
-- [ ] Support multiple instances (main-db, analytics-db) with different connection URLs
-- [ ] Connection pool settings configurable: `max_open`, `max_idle`, `conn_lifetime`
+- [x] Support multiple instances (main-db, analytics-db) with different connection URLs
+- [x] Connection pool settings configurable: `max_open`, `max_idle`, `conn_lifetime`
 
 **Tests:**
-- [ ] Plugin registers with `db` prefix
-- [ ] CreateService establishes connection to PostgreSQL
-- [ ] HealthCheck passes on running PostgreSQL
-- [ ] HealthCheck fails on unreachable PostgreSQL
-- [ ] Shutdown closes connection pool
-- [ ] Multiple instances created with different configs
+- [x] Plugin registers with `db` prefix
+- [x] CreateService establishes connection to PostgreSQL
+- [x] HealthCheck passes on running PostgreSQL
+- [x] HealthCheck fails on unreachable PostgreSQL
+- [x] Shutdown closes connection pool
+- [x] Multiple instances created with different configs
 
 **Acceptance criteria:** PostgreSQL connections managed through the plugin lifecycle.
 
@@ -39,19 +39,19 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/db/query.go`
-- [ ] ConfigSchema: `query` (required expression → string), `params` (optional expression array)
-- [ ] ServiceDeps: `{ "database": { prefix: "db", required: true } }`
-- [ ] Execute: resolve `query` and `params`, call `gorm.Raw(query, params...).Scan(&results)` with `[]map[string]any` destination
-- [ ] Pass `context.Context` to GORM for timeout/cancellation
-- [ ] Return result rows as array of maps
+- [x] Create `plugins/db/query.go`
+- [x] ConfigSchema: `query` (required expression → string), `params` (optional expression array)
+- [x] ServiceDeps: `{ "database": { prefix: "db", required: true } }`
+- [x] Execute: resolve `query` and `params`, call `gorm.Raw(query, params...).Scan(&results)` with `[]map[string]any` destination
+- [x] Pass `context.Context` to GORM for timeout/cancellation
+- [x] Return result rows as array of maps
 
 **Tests:**
-- [ ] SELECT returns rows as `[]map[string]any`
-- [ ] Parameterized query binds values correctly ($1, $2 style)
-- [ ] Empty result returns empty array
-- [ ] SQL error → node error with message
-- [ ] Context cancellation stops the query
+- [x] SELECT returns rows as `[]map[string]any`
+- [x] Parameterized query binds values correctly ($1, $2 style)
+- [x] Empty result returns empty array
+- [x] SQL error → node error with message
+- [x] Context cancellation stops the query
 
 **Acceptance criteria:** Read queries execute with parameter binding.
 
@@ -63,15 +63,15 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/db/exec.go`
-- [ ] ConfigSchema: `query` (required expression), `params` (optional expression array)
-- [ ] Execute: resolve and call `gorm.Exec(query, params...)`, return `{ "rows_affected": N }`
+- [x] Create `plugins/db/exec.go`
+- [x] ConfigSchema: `query` (required expression), `params` (optional expression array)
+- [x] Execute: resolve and call `gorm.Exec(query, params...)`, return `{ "rows_affected": N }`
 
 **Tests:**
-- [ ] INSERT returns rows_affected = 1
-- [ ] UPDATE multiple rows returns correct count
-- [ ] DELETE returns correct count
-- [ ] SQL error → node error
+- [x] INSERT returns rows_affected = 1
+- [x] UPDATE multiple rows returns correct count
+- [x] DELETE returns correct count
+- [x] SQL error → node error
 
 **Acceptance criteria:** Raw SQL write statements execute with result counts.
 
@@ -83,16 +83,16 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/db/create.go`
-- [ ] ConfigSchema: `table` (required expression), `data` (required expression → object)
-- [ ] Execute: resolve `table` and `data`, call `gorm.Table(table).Create(data)`, return created record with generated fields (id, timestamps)
-- [ ] Handle: auto-generated ID returned in output
+- [x] Create `plugins/db/create.go`
+- [x] ConfigSchema: `table` (required expression), `data` (required expression → object)
+- [x] Execute: resolve `table` and `data`, call `gorm.Table(table).Create(data)`, return created record with generated fields (id, timestamps)
+- [x] Handle: auto-generated ID returned in output
 
 **Tests:**
-- [ ] Insert record returns created row with generated ID
-- [ ] Multiple fields inserted correctly
-- [ ] Constraint violation → ConflictError
-- [ ] Null fields handled
+- [x] Insert record returns created row with generated ID
+- [x] Multiple fields inserted correctly
+- [x] Constraint violation → ConflictError
+- [x] Null fields handled
 
 **Acceptance criteria:** Records created with generated fields returned.
 
@@ -104,18 +104,18 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/db/update.go`:
+- [x] Create `plugins/db/update.go`:
   - ConfigSchema: `table`, `data` (fields to update), `condition` (WHERE clause), `params`
   - Execute: `gorm.Table(table).Where(condition, params...).Updates(data)`, return `{ "rows_affected": N }`
-- [ ] Create `plugins/db/delete.go`:
+- [x] Create `plugins/db/delete.go`:
   - ConfigSchema: `table`, `condition`, `params`
   - Execute: `gorm.Table(table).Where(condition, params...).Delete(nil)`, return `{ "rows_affected": N }`
 
 **Tests:**
-- [ ] Update specific rows by condition
-- [ ] Delete specific rows by condition
-- [ ] Condition with params binds correctly
-- [ ] No matching rows → rows_affected = 0
+- [x] Update specific rows by condition
+- [x] Delete specific rows by condition
+- [x] Condition with params binds correctly
+- [x] No matching rows → rows_affected = 0
 
 **Acceptance criteria:** Update and delete with parameterized conditions.
 
@@ -127,22 +127,22 @@
 
 **Subtasks:**
 
-- [ ] Extend `workflow.run` executor (from M5):
+- [x] Extend `workflow.run` executor (from M5):
   - When `transaction: true`: resolve the `database` service slot to get the GORM connection
   - Call `gorm.Transaction(func(tx *gorm.DB) error { ... })`
   - Inside the transaction: create a modified service registry where the `database` slot points to the transaction `tx` instead of the connection pool
   - Execute the sub-workflow with this modified registry
   - If sub-workflow succeeds → transaction commits automatically
   - If sub-workflow fails → transaction rolls back automatically
-- [ ] The sub-workflow's `db.*` nodes receive the transaction connection transparently — they don't know they're inside a transaction
-- [ ] Nested transactions: if a sub-workflow contains another `workflow.run` with `transaction: true`, GORM handles savepoints
+- [x] The sub-workflow's `db.*` nodes receive the transaction connection transparently — they don't know they're inside a transaction
+- [x] Nested transactions: if a sub-workflow contains another `workflow.run` with `transaction: true`, GORM handles savepoints
 
 **Tests:**
-- [ ] Success path: all DB operations commit
-- [ ] Failure path: all DB operations roll back
-- [ ] Multiple db.create inside transaction → all or nothing
-- [ ] Sub-workflow db nodes use transaction connection (verify with rollback test)
-- [ ] Nested transaction with savepoint
+- [x] Success path: all DB operations commit
+- [x] Failure path: all DB operations roll back
+- [x] Multiple db.create inside transaction → all or nothing
+- [x] Sub-workflow db nodes use transaction connection (verify with rollback test)
+- [x] Nested transaction with savepoint
 
 **Acceptance criteria:** Database transactions wrap sub-workflows atomically.
 
@@ -154,29 +154,29 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/migrate/` package
-- [ ] `noda migrate create [name]`:
+- [x] Create `internal/migrate/` package
+- [x] `noda migrate create [name]`:
   - Generate timestamped file pair: `migrations/YYYYMMDDHHMMSS_name.up.sql` and `.down.sql`
   - Files contain a comment placeholder: `-- Write your migration SQL here`
-- [ ] `noda migrate up`:
+- [x] `noda migrate up`:
   - Read all migration files in order
   - Track applied migrations in a `schema_migrations` table
   - Apply all pending `.up.sql` files in order
   - Print each applied migration
-- [ ] `noda migrate down`:
+- [x] `noda migrate down`:
   - Roll back the last applied migration using its `.down.sql` file
   - Update `schema_migrations` table
-- [ ] `noda migrate status`:
+- [x] `noda migrate status`:
   - Show all migrations with applied/pending status
-- [ ] Wire all commands into Cobra CLI
+- [x] Wire all commands into Cobra CLI
 
 **Tests:**
-- [ ] `migrate create` generates correct file names
-- [ ] `migrate up` applies pending migrations in order
-- [ ] `migrate down` rolls back the last migration
-- [ ] `migrate status` shows correct applied/pending
-- [ ] Already-applied migrations are skipped on `migrate up`
-- [ ] `schema_migrations` table created automatically
+- [x] `migrate create` generates correct file names
+- [x] `migrate up` applies pending migrations in order
+- [x] `migrate down` rolls back the last migration
+- [x] `migrate status` shows correct applied/pending
+- [x] Already-applied migrations are skipped on `migrate up`
+- [x] `schema_migrations` table created automatically
 
 **Acceptance criteria:** Full migration lifecycle works from CLI.
 
@@ -188,15 +188,15 @@
 
 **Subtasks:**
 
-- [ ] Create test project matching Use Case 1: task CRUD API
-- [ ] Test: `POST /api/tasks` → creates task in database, returns 201
-- [ ] Test: `GET /api/tasks` → queries tasks with pagination
-- [ ] Test: `GET /api/tasks/:id` → returns task or 404
-- [ ] Test: `PUT /api/tasks/:id` → updates task
-- [ ] Test: `DELETE /api/tasks/:id` → deletes task
-- [ ] Test: JWT auth required on all routes
-- [ ] Test: Parallel queries in list endpoint (count + fetch)
-- [ ] Test: Transaction in create workflow (if applicable)
-- [ ] Write `noda test` files for all task workflows
+- [x] Create test project matching Use Case 1: task CRUD API
+- [x] Test: `POST /api/tasks` → creates task in database, returns 201
+- [x] Test: `GET /api/tasks` → queries tasks with pagination
+- [x] Test: `GET /api/tasks/:id` → returns task or 404
+- [x] Test: `PUT /api/tasks/:id` → updates task
+- [x] Test: `DELETE /api/tasks/:id` → deletes task
+- [x] Test: JWT auth required on all routes
+- [x] Test: Parallel queries in list endpoint (count + fetch)
+- [x] Test: Transaction in create workflow (if applicable)
+- [x] Write `noda test` files for all task workflows
 
 **Acceptance criteria:** Use Case 1 works end-to-end with real PostgreSQL.

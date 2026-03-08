@@ -5,13 +5,16 @@ import (
 	"fmt"
 
 	"github.com/chimpanze/noda/pkg/api"
+	"gorm.io/gorm"
 )
 
 type runDescriptor struct{}
 
 func (d *runDescriptor) Name() string { return "run" }
 func (d *runDescriptor) ServiceDeps() map[string]api.ServiceDep {
-	return nil
+	return map[string]api.ServiceDep{
+		"database": {Prefix: "db", Required: false},
+	}
 }
 func (d *runDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -37,6 +40,12 @@ type SubWorkflowRunner interface {
 	RunSubWorkflow(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext) (outputName string, data any, err error)
 }
 
+// TransactionalRunner extends SubWorkflowRunner with service override support for transactions.
+type TransactionalRunner interface {
+	SubWorkflowRunner
+	RunSubWorkflowWithServices(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext, serviceOverrides map[string]any) (outputName string, data any, err error)
+}
+
 func newRunExecutor(config map[string]any) api.NodeExecutor {
 	// Collect outputs from sub-workflow's workflow.output nodes
 	// For now, use a default set. The engine will inject proper outputs.
@@ -53,7 +62,7 @@ func (e *RunExecutor) SetOutputs(outputs []string) {
 	e.outputs = outputs
 }
 
-func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
+func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	workflowID, _ := config["workflow"].(string)
 
 	if e.Runner == nil {
@@ -78,9 +87,58 @@ func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 		input = resolved
 	}
 
+	// Check if transaction mode is enabled
+	transaction, _ := config["transaction"].(bool)
+	if transaction {
+		return e.executeWithTransaction(ctx, workflowID, input, nCtx, services)
+	}
+
 	outputName, data, err := e.Runner.RunSubWorkflow(ctx, workflowID, input, nCtx)
 	if err != nil {
 		return "", nil, err
+	}
+
+	return outputName, data, nil
+}
+
+// executeWithTransaction wraps the sub-workflow in a database transaction.
+func (e *RunExecutor) executeWithTransaction(ctx context.Context, workflowID string, input any, nCtx api.ExecutionContext, services map[string]any) (string, any, error) {
+	txRunner, ok := e.Runner.(TransactionalRunner)
+	if !ok {
+		return "", nil, fmt.Errorf("workflow.run: runner does not support transactions")
+	}
+
+	// Get database service
+	dbSvc, ok := services["database"]
+	if !ok {
+		return "", nil, fmt.Errorf("workflow.run: transaction requires a database service")
+	}
+	db, ok := dbSvc.(*gorm.DB)
+	if !ok {
+		return "", nil, fmt.Errorf("workflow.run: database service is not a *gorm.DB")
+	}
+
+	var (
+		outputName string
+		data       any
+		runErr     error
+	)
+
+	txErr := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Create service overrides: replace the database service with the transaction
+		overrides := map[string]any{
+			"database": tx,
+		}
+
+		outputName, data, runErr = txRunner.RunSubWorkflowWithServices(ctx, workflowID, input, nCtx, overrides)
+		if runErr != nil {
+			return runErr // triggers rollback
+		}
+		return nil // triggers commit
+	})
+
+	if txErr != nil {
+		return "", nil, txErr
 	}
 
 	return outputName, data, nil

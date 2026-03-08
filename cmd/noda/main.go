@@ -1,17 +1,25 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/server"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/chimpanze/noda/plugins/core/control"
+	"github.com/chimpanze/noda/plugins/core/response"
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
+	dbplugin "github.com/chimpanze/noda/plugins/db"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 )
 
 // Version is set at build time via -ldflags.
@@ -38,6 +46,9 @@ func main() {
 		},
 		newValidateCmd(),
 		newTestCmd(),
+		newStartCmd(),
+		newGenerateCmd(),
+		newMigrateCmd(),
 	)
 
 	placeholders := []struct {
@@ -45,9 +56,6 @@ func main() {
 		short string
 	}{
 		{"dev", "Start in development mode with hot reload"},
-		{"start", "Start the production server"},
-		{"generate", "Generate OpenAPI specs or client SDKs"},
-		{"migrate", "Run database migrations"},
 		{"init", "Initialize a new Noda project"},
 		{"plugin", "Manage plugins"},
 	}
@@ -103,7 +111,6 @@ func newValidateCmd() *cobra.Command {
 
 			// Plugin/service/node startup validation
 			plugins := registry.NewPluginRegistry()
-			// Note: real plugins will be registered here in later milestones
 			_, bootstrapErrs := registry.Bootstrap(rc, plugins)
 			if len(bootstrapErrs) > 0 {
 				for _, e := range bootstrapErrs {
@@ -201,11 +208,280 @@ func newTestCmd() *cobra.Command {
 	return cmd
 }
 
+func newStartCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "start",
+		Short: "Start the production server",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			configDir, _ := cmd.Flags().GetString("config")
+			envFlag, _ := cmd.Flags().GetString("env")
+
+			// Load and validate config
+			rc, errs := config.ValidateAll(configDir, envFlag)
+			if len(errs) > 0 {
+				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
+				os.Exit(1)
+			}
+
+			// Bootstrap plugins and services
+			plugins := registry.NewPluginRegistry()
+			registerCorePlugins(plugins)
+			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
+			if len(bootstrapErrs) > 0 {
+				for _, e := range bootstrapErrs {
+					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
+				}
+				os.Exit(1)
+			}
+
+			// Create and setup server
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
+				os.Exit(1)
+			}
+
+			if err := srv.Setup(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error setting up server: %s\n", err)
+				os.Exit(1)
+			}
+
+			// Register OpenAPI routes
+			if err := srv.RegisterOpenAPIRoutes(); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: OpenAPI generation failed: %s\n", err)
+			}
+
+			// Handle graceful shutdown
+			go func() {
+				sigCh := make(chan os.Signal, 1)
+				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+				<-sigCh
+				fmt.Println("\nShutting down...")
+				_ = srv.Stop()
+			}()
+
+			fmt.Printf("Noda server starting on port %d\n", srv.Port())
+			return srv.Start()
+		},
+	}
+
+	return cmd
+}
+
+func newGenerateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "generate",
+		Short: "Generate OpenAPI specs or client SDKs",
+	}
+
+	openAPICmd := &cobra.Command{
+		Use:   "openapi",
+		Short: "Generate OpenAPI 3.1 specification",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			configDir, _ := cmd.Flags().GetString("config")
+			envFlag, _ := cmd.Flags().GetString("env")
+			output, _ := cmd.Flags().GetString("output")
+
+			// Load and validate config
+			rc, errs := config.ValidateAll(configDir, envFlag)
+			if len(errs) > 0 {
+				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
+				os.Exit(1)
+			}
+
+			doc, err := server.GenerateOpenAPI(rc)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error generating OpenAPI spec: %s\n", err)
+				os.Exit(1)
+			}
+
+			specBytes, err := json.MarshalIndent(doc, "", "  ")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error marshaling spec: %s\n", err)
+				os.Exit(1)
+			}
+
+			if output != "" {
+				if err := os.WriteFile(output, specBytes, 0644); err != nil {
+					fmt.Fprintf(os.Stderr, "Error writing file: %s\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("OpenAPI spec written to %s\n", output)
+			} else {
+				fmt.Println(string(specBytes))
+			}
+
+			return nil
+		},
+	}
+
+	openAPICmd.Flags().String("output", "", "output file path (default: stdout)")
+	cmd.AddCommand(openAPICmd)
+
+	return cmd
+}
+
+func newMigrateCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "migrate",
+		Short: "Run database migrations",
+	}
+
+	cmd.Flags().String("service", "main-db", "database service name from config")
+
+	createCmd := &cobra.Command{
+		Use:   "create [name]",
+		Short: "Create a new migration",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configDir, _ := cmd.Flags().GetString("config")
+			migrationsDir := configDir + "/migrations"
+
+			upFile, downFile, err := migrate.Create(migrationsDir, args[0])
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("Created:\n  %s\n  %s\n", upFile, downFile)
+			return nil
+		},
+	}
+
+	upCmd := &cobra.Command{
+		Use:   "up",
+		Short: "Apply all pending migrations",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			db, configDir, err := getDBFromConfig(cmd)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+
+			ran, err := migrate.Up(db, configDir+"/migrations")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+
+			if len(ran) == 0 {
+				fmt.Println("No pending migrations")
+			} else {
+				for _, m := range ran {
+					fmt.Printf("  Applied: %s\n", m)
+				}
+				fmt.Printf("%d migration(s) applied\n", len(ran))
+			}
+			return nil
+		},
+	}
+
+	downCmd := &cobra.Command{
+		Use:   "down",
+		Short: "Roll back the last migration",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			db, configDir, err := getDBFromConfig(cmd)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+
+			rolled, err := migrate.Down(db, configDir+"/migrations")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("  Rolled back: %s\n", rolled)
+			return nil
+		},
+	}
+
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show migration status",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			db, configDir, err := getDBFromConfig(cmd)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+
+			statuses, err := migrate.Status(db, configDir+"/migrations")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
+				os.Exit(1)
+			}
+
+			if len(statuses) == 0 {
+				fmt.Println("No migrations found")
+				return nil
+			}
+
+			for _, s := range statuses {
+				status := "pending"
+				if s.Applied {
+					status = "applied"
+				}
+				fmt.Printf("  [%s] %s_%s\n", status, s.Version, s.Name)
+			}
+			return nil
+		},
+	}
+
+	cmd.AddCommand(createCmd, upCmd, downCmd, statusCmd)
+	return cmd
+}
+
+func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
+	configDir, _ := cmd.Flags().GetString("config")
+	envFlag, _ := cmd.Flags().GetString("env")
+	serviceName, _ := cmd.Flags().GetString("service")
+
+	rc, errs := config.ValidateAll(configDir, envFlag)
+	if len(errs) > 0 {
+		return nil, "", fmt.Errorf("config validation failed")
+	}
+
+	// Create the database service from config
+	servicesConfig, ok := rc.Root["services"].(map[string]any)
+	if !ok {
+		return nil, "", fmt.Errorf("no services configured")
+	}
+
+	svcConfig, ok := servicesConfig[serviceName].(map[string]any)
+	if !ok {
+		return nil, "", fmt.Errorf("service %q not found in config", serviceName)
+	}
+
+	plugin := &dbplugin.Plugin{}
+	svc, err := plugin.CreateService(svcConfig)
+	if err != nil {
+		return nil, "", fmt.Errorf("create database service: %w", err)
+	}
+
+	db, ok := svc.(*gorm.DB)
+	if !ok {
+		return nil, "", fmt.Errorf("service %q is not a database", serviceName)
+	}
+
+	return db, configDir, nil
+}
+
 func buildCoreNodeRegistry() *registry.NodeRegistry {
 	nodeReg := registry.NewNodeRegistry()
 	_ = nodeReg.RegisterFromPlugin(&control.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&transform.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&util.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&workflow.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&response.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&dbplugin.Plugin{})
 	return nodeReg
+}
+
+func registerCorePlugins(plugins *registry.PluginRegistry) {
+	plugins.Register(&control.Plugin{})
+	plugins.Register(&transform.Plugin{})
+	plugins.Register(&util.Plugin{})
+	plugins.Register(&workflow.Plugin{})
+	plugins.Register(&response.Plugin{})
+	plugins.Register(&dbplugin.Plugin{})
 }
