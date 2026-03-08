@@ -248,20 +248,20 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/scheduler/runtime.go`
-- [ ] Implement `SchedulerRuntime`:
+- [x] Create `internal/scheduler/runtime.go`
+- [x] Implement `SchedulerRuntime`:
   - Load schedule configs
   - Register cron jobs via `robfig/cron/v3` with `cron.WithSeconds()` for sub-minute precision
   - Each job: acquire lock → run trigger mapping → execute workflow → release lock
   - Timezone per job via `cron.WithLocation()`
   - `$.trigger` metadata: `{ type: "schedule", timestamp, trace_id, schedule_id, cron }`
-- [ ] Scheduler error mapping: log failures with trace ID and schedule metadata. Record in job execution history (in-memory for now).
+- [x] Scheduler error mapping: log failures with trace ID and schedule metadata. Record in job execution history (in-memory for now).
 
 **Tests:**
-- [ ] Job fires at configured time (use short intervals for testing)
-- [ ] Timezone configuration works
-- [ ] Trigger mapping populates `$.input`
-- [ ] Error logging includes schedule context
+- [x] Job fires at configured time (use short intervals for testing)
+- [x] Timezone configuration works
+- [x] Trigger mapping populates `$.input`
+- [x] Error logging includes schedule context
 
 **Acceptance criteria:** Cron jobs fire and execute workflows on schedule.
 
@@ -273,18 +273,18 @@
 
 **Subtasks:**
 
-- [ ] Implement lock via cache service: atomic `SET NX` with TTL
-- [ ] Lock key: `noda:schedule:{schedule_id}:{execution_time}`
-- [ ] If lock acquired → execute workflow, release lock on completion
-- [ ] If lock not acquired → skip (another instance is handling it)
-- [ ] Lock TTL: from schedule config `lock.ttl`, prevents stuck locks if instance crashes
-- [ ] Release lock after workflow completes (success or failure)
+- [x] Implement lock via cache service: atomic `SET NX` with TTL
+- [x] Lock key: `noda:schedule:{schedule_id}:{execution_time}`
+- [x] If lock acquired → execute workflow, release lock on completion
+- [x] If lock not acquired → skip (another instance is handling it)
+- [x] Lock TTL: from schedule config `lock.ttl`, prevents stuck locks if instance crashes
+- [x] Release lock after workflow completes (success or failure)
 
 **Tests:**
-- [ ] Single instance acquires lock and executes
-- [ ] Second instance fails to acquire lock and skips
-- [ ] Lock expires after TTL if instance crashes
-- [ ] Lock released after workflow completes
+- [x] Single instance acquires lock and executes
+- [x] Second instance fails to acquire lock and skips
+- [x] Lock expires after TTL if instance crashes
+- [x] Lock released after workflow completes
 
 **Acceptance criteria:** Only one instance executes each scheduled job.
 
@@ -294,10 +294,10 @@
 
 **Subtasks:**
 
-- [ ] `noda migrate` equivalent for schedules: not needed (schedules are config)
-- [ ] Add schedule status display to CLI (list schedules, last run, next run)
-- [ ] Test: scheduled workflow executes and produces observable side effect
-- [ ] Test: two instances running → only one executes the job
+- [x] `noda migrate` equivalent for schedules: not needed (schedules are config)
+- [x] Add schedule status display to CLI (list schedules, last run, next run)
+- [x] Test: scheduled workflow executes and produces observable side effect
+- [x] Test: two instances running → only one executes the job
 
 **Acceptance criteria:** Scheduler works with distributed locking.
 

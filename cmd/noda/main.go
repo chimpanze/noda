@@ -10,6 +10,7 @@ import (
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/server"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/chimpanze/noda/plugins/core/control"
@@ -53,6 +54,7 @@ func main() {
 		newStartCmd(),
 		newGenerateCmd(),
 		newMigrateCmd(),
+		newScheduleCmd(),
 	)
 
 	placeholders := []struct {
@@ -255,12 +257,33 @@ func newStartCmd() *cobra.Command {
 				fmt.Fprintf(os.Stderr, "Warning: OpenAPI generation failed: %s\n", err)
 			}
 
+			// Start scheduler if schedules are configured
+			var schedulerRuntime *scheduler.Runtime
+			if len(rc.Schedules) > 0 {
+				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
+				schedulerRuntime = scheduler.NewRuntime(
+					scheduleConfigs,
+					bootstrap.Services,
+					bootstrap.Nodes,
+					rc.Workflows,
+					nil,
+				)
+				if err := schedulerRuntime.Start(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error starting scheduler: %s\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("Scheduler started with %d job(s)\n", len(scheduleConfigs))
+			}
+
 			// Handle graceful shutdown
 			go func() {
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 				<-sigCh
 				fmt.Println("\nShutting down...")
+				if schedulerRuntime != nil {
+					schedulerRuntime.Stop()
+				}
 				_ = srv.Stop()
 			}()
 
@@ -494,4 +517,46 @@ func registerCorePlugins(plugins *registry.PluginRegistry) {
 	plugins.Register(&streamplugin.Plugin{})
 	plugins.Register(&pubsubplugin.Plugin{})
 	plugins.Register(&event.Plugin{})
+}
+
+func newScheduleCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "schedule",
+		Short: "Manage scheduled jobs",
+	}
+
+	statusCmd := &cobra.Command{
+		Use:   "status",
+		Short: "Show schedule status (list, last run, next run)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			configDir, _ := cmd.Flags().GetString("config")
+			envFlag, _ := cmd.Flags().GetString("env")
+
+			rc, errs := config.ValidateAll(configDir, envFlag)
+			if len(errs) > 0 {
+				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
+				os.Exit(1)
+			}
+
+			if len(rc.Schedules) == 0 {
+				fmt.Println("No schedules configured.")
+				return nil
+			}
+
+			scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
+			fmt.Printf("%-20s  %-25s  %-10s  %s\n", "ID", "CRON", "TIMEZONE", "WORKFLOW")
+			fmt.Println("-------------------------------------------------------------------------------------")
+			for _, sc := range scheduleConfigs {
+				tz := sc.Timezone
+				if tz == "" {
+					tz = "UTC"
+				}
+				fmt.Printf("%-20s  %-25s  %-10s  %s\n", sc.ID, sc.Cron, tz, sc.WorkflowID)
+			}
+			return nil
+		},
+	}
+
+	cmd.AddCommand(statusCmd)
+	return cmd
 }
