@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -92,6 +93,17 @@ func newValidateCmd() *cobra.Command {
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
 				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
+				os.Exit(1)
+			}
+
+			// Plugin/service/node startup validation
+			plugins := registry.NewPluginRegistry()
+			// Note: real plugins will be registered here in later milestones
+			_, bootstrapErrs := registry.Bootstrap(rc, plugins)
+			if len(bootstrapErrs) > 0 {
+				for _, e := range bootstrapErrs {
+					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
+				}
 				os.Exit(1)
 			}
 
