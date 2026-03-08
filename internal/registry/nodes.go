@@ -78,6 +78,20 @@ func (r *NodeRegistry) AllTypes() []string {
 	return result
 }
 
+// OutputsForType returns the valid outputs for a node type by creating a temporary executor.
+// This implements engine.NodeOutputResolver.
+func (r *NodeRegistry) OutputsForType(nodeType string) ([]string, bool) {
+	r.mu.RLock()
+	factory, ok := r.factories[nodeType]
+	r.mu.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+	executor := factory(nil)
+	return executor.Outputs(), true
+}
+
 // TypesByPrefix returns node types matching the given prefix.
 func (r *NodeRegistry) TypesByPrefix(prefix string) []string {
 	r.mu.RLock()

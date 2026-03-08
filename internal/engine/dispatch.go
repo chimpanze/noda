@@ -60,6 +60,9 @@ func dispatchNode(
 		return "", fmt.Errorf("node %q: %w", node.ID, execErr)
 	}
 
+	// Intercept HTTPResponse if present
+	execCtx.InterceptResponse(data)
+
 	// Store output
 	execCtx.SetOutput(node.ID, data)
 	if output == "" {

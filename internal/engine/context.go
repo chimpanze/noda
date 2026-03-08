@@ -10,6 +10,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// ResponseInterceptor is called when a node produces an HTTPResponse.
+type ResponseInterceptor func(resp *api.HTTPResponse)
+
 // ExecutionContextImpl implements api.ExecutionContext for workflow execution.
 type ExecutionContextImpl struct {
 	input   any
@@ -23,8 +26,9 @@ type ExecutionContextImpl struct {
 	compiler *expr.Compiler
 	logger   *slog.Logger
 
-	workflowID  string
-	currentNode atomic.Value // set during node execution
+	workflowID          string
+	currentNode         atomic.Value // set during node execution
+	responseInterceptor ResponseInterceptor
 }
 
 // NewExecutionContext creates a new execution context for a workflow run.
@@ -177,6 +181,21 @@ func (c *ExecutionContextImpl) RegisterAlias(nodeID, alias string) {
 // SetCurrentNode sets the current node ID for logging context.
 func (c *ExecutionContextImpl) SetCurrentNode(nodeID string) {
 	c.currentNode.Store(nodeID)
+}
+
+// SetResponseInterceptor sets a callback for HTTPResponse interception.
+func (c *ExecutionContextImpl) SetResponseInterceptor(fn ResponseInterceptor) {
+	c.responseInterceptor = fn
+}
+
+// InterceptResponse checks if data is an HTTPResponse and notifies the interceptor.
+func (c *ExecutionContextImpl) InterceptResponse(data any) {
+	if c.responseInterceptor == nil {
+		return
+	}
+	if resp, ok := data.(*api.HTTPResponse); ok {
+		c.responseInterceptor(resp)
+	}
 }
 
 // EvictOutput removes an output from the context.
