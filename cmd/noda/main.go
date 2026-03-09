@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"syscall"
 	"time"
@@ -425,14 +426,6 @@ func newDevCmd() *cobra.Command {
 			// Register trace WebSocket endpoint (dev only)
 			trace.RegisterTraceWebSocket(srv.App(), hub, logger)
 
-			// Serve editor placeholder
-			srv.App().Get("/editor", func(c fiber.Ctx) error {
-				return c.SendString("Noda Visual Editor — coming soon")
-			})
-			srv.App().Get("/editor/*", func(c fiber.Ctx) error {
-				return c.SendString("Noda Visual Editor — coming soon")
-			})
-
 			// Start scheduler if configured
 			var schedulerRuntime *scheduler.Runtime
 			if len(rc.Schedules) > 0 {
@@ -463,6 +456,29 @@ func newDevCmd() *cobra.Command {
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
 				logger.Info("config reloaded — new workflows and routes will apply to new requests")
 			})
+
+			// Register editor API endpoints (dev mode only)
+			editorAPI := server.NewEditorAPI(configDir, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services)
+			editorAPI.Register(srv.App())
+
+			// Serve editor static files (or placeholder if not built yet)
+			editorDist := filepath.Join("editor", "dist")
+			if info, err := os.Stat(editorDist); err == nil && info.IsDir() {
+				srv.App().Get("/editor/*", func(c fiber.Ctx) error {
+					file := c.Params("*")
+					if file == "" {
+						file = "index.html"
+					}
+					return c.SendFile(filepath.Join(editorDist, file))
+				})
+			} else {
+				srv.App().Get("/editor", func(c fiber.Ctx) error {
+					return c.SendString("Noda Visual Editor — run 'npm run build' in editor/ to enable")
+				})
+				srv.App().Get("/editor/*", func(c fiber.Ctx) error {
+					return c.SendString("Noda Visual Editor — run 'npm run build' in editor/ to enable")
+				})
+			}
 
 			// Set up file watcher
 			watcher, err := devmode.NewWatcher(reloader.HandleChange, logger)
