@@ -5,7 +5,6 @@ import type {
   WorkflowConfig,
   WorkflowNode,
   WorkflowEdge,
-  TraceEvent,
   ValidationError,
   NodeDescriptor,
 } from "@/types";
@@ -59,11 +58,6 @@ interface EditorState {
   saveWorkflow: () => Promise<void>;
   _saveTimer: ReturnType<typeof setTimeout> | null;
   _debounceSave: () => void;
-
-  // Traces
-  traces: TraceEvent[];
-  addTrace: (event: TraceEvent) => void;
-  clearTraces: () => void;
 
   // Validation
   validationErrors: ValidationError[];
@@ -259,12 +253,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ saveStatus: "error" });
     }
   },
-
-  // Traces
-  traces: [],
-  addTrace: (event) =>
-    set((state) => ({ traces: [...state.traces.slice(-99), event] })),
-  clearTraces: () => set({ traces: [] }),
 
   // Validation
   validationErrors: [],

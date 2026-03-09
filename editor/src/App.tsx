@@ -6,10 +6,11 @@ import { WorkflowList } from "@/components/layout/WorkflowList";
 import { WorkflowCanvas } from "@/components/canvas/WorkflowCanvas";
 import { NodePalette } from "@/components/canvas/NodePalette";
 import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
-import { DebugPanel } from "@/components/panels/DebugPanel";
+import { TracePanel } from "@/components/panels/TracePanel";
 import { useEditorStore } from "@/stores/editor";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useValidation } from "@/hooks/useValidation";
+import { connectTrace, disconnectTrace } from "@/api/traceClient";
 
 export default function App() {
   const activeView = useEditorStore((s) => s.activeView);
@@ -21,6 +22,8 @@ export default function App() {
   useEffect(() => {
     loadFiles();
     loadNodeTypes();
+    connectTrace();
+    return () => disconnectTrace();
   }, [loadFiles, loadNodeTypes]);
 
   useKeyboardShortcuts();
@@ -64,9 +67,9 @@ export default function App() {
             )}
           </div>
 
-          {/* Bottom debug panel */}
-          <div className="h-36 border-t border-gray-200 bg-white">
-            <DebugPanel />
+          {/* Bottom trace panel */}
+          <div className="h-44 border-t border-gray-200 bg-white">
+            <TracePanel />
           </div>
         </div>
       </div>

@@ -78,13 +78,43 @@ export interface RetryConfig {
   backoff?: string;
 }
 
-// Trace events
+// Trace events (matching Go internal/trace/events.go)
+export type TraceEventType =
+  | "workflow:started"
+  | "workflow:completed"
+  | "workflow:failed"
+  | "node:entered"
+  | "node:completed"
+  | "node:failed"
+  | "edge:followed"
+  | "retry:attempted";
+
 export interface TraceEvent {
-  type: string;
-  workflow_id: string;
+  type: TraceEventType;
+  timestamp: string;
   trace_id: string;
-  timestamp?: string;
-  [key: string]: unknown;
+  workflow_id: string;
+  node_id?: string;
+  node_type?: string;
+  output?: string;
+  duration?: string;
+  error?: string;
+  from_node?: string;
+  to_node?: string;
+  data?: unknown;
+}
+
+export type NodeExecState = "idle" | "running" | "completed" | "failed";
+
+export interface Execution {
+  traceId: string;
+  workflowId: string;
+  status: "running" | "completed" | "failed";
+  startedAt: string;
+  duration?: string;
+  events: TraceEvent[];
+  nodeStates: Map<string, NodeExecState>;
+  nodeData: Map<string, { output?: string; data?: unknown; error?: string; duration?: string }>;
 }
 
 export type ViewType =

@@ -1,7 +1,9 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, Loader2 } from "lucide-react";
 import { getCategoryStyle, getOutputColor } from "./nodeStyles";
 import { useEditorStore } from "@/stores/editor";
+import { useTraceStore } from "@/stores/trace";
+import type { NodeExecState } from "@/types";
 
 export interface NodaNodeData {
   nodeType: string;
@@ -12,23 +14,39 @@ export interface NodaNodeData {
   [key: string]: unknown;
 }
 
+const execStateStyles: Record<NodeExecState, string> = {
+  idle: "",
+  running: "ring-2 ring-blue-400 ring-offset-1 animate-pulse",
+  completed: "ring-2 ring-green-400 ring-offset-1",
+  failed: "ring-2 ring-red-400 ring-offset-1",
+};
+
 export function NodaNode({ data, selected, id }: NodeProps) {
   const nodeData = data as unknown as NodaNodeData;
   const style = getCategoryStyle(nodeData.nodeType);
   const outputs = nodeData.outputs ?? ["success", "error"];
   const validationErrors = useEditorStore((s) => s.validationErrors);
+  const activeTraceId = useTraceStore((s) => s.activeTraceId);
+  const getNodeState = useTraceStore((s) => s.getNodeState);
 
-  // Check if this node has validation errors
+  // Validation errors
   const nodeErrors = validationErrors.filter(
     (e) => e.path?.includes(id) || e.message?.includes(id)
   );
-  const hasError = nodeErrors.length > 0;
+  const hasValidationError = nodeErrors.length > 0;
+
+  // Execution state
+  const execState: NodeExecState = activeTraceId
+    ? getNodeState(activeTraceId, id)
+    : "idle";
+
+  const execRing = execStateStyles[execState];
 
   return (
     <div
       className={`rounded-lg border-2 shadow-sm min-w-[160px] ${style.bg} ${
-        hasError ? "border-red-400" : style.border
-      } ${selected ? "ring-2 ring-blue-400 ring-offset-1" : ""}`}
+        hasValidationError ? "border-red-400" : style.border
+      } ${selected && execState === "idle" ? "ring-2 ring-blue-400 ring-offset-1" : ""} ${execRing}`}
     >
       {/* Input handle */}
       <Handle
@@ -43,11 +61,19 @@ export function NodaNode({ data, selected, id }: NodeProps) {
           <div className={`text-xs font-mono ${style.iconColor}`}>
             {nodeData.nodeType}
           </div>
-          {hasError && (
-            <span title={nodeErrors.map((e) => e.message).join("\n")}>
+          <div className="flex items-center gap-1">
+            {execState === "running" && (
+              <Loader2 size={14} className="text-blue-500 animate-spin" />
+            )}
+            {execState === "failed" && (
               <AlertCircle size={14} className="text-red-500" />
-            </span>
-          )}
+            )}
+            {hasValidationError && execState !== "failed" && (
+              <span title={nodeErrors.map((e) => e.message).join("\n")}>
+                <AlertCircle size={14} className="text-red-500" />
+              </span>
+            )}
+          </div>
         </div>
         <div className={`text-sm font-medium ${style.text}`}>
           {nodeData.alias ?? nodeData.label}
@@ -80,7 +106,6 @@ export function NodaNode({ data, selected, id }: NodeProps) {
               }}
               isConnectable
             />
-            {/* Invisible absolutely positioned handle for edge routing */}
             <Handle
               type="source"
               position={Position.Right}
@@ -100,7 +125,6 @@ export function NodaNode({ data, selected, id }: NodeProps) {
 }
 
 function summarizeConfig(config: Record<string, unknown>): string {
-  // Show the most relevant config value as a preview
   for (const key of ["query", "sql", "condition", "expression", "url", "template", "key", "channel", "topic"]) {
     if (key in config && typeof config[key] === "string") {
       const val = config[key] as string;
