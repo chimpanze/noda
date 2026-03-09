@@ -123,6 +123,7 @@ func newValidateCmd() *cobra.Command {
 
 			// Plugin/service/node startup validation
 			plugins := registry.NewPluginRegistry()
+			registerCorePlugins(plugins)
 			_, bootstrapErrs := registry.Bootstrap(rc, plugins)
 			if len(bootstrapErrs) > 0 {
 				for _, e := range bootstrapErrs {

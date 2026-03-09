@@ -76,25 +76,6 @@ const nodaJSON = `{
     "read_timeout": "30s",
     "write_timeout": "30s",
     "body_limit": 5242880
-  },
-  "security": {
-    "jwt": {
-      "secret": "$env(JWT_SECRET)",
-      "issuer": "noda"
-    }
-  },
-  "services": {
-    "main-db": {
-      "plugin": "db",
-      "dsn": "$env(DATABASE_URL)"
-    },
-    "app-cache": {
-      "plugin": "cache",
-      "url": "$env(REDIS_URL)"
-    }
-  },
-  "middleware_presets": {
-    "authenticated": ["auth.jwt"]
   }
 }
 `
