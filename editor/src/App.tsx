@@ -11,6 +11,10 @@ import { RoutesView } from "@/components/views/RoutesView";
 import { ServicesView } from "@/components/views/ServicesView";
 import { SchemasView } from "@/components/views/SchemasView";
 import { TestsView } from "@/components/views/TestsView";
+import { ShortcutModal } from "@/components/panels/ShortcutModal";
+import { ToastContainer } from "@/components/panels/Toast";
+import { ConnectionOverlay } from "@/components/panels/ConnectionOverlay";
+import { ValidationSummary } from "@/components/panels/ValidationSummary";
 import { useEditorStore } from "@/stores/editor";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useValidation } from "@/hooks/useValidation";
@@ -30,7 +34,7 @@ export default function App() {
     return () => disconnectTrace();
   }, [loadFiles, loadNodeTypes]);
 
-  useKeyboardShortcuts();
+  const { showShortcuts, closeShortcuts } = useKeyboardShortcuts();
   useValidation();
 
   return (
@@ -79,12 +83,18 @@ export default function App() {
             )}
           </div>
 
+          {/* Validation summary */}
+          <ValidationSummary />
+
           {/* Bottom trace panel */}
           <div className="h-44 border-t border-gray-200 bg-white">
             <TracePanel />
           </div>
         </div>
       </div>
+      {showShortcuts && <ShortcutModal onClose={closeShortcuts} />}
+      <ConnectionOverlay />
+      <ToastContainer />
     </ReactFlowProvider>
   );
 }

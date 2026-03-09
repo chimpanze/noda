@@ -10,6 +10,7 @@ import type {
 } from "@/types";
 import * as api from "@/api/client";
 import * as history from "@/stores/history";
+import { showToast } from "@/components/panels/Toast";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -251,6 +252,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }, 2000);
     } catch {
       set({ saveStatus: "error" });
+      showToast({
+        type: "error",
+        message: "Failed to save workflow",
+        action: { label: "Retry", onClick: () => get().saveWorkflow() },
+      });
     }
   },
 

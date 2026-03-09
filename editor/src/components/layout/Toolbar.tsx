@@ -1,6 +1,9 @@
-import { Undo2, Redo2, LayoutDashboard, Save } from "lucide-react";
+import { useRef, useState } from "react";
+import { Undo2, Redo2, LayoutDashboard, Save, Download, Upload, FolderDown } from "lucide-react";
 import { useEditorStore } from "@/stores/editor";
 import { autoLayout } from "@/components/canvas/autoLayout";
+import { exportWorkflow, importWorkflow, exportAllAsZip } from "@/utils/importExport";
+import * as api from "@/api/client";
 
 export function Toolbar() {
   const undo = useEditorStore((s) => s.undo);
@@ -8,13 +11,51 @@ export function Toolbar() {
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
   const saveStatus = useEditorStore((s) => s.saveStatus);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
+  const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
   const setWorkflow = useEditorStore((s) => s.setWorkflow);
   const validationErrors = useEditorStore((s) => s.validationErrors);
+  const files = useEditorStore((s) => s.files);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const onAutoLayout = async () => {
     if (!activeWorkflow) return;
     const wf = await autoLayout(activeWorkflow);
     setWorkflow(wf);
+  };
+
+  const onExport = () => {
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    const name = activeWorkflowPath.replace(/^.*\//, "").replace(/\.json$/, "");
+    exportWorkflow(activeWorkflow, `${name}.json`);
+  };
+
+  const onImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError(null);
+    try {
+      const wf = await importWorkflow(file);
+      setWorkflow(wf);
+    } catch (err) {
+      setImportError(err instanceof Error ? err.message : "Import failed");
+    }
+    // Reset input so same file can be re-imported
+    e.target.value = "";
+  };
+
+  const onExportAll = () => {
+    if (!files) return;
+    const allPaths = [
+      ...(files.workflows ?? []),
+      ...(files.routes ?? []),
+      ...(files.schemas ?? []),
+      ...(files.workers ?? []),
+      ...(files.schedules ?? []),
+      ...(files.connections ?? []),
+      ...(files.tests ?? []),
+    ];
+    exportAllAsZip(allPaths, api.readFile);
   };
 
   return (
@@ -34,6 +75,26 @@ export function Toolbar() {
         onClick={saveWorkflow}
         disabled={!activeWorkflow}
       />
+      <div className="w-px h-5 bg-gray-300 mx-1" />
+      <ToolButton
+        icon={<Download size={16} />}
+        title="Export workflow JSON"
+        onClick={onExport}
+        disabled={!activeWorkflow}
+      />
+      <ToolButton
+        icon={<Upload size={16} />}
+        title="Import workflow JSON"
+        onClick={() => fileInputRef.current?.click()}
+        disabled={!activeWorkflow}
+      />
+      <ToolButton
+        icon={<FolderDown size={16} />}
+        title="Export all as ZIP"
+        onClick={onExportAll}
+        disabled={!files}
+      />
+      <input ref={fileInputRef} type="file" accept=".json" onChange={onImport} className="hidden" />
 
       <div className="flex-1" />
 
@@ -49,6 +110,13 @@ export function Toolbar() {
           }`}
         >
           {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : "Error"}
+        </span>
+      )}
+
+      {/* Import error */}
+      {importError && (
+        <span className="text-xs text-red-500 mr-2 cursor-pointer" onClick={() => setImportError(null)} title="Click to dismiss">
+          Import: {importError}
         </span>
       )}
 
