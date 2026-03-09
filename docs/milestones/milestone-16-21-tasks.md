@@ -187,18 +187,18 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/server/casbin.go`
-- [ ] Load Casbin model definition from root config `security.casbin.model`
-- [ ] Load policies from root config `security.casbin.policies` or policy file path
-- [ ] Create Fiber middleware: extract subject from `$.auth`, object from request path, action from HTTP method
-- [ ] Enforce: permitted → continue, denied → 403 with standardized error
-- [ ] Support multi-tenant RBAC: `{subject, tenant, object, action}` model where tenant comes from path parameter (e.g., workspace_id)
+- [x] Create `internal/server/casbin.go`
+- [x] Load Casbin model definition from root config `security.casbin.model`
+- [x] Load policies from root config `security.casbin.policies` or policy file path
+- [x] Create Fiber middleware: extract subject from `$.auth`, object from request path, action from HTTP method
+- [x] Enforce: permitted → continue, denied → 403 with standardized error
+- [x] Support multi-tenant RBAC: `{subject, tenant, object, action}` model where tenant comes from path parameter (e.g., workspace_id)
 
 **Tests:**
-- [ ] Permitted request passes
-- [ ] Denied request returns 403
-- [ ] Multi-tenant: user allowed in workspace A, denied in workspace B
-- [ ] Admin role has broader access than member role
+- [x] Permitted request passes
+- [x] Denied request returns 403
+- [x] Multi-tenant: user allowed in workspace A, denied in workspace B
+- [x] Admin role has broader access than member role
 
 **Acceptance criteria:** Casbin enforces authorization on routes.
 
@@ -210,7 +210,7 @@
 
 **Subtasks:**
 
-- [ ] Implement Casbin watcher using Redis PubSub
+- [ ] Implement Casbin watcher using Redis PubSub (deferred to M20 hot reload)
 - [ ] When policies are updated on one instance → publish update notification
 - [ ] Other instances receive notification → reload policies
 - [ ] Policy updates can come from: config file change (hot reload) or API endpoint (future)

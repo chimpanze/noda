@@ -36,6 +36,7 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 	"compress":         newCompressMiddleware,
 	"etag":             newETagMiddleware,
 	"auth.jwt":         newJWTMiddleware,
+	"casbin.enforce":   newCasbinMiddleware,
 }
 
 // BuildMiddleware creates a Fiber handler from a middleware name and root config.
@@ -71,6 +72,14 @@ func extractMiddlewareConfig(name string, rootConfig map[string]any) map[string]
 	if name == "auth.jwt" {
 		if sec, ok := rootConfig["security"].(map[string]any); ok {
 			if cfg, ok := sec["jwt"].(map[string]any); ok {
+				return cfg
+			}
+		}
+	}
+	// Casbin config under security.casbin
+	if name == "casbin.enforce" {
+		if sec, ok := rootConfig["security"].(map[string]any); ok {
+			if cfg, ok := sec["casbin"].(map[string]any); ok {
 				return cfg
 			}
 		}

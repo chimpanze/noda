@@ -4,7 +4,6 @@
 package deps
 
 import (
-	_ "github.com/casbin/casbin/v2"
 	_ "github.com/expr-lang/expr"
 	_ "github.com/extism/go-sdk"
 	_ "github.com/fsnotify/fsnotify"
