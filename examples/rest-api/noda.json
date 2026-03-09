@@ -3,13 +3,13 @@
     "main-db": {
       "plugin": "postgres",
       "config": {
-        "url": "postgres://noda:noda@localhost:5432/noda_example?sslmode=disable"
+        "url": "{{ $env('DATABASE_URL') }}"
       }
     }
   },
   "security": {
     "jwt": {
-      "secret": "example-secret-change-in-production",
+      "secret": "{{ $env('JWT_SECRET') }}",
       "algorithm": "HS256",
       "token_lookup": "header:Authorization"
     }

@@ -9,10 +9,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    command: ["start", "--config", "/app/config", "--server"]
     env_file:
       - .env
     volumes:
-      - ./config:/app/config
+      - ./examples/rest-api:/app/config
 
   postgres:
     image: postgres:16-alpine

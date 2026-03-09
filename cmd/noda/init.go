@@ -76,6 +76,16 @@ const nodaJSON = `{
     "read_timeout": "30s",
     "write_timeout": "30s",
     "body_limit": 5242880
+  },
+  "services": {
+    "db": {
+      "plugin": "postgres",
+      "dsn": "${DATABASE_URL}"
+    },
+    "cache": {
+      "plugin": "redis",
+      "url": "${REDIS_URL}"
+    }
   }
 }
 `

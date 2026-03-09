@@ -30,9 +30,10 @@ func (s *Server) RegisterEditorUI() {
 		return
 	}
 
-	// Redirect /editor to /editor/
 	s.app.Get("/editor", func(c fiber.Ctx) error {
-		return c.Redirect().Status(fiber.StatusMovedPermanently).To("/editor/")
+		c.Set("Content-Type", "text/html; charset=utf-8")
+		c.Set("Cache-Control", "no-cache")
+		return c.Send(indexHTML)
 	})
 
 	s.app.Get("/editor/*", func(c fiber.Ctx) error {

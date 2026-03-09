@@ -1,6 +1,8 @@
 .git
 .idea
 .vscode
+editor/node_modules
+editorfs/dist
 testdata
 docs
 dist
