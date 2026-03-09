@@ -1,18 +1,23 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/devmode"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/server"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
+	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/response"
 	"github.com/chimpanze/noda/plugins/core/transform"
@@ -32,6 +37,7 @@ import (
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
+	"github.com/gofiber/fiber/v3"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
@@ -64,13 +70,13 @@ func main() {
 		newGenerateCmd(),
 		newMigrateCmd(),
 		newScheduleCmd(),
+		newDevCmd(),
 	)
 
 	placeholders := []struct {
 		use   string
 		short string
 	}{
-		{"dev", "Start in development mode with hot reload"},
 		{"init", "Initialize a new Noda project"},
 		{"plugin", "Manage plugins"},
 	}
@@ -297,6 +303,144 @@ func newStartCmd() *cobra.Command {
 			}()
 
 			fmt.Printf("Noda server starting on port %d\n", srv.Port())
+			return srv.Start()
+		},
+	}
+
+	return cmd
+}
+
+func newDevCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "dev",
+		Short: "Start in development mode with hot reload",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			configDir, _ := cmd.Flags().GetString("config")
+			envFlag, _ := cmd.Flags().GetString("env")
+			logger := slog.Default()
+
+			// Load and validate config
+			rc, errs := config.ValidateAll(configDir, envFlag)
+			if len(errs) > 0 {
+				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
+				os.Exit(1)
+			}
+
+			// Initialize OTel tracing
+			traceCfg := trace.ParseConfig(rc.Root)
+			if !traceCfg.Enabled {
+				traceCfg.Enabled = true // always enabled in dev mode
+			}
+			traceProvider, err := trace.NewProvider(context.Background(), traceCfg, logger)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error initializing tracer: %s\n", err)
+				os.Exit(1)
+			}
+
+			// Create trace event hub for dev mode streaming
+			hub := trace.NewEventHub()
+
+			// Bootstrap plugins and services
+			plugins := registry.NewPluginRegistry()
+			registerCorePlugins(plugins)
+			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
+			if len(bootstrapErrs) > 0 {
+				for _, e := range bootstrapErrs {
+					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
+				}
+				os.Exit(1)
+			}
+
+			// Create and setup server
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
+				os.Exit(1)
+			}
+
+			if err := srv.Setup(); err != nil {
+				fmt.Fprintf(os.Stderr, "Error setting up server: %s\n", err)
+				os.Exit(1)
+			}
+
+			// Register OpenAPI routes
+			if err := srv.RegisterOpenAPIRoutes(); err != nil {
+				logger.Warn("OpenAPI generation failed", "error", err.Error())
+			}
+
+			// Register trace WebSocket endpoint (dev only)
+			trace.RegisterTraceWebSocket(srv.App(), hub, logger)
+
+			// Serve editor placeholder
+			srv.App().Get("/editor", func(c fiber.Ctx) error {
+				return c.SendString("Noda Visual Editor — coming soon")
+			})
+			srv.App().Get("/editor/*", func(c fiber.Ctx) error {
+				return c.SendString("Noda Visual Editor — coming soon")
+			})
+
+			// Start scheduler if configured
+			var schedulerRuntime *scheduler.Runtime
+			if len(rc.Schedules) > 0 {
+				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
+				schedulerRuntime = scheduler.NewRuntime(
+					scheduleConfigs,
+					bootstrap.Services,
+					bootstrap.Nodes,
+					rc.Workflows,
+					logger,
+				)
+				if err := schedulerRuntime.Start(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error starting scheduler: %s\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("Scheduler started with %d job(s)\n", len(scheduleConfigs))
+			}
+
+			// Set up hot-reload
+			reloader := devmode.NewReloader(configDir, envFlag, rc, hub, logger)
+			reloader.OnReload(func(newRC *config.ResolvedConfig) {
+				logger.Info("config reloaded — new workflows and routes will apply to new requests")
+			})
+
+			// Set up file watcher
+			watcher, err := devmode.NewWatcher(reloader.HandleChange, logger)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error creating file watcher: %s\n", err)
+				os.Exit(1)
+			}
+			if err := watcher.WatchDir(configDir); err != nil {
+				logger.Warn("failed to watch config directory", "error", err.Error())
+			}
+			watcher.Start()
+			fmt.Printf("Watching %s for changes\n", configDir)
+
+			// Mark server as ready
+			server.SetReady()
+
+			// Handle graceful shutdown
+			go func() {
+				sigCh := make(chan os.Signal, 1)
+				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+				<-sigCh
+				fmt.Println("\nShutting down...")
+
+				deadline := 30 * time.Second
+				if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
+					if d, ok := serverCfg["shutdown_deadline"].(string); ok {
+						if parsed, err := time.ParseDuration(d); err == nil {
+							deadline = parsed
+						}
+					}
+				}
+
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, watcher, traceProvider)
+				os.Exit(0)
+			}()
+
+			fmt.Printf("Noda dev server starting on port %d\n", srv.Port())
+			fmt.Println("Trace WebSocket available at /ws/trace")
+			fmt.Println("Editor placeholder at /editor")
 			return srv.Start()
 		},
 	}

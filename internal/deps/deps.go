@@ -5,7 +5,6 @@ package deps
 
 import (
 	_ "github.com/expr-lang/expr"
-	_ "github.com/fsnotify/fsnotify"
 	_ "github.com/getkin/kin-openapi/openapi3"
 	_ "github.com/gofiber/contrib/jwt"
 	_ "github.com/gofiber/fiber/v3"

@@ -557,7 +557,7 @@
 
 **Subtasks:**
 
-- [ ] Implement `noda dev` command:
+- [x] Implement `noda dev` command:
   - Run full config validation
   - Initialize all plugins and services
   - Start HTTP server, worker runtime, scheduler, Wasm runtime, connection manager
@@ -565,12 +565,12 @@
   - Start trace WebSocket server
   - Start file watcher
   - Block until shutdown signal
-- [ ] Dev-only features: full trace streaming, verbose logging, editor serving
+- [x] Dev-only features: full trace streaming, verbose logging, editor serving
 
 **Tests:**
-- [ ] `noda dev` starts all components
-- [ ] HTTP server responds to requests
-- [ ] Trace WebSocket available
+- [x] `noda dev` starts all components
+- [x] HTTP server responds to requests
+- [x] Trace WebSocket available
 
 **Acceptance criteria:** Single command starts the full development environment.
 
@@ -582,20 +582,20 @@
 
 **Subtasks:**
 
-- [ ] Use `fsnotify` to watch all config directories
-- [ ] On file change:
+- [x] Use `fsnotify` to watch all config directories
+- [x] On file change:
   1. Re-run config validation on changed file(s)
   2. If valid: re-compile expressions, update route registrations, update workflow definitions
   3. If invalid: surface validation errors via trace WebSocket (file:error event), keep running with previous valid config
-- [ ] Debounce: wait 100ms after last change before reloading (batch rapid edits)
-- [ ] Graceful reload: in-flight requests/workflows complete with old config, new requests use new config
+- [x] Debounce: wait 100ms after last change before reloading (batch rapid edits)
+- [x] Graceful reload: in-flight requests/workflows complete with old config, new requests use new config
 
 **Tests:**
-- [ ] Change workflow file → new workflow active without restart
-- [ ] Change route file → new route responds
-- [ ] Invalid change → error surfaced, old config still works
-- [ ] Rapid edits debounced
-- [ ] In-flight request completes with old config
+- [x] Change workflow file → new workflow active without restart
+- [x] Change route file → new route responds
+- [x] Invalid change → error surfaced, old config still works
+- [x] Rapid edits debounced
+- [x] In-flight request completes with old config
 
 **Acceptance criteria:** Config changes apply without restart, with error protection.
 
@@ -607,8 +607,8 @@
 
 **Subtasks:**
 
-- [ ] Signal handler catches SIGTERM and SIGINT
-- [ ] Shutdown sequence:
+- [x] Signal handler catches SIGTERM and SIGINT
+- [x] Shutdown sequence:
   1. Stop accepting new HTTP connections
   2. Stop worker consumers and scheduler
   3. Drain in-flight HTTP requests (configurable deadline, default 30s)
@@ -618,14 +618,14 @@
   7. Close service connections (DB, Redis, storage)
   8. Flush OTel telemetry
   9. Exit
-- [ ] Configurable shutdown deadline from root config
-- [ ] Log each shutdown phase
+- [x] Configurable shutdown deadline from root config
+- [x] Log each shutdown phase
 
 **Tests:**
-- [ ] In-flight request completes before shutdown
-- [ ] Wasm modules get shutdown call
-- [ ] Services closed after workflows drain
-- [ ] Forced exit after deadline
+- [x] In-flight request completes before shutdown
+- [x] Wasm modules get shutdown call
+- [x] Services closed after workflows drain
+- [x] Forced exit after deadline
 
 **Acceptance criteria:** Clean, ordered shutdown preserving in-flight work.
 
