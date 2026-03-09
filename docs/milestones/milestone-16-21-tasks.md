@@ -646,17 +646,17 @@
 
 **Subtasks:**
 
-- [ ] Create project directory with standard structure
-- [ ] Generate `noda.json` with sensible defaults (ports, JWT placeholder)
-- [ ] Generate `docker-compose.yml` with PostgreSQL and Redis
-- [ ] Generate `.env.example`
-- [ ] Generate sample route, workflow, and schema
-- [ ] Generate README with getting started instructions
-- [ ] Accept project name as argument
+- [x] Create project directory with standard structure
+- [x] Generate `noda.json` with sensible defaults (ports, JWT placeholder)
+- [x] Generate `docker-compose.yml` with PostgreSQL and Redis
+- [x] Generate `.env.example`
+- [x] Generate sample route, workflow, and schema
+- [x] Generate README with getting started instructions
+- [x] Accept project name as argument
 
 **Tests:**
-- [ ] Scaffolded project passes `noda validate`
-- [ ] Docker Compose starts successfully
+- [x] Scaffolded project passes `noda validate`
+- [x] Docker Compose starts successfully
 
 **Acceptance criteria:** `noda init myapp` creates a working project.
 
@@ -668,16 +668,16 @@
 
 **Subtasks:**
 
-- [ ] Implement `noda start` with flags: `--server`, `--workers`, `--scheduler`, `--wasm`, `--all` (default)
-- [ ] No file watching, no editor serving, no full trace streaming
-- [ ] Production graceful shutdown (same sequence as dev mode)
-- [ ] Environment from `--env` flag (default: infer from `NODA_ENV`)
+- [x] Implement `noda start` with flags: `--server`, `--workers`, `--scheduler`, `--wasm`, `--all` (default)
+- [x] No file watching, no editor serving, no full trace streaming
+- [x] Production graceful shutdown (same sequence as dev mode)
+- [x] Environment from `--env` flag (default: infer from `NODA_ENV`)
 
 **Tests:**
-- [ ] `noda start --server` starts HTTP only
-- [ ] `noda start --workers` starts workers only
-- [ ] `noda start --all` starts everything
-- [ ] Graceful shutdown works in production mode
+- [x] `noda start --server` starts HTTP only
+- [x] `noda start --workers` starts workers only
+- [x] `noda start --all` starts everything
+- [x] Graceful shutdown works in production mode
 
 **Acceptance criteria:** Production-ready server startup with selective runtime control.
 
@@ -687,15 +687,15 @@
 
 **Subtasks:**
 
-- [ ] `noda generate openapi` — export OpenAPI spec to file (finalized from M8)
-- [ ] `noda generate mcp` — export MCP server definition (stub for now)
-- [ ] `noda plugin list` — list loaded plugins with prefixes and node counts
-- [ ] `noda version` — print version, Go version, build info
-- [ ] Shell completions: bash, zsh, fish via Cobra's built-in completion
-- [ ] Help text review: every command has clear description and examples
+- [x] `noda generate openapi` — export OpenAPI spec to file (finalized from M8)
+- [x] `noda generate mcp` — export MCP server definition (stub for now)
+- [x] `noda plugin list` — list loaded plugins with prefixes and node counts
+- [x] `noda version` — print version, Go version, build info
+- [x] Shell completions: bash, zsh, fish via Cobra's built-in completion
+- [x] Help text review: every command has clear description and examples
 
 **Tests:**
-- [ ] Each command produces expected output
-- [ ] Shell completions generate valid scripts
+- [x] Each command produces expected output
+- [x] Shell completions generate valid scripts
 
 **Acceptance criteria:** All CLI commands are functional and documented.

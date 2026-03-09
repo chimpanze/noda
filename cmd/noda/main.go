@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -59,9 +60,11 @@ func main() {
 	rootCmd.AddCommand(
 		&cobra.Command{
 			Use:   "version",
-			Short: "Print Noda version",
+			Short: "Print Noda version and build info",
 			Run: func(_ *cobra.Command, _ []string) {
 				fmt.Printf("noda %s\n", Version)
+				fmt.Printf("go    %s\n", runtime.Version())
+				fmt.Printf("os    %s/%s\n", runtime.GOOS, runtime.GOARCH)
 			},
 		},
 		newValidateCmd(),
@@ -71,26 +74,10 @@ func main() {
 		newMigrateCmd(),
 		newScheduleCmd(),
 		newDevCmd(),
+		newInitCmd(),
+		newPluginCmd(),
+		newCompletionCmd(),
 	)
-
-	placeholders := []struct {
-		use   string
-		short string
-	}{
-		{"init", "Initialize a new Noda project"},
-		{"plugin", "Manage plugins"},
-	}
-
-	for _, p := range placeholders {
-		p := p
-		rootCmd.AddCommand(&cobra.Command{
-			Use:   p.use,
-			Short: p.short,
-			Run: func(_ *cobra.Command, _ []string) {
-				fmt.Printf("%s: not yet implemented\n", p.use)
-			},
-		})
-	}
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
@@ -233,15 +220,36 @@ func newStartCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "start",
 		Short: "Start the production server",
+		Long:  "Start Noda in production mode. Use flags to select which runtimes to start.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			configDir, _ := cmd.Flags().GetString("config")
 			envFlag, _ := cmd.Flags().GetString("env")
+			runServer, _ := cmd.Flags().GetBool("server")
+			runScheduler, _ := cmd.Flags().GetBool("scheduler")
+			runAll, _ := cmd.Flags().GetBool("all")
+			logger := slog.Default()
+
+			// Default to --all if no specific flags are set
+			if !runServer && !runScheduler {
+				runAll = true
+			}
+			if runAll {
+				runServer = true
+				runScheduler = true
+			}
 
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
 				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
 				os.Exit(1)
+			}
+
+			// Initialize OTel tracing
+			traceCfg := trace.ParseConfig(rc.Root)
+			traceProvider, err := trace.NewProvider(context.Background(), traceCfg, logger)
+			if err != nil {
+				logger.Warn("tracer initialization failed", "error", err.Error())
 			}
 
 			// Bootstrap plugins and services
@@ -255,33 +263,34 @@ func newStartCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
-			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
-				os.Exit(1)
+			var srv *server.Server
+			if runServer {
+				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
+					os.Exit(1)
+				}
+
+				if err := srv.Setup(); err != nil {
+					fmt.Fprintf(os.Stderr, "Error setting up server: %s\n", err)
+					os.Exit(1)
+				}
+
+				if err := srv.RegisterOpenAPIRoutes(); err != nil {
+					logger.Warn("OpenAPI generation failed", "error", err.Error())
+				}
 			}
 
-			if err := srv.Setup(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error setting up server: %s\n", err)
-				os.Exit(1)
-			}
-
-			// Register OpenAPI routes
-			if err := srv.RegisterOpenAPIRoutes(); err != nil {
-				fmt.Fprintf(os.Stderr, "Warning: OpenAPI generation failed: %s\n", err)
-			}
-
-			// Start scheduler if schedules are configured
+			// Start scheduler if configured and requested
 			var schedulerRuntime *scheduler.Runtime
-			if len(rc.Schedules) > 0 {
+			if runScheduler && len(rc.Schedules) > 0 {
 				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
 				schedulerRuntime = scheduler.NewRuntime(
 					scheduleConfigs,
 					bootstrap.Services,
 					bootstrap.Nodes,
 					rc.Workflows,
-					nil,
+					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
 					fmt.Fprintf(os.Stderr, "Error starting scheduler: %s\n", err)
@@ -290,22 +299,43 @@ func newStartCmd() *cobra.Command {
 				fmt.Printf("Scheduler started with %d job(s)\n", len(scheduleConfigs))
 			}
 
+			// Mark ready
+			server.SetReady()
+
 			// Handle graceful shutdown
 			go func() {
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 				<-sigCh
 				fmt.Println("\nShutting down...")
-				if schedulerRuntime != nil {
-					schedulerRuntime.Stop()
+
+				deadline := 30 * time.Second
+				if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
+					if d, ok := serverCfg["shutdown_deadline"].(string); ok {
+						if parsed, err := time.ParseDuration(d); err == nil {
+							deadline = parsed
+						}
+					}
 				}
-				_ = srv.Stop()
+
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, nil, traceProvider)
+				os.Exit(0)
 			}()
 
-			fmt.Printf("Noda server starting on port %d\n", srv.Port())
-			return srv.Start()
+			if srv != nil {
+				fmt.Printf("Noda server starting on port %d\n", srv.Port())
+				return srv.Start()
+			}
+
+			// No server — block on signal
+			fmt.Println("Noda started (no HTTP server)")
+			select {}
 		},
 	}
+
+	cmd.Flags().Bool("server", false, "start HTTP server only")
+	cmd.Flags().Bool("scheduler", false, "start scheduler only")
+	cmd.Flags().Bool("all", false, "start all runtimes (default)")
 
 	return cmd
 }
@@ -496,7 +526,17 @@ func newGenerateCmd() *cobra.Command {
 	}
 
 	openAPICmd.Flags().String("output", "", "output file path (default: stdout)")
-	cmd.AddCommand(openAPICmd)
+
+	mcpCmd := &cobra.Command{
+		Use:   "mcp",
+		Short: "Generate MCP server definition (stub)",
+		Run: func(_ *cobra.Command, _ []string) {
+			fmt.Println("MCP server generation is not yet implemented.")
+			fmt.Println("This will generate an MCP-compatible server definition from your Noda config.")
+		},
+	}
+
+	cmd.AddCommand(openAPICmd, mcpCmd)
 
 	return cmd
 }

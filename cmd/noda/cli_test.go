@@ -1,0 +1,90 @@
+package main
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestScaffoldProject(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+
+	err := scaffoldProject(dir)
+	require.NoError(t, err)
+
+	// Verify directories
+	for _, d := range []string{"routes", "workflows", "schemas", "tests", "migrations"} {
+		info, err := os.Stat(filepath.Join(dir, d))
+		require.NoError(t, err, "directory %s should exist", d)
+		assert.True(t, info.IsDir())
+	}
+
+	// Verify files exist and are non-empty
+	files := []string{
+		"noda.json",
+		".env.example",
+		"docker-compose.yml",
+		"routes/api.json",
+		"workflows/hello.json",
+		"schemas/greeting.json",
+		"tests/hello.test.json",
+		"README.md",
+	}
+	for _, f := range files {
+		data, err := os.ReadFile(filepath.Join(dir, f))
+		require.NoError(t, err, "file %s should exist", f)
+		assert.NotEmpty(t, data, "file %s should not be empty", f)
+	}
+}
+
+func TestScaffoldProject_NodaJSONValid(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+	require.NoError(t, scaffoldProject(dir))
+
+	// noda.json should be valid JSON
+	data, err := os.ReadFile(filepath.Join(dir, "noda.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"server"`)
+	assert.Contains(t, string(data), `"port"`)
+	assert.Contains(t, string(data), `"services"`)
+}
+
+func TestScaffoldProject_DockerComposeValid(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+	require.NoError(t, scaffoldProject(dir))
+
+	data, err := os.ReadFile(filepath.Join(dir, "docker-compose.yml"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "postgres")
+	assert.Contains(t, string(data), "redis")
+}
+
+func TestScaffoldProject_SampleWorkflow(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+	require.NoError(t, scaffoldProject(dir))
+
+	data, err := os.ReadFile(filepath.Join(dir, "workflows/hello.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"nodes"`)
+	assert.Contains(t, string(data), `"edges"`)
+	assert.Contains(t, string(data), `transform.set`)
+}
+
+func TestScaffoldProject_ReadmeContainsName(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "cool-api")
+	require.NoError(t, scaffoldProject(dir))
+
+	data, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "cool-api")
+}
+
+func TestScaffoldProject_DuplicateIsIdempotent(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+	require.NoError(t, scaffoldProject(dir))
+	// Second call should overwrite without error
+	require.NoError(t, scaffoldProject(dir))
+}
