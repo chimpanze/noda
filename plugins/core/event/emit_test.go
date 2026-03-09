@@ -181,7 +181,7 @@ func TestEmit_MissingMode(t *testing.T) {
 func TestEmit_TopicExpression(t *testing.T) {
 	exec := &emitExecutor{}
 	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) {
-		if expr == "{{ topic_name }}" {
+		if expr == "{{ nodes.topic_name }}" {
 			return "resolved-topic", nil
 		}
 		return expr, nil
@@ -191,7 +191,7 @@ func TestEmit_TopicExpression(t *testing.T) {
 	_, _, err := exec.Execute(context.Background(), nCtx,
 		map[string]any{
 			"mode":    "stream",
-			"topic":   "{{ topic_name }}",
+			"topic":   "{{ nodes.topic_name }}",
 			"payload": map[string]any{"data": true},
 		},
 		map[string]any{"stream": streamSvc},

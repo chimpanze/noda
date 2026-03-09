@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -73,7 +74,7 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 			if err != nil {
 				return nil, fmt.Errorf("trigger mapping: field %q: %w", key, err)
 			}
-			result.Input[key] = resolved
+			result.Input[key] = coerceNumeric(resolved)
 		}
 	}
 
@@ -84,17 +85,32 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 }
 
 // buildRawRequestContext creates the expression evaluation context from the raw HTTP request.
+// Fields are top-level (body, query, params, headers) matching the architecture docs.
+// Auth claims from JWT middleware are also included so {{ auth.sub }} works in trigger mappings.
 func buildRawRequestContext(c fiber.Ctx) map[string]any {
 	ctx := map[string]any{
-		"request": map[string]any{
-			"body":    parseBody(c),
-			"params":  parseParams(c),
-			"query":   parseQuery(c),
-			"headers": parseHeaders(c),
-			"method":  c.Method(),
-			"path":    c.Path(),
-		},
+		"body":    parseBody(c),
+		"params":  parseParams(c),
+		"query":   parseQuery(c),
+		"headers": parseHeaders(c),
+		"method":  c.Method(),
+		"path":    c.Path(),
 	}
+
+	// Include auth claims so trigger mappings can reference {{ auth.sub }}
+	if claims, _ := c.Locals(LocalJWTClaims).(map[string]any); claims != nil {
+		authMap := map[string]any{
+			"claims": claims,
+		}
+		if userID, ok := c.Locals(LocalJWTUserID).(string); ok {
+			authMap["sub"] = userID
+		}
+		if roles, ok := c.Locals(LocalJWTRoles).([]string); ok {
+			authMap["roles"] = roles
+		}
+		ctx["auth"] = authMap
+	}
+
 	return ctx
 }
 
@@ -209,4 +225,21 @@ func getFileFields(triggerConfig map[string]any) map[string]bool {
 // ReadRawBody reads and returns the raw body bytes for webhook signature verification.
 func ReadRawBody(c fiber.Ctx) ([]byte, error) {
 	return io.ReadAll(c.Request().BodyStream())
+}
+
+// coerceNumeric attempts to convert string values to numeric types.
+// HTTP query parameters and route params are always strings, but downstream
+// expressions often need numeric types for arithmetic.
+func coerceNumeric(v any) any {
+	s, ok := v.(string)
+	if !ok {
+		return v
+	}
+	if i, err := strconv.Atoi(s); err == nil {
+		return i
+	}
+	if f, err := strconv.ParseFloat(s, 64); err == nil {
+		return f
+	}
+	return v
 }

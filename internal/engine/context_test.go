@@ -57,7 +57,7 @@ func TestExecutionContext_Resolve(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "Alice", result)
 
-	result, err = ctx.Resolve("{{ query.count }}")
+	result, err = ctx.Resolve("{{ nodes.query.count }}")
 	require.NoError(t, err)
 	assert.Equal(t, 42, result)
 }

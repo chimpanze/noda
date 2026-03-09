@@ -1,0 +1,20 @@
+{
+  "services": {
+    "main-db": {
+      "plugin": "postgres",
+      "config": {
+        "url": "postgres://noda:noda@localhost:5432/noda_example?sslmode=disable"
+      }
+    }
+  },
+  "security": {
+    "jwt": {
+      "secret": "example-secret-change-in-production",
+      "algorithm": "HS256",
+      "token_lookup": "header:Authorization"
+    }
+  },
+  "middleware_presets": {
+    "authenticated": ["auth.jwt"]
+  }
+}

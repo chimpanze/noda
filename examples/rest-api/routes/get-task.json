@@ -1,0 +1,15 @@
+{
+  "id": "get-task",
+  "method": "GET",
+  "path": "/api/tasks/:id",
+  "summary": "Get a single task by ID",
+  "tags": ["tasks"],
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "get-task",
+    "input": {
+      "task_id": "{{ params.id }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

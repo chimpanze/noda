@@ -80,7 +80,7 @@ func TestRoute_GET_SimpleResponse(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ set_data }}",
+							"body":   "{{ nodes.set_data }}",
 						},
 					},
 				},
@@ -112,7 +112,7 @@ func TestRoute_POST_BodyMapping(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "create-task",
 					"input": map[string]any{
-						"title": "{{ request.body.title }}",
+						"title": "{{ body.title }}",
 					},
 				},
 			},
@@ -133,7 +133,7 @@ func TestRoute_POST_BodyMapping(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "201",
-							"body":   "{{ build }}",
+							"body":   "{{ nodes.build }}",
 						},
 					},
 				},
@@ -168,7 +168,7 @@ func TestRoute_PathParams(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "get-task",
 					"input": map[string]any{
-						"task_id": "{{ request.params.id }}",
+						"task_id": "{{ params.id }}",
 					},
 				},
 			},
@@ -188,7 +188,7 @@ func TestRoute_PathParams(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ build }}",
+							"body":   "{{ nodes.build }}",
 						},
 					},
 				},
@@ -208,7 +208,7 @@ func TestRoute_PathParams(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(body, &result))
-	assert.Equal(t, "42", result["id"])
+	assert.Equal(t, float64(42), result["id"])
 }
 
 func TestRoute_NotFound(t *testing.T) {
@@ -349,7 +349,7 @@ func TestRoute_JWTAuth_ClaimsAvailable(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ build }}",
+							"body":   "{{ nodes.build }}",
 						},
 					},
 				},

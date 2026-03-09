@@ -207,10 +207,10 @@ func TestRunner_UnmockedPluginNode(t *testing.T) {
 	}
 
 	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
-	// The unmocked node produces error data (with "no mock" message)
-	// so the output expectation won't match
+	// The unmocked node is a db node (has error outputs). It returns an error
+	// with no error edge, so the workflow fails with status "error".
 	assert.False(t, results[0].Passed)
-	assert.Contains(t, results[0].Error, "fetch.id")
+	assert.Contains(t, results[0].Error, "error")
 }
 
 func TestRunner_AuthPassedThrough(t *testing.T) {
@@ -269,7 +269,7 @@ func TestRunner_WorkflowWithEdges(t *testing.T) {
 						"type": "transform.set",
 						"config": map[string]any{
 							"fields": map[string]any{
-								"result": "{{ fetch.name }}",
+								"result": "{{ nodes.fetch.name }}",
 							},
 						},
 					},

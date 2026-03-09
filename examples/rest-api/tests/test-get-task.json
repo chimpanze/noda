@@ -1,0 +1,54 @@
+{
+  "id": "test-get-task",
+  "workflow": "get-task",
+  "tests": [
+    {
+      "name": "task found",
+      "input": {
+        "task_id": "task-1",
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "fetch": {
+          "output": [{ "id": "task-1", "title": "My Task", "status": "todo" }]
+        },
+        "found": {
+          "output": { "status": 200 }
+        },
+        "notfound": {
+          "output": { "status": 404 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "found.status": 200
+        }
+      }
+    },
+    {
+      "name": "task not found",
+      "input": {
+        "task_id": "nonexistent",
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "fetch": {
+          "output": []
+        },
+        "found": {
+          "output": { "status": 200 }
+        },
+        "notfound": {
+          "output": { "status": 404, "message": "Task not found" }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "notfound.status": 404
+        }
+      }
+    }
+  ]
+}

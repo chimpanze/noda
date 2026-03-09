@@ -1,0 +1,15 @@
+{
+  "id": "delete-task",
+  "method": "DELETE",
+  "path": "/api/tasks/:id",
+  "summary": "Delete a task",
+  "tags": ["tasks"],
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "delete-task",
+    "input": {
+      "task_id": "{{ params.id }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

@@ -26,7 +26,7 @@ func TestE2E_GET_TransformSetToResponseJSON(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "greet",
 					"input": map[string]any{
-						"name": "{{ request.params.name }}",
+						"name": "{{ params.name }}",
 					},
 				},
 			},
@@ -47,7 +47,7 @@ func TestE2E_GET_TransformSetToResponseJSON(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ build_greeting }}",
+							"body":   "{{ nodes.build_greeting }}",
 						},
 					},
 				},
@@ -81,8 +81,8 @@ func TestE2E_POST_TriggerMapping_ResponseJSON(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "create-item",
 					"input": map[string]any{
-						"name":  "{{ request.body.name }}",
-						"price": "{{ request.body.price }}",
+						"name":  "{{ body.name }}",
+						"price": "{{ body.price }}",
 					},
 				},
 			},
@@ -104,7 +104,7 @@ func TestE2E_POST_TriggerMapping_ResponseJSON(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "201",
-							"body":   "{{ build }}",
+							"body":   "{{ nodes.build }}",
 						},
 					},
 				},
@@ -161,7 +161,7 @@ func TestE2E_JWT_AuthInWorkflow(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ build }}",
+							"body":   "{{ nodes.build }}",
 						},
 					},
 				},
@@ -466,7 +466,7 @@ func TestE2E_ConcurrentRequests(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "echo",
 					"input": map[string]any{
-						"data": "{{ request.body }}",
+						"data": "{{ body }}",
 					},
 				},
 			},
@@ -520,7 +520,7 @@ func TestE2E_DELETE_Method(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "delete-item",
 					"input": map[string]any{
-						"id": "{{ request.params.id }}",
+						"id": "{{ params.id }}",
 					},
 				},
 			},
@@ -558,8 +558,8 @@ func TestE2E_PUT_Method(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "update-item",
 					"input": map[string]any{
-						"id":   "{{ request.params.id }}",
-						"name": "{{ request.body.name }}",
+						"id":   "{{ params.id }}",
+						"name": "{{ body.name }}",
 					},
 				},
 			},
@@ -590,6 +590,6 @@ func TestE2E_PUT_Method(t *testing.T) {
 	body, _ := io.ReadAll(resp.Body)
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(body, &result))
-	assert.Equal(t, "1", result["id"])
+	assert.Equal(t, float64(1), result["id"])
 	assert.Equal(t, "Updated", result["name"])
 }

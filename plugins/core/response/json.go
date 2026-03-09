@@ -36,21 +36,39 @@ func (e *jsonExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *jsonExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	// Resolve status (default 200 if absent)
 	status := 200
-	if statusExpr, ok := config["status"].(string); ok && statusExpr != "" {
-		statusVal, err := nCtx.Resolve(statusExpr)
-		if err != nil {
-			return "", nil, fmt.Errorf("response.json: status: %w", err)
+	switch sv := config["status"].(type) {
+	case string:
+		if sv != "" {
+			statusVal, err := nCtx.Resolve(sv)
+			if err != nil {
+				return "", nil, fmt.Errorf("response.json: status: %w", err)
+			}
+			if n, ok := plugin.ToInt(statusVal); ok {
+				status = n
+			}
 		}
-		if n, ok := plugin.ToInt(statusVal); ok {
+	default:
+		if n, ok := plugin.ToInt(sv); ok {
 			status = n
 		}
 	}
 
-	// Resolve body
-	bodyExpr, _ := config["body"].(string)
-	body, err := nCtx.Resolve(bodyExpr)
-	if err != nil {
-		return "", nil, fmt.Errorf("response.json: body: %w", err)
+	// Resolve body — handles string expressions, maps, arrays, and scalars
+	var body any
+	var err error
+	switch bv := config["body"].(type) {
+	case string:
+		body, err = nCtx.Resolve(bv)
+		if err != nil {
+			return "", nil, fmt.Errorf("response.json: body: %w", err)
+		}
+	case map[string]any:
+		body, err = resolveDeep(nCtx, bv)
+		if err != nil {
+			return "", nil, fmt.Errorf("response.json: body: %w", err)
+		}
+	default:
+		body = bv
 	}
 
 	// Resolve headers
@@ -120,4 +138,34 @@ func toCookies(v any) []api.Cookie {
 func strVal(m map[string]any, key string) string {
 	v, _ := m[key].(string)
 	return v
+}
+
+// resolveDeep recursively resolves expression strings within a nested map/slice structure.
+func resolveDeep(nCtx api.ExecutionContext, v any) (any, error) {
+	switch val := v.(type) {
+	case string:
+		return nCtx.Resolve(val)
+	case map[string]any:
+		result := make(map[string]any, len(val))
+		for k, item := range val {
+			resolved, err := resolveDeep(nCtx, item)
+			if err != nil {
+				return nil, fmt.Errorf("field %q: %w", k, err)
+			}
+			result[k] = resolved
+		}
+		return result, nil
+	case []any:
+		result := make([]any, len(val))
+		for i, item := range val {
+			resolved, err := resolveDeep(nCtx, item)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = resolved
+		}
+		return result, nil
+	default:
+		return v, nil
+	}
 }

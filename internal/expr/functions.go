@@ -2,6 +2,7 @@ package expr
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -59,6 +60,22 @@ func NewFunctionRegistry() *FunctionRegistry {
 		return strings.ToUpper(s), nil
 	}, new(func(string) string))
 
+	// toInt(value) → int (coerces strings and floats)
+	r.Register("toInt", func(params ...any) (any, error) {
+		if len(params) != 1 {
+			return nil, fmt.Errorf("toInt: expected 1 argument, got %d", len(params))
+		}
+		return coerceToInt(params[0])
+	}, new(func(any) int))
+
+	// toFloat(value) → float64 (coerces strings and ints)
+	r.Register("toFloat", func(params ...any) (any, error) {
+		if len(params) != 1 {
+			return nil, fmt.Errorf("toFloat: expected 1 argument, got %d", len(params))
+		}
+		return coerceToFloat(params[0])
+	}, new(func(any) float64))
+
 	return r
 }
 
@@ -81,4 +98,45 @@ func (r *FunctionRegistry) ExprOptions() []expr.Option {
 func NewCompilerWithFunctions() *Compiler {
 	reg := NewFunctionRegistry()
 	return NewCompiler(WithExprOptions(reg.ExprOptions()...))
+}
+
+// coerceToInt converts a value to int. Handles string, float64, int, and json.Number.
+func coerceToInt(v any) (int, error) {
+	switch val := v.(type) {
+	case int:
+		return val, nil
+	case int64:
+		return int(val), nil
+	case float64:
+		return int(val), nil
+	case string:
+		if i, err := strconv.Atoi(val); err == nil {
+			return i, nil
+		}
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return int(f), nil
+		}
+		return 0, fmt.Errorf("toInt: cannot convert %q to int", val)
+	default:
+		return 0, fmt.Errorf("toInt: unsupported type %T", v)
+	}
+}
+
+// coerceToFloat converts a value to float64. Handles string, int, float64, and json.Number.
+func coerceToFloat(v any) (float64, error) {
+	switch val := v.(type) {
+	case float64:
+		return val, nil
+	case int:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case string:
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f, nil
+		}
+		return 0, fmt.Errorf("toFloat: cannot convert %q to float", val)
+	default:
+		return 0, fmt.Errorf("toFloat: unsupported type %T", v)
+	}
 }

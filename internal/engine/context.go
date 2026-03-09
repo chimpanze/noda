@@ -249,9 +249,12 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 		"timestamp": c.trigger.Timestamp,
 		"trace_id":  c.trigger.TraceID,
 	}
-	// Add all node outputs as top-level context entries
+	// Node outputs are namespaced under "nodes" to avoid clashing with
+	// expr-lang built-in functions (len, find, count, map, filter, etc.).
+	nodesMap := make(map[string]any, len(c.outputs))
 	for k, v := range c.outputs {
-		ctx[k] = v
+		nodesMap[k] = v
 	}
+	ctx["nodes"] = nodesMap
 	return ctx
 }

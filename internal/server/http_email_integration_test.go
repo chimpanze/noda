@@ -74,7 +74,7 @@ func TestE2E_OutboundHTTPCall(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ fetch }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.fetch }}"},
 					},
 				},
 				"edges": []any{
@@ -138,7 +138,7 @@ func TestE2E_HTTPPostOutbound(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "post-data-wf",
 					"input": map[string]any{
-						"payload": "{{ request.body }}",
+						"payload": "{{ body }}",
 					},
 				},
 			},
@@ -156,7 +156,7 @@ func TestE2E_HTTPPostOutbound(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ send }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.send }}"},
 					},
 				},
 				"edges": []any{
@@ -235,7 +235,7 @@ func TestE2E_HTTPTimeout(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ fetch }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.fetch }}"},
 					},
 				},
 				"edges": []any{
@@ -408,9 +408,9 @@ func TestE2E_EmailSend(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "email-wf",
 					"input": map[string]any{
-						"email":   "{{ request.body.email }}",
-						"subject": "{{ request.body.subject }}",
-						"message": "{{ request.body.message }}",
+						"email":   "{{ body.email }}",
+						"subject": "{{ body.subject }}",
+						"message": "{{ body.message }}",
 					},
 				},
 			},
@@ -430,7 +430,7 @@ func TestE2E_EmailSend(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ send }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.send }}"},
 					},
 				},
 				"edges": []any{

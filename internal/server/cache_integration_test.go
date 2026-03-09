@@ -51,8 +51,8 @@ func TestE2E_Cache_SetAndGet(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-set",
 					"input": map[string]any{
-						"key":   "{{ request.body.key }}",
-						"value": "{{ request.body.value }}",
+						"key":   "{{ body.key }}",
+						"value": "{{ body.value }}",
 					},
 				},
 			},
@@ -62,7 +62,7 @@ func TestE2E_Cache_SetAndGet(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-get",
 					"input": map[string]any{
-						"key": "{{ request.params.key }}",
+						"key": "{{ params.key }}",
 					},
 				},
 			},
@@ -80,7 +80,7 @@ func TestE2E_Cache_SetAndGet(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ set }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.set }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "set", "to": "respond"}},
@@ -96,7 +96,7 @@ func TestE2E_Cache_SetAndGet(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ get }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.get }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "get", "to": "respond"}},
@@ -140,8 +140,8 @@ func TestE2E_Cache_Delete(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-set",
 					"input": map[string]any{
-						"key":   "{{ request.body.key }}",
-						"value": "{{ request.body.value }}",
+						"key":   "{{ body.key }}",
+						"value": "{{ body.value }}",
 					},
 				},
 			},
@@ -151,7 +151,7 @@ func TestE2E_Cache_Delete(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-del",
 					"input": map[string]any{
-						"key": "{{ request.params.key }}",
+						"key": "{{ params.key }}",
 					},
 				},
 			},
@@ -169,7 +169,7 @@ func TestE2E_Cache_Delete(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ set }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.set }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "set", "to": "respond"}},
@@ -185,7 +185,7 @@ func TestE2E_Cache_Delete(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ del }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.del }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "del", "to": "respond"}},
@@ -224,8 +224,8 @@ func TestE2E_Cache_Exists(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-set",
 					"input": map[string]any{
-						"key":   "{{ request.body.key }}",
-						"value": "{{ request.body.value }}",
+						"key":   "{{ body.key }}",
+						"value": "{{ body.value }}",
 					},
 				},
 			},
@@ -235,7 +235,7 @@ func TestE2E_Cache_Exists(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-exists",
 					"input": map[string]any{
-						"key": "{{ request.params.key }}",
+						"key": "{{ params.key }}",
 					},
 				},
 			},
@@ -253,7 +253,7 @@ func TestE2E_Cache_Exists(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ set }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.set }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "set", "to": "respond"}},
@@ -269,7 +269,7 @@ func TestE2E_Cache_Exists(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ check }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.check }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "check", "to": "respond"}},
@@ -316,8 +316,8 @@ func TestE2E_Cache_SetWithTTL(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "cache-set-ttl",
 					"input": map[string]any{
-						"key":   "{{ request.body.key }}",
-						"value": "{{ request.body.value }}",
+						"key":   "{{ body.key }}",
+						"value": "{{ body.value }}",
 					},
 				},
 			},
@@ -336,7 +336,7 @@ func TestE2E_Cache_SetWithTTL(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ set }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.set }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "set", "to": "respond"}},

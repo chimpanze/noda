@@ -36,12 +36,19 @@ func (e *errorExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *errorExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	// Resolve status (default 500 if absent)
 	status := 500
-	if statusExpr, ok := config["status"].(string); ok && statusExpr != "" {
-		statusVal, err := nCtx.Resolve(statusExpr)
-		if err != nil {
-			return "", nil, fmt.Errorf("response.error: status: %w", err)
+	switch sv := config["status"].(type) {
+	case string:
+		if sv != "" {
+			statusVal, err := nCtx.Resolve(sv)
+			if err != nil {
+				return "", nil, fmt.Errorf("response.error: status: %w", err)
+			}
+			if n, ok := plugin.ToInt(statusVal); ok {
+				status = n
+			}
 		}
-		if n, ok := plugin.ToInt(statusVal); ok {
+	default:
+		if n, ok := plugin.ToInt(sv); ok {
 			status = n
 		}
 	}

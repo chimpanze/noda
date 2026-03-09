@@ -97,7 +97,7 @@ func TestE2E_UploadHandle_StoresFile(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ handle }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.handle }}"},
 					},
 				},
 				"edges": []any{
@@ -162,7 +162,7 @@ func TestE2E_UploadHandle_ValidationRejection_WrongMIME(t *testing.T) {
 						"type": "response.error",
 						"config": map[string]any{
 							"status":  "422",
-							"message": "{{ handle.error }}",
+							"message": "{{ nodes.handle.error }}",
 						},
 					},
 				},
@@ -199,8 +199,8 @@ func TestE2E_StorageWriteRead(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "store-wf",
 					"input": map[string]any{
-						"content": "{{ request.body.content }}",
-						"path":    "{{ request.body.path }}",
+						"content": "{{ body.content }}",
+						"path":    "{{ body.path }}",
 					},
 				},
 			},

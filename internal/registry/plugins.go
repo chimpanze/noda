@@ -42,6 +42,22 @@ func (r *PluginRegistry) Get(prefix string) (api.Plugin, bool) {
 	return p, ok
 }
 
+// GetByName looks up a plugin by its name (e.g. "postgres").
+// Falls back to prefix lookup if no name match is found.
+func (r *PluginRegistry) GetByName(name string) (api.Plugin, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, p := range r.plugins {
+		if p.Name() == name {
+			return p, true
+		}
+	}
+	// Fall back to prefix lookup for plugins where name == prefix
+	p, ok := r.plugins[name]
+	return p, ok
+}
+
 // All returns all registered plugins.
 func (r *PluginRegistry) All() []api.Plugin {
 	r.mu.RLock()

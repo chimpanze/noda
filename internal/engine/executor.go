@@ -103,6 +103,22 @@ func ExecuteGraph(
 				"duration": time.Since(nodeStart).String(),
 			})
 
+			// If a node produced an error output but no error edges exist,
+			// the workflow must fail — silent swallowing is a bug.
+			if output == "error" {
+				errorTargets := graph.Adjacency[nodeID]["error"]
+				if len(errorTargets) == 0 {
+					errData, _ := execCtx.GetOutput(nodeID)
+					nodeErr := fmt.Errorf("node %q failed with no error edge: %v", nodeID, errData)
+					execCtx.Log("warn", "node error with no error edge", map[string]any{
+						"node_id": nodeID,
+					})
+					firstErr.CompareAndSwap(nil, nodeErr)
+					cancel()
+					return
+				}
+			}
+
 			// Per-edge retry on error output: each error edge can specify its own
 			// retry config. We try each edge's retry policy in order. If any retry
 			// succeeds, the node is considered successful and we follow the success

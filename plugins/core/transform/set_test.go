@@ -58,7 +58,7 @@ func TestSet_UpstreamNodeOutput(t *testing.T) {
 
 	config := map[string]any{
 		"fields": map[string]any{
-			"result_id": "{{ prev.id }}",
+			"result_id": "{{ nodes.prev.id }}",
 		},
 	}
 

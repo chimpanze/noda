@@ -21,7 +21,7 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 			continue
 		}
 
-		plugin, found := plugins.Get(pluginName)
+		plugin, found := plugins.GetByName(pluginName)
 		if !found {
 			errs = append(errs, fmt.Errorf("service %q: unknown plugin %q", name, pluginName))
 			continue
@@ -32,7 +32,13 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 			continue
 		}
 
-		instance, err := plugin.CreateService(cfg)
+		// Pass the inner "config" map to the plugin if present, otherwise the whole entry
+		pluginCfg := cfg
+		if inner, ok := cfg["config"].(map[string]any); ok {
+			pluginCfg = inner
+		}
+
+		instance, err := plugin.CreateService(pluginCfg)
 		if err != nil {
 			errs = append(errs, fmt.Errorf("service %q: create failed: %w", name, err))
 			continue

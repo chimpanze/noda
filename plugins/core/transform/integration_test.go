@@ -138,7 +138,7 @@ func TestIntegration_FilterMerge(t *testing.T) {
 			}},
 			"merge_all": {Type: "transform.merge", Config: map[string]any{
 				"mode":   "append",
-				"inputs": []any{"{{ filter_adults }}", "{{ filter_minors }}"},
+				"inputs": []any{"{{ nodes.filter_adults }}", "{{ nodes.filter_minors }}"},
 			}},
 		},
 		Edges: []engine.EdgeConfig{
@@ -222,12 +222,12 @@ func TestIntegration_ComplexPipeline(t *testing.T) {
 				"expression": "{{ $item.active }}",
 			}},
 			"extract": {Type: "transform.map", Config: map[string]any{
-				"collection": "{{ filter }}",
+				"collection": "{{ nodes.filter }}",
 				"expression": "{{ $item.name }}",
 			}},
 			"output": {Type: "transform.set", Config: map[string]any{
 				"fields": map[string]any{
-					"names": "{{ extract }}",
+					"names": "{{ nodes.extract }}",
 				},
 			}},
 		},
@@ -270,8 +270,8 @@ func TestIntegration_DeleteAndSet(t *testing.T) {
 			}},
 			"enrich": {Type: "transform.set", Config: map[string]any{
 				"fields": map[string]any{
-					"name":    "{{ clean.name }}",
-					"display": "{{ \"User: \" + clean.name }}",
+					"name":    "{{ nodes.clean.name }}",
+					"display": "{{ \"User: \" + nodes.clean.name }}",
 				},
 			}},
 		},

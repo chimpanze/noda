@@ -13,9 +13,9 @@ import (
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/registry"
-	"github.com/fasthttp/websocket"
 	coresse "github.com/chimpanze/noda/plugins/core/sse"
 	corews "github.com/chimpanze/noda/plugins/core/ws"
+	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,8 +40,8 @@ func TestE2E_WebSocketSendReceive(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "push-wf",
 					"input": map[string]any{
-						"channel": "{{ request.body.channel }}",
-						"message": "{{ request.body.message }}",
+						"channel": "{{ body.channel }}",
+						"message": "{{ body.message }}",
 					},
 				},
 			},
@@ -59,7 +59,7 @@ func TestE2E_WebSocketSendReceive(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ send }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.send }}"},
 					},
 				},
 				"edges": []any{
@@ -128,8 +128,8 @@ func TestE2E_SSESendReceive(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "push-event-wf",
 					"input": map[string]any{
-						"channel": "{{ request.body.channel }}",
-						"data":    "{{ request.body.data }}",
+						"channel": "{{ body.channel }}",
+						"data":    "{{ body.data }}",
 					},
 				},
 			},
@@ -149,7 +149,7 @@ func TestE2E_SSESendReceive(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ send }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.send }}"},
 					},
 				},
 				"edges": []any{
@@ -226,7 +226,7 @@ func TestE2E_WebSocketWildcardBroadcast(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "broadcast-wf",
 					"input": map[string]any{
-						"msg": "{{ request.body.message }}",
+						"msg": "{{ body.message }}",
 					},
 				},
 			},
@@ -244,7 +244,7 @@ func TestE2E_WebSocketWildcardBroadcast(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ send }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.send }}"},
 					},
 				},
 				"edges": []any{
@@ -305,8 +305,8 @@ func TestE2E_RealWebSocketConnection(t *testing.T) {
 	_ = nodeReg.RegisterFromPlugin(&corews.Plugin{})
 
 	rc := &config.ResolvedConfig{
-		Root: map[string]any{},
-		Routes: map[string]map[string]any{},
+		Root:      map[string]any{},
+		Routes:    map[string]map[string]any{},
 		Workflows: map[string]map[string]any{},
 		Connections: map[string]map[string]any{
 			"connections/chat.json": {
@@ -365,8 +365,8 @@ func TestE2E_RealSSEConnection(t *testing.T) {
 	_ = nodeReg.RegisterFromPlugin(&coresse.Plugin{})
 
 	rc := &config.ResolvedConfig{
-		Root:   map[string]any{},
-		Routes: map[string]map[string]any{},
+		Root:      map[string]any{},
+		Routes:    map[string]map[string]any{},
 		Workflows: map[string]map[string]any{},
 		Connections: map[string]map[string]any{
 			"connections/updates.json": {

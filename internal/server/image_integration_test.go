@@ -81,7 +81,7 @@ func TestE2E_UploadAndResize(t *testing.T) {
 				"path":   "/api/images",
 				"trigger": map[string]any{
 					"workflow": "upload-resize-wf",
-					"files":   []any{"file"},
+					"files":    []any{"file"},
 					"input": map[string]any{
 						"file": "file",
 					},
@@ -115,7 +115,7 @@ func TestE2E_UploadAndResize(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ resize }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.resize }}"},
 					},
 				},
 				"edges": []any{
@@ -169,7 +169,7 @@ func TestE2E_ConvertPNGtoWEBP(t *testing.T) {
 				"path":   "/api/convert",
 				"trigger": map[string]any{
 					"workflow": "convert-wf",
-					"files":   []any{"file"},
+					"files":    []any{"file"},
 					"input": map[string]any{
 						"file": "file",
 					},
@@ -202,7 +202,7 @@ func TestE2E_ConvertPNGtoWEBP(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ convert }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.convert }}"},
 					},
 				},
 				"edges": []any{

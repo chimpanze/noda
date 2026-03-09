@@ -56,8 +56,8 @@ func TestMapTrigger_BodyMapping(t *testing.T) {
 		"email": "alice@example.com",
 	}, nil, map[string]any{
 		"input": map[string]any{
-			"name":  "{{ request.body.name }}",
-			"email": "{{ request.body.email }}",
+			"name":  "{{ body.name }}",
+			"email": "{{ body.email }}",
 		},
 	})
 
@@ -68,23 +68,23 @@ func TestMapTrigger_BodyMapping(t *testing.T) {
 func TestMapTrigger_PathParams(t *testing.T) {
 	result := triggerTest(t, "GET", "/test/42", nil, nil, map[string]any{
 		"input": map[string]any{
-			"task_id": "{{ request.params.id }}",
+			"task_id": "{{ params.id }}",
 		},
 	})
 
-	assert.Equal(t, "42", result.Input["task_id"])
+	assert.Equal(t, 42, result.Input["task_id"])
 }
 
 func TestMapTrigger_QueryParams(t *testing.T) {
 	result := triggerTest(t, "GET", "/test?page=2&per_page=10", nil, nil, map[string]any{
 		"input": map[string]any{
-			"page":     "{{ request.query.page }}",
-			"per_page": "{{ request.query.per_page }}",
+			"page":     "{{ query.page }}",
+			"per_page": "{{ query.per_page }}",
 		},
 	})
 
-	assert.Equal(t, "2", result.Input["page"])
-	assert.Equal(t, "10", result.Input["per_page"])
+	assert.Equal(t, 2, result.Input["page"])
+	assert.Equal(t, 10, result.Input["per_page"])
 }
 
 func TestMapTrigger_Headers(t *testing.T) {
@@ -92,7 +92,7 @@ func TestMapTrigger_Headers(t *testing.T) {
 		"X-Custom": "custom-value",
 	}, map[string]any{
 		"input": map[string]any{
-			"custom": "{{ request.headers[\"X-Custom\"] }}",
+			"custom": "{{ headers[\"X-Custom\"] }}",
 		},
 	})
 
@@ -102,7 +102,7 @@ func TestMapTrigger_Headers(t *testing.T) {
 func TestMapTrigger_DefaultValues(t *testing.T) {
 	result := triggerTest(t, "GET", "/test", nil, nil, map[string]any{
 		"input": map[string]any{
-			"page": "{{ request.query.page ?? 1 }}",
+			"page": "{{ query.page ?? 1 }}",
 		},
 	})
 
@@ -173,7 +173,7 @@ func TestMapTrigger_RawBody(t *testing.T) {
 		result, err = MapTrigger(c, map[string]any{
 			"raw_body": true,
 			"input": map[string]any{
-				"event": "{{ request.body }}",
+				"event": "{{ body }}",
 			},
 		}, compiler)
 		if err != nil {

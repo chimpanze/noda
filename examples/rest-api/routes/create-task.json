@@ -1,0 +1,19 @@
+{
+  "id": "create-task",
+  "method": "POST",
+  "path": "/api/tasks",
+  "summary": "Create a new task",
+  "tags": ["tasks"],
+  "middleware": ["auth.jwt"],
+  "body": {
+    "schema": { "$ref": "schemas/CreateTask" }
+  },
+  "trigger": {
+    "workflow": "create-task",
+    "input": {
+      "title": "{{ body.title }}",
+      "description": "{{ body.description }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

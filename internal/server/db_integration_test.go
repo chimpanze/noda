@@ -67,8 +67,8 @@ func TestE2E_DB_CreateTask(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "create-task",
 					"input": map[string]any{
-						"title":       "{{ request.body.title }}",
-						"description": "{{ request.body.description }}",
+						"title":       "{{ body.title }}",
+						"description": "{{ body.description }}",
 					},
 				},
 			},
@@ -94,7 +94,7 @@ func TestE2E_DB_CreateTask(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "201",
-							"body":   "{{ insert }}",
+							"body":   "{{ nodes.insert }}",
 						},
 					},
 				},
@@ -134,7 +134,7 @@ func TestE2E_DB_ListTasks(t *testing.T) {
 				"path":   "/api/tasks",
 				"trigger": map[string]any{
 					"workflow": "list-tasks",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -154,7 +154,7 @@ func TestE2E_DB_ListTasks(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ fetch }}",
+							"body":   "{{ nodes.fetch }}",
 						},
 					},
 				},
@@ -193,7 +193,7 @@ func TestE2E_DB_GetTask(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "get-task",
 					"input": map[string]any{
-						"id": "{{ request.params.id }}",
+						"id": "{{ params.id }}",
 					},
 				},
 			},
@@ -214,7 +214,7 @@ func TestE2E_DB_GetTask(t *testing.T) {
 					"check_empty": map[string]any{
 						"type": "control.if",
 						"config": map[string]any{
-							"condition": "{{ len(fetch) == 0 }}",
+							"condition": "{{ len(nodes.fetch) == 0 }}",
 						},
 					},
 					"not_found": map[string]any{
@@ -229,7 +229,7 @@ func TestE2E_DB_GetTask(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ fetch[0] }}",
+							"body":   "{{ nodes.fetch[0] }}",
 						},
 					},
 				},
@@ -273,8 +273,8 @@ func TestE2E_DB_UpdateTask(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "update-task",
 					"input": map[string]any{
-						"id":    "{{ request.params.id }}",
-						"title": "{{ request.body.title }}",
+						"id":    "{{ params.id }}",
+						"title": "{{ body.title }}",
 					},
 				},
 			},
@@ -298,7 +298,7 @@ func TestE2E_DB_UpdateTask(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ update }}",
+							"body":   "{{ nodes.update }}",
 						},
 					},
 				},
@@ -340,7 +340,7 @@ func TestE2E_DB_DeleteTask(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "delete-task",
 					"input": map[string]any{
-						"id": "{{ request.params.id }}",
+						"id": "{{ params.id }}",
 					},
 				},
 			},
@@ -363,7 +363,7 @@ func TestE2E_DB_DeleteTask(t *testing.T) {
 						"type": "response.json",
 						"config": map[string]any{
 							"status": "200",
-							"body":   "{{ delete }}",
+							"body":   "{{ nodes.delete }}",
 						},
 					},
 				},
@@ -398,7 +398,7 @@ func TestE2E_DB_NoResponseNode(t *testing.T) {
 				"path":   "/api/fire",
 				"trigger": map[string]any{
 					"workflow": "fire-forget",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -438,7 +438,7 @@ func TestE2E_DB_WorkflowError(t *testing.T) {
 				"path":   "/api/fail",
 				"trigger": map[string]any{
 					"workflow": "fail-wf",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -483,7 +483,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 			"trigger": map[string]any{
 				"workflow": "create-task",
 				"input": map[string]any{
-					"title": "{{ request.body.title }}",
+					"title": "{{ body.title }}",
 				},
 			},
 		},
@@ -492,7 +492,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 			"path":   "/api/tasks",
 			"trigger": map[string]any{
 				"workflow": "list-tasks",
-				"input":   map[string]any{},
+				"input":    map[string]any{},
 			},
 		},
 		"get-task": {
@@ -501,7 +501,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 			"trigger": map[string]any{
 				"workflow": "get-task",
 				"input": map[string]any{
-					"id": "{{ request.params.id }}",
+					"id": "{{ params.id }}",
 				},
 			},
 		},
@@ -511,8 +511,8 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 			"trigger": map[string]any{
 				"workflow": "update-task",
 				"input": map[string]any{
-					"id":    "{{ request.params.id }}",
-					"title": "{{ request.body.title }}",
+					"id":    "{{ params.id }}",
+					"title": "{{ body.title }}",
 				},
 			},
 		},
@@ -522,7 +522,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 			"trigger": map[string]any{
 				"workflow": "delete-task",
 				"input": map[string]any{
-					"id": "{{ request.params.id }}",
+					"id": "{{ params.id }}",
 				},
 			},
 		},
@@ -541,7 +541,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 				},
 				"respond": map[string]any{
 					"type":   "response.json",
-					"config": map[string]any{"status": "201", "body": "{{ insert }}"},
+					"config": map[string]any{"status": "201", "body": "{{ nodes.insert }}"},
 				},
 			},
 			"edges": []any{map[string]any{"from": "insert", "to": "respond"}},
@@ -555,7 +555,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 				},
 				"respond": map[string]any{
 					"type":   "response.json",
-					"config": map[string]any{"status": "200", "body": "{{ fetch }}"},
+					"config": map[string]any{"status": "200", "body": "{{ nodes.fetch }}"},
 				},
 			},
 			"edges": []any{map[string]any{"from": "fetch", "to": "respond"}},
@@ -572,7 +572,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 				},
 				"respond": map[string]any{
 					"type":   "response.json",
-					"config": map[string]any{"status": "200", "body": "{{ fetch }}"},
+					"config": map[string]any{"status": "200", "body": "{{ nodes.fetch }}"},
 				},
 			},
 			"edges": []any{map[string]any{"from": "fetch", "to": "respond"}},
@@ -589,7 +589,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 				},
 				"respond": map[string]any{
 					"type":   "response.json",
-					"config": map[string]any{"status": "200", "body": "{{ update }}"},
+					"config": map[string]any{"status": "200", "body": "{{ nodes.update }}"},
 				},
 			},
 			"edges": []any{map[string]any{"from": "update", "to": "respond"}},
@@ -605,7 +605,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 				},
 				"respond": map[string]any{
 					"type":   "response.json",
-					"config": map[string]any{"status": "200", "body": "{{ delete }}"},
+					"config": map[string]any{"status": "200", "body": "{{ nodes.delete }}"},
 				},
 			},
 			"edges": []any{map[string]any{"from": "delete", "to": "respond"}},

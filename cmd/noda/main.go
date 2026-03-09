@@ -121,10 +121,10 @@ func newValidateCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
-			// Plugin/service/node startup validation
+			// Plugin/service/node startup validation (dry-run: no database connections)
 			plugins := registry.NewPluginRegistry()
 			registerCorePlugins(plugins)
-			_, bootstrapErrs := registry.Bootstrap(rc, plugins)
+			_, bootstrapErrs := registry.Bootstrap(rc, plugins, registry.BootstrapOptions{DryRun: true})
 			if len(bootstrapErrs) > 0 {
 				for _, e := range bootstrapErrs {
 					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)

@@ -1,0 +1,21 @@
+{
+  "id": "update-task",
+  "method": "PUT",
+  "path": "/api/tasks/:id",
+  "summary": "Update a task",
+  "tags": ["tasks"],
+  "middleware": ["auth.jwt"],
+  "body": {
+    "schema": { "$ref": "schemas/UpdateTask" }
+  },
+  "trigger": {
+    "workflow": "update-task",
+    "input": {
+      "task_id": "{{ params.id }}",
+      "title": "{{ body.title }}",
+      "description": "{{ body.description }}",
+      "status": "{{ body.status }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

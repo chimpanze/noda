@@ -55,8 +55,8 @@ func TestE2E_EventEmit_Stream(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "emit-event",
 					"input": map[string]any{
-						"topic":   "{{ request.body.topic }}",
-						"payload": "{{ request.body.payload }}",
+						"topic":   "{{ body.topic }}",
+						"payload": "{{ body.payload }}",
 					},
 				},
 			},
@@ -75,7 +75,7 @@ func TestE2E_EventEmit_Stream(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ emit }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.emit }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "emit", "to": "respond"}},
@@ -107,7 +107,7 @@ func TestE2E_EventEmitAndWorkerConsume(t *testing.T) {
 				"trigger": map[string]any{
 					"workflow": "emit-event",
 					"input": map[string]any{
-						"payload": "{{ request.body }}",
+						"payload": "{{ body }}",
 					},
 				},
 			},
@@ -126,7 +126,7 @@ func TestE2E_EventEmitAndWorkerConsume(t *testing.T) {
 					},
 					"respond": map[string]any{
 						"type":   "response.json",
-						"config": map[string]any{"status": "200", "body": "{{ emit }}"},
+						"config": map[string]any{"status": "200", "body": "{{ nodes.emit }}"},
 					},
 				},
 				"edges": []any{map[string]any{"from": "emit", "to": "respond"}},

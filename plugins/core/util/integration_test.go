@@ -90,15 +90,10 @@ func TestIntegration_DelayWithTimeout(t *testing.T) {
 
 	execCtx := engine.NewExecutionContext()
 	err = engine.ExecuteGraph(ctx, graph, execCtx, svcReg, nodeReg)
-	// The delay node has an "error" output, so the timeout error is caught internally
-	// and routed to the "error" output (no edge from it, so workflow completes)
-	require.NoError(t, err)
-
-	// The node output should contain the error info
-	data, ok := execCtx.GetOutput("wait")
-	assert.True(t, ok)
-	errData := data.(map[string]any)
-	assert.Contains(t, errData["error"].(string), "util.delay")
+	// The delay node has an "error" output but no error edge, so the workflow
+	// should fail rather than silently swallowing the error.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed with no error edge")
 }
 
 func TestIntegration_LogNode(t *testing.T) {

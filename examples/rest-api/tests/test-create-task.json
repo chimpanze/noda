@@ -1,0 +1,37 @@
+{
+  "id": "test-create-task",
+  "workflow": "create-task",
+  "tests": [
+    {
+      "name": "creates task successfully",
+      "input": {
+        "title": "Buy groceries",
+        "description": "Milk, eggs, bread",
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "validate": {
+          "output": { "title": "Buy groceries", "description": "Milk, eggs, bread" }
+        },
+        "insert": {
+          "output": {
+            "id": "task-1",
+            "title": "Buy groceries",
+            "description": "Milk, eggs, bread",
+            "status": "todo",
+            "user_id": "user-1"
+          }
+        },
+        "respond": {
+          "output": { "status": 201 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    }
+  ]
+}

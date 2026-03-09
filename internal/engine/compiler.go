@@ -442,8 +442,9 @@ func walkConfigStrings(config map[string]any, fn func(string)) {
 	}
 }
 
-// extractIdentifiers returns all top-level identifiers from an expression string.
-// An identifier is a sequence of alphanumeric chars, underscores, and hyphens.
+// extractIdentifiers returns node output identifiers referenced in an expression.
+// It looks for "nodes.X" patterns and returns X (the node ID or alias).
+// Also returns top-level identifiers for backward compatibility with non-node refs.
 func extractIdentifiers(expression string) []string {
 	var idents []string
 	i := 0
@@ -453,12 +454,20 @@ func extractIdentifiers(expression string) []string {
 			for i < len(expression) && (isIdentChar(expression[i]) || expression[i] == '.') {
 				i++
 			}
-			// Take only the root identifier (before any dot)
 			ident := expression[start:i]
-			if dot := strings.IndexByte(ident, '.'); dot != -1 {
-				ident = ident[:dot]
+			// Check for "nodes.X" pattern — extract X as the referenced output
+			if strings.HasPrefix(ident, "nodes.") {
+				parts := strings.SplitN(ident, ".", 3)
+				if len(parts) >= 2 {
+					idents = append(idents, parts[1])
+				}
+			} else {
+				// Take only the root identifier (before any dot)
+				if dot := strings.IndexByte(ident, '.'); dot != -1 {
+					ident = ident[:dot]
+				}
+				idents = append(idents, ident)
 			}
-			idents = append(idents, ident)
 		} else {
 			i++
 		}

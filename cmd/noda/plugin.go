@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"sort"
 
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/spf13/cobra"
 )
 
@@ -16,32 +18,34 @@ func newPluginCmd() *cobra.Command {
 		Use:   "list",
 		Short: "List all registered plugins with prefixes and node counts",
 		Run: func(_ *cobra.Command, _ []string) {
+			// Build a real plugin registry from all core and service-only plugins
+			pluginReg := registry.NewPluginRegistry()
+			registerCorePlugins(pluginReg)
+
+			nodeReg := registry.NewNodeRegistry()
+			for _, p := range pluginReg.All() {
+				_ = nodeReg.RegisterFromPlugin(p)
+			}
+
 			type pluginInfo struct {
 				name   string
 				prefix string
 				nodes  int
 			}
 
-			infos := []pluginInfo{
-				{"control", "control", 3},
-				{"transform", "transform", 4},
-				{"util", "util", 4},
-				{"workflow", "workflow", 2},
-				{"response", "response", 3},
-				{"db", "db", 4},
-				{"cache", "cache", 4},
-				{"event", "event", 1},
-				{"storage", "storage", 3},
-				{"upload", "upload", 1},
-				{"image", "image", 2},
-				{"http", "http", 1},
-				{"email", "email", 1},
-				{"ws", "ws", 1},
-				{"sse", "sse", 1},
-				{"wasm", "wasm", 2},
-				{"stream", "stream", 0},
-				{"pubsub", "pubsub", 0},
+			var infos []pluginInfo
+			for _, p := range pluginReg.All() {
+				count := nodeReg.CountByPrefix(p.Prefix())
+				infos = append(infos, pluginInfo{
+					name:   p.Name(),
+					prefix: p.Prefix(),
+					nodes:  count,
+				})
 			}
+
+			sort.Slice(infos, func(i, j int) bool {
+				return infos[i].name < infos[j].name
+			})
 
 			fmt.Printf("%-15s  %-10s  %s\n", "PLUGIN", "PREFIX", "NODES")
 			fmt.Println("-------------------------------------------")

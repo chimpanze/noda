@@ -92,6 +92,11 @@ func (r *NodeRegistry) OutputsForType(nodeType string) ([]string, bool) {
 	return executor.Outputs(), true
 }
 
+// CountByPrefix returns the number of node types registered under a prefix.
+func (r *NodeRegistry) CountByPrefix(prefix string) int {
+	return len(r.TypesByPrefix(prefix))
+}
+
 // TypesByPrefix returns node types matching the given prefix.
 func (r *NodeRegistry) TypesByPrefix(prefix string) []string {
 	r.mu.RLock()

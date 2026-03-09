@@ -23,7 +23,7 @@ func (d *validateDescriptor) ConfigSchema() map[string]any {
 			"data":   map[string]any{"type": "string"},
 			"schema": map[string]any{"type": "object"},
 		},
-		"required": []any{"data", "schema"},
+		"required": []any{"schema"},
 	}
 }
 
@@ -68,6 +68,9 @@ func (e *validateExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *validateExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	dataExpr, _ := config["data"].(string)
+	if dataExpr == "" {
+		dataExpr = "{{ input }}"
+	}
 
 	resolved, err := nCtx.Resolve(dataExpr)
 	if err != nil {

@@ -1,0 +1,34 @@
+{
+  "id": "test-list-tasks",
+  "workflow": "list-tasks",
+  "tests": [
+    {
+      "name": "lists tasks with pagination",
+      "input": {
+        "page": 1,
+        "limit": 20,
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "total": {
+          "output": [{ "cnt": 2 }]
+        },
+        "rows": {
+          "output": [
+            { "id": "task-1", "title": "Task 1", "status": "todo" },
+            { "id": "task-2", "title": "Task 2", "status": "done" }
+          ]
+        },
+        "respond": {
+          "output": { "status": 200 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200
+        }
+      }
+    }
+  ]
+}

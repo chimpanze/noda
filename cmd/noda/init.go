@@ -42,14 +42,14 @@ func scaffoldProject(name string) error {
 	}
 
 	files := map[string]string{
-		"noda.json":                nodaJSON,
-		".env.example":            envExample,
-		"docker-compose.yml":      dockerCompose,
-		"routes/api.json":         sampleRoute,
-		"workflows/hello.json":    sampleWorkflow,
-		"schemas/greeting.json":   sampleSchema,
-		"tests/hello.test.json":   sampleTest,
-		"README.md":               readmeTemplate(name),
+		"noda.json":             nodaJSON,
+		".env.example":          envExample,
+		"docker-compose.yml":    dockerCompose,
+		"routes/api.json":       sampleRoute,
+		"workflows/hello.json":  sampleWorkflow,
+		"schemas/greeting.json": sampleSchema,
+		"tests/hello.test.json": sampleTest,
+		"README.md":             readmeTemplate(name),
 	}
 
 	for path, content := range files {
@@ -140,7 +140,7 @@ const sampleWorkflow = `{
       "config": {
         "status": 200,
         "body": {
-          "greeting": "{{ greet.message }}"
+          "greeting": "{{ nodes.greet.message }}"
         }
       }
     }
