@@ -7,6 +7,10 @@ import { WorkflowCanvas } from "@/components/canvas/WorkflowCanvas";
 import { NodePalette } from "@/components/canvas/NodePalette";
 import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
 import { TracePanel } from "@/components/panels/TracePanel";
+import { RoutesView } from "@/components/views/RoutesView";
+import { ServicesView } from "@/components/views/ServicesView";
+import { SchemasView } from "@/components/views/SchemasView";
+import { TestsView } from "@/components/views/TestsView";
 import { useEditorStore } from "@/stores/editor";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useValidation } from "@/hooks/useValidation";
@@ -59,6 +63,14 @@ export default function App() {
                   </div>
                 )}
               </>
+            ) : activeView === "routes" ? (
+              <RoutesView />
+            ) : activeView === "services" ? (
+              <ServicesView />
+            ) : activeView === "schemas" ? (
+              <SchemasView />
+            ) : activeView === "tests" ? (
+              <TestsView />
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
                 {activeView.charAt(0).toUpperCase() + activeView.slice(1)} view
