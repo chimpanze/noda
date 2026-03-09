@@ -84,7 +84,9 @@ func validateRetryConfig(rc *RetryConfig, from, to string) error {
 	if _, err := time.ParseDuration(rc.Delay); err != nil {
 		return fmt.Errorf("%s: invalid retry delay %q: %w", edgeDesc, rc.Delay, err)
 	}
-	if rc.Backoff != "" && rc.Backoff != "fixed" && rc.Backoff != "exponential" {
+	if rc.Backoff == "" {
+		rc.Backoff = "fixed"
+	} else if rc.Backoff != "fixed" && rc.Backoff != "exponential" {
 		return fmt.Errorf("%s: retry backoff must be \"fixed\" or \"exponential\", got %q", edgeDesc, rc.Backoff)
 	}
 	return nil

@@ -52,7 +52,7 @@ func (e *setExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 
 	ttl := 0
 	if ttlRaw, ok := config["ttl"]; ok {
-		ttl, err = plugin.ResolveIntRaw(nCtx, ttlRaw)
+		ttl, err = plugin.ResolveRawInt(nCtx, ttlRaw)
 		if err != nil {
 			return "", nil, fmt.Errorf("cache.set ttl: %w", err)
 		}

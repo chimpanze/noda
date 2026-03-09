@@ -104,10 +104,11 @@ func (r *Runtime) Start(ctx context.Context) error {
 			return fmt.Errorf("worker %q: stream service %q not found", w.ID, w.StreamSvc)
 		}
 
-		client, ok := plugin.ExtractRedisClient(svcInstance)
+		provider, ok := svcInstance.(plugin.RedisClientProvider)
 		if !ok {
-			return fmt.Errorf("worker %q: service %q does not provide a Redis client", w.ID, w.StreamSvc)
+			return fmt.Errorf("worker %q: service %q does not implement RedisClientProvider", w.ID, w.StreamSvc)
 		}
+		client := provider.Client()
 
 		// Auto-create consumer group
 		err := client.XGroupCreateMkStream(ctx, w.Topic, w.Group, "0").Err()

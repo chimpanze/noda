@@ -3,17 +3,14 @@ package connmgr
 import (
 	"context"
 	"log/slog"
-	"strings"
 	"time"
 
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
-
-// shared compiler for channel pattern resolution (thread-safe via internal RWMutex)
-var channelCompiler = expr.NewCompiler()
 
 const (
 	defaultPingInterval   = 30 * time.Second
@@ -34,19 +31,17 @@ type WebSocketConfig struct {
 	OnDisconnect string // workflow ID
 }
 
-// WorkflowRunner executes a workflow given its ID and input data.
-type WorkflowRunner func(ctx context.Context, workflowID string, input map[string]any) error
-
 // WebSocketHandler manages a single WebSocket endpoint.
 type WebSocketHandler struct {
-	config  WebSocketConfig
-	manager *Manager
-	runner  WorkflowRunner
-	logger  *slog.Logger
+	config   WebSocketConfig
+	manager  *Manager
+	runner   api.WorkflowRunner
+	compiler *expr.Compiler
+	logger   *slog.Logger
 }
 
 // NewWebSocketHandler creates a handler for a WebSocket endpoint.
-func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner WorkflowRunner, logger *slog.Logger) *WebSocketHandler {
+func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner api.WorkflowRunner, compiler *expr.Compiler, logger *slog.Logger) *WebSocketHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -56,11 +51,15 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner WorkflowRunne
 	if cfg.MaxMessageSize == 0 {
 		cfg.MaxMessageSize = defaultMaxMessageSize
 	}
+	if compiler == nil {
+		compiler = expr.NewCompiler()
+	}
 	return &WebSocketHandler{
-		config:  cfg,
-		manager: mgr,
-		runner:  runner,
-		logger:  logger,
+		config:   cfg,
+		manager:  mgr,
+		runner:   runner,
+		compiler: compiler,
+		logger:   logger,
 	}
 }
 
@@ -82,7 +81,7 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 	params := extractFiberParams(ws)
 	userID := fiberLocal[string](ws, "jwt_user_id")
 
-	channel := resolveChannelPattern(h.config.ChannelPattern, params, userID)
+	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID)
 
 	// Check max per channel
 	if h.config.MaxPerChannel > 0 && h.manager.ChannelCount(channel) >= h.config.MaxPerChannel {
@@ -176,50 +175,6 @@ func (h *WebSocketHandler) buildInput(conn *Conn) map[string]any {
 		"user_id":       conn.UserID,
 		"params":        conn.Metadata["params"],
 	}
-}
-
-// resolveChannelPattern evaluates a channel pattern using the expression engine.
-// Supports {{ auth.sub }}, {{ request.params.id }}, and any valid expression.
-// Falls back to literal string replacement for non-expression placeholders like :id.
-func resolveChannelPattern(pattern string, params map[string]string, userID string) string {
-	// If pattern has no expression markers, return as-is
-	if !strings.Contains(pattern, "{{") && !strings.Contains(pattern, ":") && !strings.Contains(pattern, "{") {
-		return pattern
-	}
-
-	// Build expression context
-	paramsAny := make(map[string]any, len(params))
-	for k, v := range params {
-		paramsAny[k] = v
-	}
-	context := map[string]any{
-		"auth": map[string]any{
-			"sub": userID,
-		},
-		"request": map[string]any{
-			"params": paramsAny,
-		},
-	}
-
-	// Use the expression engine for {{ }} patterns
-	if strings.Contains(pattern, "{{") {
-		resolver := expr.NewResolver(channelCompiler, context)
-		result, err := resolver.Resolve(pattern)
-		if err == nil {
-			if s, ok := result.(string); ok {
-				return s
-			}
-		}
-		// Fall through to manual replacement on error
-	}
-
-	// Fallback: replace :param and {param} style placeholders
-	result := pattern
-	for k, v := range params {
-		result = strings.ReplaceAll(result, "{"+k+"}", v)
-		result = strings.ReplaceAll(result, ":"+k, v)
-	}
-	return result
 }
 
 // extractFiberParams extracts route params from a Fiber WebSocket connection.

@@ -81,7 +81,7 @@ func ResolveOptionalAny(nCtx api.ExecutionContext, config map[string]any, key st
 
 // ResolveInt resolves an optional config key as an integer.
 // Returns (0, false, nil) if the key is absent.
-func ResolveInt(nCtx api.ExecutionContext, config map[string]any, key string) (int, bool, error) {
+func ResolveOptionalInt(nCtx api.ExecutionContext, config map[string]any, key string) (int, bool, error) {
 	raw, ok := config[key]
 	if !ok {
 		return 0, false, nil
@@ -141,8 +141,8 @@ func ToInt64(v any) (int64, bool) {
 	return 0, false
 }
 
-// ResolveIntRaw resolves a raw value (already extracted from config) as an integer.
-func ResolveIntRaw(nCtx api.ExecutionContext, raw any) (int, error) {
+// ResolveRawInt resolves a raw value (already extracted from config) as an integer.
+func ResolveRawInt(nCtx api.ExecutionContext, raw any) (int, error) {
 	switch v := raw.(type) {
 	case float64:
 		return int(v), nil

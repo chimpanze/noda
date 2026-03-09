@@ -85,7 +85,7 @@ type CompiledGraph struct {
 	// Entry nodes: nodes with no inbound edges
 	EntryNodes []string
 
-	// Terminal nodes: nodes with no outbound success edges
+	// Terminal nodes: nodes with no outbound success edges (error-only edges don't count)
 	TerminalNodes []string
 
 	// Dependency count: how many inbound edges before a node can run
@@ -185,7 +185,9 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		}
 	}
 
-	// Identify terminal nodes (no outbound success edges)
+	// Identify terminal nodes (no outbound success edges).
+	// Nodes with only error edges are still terminal — error edges represent
+	// exceptional flow, so the node's output must be preserved for inspection.
 	for id := range g.Nodes {
 		if len(g.Adjacency[id]["success"]) == 0 {
 			g.TerminalNodes = append(g.TerminalNodes, id)

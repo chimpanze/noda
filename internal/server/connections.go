@@ -73,7 +73,7 @@ func (s *Server) registerConnections() error {
 					}
 				}
 
-				handler := connmgr.NewWebSocketHandler(cfg, mgr, runner, s.logger)
+				handler := connmgr.NewWebSocketHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app)
 				s.logger.Debug("websocket endpoint registered", "name", name, "path", path)
 
@@ -95,7 +95,7 @@ func (s *Server) registerConnections() error {
 					cfg.Retry = int(v)
 				}
 
-				handler := connmgr.NewSSEHandler(cfg, mgr, runner, s.logger)
+				handler := connmgr.NewSSEHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app)
 				s.logger.Debug("sse endpoint registered", "name", name, "path", path)
 			}
@@ -105,7 +105,7 @@ func (s *Server) registerConnections() error {
 }
 
 // buildWorkflowRunner creates a WorkflowRunner that uses the server's engine.
-func (s *Server) buildWorkflowRunner() connmgr.WorkflowRunner {
+func (s *Server) buildWorkflowRunner() api.WorkflowRunner {
 	return func(ctx context.Context, workflowID string, input map[string]any) error {
 		execCtx := engine.NewExecutionContext(
 			engine.WithInput(input),

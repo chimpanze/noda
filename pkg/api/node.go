@@ -27,6 +27,10 @@ type NodeExecutor interface {
 	Execute(ctx context.Context, nCtx ExecutionContext, config map[string]any, services map[string]any) (outputName string, data any, err error)
 }
 
+// WorkflowRunner executes a workflow by ID with input data.
+// Used by the connection manager and Wasm runtime to trigger workflow execution.
+type WorkflowRunner func(ctx context.Context, workflowID string, input map[string]any) error
+
 // Standard output names used by most nodes.
 const (
 	OutputSuccess = "success"

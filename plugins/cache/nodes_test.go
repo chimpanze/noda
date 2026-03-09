@@ -349,18 +349,18 @@ func TestResolveInt_Variants(t *testing.T) {
 		return float64(99), nil
 	}}
 
-	v, err := plugin.ResolveIntRaw(nCtx, float64(10))
+	v, err := plugin.ResolveRawInt(nCtx, float64(10))
 	require.NoError(t, err)
 	assert.Equal(t, 10, v)
 
-	v, err = plugin.ResolveIntRaw(nCtx, int(5))
+	v, err = plugin.ResolveRawInt(nCtx, int(5))
 	require.NoError(t, err)
 	assert.Equal(t, 5, v)
 
-	v, err = plugin.ResolveIntRaw(nCtx, "expr")
+	v, err = plugin.ResolveRawInt(nCtx, "expr")
 	require.NoError(t, err)
 	assert.Equal(t, 99, v)
 
-	_, err = plugin.ResolveIntRaw(nCtx, true)
+	_, err = plugin.ResolveRawInt(nCtx, true)
 	require.Error(t, err)
 }

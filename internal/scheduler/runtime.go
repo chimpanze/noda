@@ -13,6 +13,7 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
 	"github.com/robfig/cron/v3"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -53,6 +54,7 @@ type Runtime struct {
 	workflows     map[string]map[string]any
 	workflowCache *engine.WorkflowCache
 	compiler      *expr.Compiler
+	tracer        oteltrace.Tracer
 	logger        *slog.Logger
 
 	cron    *cron.Cron
@@ -69,6 +71,7 @@ func NewRuntime(
 	workflows map[string]map[string]any,
 	workflowCache *engine.WorkflowCache,
 	compiler *expr.Compiler,
+	tracer oteltrace.Tracer,
 	logger *slog.Logger,
 ) *Runtime {
 	if logger == nil {
@@ -84,6 +87,7 @@ func NewRuntime(
 		workflows:     workflows,
 		workflowCache: workflowCache,
 		compiler:      compiler,
+		tracer:        tracer,
 		logger:        logger,
 	}
 }
@@ -268,7 +272,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 		return
 	}
 
-	execCtx := engine.NewExecutionContext(
+	opts := []engine.ExecutionContextOption{
 		engine.WithInput(input),
 		engine.WithTrigger(api.TriggerData{
 			Type:      "schedule",
@@ -278,7 +282,11 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 		engine.WithWorkflowID(sc.WorkflowID),
 		engine.WithLogger(r.logger),
 		engine.WithCompiler(r.compiler),
-	)
+	}
+	if r.tracer != nil {
+		opts = append(opts, engine.WithTracer(r.tracer))
+	}
+	execCtx := engine.NewExecutionContext(opts...)
 
 	wfErr := r.executeWorkflow(ctx, sc.WorkflowID, execCtx)
 

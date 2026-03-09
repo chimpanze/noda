@@ -11,16 +11,16 @@ import (
 // tryAcquireLock attempts a Redis SET NX on the given key with TTL.
 // Returns true if the lock was acquired, false if another instance holds it.
 func tryAcquireLock(ctx context.Context, svc any, key string, ttl time.Duration) (bool, error) {
-	client, ok := plugin.ExtractRedisClient(svc)
+	provider, ok := svc.(plugin.RedisClientProvider)
 	if !ok {
-		return false, fmt.Errorf("lock: service does not provide a Redis client")
+		return false, fmt.Errorf("lock: service does not implement RedisClientProvider")
 	}
 
 	if ttl == 0 {
 		ttl = 5 * time.Minute
 	}
 
-	result, err := client.SetNX(ctx, key, "1", ttl).Result()
+	result, err := provider.Client().SetNX(ctx, key, "1", ttl).Result()
 	if err != nil {
 		return false, fmt.Errorf("lock acquire %q: %w", key, err)
 	}
@@ -29,9 +29,9 @@ func tryAcquireLock(ctx context.Context, svc any, key string, ttl time.Duration)
 
 // releaseLockKey deletes a lock key.
 func releaseLockKey(ctx context.Context, svc any, key string) error {
-	client, ok := plugin.ExtractRedisClient(svc)
+	provider, ok := svc.(plugin.RedisClientProvider)
 	if !ok {
-		return fmt.Errorf("lock: service does not provide a Redis client")
+		return fmt.Errorf("lock: service does not implement RedisClientProvider")
 	}
-	return client.Del(ctx, key).Err()
+	return provider.Client().Del(ctx, key).Err()
 }

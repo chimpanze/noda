@@ -52,7 +52,7 @@ func (e *convertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		Type: imgType,
 	}
 
-	if quality, ok, _ := plugin.ResolveInt(nCtx, config, "quality"); ok {
+	if quality, ok, _ := plugin.ResolveOptionalInt(nCtx, config, "quality"); ok {
 		opts.Quality = quality
 	}
 

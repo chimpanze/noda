@@ -40,11 +40,11 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
 
-	width, _, err := plugin.ResolveInt(nCtx, config, "width")
+	width, _, err := plugin.ResolveOptionalInt(nCtx, config, "width")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
-	height, _, err := plugin.ResolveInt(nCtx, config, "height")
+	height, _, err := plugin.ResolveOptionalInt(nCtx, config, "height")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
@@ -54,7 +54,7 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		Height: height,
 	}
 
-	if quality, ok, _ := plugin.ResolveInt(nCtx, config, "quality"); ok {
+	if quality, ok, _ := plugin.ResolveOptionalInt(nCtx, config, "quality"); ok {
 		opts.Quality = quality
 	}
 	if format, ok := config["format"].(string); ok {

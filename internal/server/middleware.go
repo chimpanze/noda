@@ -147,8 +147,13 @@ func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, 
 		if v, ok := cfg["expiration"].(string); ok {
 			if d, err := time.ParseDuration(v); err == nil {
 				limiterCfg.Expiration = d
+			} else {
+				return nil, fmt.Errorf("limiter: invalid expiration %q: %w", v, err)
 			}
 		}
+	}
+	if limiterCfg.Max == 0 {
+		slog.Warn("limiter middleware has max=0, defaulting to library default")
 	}
 	return limiter.New(limiterCfg), nil
 }
@@ -157,9 +162,11 @@ func newTimeoutMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, 
 	d := 30 * time.Second
 	if cfg != nil {
 		if v, ok := cfg["duration"].(string); ok {
-			if parsed, err := time.ParseDuration(v); err == nil {
-				d = parsed
+			parsed, err := time.ParseDuration(v)
+			if err != nil {
+				return nil, fmt.Errorf("timeout: invalid duration %q: %w", v, err)
 			}
+			d = parsed
 		}
 	}
 	return fibertimeout.New(func(c fiber.Ctx) error {

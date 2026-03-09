@@ -38,11 +38,11 @@ func (e *thumbnailExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}
 
-	width, _, err := plugin.ResolveInt(nCtx, config, "width")
+	width, _, err := plugin.ResolveOptionalInt(nCtx, config, "width")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}
-	height, _, err := plugin.ResolveInt(nCtx, config, "height")
+	height, _, err := plugin.ResolveOptionalInt(nCtx, config, "height")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}

@@ -42,6 +42,7 @@ import (
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
 	"github.com/gofiber/fiber/v3"
 	"github.com/spf13/cobra"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -294,6 +295,10 @@ func newStartCmd() *cobra.Command {
 			var schedulerRuntime *scheduler.Runtime
 			if runScheduler && len(rc.Schedules) > 0 {
 				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
+				var tracer oteltrace.Tracer
+				if traceProvider != nil {
+					tracer = traceProvider.Tracer()
+				}
 				schedulerRuntime = scheduler.NewRuntime(
 					scheduleConfigs,
 					bootstrap.Services,
@@ -301,6 +306,7 @@ func newStartCmd() *cobra.Command {
 					rc.Workflows,
 					workflowCache,
 					bootstrap.Compiler,
+					tracer,
 					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
@@ -431,6 +437,10 @@ func newDevCmd() *cobra.Command {
 			var schedulerRuntime *scheduler.Runtime
 			if len(rc.Schedules) > 0 {
 				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
+				var tracer oteltrace.Tracer
+				if traceProvider != nil {
+					tracer = traceProvider.Tracer()
+				}
 				schedulerRuntime = scheduler.NewRuntime(
 					scheduleConfigs,
 					bootstrap.Services,
@@ -438,6 +448,7 @@ func newDevCmd() *cobra.Command {
 					rc.Workflows,
 					workflowCache,
 					bootstrap.Compiler,
+					tracer,
 					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {

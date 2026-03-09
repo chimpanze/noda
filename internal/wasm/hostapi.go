@@ -9,19 +9,16 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 )
 
-// WorkflowRunner executes a workflow by ID with input data.
-type WorkflowRunner func(ctx context.Context, workflowID string, input map[string]any) error
-
 // HostDispatcher handles noda_call and noda_call_async from Wasm modules.
 type HostDispatcher struct {
 	services *registry.ServiceRegistry
-	runner   WorkflowRunner
+	runner   api.WorkflowRunner
 	logger   *slog.Logger
 	module   *Module // set after module creation
 }
 
 // NewHostDispatcher creates a new host dispatcher.
-func NewHostDispatcher(services *registry.ServiceRegistry, runner WorkflowRunner, logger *slog.Logger) *HostDispatcher {
+func NewHostDispatcher(services *registry.ServiceRegistry, runner api.WorkflowRunner, logger *slog.Logger) *HostDispatcher {
 	return &HostDispatcher{
 		services: services,
 		runner:   runner,

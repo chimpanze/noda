@@ -121,6 +121,11 @@ func (s *Server) Setup() error {
 		return fmt.Errorf("register connections: %w", err)
 	}
 
+	// Register OpenAPI documentation endpoints
+	if err := s.RegisterOpenAPIRoutes(); err != nil {
+		return fmt.Errorf("openapi routes: %w", err)
+	}
+
 	return nil
 }
 

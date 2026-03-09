@@ -39,11 +39,11 @@ func (e *cropExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}
 
-	width, _, err := plugin.ResolveInt(nCtx, config, "width")
+	width, _, err := plugin.ResolveOptionalInt(nCtx, config, "width")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}
-	height, _, err := plugin.ResolveInt(nCtx, config, "height")
+	height, _, err := plugin.ResolveOptionalInt(nCtx, config, "height")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}

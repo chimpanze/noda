@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
@@ -25,25 +27,30 @@ type SSEConfig struct {
 
 // SSEHandler manages a single SSE endpoint.
 type SSEHandler struct {
-	config  SSEConfig
-	manager *Manager
-	runner  WorkflowRunner
-	logger  *slog.Logger
+	config   SSEConfig
+	manager  *Manager
+	runner   api.WorkflowRunner
+	compiler *expr.Compiler
+	logger   *slog.Logger
 }
 
 // NewSSEHandler creates a handler for an SSE endpoint.
-func NewSSEHandler(cfg SSEConfig, mgr *Manager, runner WorkflowRunner, logger *slog.Logger) *SSEHandler {
+func NewSSEHandler(cfg SSEConfig, mgr *Manager, runner api.WorkflowRunner, compiler *expr.Compiler, logger *slog.Logger) *SSEHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	if cfg.Heartbeat == 0 {
 		cfg.Heartbeat = 30 * time.Second
 	}
+	if compiler == nil {
+		compiler = expr.NewCompiler()
+	}
 	return &SSEHandler{
-		config:  cfg,
-		manager: mgr,
-		runner:  runner,
-		logger:  logger,
+		config:   cfg,
+		manager:  mgr,
+		runner:   runner,
+		compiler: compiler,
+		logger:   logger,
 	}
 }
 
@@ -71,10 +78,11 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 		userID = uid
 	}
 
-	channel := resolveChannelPattern(h.config.ChannelPattern, params, userID)
+	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID)
 
 	// Event channel for pushing SSE events to the client
-	events := make(chan sseEvent, 64)
+	const sseEventBuffer = 64
+	events := make(chan sseEvent, sseEventBuffer)
 
 	conn := &Conn{
 		ID:       connID,

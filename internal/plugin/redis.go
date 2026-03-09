@@ -2,14 +2,10 @@ package plugin
 
 import "github.com/redis/go-redis/v9"
 
-// ExtractRedisClient extracts a *redis.Client from a service that exposes one
-// via a Client() method (e.g., stream.Service, cache.Service).
-func ExtractRedisClient(svc any) (*redis.Client, bool) {
-	type clientProvider interface {
-		Client() *redis.Client
-	}
-	if cp, ok := svc.(clientProvider); ok {
-		return cp.Client(), true
-	}
-	return nil, false
+// RedisClientProvider is implemented by services that expose a raw Redis client
+// (e.g., cache.Service, stream.Service, pubsub.Service). Used by internal
+// components like the scheduler (distributed locking) and worker (stream
+// consumption) that need Redis operations not covered by service interfaces.
+type RedisClientProvider interface {
+	Client() *redis.Client
 }

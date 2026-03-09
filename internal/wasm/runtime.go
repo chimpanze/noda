@@ -11,6 +11,7 @@ import (
 	extism "github.com/extism/go-sdk"
 
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // Runtime manages all Wasm module instances.
@@ -18,12 +19,12 @@ type Runtime struct {
 	mu       sync.RWMutex
 	modules  map[string]*Module
 	services *registry.ServiceRegistry
-	runner   WorkflowRunner
+	runner   api.WorkflowRunner
 	logger   *slog.Logger
 }
 
 // NewRuntime creates a new Wasm runtime.
-func NewRuntime(services *registry.ServiceRegistry, runner WorkflowRunner, logger *slog.Logger) *Runtime {
+func NewRuntime(services *registry.ServiceRegistry, runner api.WorkflowRunner, logger *slog.Logger) *Runtime {
 	return &Runtime{
 		modules:  make(map[string]*Module),
 		services: services,

@@ -11,6 +11,13 @@ import (
 const (
 	// maxTickRate is the upper bound for Wasm module tick rate in Hz.
 	maxTickRate = 120
+
+	// wasmCallTimeout is the maximum time allowed for a single Wasm plugin call
+	// (initialize, shutdown, command). Prevents hung modules from blocking the runtime.
+	wasmCallTimeout = 30 * time.Second
+
+	// queryChannelBuffer is the buffer size for the query serialization channel.
+	queryChannelBuffer = 16
 )
 
 // PluginInstance abstracts the Extism plugin for testability.
@@ -100,7 +107,7 @@ func NewModule(name string, plugin PluginInstance, cfg ModuleConfig, dispatcher 
 		pendingLabels: make(map[string]bool),
 		asyncResults:  make(map[string]*AsyncResponse),
 		timers:        make(map[string]timerEntry),
-		queryCh:       make(chan queryRequest, 16),
+		queryCh:       make(chan queryRequest, queryChannelBuffer),
 	}
 
 	dispatcher.SetModule(m)
@@ -123,7 +130,7 @@ func (m *Module) Initialize(ctx context.Context) error {
 		return fmt.Errorf("marshal initialize input: %w", err)
 	}
 
-	exitCode, _, err := m.Plugin.Call("initialize", data)
+	exitCode, _, err := m.callWithTimeout("initialize", data, wasmCallTimeout)
 	if err != nil {
 		return fmt.Errorf("initialize call failed: %w", err)
 	}
@@ -161,7 +168,7 @@ func (m *Module) Stop(ctx context.Context) error {
 
 	// Call shutdown
 	data, _ := m.Codec.Marshal(map[string]any{})
-	_, _, err := m.Plugin.Call("shutdown", data)
+	_, _, err := m.callWithTimeout("shutdown", data, wasmCallTimeout)
 
 	// Close gateway connections
 	m.gateway.CloseAll()
@@ -222,11 +229,15 @@ func (m *Module) SendCommand(data any) {
 			m.Logger.Error("marshal command failed", "module", m.Name, "error", err)
 			return
 		}
-		// Queue as a query-like request to serialize with ticks
+		// Queue as a query-like request to serialize with ticks (with timeout)
 		go func() {
 			req := queryRequest{data: cmdData, result: make(chan queryResponse, 1)}
-			m.queryCh <- req
-			<-req.result // wait for completion
+			select {
+			case m.queryCh <- req:
+				<-req.result // wait for completion
+			case <-time.After(wasmCallTimeout):
+				m.Logger.Error("command queue timed out", "module", m.Name)
+			}
 		}()
 		return
 	}
@@ -308,6 +319,27 @@ func (m *Module) IsServiceAllowed(service string) bool {
 		}
 	}
 	return false
+}
+
+// callWithTimeout calls a plugin function with a timeout. Returns an error if
+// the call doesn't complete within the given duration.
+func (m *Module) callWithTimeout(name string, data []byte, timeout time.Duration) (uint32, []byte, error) {
+	type callResult struct {
+		exitCode uint32
+		output   []byte
+		err      error
+	}
+	ch := make(chan callResult, 1)
+	go func() {
+		exitCode, output, err := m.Plugin.Call(name, data)
+		ch <- callResult{exitCode, output, err}
+	}()
+	select {
+	case r := <-ch:
+		return r.exitCode, r.output, r.err
+	case <-time.After(timeout):
+		return 0, nil, fmt.Errorf("%s call timed out after %s", name, timeout)
+	}
 }
 
 func (m *Module) buildServiceManifest() map[string]ServiceManifest {
