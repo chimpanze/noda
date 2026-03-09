@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -30,21 +31,19 @@ func newErrorExecutor(_ map[string]any) api.NodeExecutor {
 	return &errorExecutor{}
 }
 
-func (e *errorExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *errorExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *errorExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
-	// Resolve status
-	statusExpr, _ := config["status"].(string)
-	if statusExpr == "" {
-		statusExpr = "500"
-	}
-	statusVal, err := nCtx.Resolve(statusExpr)
-	if err != nil {
-		return "", nil, fmt.Errorf("response.error: status: %w", err)
-	}
-	status := toInt(statusVal)
-	if status == 0 {
-		status = 500
+	// Resolve status (default 500 if absent)
+	status := 500
+	if statusExpr, ok := config["status"].(string); ok && statusExpr != "" {
+		statusVal, err := nCtx.Resolve(statusExpr)
+		if err != nil {
+			return "", nil, fmt.Errorf("response.error: status: %w", err)
+		}
+		if n, ok := plugin.ToInt(statusVal); ok {
+			status = n
+		}
 	}
 
 	// Resolve code
@@ -87,5 +86,5 @@ func (e *errorExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, co
 		},
 	}
 
-	return "success", resp, nil
+	return api.OutputSuccess, resp, nil
 }

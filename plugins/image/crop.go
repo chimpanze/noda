@@ -31,7 +31,7 @@ type cropExecutor struct{}
 
 func newCropExecutor(_ map[string]any) api.NodeExecutor { return &cropExecutor{} }
 
-func (e *cropExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *cropExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *cropExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	data, err := readSourceImage(ctx, services, nCtx, config)
@@ -70,5 +70,5 @@ func (e *cropExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}
 
-	return "success", meta, nil
+	return api.OutputSuccess, meta, nil
 }

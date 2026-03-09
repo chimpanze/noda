@@ -7,6 +7,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
+	"gorm.io/gorm"
 )
 
 type createDescriptor struct{}
@@ -34,10 +35,10 @@ func newCreateExecutor(_ map[string]any) api.NodeExecutor {
 	return &createExecutor{}
 }
 
-func (e *createExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *createExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	db, err := getDB(services)
+	db, err := plugin.GetService[*gorm.DB](services, "database")
 	if err != nil {
 		return "", nil, err
 	}
@@ -64,5 +65,5 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.create: %w", tx.Error)
 	}
 
-	return "success", data, nil
+	return api.OutputSuccess, data, nil
 }

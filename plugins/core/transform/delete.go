@@ -28,7 +28,7 @@ func newDeleteExecutor(config map[string]any) api.NodeExecutor {
 	return &deleteExecutor{}
 }
 
-func (e *deleteExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *deleteExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *deleteExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	dataExpr, _ := config["data"].(string)
@@ -60,5 +60,5 @@ func (e *deleteExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, c
 		}
 	}
 
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }

@@ -9,7 +9,7 @@ import (
 
 type loopDescriptor struct{}
 
-func (d *loopDescriptor) Name() string                         { return "loop" }
+func (d *loopDescriptor) Name() string                           { return "loop" }
 func (d *loopDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *loopDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -39,7 +39,7 @@ func newLoopExecutor(config map[string]any) api.NodeExecutor {
 	return &LoopExecutor{}
 }
 
-func (e *LoopExecutor) Outputs() []string { return []string{"done", "error"} }
+func (e *LoopExecutor) Outputs() []string { return []string{"done", api.OutputError} }
 
 func (e *LoopExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	collectionExpr, _ := config["collection"].(string)

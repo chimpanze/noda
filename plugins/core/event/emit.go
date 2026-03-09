@@ -33,7 +33,7 @@ type emitExecutor struct{}
 
 func newEmitExecutor(_ map[string]any) api.NodeExecutor { return &emitExecutor{} }
 
-func (e *emitExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *emitExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *emitExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	mode, _ := config["mode"].(string)
@@ -61,7 +61,7 @@ func (e *emitExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		if err != nil {
 			return "", nil, fmt.Errorf("event.emit: %w", err)
 		}
-		return "success", map[string]any{"message_id": msgID}, nil
+		return api.OutputSuccess, map[string]any{"message_id": msgID}, nil
 
 	case "pubsub":
 		pubsubSvc, err := plugin.GetService[api.PubSubService](services, "pubsub")
@@ -71,7 +71,7 @@ func (e *emitExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		if err := pubsubSvc.Publish(ctx, topic, payload); err != nil {
 			return "", nil, fmt.Errorf("event.emit: %w", err)
 		}
-		return "success", map[string]any{"ok": true}, nil
+		return api.OutputSuccess, map[string]any{"ok": true}, nil
 
 	default:
 		return "", nil, fmt.Errorf("event.emit: unknown mode %q", mode)

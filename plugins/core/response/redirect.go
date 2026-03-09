@@ -28,7 +28,7 @@ func newRedirectExecutor(_ map[string]any) api.NodeExecutor {
 	return &redirectExecutor{}
 }
 
-func (e *redirectExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *redirectExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *redirectExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	// Resolve URL
@@ -56,5 +56,5 @@ func (e *redirectExecutor) Execute(_ context.Context, nCtx api.ExecutionContext,
 		Body: nil,
 	}
 
-	return "success", resp, nil
+	return api.OutputSuccess, resp, nil
 }

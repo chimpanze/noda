@@ -28,7 +28,7 @@ type deleteExecutor struct{}
 
 func newDeleteExecutor(_ map[string]any) api.NodeExecutor { return &deleteExecutor{} }
 
-func (e *deleteExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *deleteExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *deleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.StorageService](services, "storage")
@@ -45,5 +45,5 @@ func (e *deleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, err
 	}
 
-	return "success", map[string]any{}, nil
+	return api.OutputSuccess, map[string]any{}, nil
 }

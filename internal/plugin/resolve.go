@@ -107,7 +107,7 @@ func ResolveInt(nCtx api.ExecutionContext, config map[string]any, key string) (i
 	return 0, false, fmt.Errorf("field %q has invalid type %T", key, raw)
 }
 
-// ToInt converts a numeric value (float64, int, int64) to int.
+// ToInt converts a numeric value (float64, int, int64, or numeric string) to int.
 // Returns (0, false) if the value is not a recognized numeric type.
 func ToInt(v any) (int, bool) {
 	switch n := v.(type) {
@@ -117,6 +117,12 @@ func ToInt(v any) (int, bool) {
 		return n, true
 	case int64:
 		return int(n), true
+	case string:
+		var i int
+		if _, err := fmt.Sscanf(n, "%d", &i); err == nil {
+			return i, true
+		}
+		return 0, false
 	}
 	return 0, false
 }
@@ -156,4 +162,32 @@ func ResolveIntRaw(nCtx api.ExecutionContext, raw any) (int, error) {
 		return 0, fmt.Errorf("resolved to %T, expected number", val)
 	}
 	return 0, fmt.Errorf("expected number, got %T", raw)
+}
+
+// ResolveHeaders resolves a "headers" config field as a map of string→string.
+// Each value is resolved as an expression. Non-string resolved values are
+// formatted via fmt.Sprintf. Returns nil if the field is absent.
+func ResolveHeaders(nCtx api.ExecutionContext, config map[string]any) (map[string]string, error) {
+	raw, ok := config["headers"]
+	if !ok {
+		return nil, nil
+	}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("field \"headers\" must be a map")
+	}
+	result := make(map[string]string, len(m))
+	for k, v := range m {
+		expr, ok := v.(string)
+		if !ok {
+			result[k] = fmt.Sprintf("%v", v)
+			continue
+		}
+		val, err := nCtx.Resolve(expr)
+		if err != nil {
+			return nil, fmt.Errorf("resolve header %q: %w", k, err)
+		}
+		result[k] = fmt.Sprintf("%v", val)
+	}
+	return result, nil
 }

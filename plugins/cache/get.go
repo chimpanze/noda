@@ -30,7 +30,7 @@ type getExecutor struct{}
 
 func newGetExecutor(_ map[string]any) api.NodeExecutor { return &getExecutor{} }
 
-func (e *getExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *getExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *getExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.CacheService](services, "cache")
@@ -48,5 +48,5 @@ func (e *getExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 		return "", nil, err
 	}
 
-	return "success", map[string]any{"value": value}, nil
+	return api.OutputSuccess, map[string]any{"value": value}, nil
 }

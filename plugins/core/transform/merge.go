@@ -35,7 +35,7 @@ func newMergeExecutor(config map[string]any) api.NodeExecutor {
 	return &mergeExecutor{}
 }
 
-func (e *mergeExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *mergeExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *mergeExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	mode, _ := config["mode"].(string)
@@ -84,7 +84,7 @@ func (e *mergeExecutor) appendMode(inputs [][]any) (string, any, error) {
 	if result == nil {
 		result = []any{}
 	}
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }
 
 func (e *mergeExecutor) matchMode(inputs [][]any, matchCfg map[string]any) (string, any, error) {
@@ -181,12 +181,12 @@ func (e *mergeExecutor) matchMode(inputs [][]any, matchCfg map[string]any) (stri
 	if result == nil {
 		result = []any{}
 	}
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }
 
 func (e *mergeExecutor) positionMode(inputs [][]any) (string, any, error) {
 	if len(inputs) == 0 {
-		return "success", []any{}, nil
+		return api.OutputSuccess, []any{}, nil
 	}
 
 	length := len(inputs[0])
@@ -209,7 +209,7 @@ func (e *mergeExecutor) positionMode(inputs [][]any) (string, any, error) {
 		result[i] = merged
 	}
 
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }
 
 func mergeRows(left, right map[string]any) map[string]any {

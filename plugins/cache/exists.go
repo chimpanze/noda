@@ -30,7 +30,7 @@ type existsExecutor struct{}
 
 func newExistsExecutor(_ map[string]any) api.NodeExecutor { return &existsExecutor{} }
 
-func (e *existsExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *existsExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *existsExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.CacheService](services, "cache")
@@ -48,5 +48,5 @@ func (e *existsExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("cache.exists: %w", err)
 	}
 
-	return "success", map[string]any{"exists": exists}, nil
+	return api.OutputSuccess, map[string]any{"exists": exists}, nil
 }

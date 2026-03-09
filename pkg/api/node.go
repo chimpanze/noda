@@ -26,3 +26,14 @@ type NodeExecutor interface {
 	Outputs() []string
 	Execute(ctx context.Context, nCtx ExecutionContext, config map[string]any, services map[string]any) (outputName string, data any, err error)
 }
+
+// Standard output names used by most nodes.
+const (
+	OutputSuccess = "success"
+	OutputError   = "error"
+)
+
+// DefaultOutputs returns the standard outputs used by most nodes: ["success", "error"].
+func DefaultOutputs() []string {
+	return []string{OutputSuccess, OutputError}
+}

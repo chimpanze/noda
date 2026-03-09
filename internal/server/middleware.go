@@ -162,13 +162,9 @@ func newTimeoutMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, 
 			}
 		}
 	}
-	// Use Fiber v3 timeout middleware by wrapping c.Next() as the handler
-	return func(c fiber.Ctx) error {
-		wrapped := fibertimeout.New(func(c fiber.Ctx) error {
-			return c.Next()
-		}, fibertimeout.Config{Timeout: d})
-		return wrapped(c)
-	}, nil
+	return fibertimeout.New(func(c fiber.Ctx) error {
+		return c.Next()
+	}, fibertimeout.Config{Timeout: d}), nil
 }
 
 func newCompressMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error) {
@@ -253,17 +249,4 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 
 		return c.Next()
 	}, nil
-}
-
-// applyMiddlewareChain applies a list of middleware names to a fiber group or route.
-func (s *Server) applyMiddlewareChain(handlers []fiber.Handler) fiber.Handler {
-	return func(c fiber.Ctx) error {
-		// Execute handlers in order, then call Next
-		for _, h := range handlers {
-			if err := h(c); err != nil {
-				return err
-			}
-		}
-		return c.Next()
-	}
 }

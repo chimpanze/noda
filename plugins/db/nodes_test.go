@@ -442,12 +442,12 @@ func TestDeleteNode_NoMatchingRows(t *testing.T) {
 // --- helpers tests ---
 
 func TestGetDB_MissingService(t *testing.T) {
-	_, err := getDB(map[string]any{})
+	_, err := plugin.GetService[*gorm.DB](map[string]any{}, "database")
 	require.Error(t, err)
 }
 
 func TestGetDB_WrongType(t *testing.T) {
-	_, err := getDB(map[string]any{"database": "not a db"})
+	_, err := plugin.GetService[*gorm.DB](map[string]any{"database": "not a db"}, "database")
 	require.Error(t, err)
 }
 

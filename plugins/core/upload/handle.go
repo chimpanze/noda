@@ -40,7 +40,7 @@ type handleExecutor struct{}
 
 func newHandleExecutor(_ map[string]any) api.NodeExecutor { return &handleExecutor{} }
 
-func (e *handleExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *handleExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *handleExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	// Get destination storage service
@@ -157,9 +157,9 @@ func (e *handleExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	// Return single object for single file, array for multiple
 	if len(results) == 1 {
-		return "success", results[0], nil
+		return api.OutputSuccess, results[0], nil
 	}
-	return "success", map[string]any{"files": results}, nil
+	return api.OutputSuccess, map[string]any{"files": results}, nil
 }
 
 // extractFiles pulls file headers from the execution context input.

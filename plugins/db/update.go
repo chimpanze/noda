@@ -6,6 +6,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
+	"gorm.io/gorm"
 )
 
 type updateDescriptor struct{}
@@ -35,10 +36,10 @@ func newUpdateExecutor(_ map[string]any) api.NodeExecutor {
 	return &updateExecutor{}
 }
 
-func (e *updateExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *updateExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	db, err := getDB(services)
+	db, err := plugin.GetService[*gorm.DB](services, "database")
 	if err != nil {
 		return "", nil, err
 	}
@@ -68,7 +69,7 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.update: %w", tx.Error)
 	}
 
-	return "success", map[string]any{
+	return api.OutputSuccess, map[string]any{
 		"rows_affected": tx.RowsAffected,
 	}, nil
 }

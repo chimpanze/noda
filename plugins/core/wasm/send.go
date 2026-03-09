@@ -31,7 +31,7 @@ type sendExecutor struct{}
 
 func newSendExecutor(_ map[string]any) api.NodeExecutor { return &sendExecutor{} }
 
-func (e *sendExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *sendExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := getWasmService(services)
@@ -46,7 +46,7 @@ func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 
 	svc.SendCommand(data)
 
-	return "success", map[string]any{"sent": true}, nil
+	return api.OutputSuccess, map[string]any{"sent": true}, nil
 }
 
 func getWasmService(services map[string]any) (*wasmrt.WasmService, error) {

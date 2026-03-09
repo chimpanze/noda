@@ -32,7 +32,7 @@ type resizeExecutor struct{}
 
 func newResizeExecutor(_ map[string]any) api.NodeExecutor { return &resizeExecutor{} }
 
-func (e *resizeExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *resizeExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	data, err := readSourceImage(ctx, services, nCtx, config)
@@ -71,5 +71,5 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
 
-	return "success", meta, nil
+	return api.OutputSuccess, meta, nil
 }

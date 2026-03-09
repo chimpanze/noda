@@ -6,6 +6,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
+	"gorm.io/gorm"
 )
 
 type queryDescriptor struct{}
@@ -33,10 +34,10 @@ func newQueryExecutor(_ map[string]any) api.NodeExecutor {
 	return &queryExecutor{}
 }
 
-func (e *queryExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *queryExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	db, err := getDB(services)
+	db, err := plugin.GetService[*gorm.DB](services, "database")
 	if err != nil {
 		return "", nil, err
 	}
@@ -61,5 +62,5 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		results = []map[string]any{}
 	}
 
-	return "success", results, nil
+	return api.OutputSuccess, results, nil
 }

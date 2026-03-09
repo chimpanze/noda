@@ -31,7 +31,7 @@ type sendExecutor struct{}
 
 func newSendExecutor(_ map[string]any) api.NodeExecutor { return &sendExecutor{} }
 
-func (e *sendExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *sendExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *sendExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.ConnectionService](services, "connections")
@@ -53,5 +53,5 @@ func (e *sendExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("ws.send: %w", err)
 	}
 
-	return "success", map[string]any{"channel": channel}, nil
+	return api.OutputSuccess, map[string]any{"channel": channel}, nil
 }

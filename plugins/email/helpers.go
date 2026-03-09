@@ -4,16 +4,11 @@ import (
 	"crypto/rand"
 	"fmt"
 
-	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
 var emailServiceDeps = map[string]api.ServiceDep{
 	"mailer": {Prefix: "email", Required: true},
-}
-
-func getEmailService(services map[string]any) (*Service, error) {
-	return plugin.GetService[*Service](services, "mailer")
 }
 
 // resolveRecipients resolves a field that can be a string or []string.

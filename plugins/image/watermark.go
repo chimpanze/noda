@@ -31,7 +31,7 @@ type watermarkExecutor struct{}
 
 func newWatermarkExecutor(_ map[string]any) api.NodeExecutor { return &watermarkExecutor{} }
 
-func (e *watermarkExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *watermarkExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	data, err := readSourceImage(ctx, services, nCtx, config)
@@ -99,7 +99,7 @@ func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 		return "", nil, fmt.Errorf("image.watermark: %w", err)
 	}
 
-	return "success", meta, nil
+	return api.OutputSuccess, meta, nil
 }
 
 // calculatePosition returns Left, Top offsets for watermark placement.

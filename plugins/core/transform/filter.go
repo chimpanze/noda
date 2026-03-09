@@ -29,7 +29,7 @@ func newFilterExecutor(config map[string]any) api.NodeExecutor {
 	return &filterExecutor{}
 }
 
-func (e *filterExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *filterExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *filterExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	collectionExpr, _ := config["collection"].(string)
@@ -64,5 +64,5 @@ func (e *filterExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, c
 		result = []any{}
 	}
 
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }

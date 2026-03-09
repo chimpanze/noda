@@ -30,7 +30,7 @@ type thumbnailExecutor struct{}
 
 func newThumbnailExecutor(_ map[string]any) api.NodeExecutor { return &thumbnailExecutor{} }
 
-func (e *thumbnailExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *thumbnailExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *thumbnailExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	data, err := readSourceImage(ctx, services, nCtx, config)
@@ -65,5 +65,5 @@ func (e *thumbnailExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}
 
-	return "success", meta, nil
+	return api.OutputSuccess, meta, nil
 }

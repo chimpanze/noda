@@ -30,7 +30,7 @@ type delExecutor struct{}
 
 func newDelExecutor(_ map[string]any) api.NodeExecutor { return &delExecutor{} }
 
-func (e *delExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *delExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *delExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.CacheService](services, "cache")
@@ -47,5 +47,5 @@ func (e *delExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 		return "", nil, fmt.Errorf("cache.del: %w", err)
 	}
 
-	return "success", map[string]any{"ok": true}, nil
+	return api.OutputSuccess, map[string]any{"ok": true}, nil
 }

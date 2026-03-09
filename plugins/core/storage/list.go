@@ -28,7 +28,7 @@ type listExecutor struct{}
 
 func newListExecutor(_ map[string]any) api.NodeExecutor { return &listExecutor{} }
 
-func (e *listExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *listExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *listExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.StorageService](services, "storage")
@@ -50,5 +50,5 @@ func (e *listExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		paths = []string{}
 	}
 
-	return "success", map[string]any{"paths": paths}, nil
+	return api.OutputSuccess, map[string]any{"paths": paths}, nil
 }

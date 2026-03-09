@@ -19,8 +19,8 @@ func newUUIDExecutor(config map[string]any) api.NodeExecutor {
 	return &uuidExecutor{}
 }
 
-func (e *uuidExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *uuidExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *uuidExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
-	return "success", uuid.New().String(), nil
+	return api.OutputSuccess, uuid.New().String(), nil
 }

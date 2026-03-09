@@ -65,28 +65,31 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		return fmt.Errorf("trigger.workflow is required")
 	}
 
-	// Build handler
-	handler := s.buildRouteHandler(routeID, workflowID, triggerConfig)
+	// Build handler with route-level middleware composed inline.
+	// This ensures middleware only applies to this specific method+path,
+	// not to all methods on the same path.
+	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig)
 
-	// Apply route-level middleware using Use on a group, then register handler
-	// Fiber v3: app.Get(path, handler, ...middleware) uses `any` type
-	// We use middleware as Use() on the app before route, or chain them inline
+	// Build handler chain: middleware first, then the route handler.
+	// Fiber v3 executes handlers in registration order, calling c.Next() to advance.
+	allHandlers := make([]any, 0, len(middlewareHandlers)+1)
 	for _, mw := range middlewareHandlers {
-		s.app.Use(path, mw)
+		allHandlers = append(allHandlers, mw)
 	}
+	allHandlers = append(allHandlers, routeHandler)
 
 	// Register route by method
 	switch strings.ToUpper(method) {
 	case "GET":
-		s.app.Get(path, handler)
+		s.app.Get(path, allHandlers[0], allHandlers[1:]...)
 	case "POST":
-		s.app.Post(path, handler)
+		s.app.Post(path, allHandlers[0], allHandlers[1:]...)
 	case "PUT":
-		s.app.Put(path, handler)
+		s.app.Put(path, allHandlers[0], allHandlers[1:]...)
 	case "PATCH":
-		s.app.Patch(path, handler)
+		s.app.Patch(path, allHandlers[0], allHandlers[1:]...)
 	case "DELETE":
-		s.app.Delete(path, handler)
+		s.app.Delete(path, allHandlers[0], allHandlers[1:]...)
 	default:
 		return fmt.Errorf("unsupported HTTP method: %s", method)
 	}
@@ -180,21 +183,11 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 	}
 }
 
-// runWorkflow compiles and executes a workflow.
+// runWorkflow executes a pre-compiled workflow from the cache.
 func (s *Server) runWorkflow(ctx context.Context, workflowID string, execCtx *engine.ExecutionContextImpl) error {
-	wfData, ok := s.config.Workflows[workflowID]
+	graph, ok := s.workflows.Get(workflowID)
 	if !ok {
 		return fmt.Errorf("workflow %q not found", workflowID)
-	}
-
-	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
-	if err != nil {
-		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
-	}
-
-	graph, err := engine.Compile(wfConfig, s.nodes)
-	if err != nil {
-		return fmt.Errorf("compile workflow %q: %w", workflowID, err)
 	}
 
 	return engine.ExecuteGraph(ctx, graph, execCtx, s.services, s.nodes)

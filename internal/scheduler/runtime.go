@@ -42,12 +42,13 @@ type JobRun struct {
 
 // Runtime manages cron-based scheduled workflow execution.
 type Runtime struct {
-	schedules []ScheduleConfig
-	services  *registry.ServiceRegistry
-	nodes     *registry.NodeRegistry
-	workflows map[string]map[string]any
-	compiler  *expr.Compiler
-	logger    *slog.Logger
+	schedules     []ScheduleConfig
+	services      *registry.ServiceRegistry
+	nodes         *registry.NodeRegistry
+	workflows     map[string]map[string]any
+	workflowCache *engine.WorkflowCache
+	compiler      *expr.Compiler
+	logger        *slog.Logger
 
 	cron    *cron.Cron
 	mu      sync.RWMutex
@@ -61,6 +62,7 @@ func NewRuntime(
 	services *registry.ServiceRegistry,
 	nodes *registry.NodeRegistry,
 	workflows map[string]map[string]any,
+	workflowCache *engine.WorkflowCache,
 	compiler *expr.Compiler,
 	logger *slog.Logger,
 ) *Runtime {
@@ -71,12 +73,13 @@ func NewRuntime(
 		compiler = expr.NewCompilerWithFunctions()
 	}
 	return &Runtime{
-		schedules: schedules,
-		services:  services,
-		nodes:     nodes,
-		workflows: workflows,
-		compiler:  compiler,
-		logger:    logger,
+		schedules:     schedules,
+		services:      services,
+		nodes:         nodes,
+		workflows:     workflows,
+		workflowCache: workflowCache,
+		compiler:      compiler,
+		logger:        logger,
 	}
 }
 
@@ -296,13 +299,21 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 	r.recordRun(run)
 }
 
-// executeWorkflow compiles and runs a workflow.
+// executeWorkflow runs a workflow, using the cache if available or compiling on the fly.
 func (r *Runtime) executeWorkflow(ctx context.Context, workflowID string, execCtx *engine.ExecutionContextImpl) error {
+	if r.workflowCache != nil {
+		graph, ok := r.workflowCache.Get(workflowID)
+		if !ok {
+			return fmt.Errorf("workflow %q not found", workflowID)
+		}
+		return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
+	}
+
+	// Fallback: compile on the fly (used in tests without a cache)
 	wfData, ok := r.workflows[workflowID]
 	if !ok {
 		return fmt.Errorf("workflow %q not found", workflowID)
 	}
-
 	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
 	if err != nil {
 		return fmt.Errorf("parse workflow %q: %w", workflowID, err)

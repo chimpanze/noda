@@ -52,10 +52,6 @@ func ExecuteGraph(
 		dispatched[id] = &atomic.Bool{}
 	}
 
-	// Track terminal node completion
-	terminalCount := int32(len(graph.TerminalNodes))
-	terminalsCompleted := &atomic.Int32{}
-
 	// Track output eviction for memory management
 	evictionTracker := NewEvictionTracker(graph, execCtx)
 
@@ -141,7 +137,6 @@ func ExecuteGraph(
 					"from": nodeID,
 					"to":   targetID,
 				})
-				targetNode := graph.Nodes[targetID]
 				joinType := graph.JoinTypes[targetID]
 
 				switch joinType {
@@ -157,15 +152,7 @@ func ExecuteGraph(
 					}
 				default:
 					// Single inbound edge
-					_ = targetNode
 					dispatchIfReady(targetID)
-				}
-			}
-
-			// Check if this is a terminal node
-			if isTerminal(graph, nodeID) {
-				if terminalsCompleted.Add(1) >= terminalCount {
-					// All terminals done — but we let WaitGroup handle completion
 				}
 			}
 		}()
@@ -197,13 +184,4 @@ func ExecuteGraph(
 	})
 
 	return nil
-}
-
-func isTerminal(g *CompiledGraph, nodeID string) bool {
-	for _, id := range g.TerminalNodes {
-		if id == nodeID {
-			return true
-		}
-	}
-	return false
 }

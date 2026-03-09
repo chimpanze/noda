@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -30,21 +31,19 @@ func newJSONExecutor(_ map[string]any) api.NodeExecutor {
 	return &jsonExecutor{}
 }
 
-func (e *jsonExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *jsonExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *jsonExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
-	// Resolve status
-	statusExpr, _ := config["status"].(string)
-	if statusExpr == "" {
-		statusExpr = "200"
-	}
-	statusVal, err := nCtx.Resolve(statusExpr)
-	if err != nil {
-		return "", nil, fmt.Errorf("response.json: status: %w", err)
-	}
-	status := toInt(statusVal)
-	if status == 0 {
-		status = 200
+	// Resolve status (default 200 if absent)
+	status := 200
+	if statusExpr, ok := config["status"].(string); ok && statusExpr != "" {
+		statusVal, err := nCtx.Resolve(statusExpr)
+		if err != nil {
+			return "", nil, fmt.Errorf("response.json: status: %w", err)
+		}
+		if n, ok := plugin.ToInt(statusVal); ok {
+			status = n
+		}
 	}
 
 	// Resolve body
@@ -55,21 +54,9 @@ func (e *jsonExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 	}
 
 	// Resolve headers
-	var headers map[string]string
-	if headersRaw, ok := config["headers"].(map[string]any); ok {
-		headers = make(map[string]string, len(headersRaw))
-		for k, v := range headersRaw {
-			exprStr, ok := v.(string)
-			if !ok {
-				headers[k] = fmt.Sprintf("%v", v)
-				continue
-			}
-			resolved, err := nCtx.Resolve(exprStr)
-			if err != nil {
-				return "", nil, fmt.Errorf("response.json: header %q: %w", k, err)
-			}
-			headers[k] = fmt.Sprintf("%v", resolved)
-		}
+	headers, err := plugin.ResolveHeaders(nCtx, config)
+	if err != nil {
+		return "", nil, fmt.Errorf("response.json: %w", err)
 	}
 
 	// Resolve cookies
@@ -89,27 +76,7 @@ func (e *jsonExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 		Body:    body,
 	}
 
-	return "success", resp, nil
-}
-
-func toInt(v any) int {
-	switch val := v.(type) {
-	case int:
-		return val
-	case int64:
-		return int(val)
-	case float64:
-		return int(val)
-	case string:
-		// Handle static integer strings
-		var n int
-		if _, err := fmt.Sscanf(val, "%d", &n); err == nil {
-			return n
-		}
-		return 0
-	default:
-		return 0
-	}
+	return api.OutputSuccess, resp, nil
 }
 
 func toCookies(v any) []api.Cookie {

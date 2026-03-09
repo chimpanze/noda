@@ -2,7 +2,6 @@ package engine
 
 import (
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -11,9 +10,9 @@ import (
 // EvictionTracker tracks reference counts for node outputs and evicts them
 // when no downstream nodes need them.
 type EvictionTracker struct {
-	mu      sync.Mutex
-	refs    map[string]*atomic.Int32 // output key → reference count
-	execCtx *ExecutionContextImpl
+	refs      map[string]*atomic.Int32 // output key → reference count
+	consumers map[string][]string      // nodeID → output keys it consumes
+	execCtx   *ExecutionContextImpl
 }
 
 // NewEvictionTracker creates an eviction tracker from a compiled graph.
@@ -21,6 +20,7 @@ type EvictionTracker struct {
 // Terminal node outputs are never evicted (they are the workflow's results).
 func NewEvictionTracker(graph *CompiledGraph, execCtx *ExecutionContextImpl) *EvictionTracker {
 	refs := make(map[string]*atomic.Int32)
+	consumers := make(map[string][]string) // nodeID → output keys it references
 
 	// Build set of terminal node IDs for quick lookup
 	terminalSet := make(map[string]bool, len(graph.TerminalNodes))
@@ -28,80 +28,69 @@ func NewEvictionTracker(graph *CompiledGraph, execCtx *ExecutionContextImpl) *Ev
 		terminalSet[id] = true
 	}
 
-	// For each node, count how many downstream nodes could consume its output.
-	// A node's output is referenced by any node reachable through its outbound edges.
+	// Build output key map: nodeID → outputKey
+	outputKeys := make(map[string]string, len(graph.Nodes))
 	for nodeID, node := range graph.Nodes {
-		// Never evict terminal node outputs — they are the workflow's results
+		key := nodeID
+		if node.As != "" {
+			key = node.As
+		}
+		outputKeys[nodeID] = key
+	}
+
+	// For each non-terminal node, find all consumers and build the reverse map.
+	for nodeID := range graph.Nodes {
 		if terminalSet[nodeID] {
 			continue
 		}
+		outputKey := outputKeys[nodeID]
 
-		outputKey := nodeID
-		if node.As != "" {
-			outputKey = node.As
+		// Find all nodes that consume this output (direct edges + expression refs)
+		consumerSet := make(map[string]bool)
+		for _, targets := range graph.Adjacency[nodeID] {
+			for _, t := range targets {
+				consumerSet[t] = true
+			}
+		}
+		for id, node := range graph.Nodes {
+			if id == nodeID || consumerSet[id] {
+				continue
+			}
+			if configReferences(node.Config, outputKey) {
+				consumerSet[id] = true
+			}
 		}
 
-		// Count downstream consumers by analyzing which nodes reference this output
-		// in their config expressions or are direct edge targets
-		consumers := countConsumers(graph, nodeID, outputKey)
-		if consumers > 0 {
+		if len(consumerSet) > 0 {
 			ref := &atomic.Int32{}
-			ref.Store(int32(consumers))
+			ref.Store(int32(len(consumerSet)))
 			refs[outputKey] = ref
+
+			// Register this output key as consumed by each consumer node
+			for consumerID := range consumerSet {
+				consumers[consumerID] = append(consumers[consumerID], outputKey)
+			}
 		}
 	}
 
 	return &EvictionTracker{
-		refs:    refs,
-		execCtx: execCtx,
+		refs:      refs,
+		consumers: consumers,
+		execCtx:   execCtx,
 	}
 }
 
 // NodeCompleted is called after a node finishes executing.
-// It decrements reference counts for all upstream outputs the node consumed.
+// It decrements reference counts for all outputs the node consumed
+// (both via direct edges and expression references).
 func (t *EvictionTracker) NodeCompleted(nodeID string, graph *CompiledGraph) {
-	// Find all upstream nodes (direct parents)
-	for _, parentID := range graph.Reverse[nodeID] {
-		parentNode := graph.Nodes[parentID]
-		outputKey := parentID
-		if parentNode.As != "" {
-			outputKey = parentNode.As
-		}
-
-		t.mu.Lock()
-		ref, ok := t.refs[outputKey]
-		t.mu.Unlock()
-
-		if ok && ref.Add(-1) == 0 {
-			t.execCtx.EvictOutput(outputKey)
+	for _, outputKey := range t.consumers[nodeID] {
+		if ref, ok := t.refs[outputKey]; ok {
+			if ref.Add(-1) == 0 {
+				t.execCtx.EvictOutput(outputKey)
+			}
 		}
 	}
-}
-
-// countConsumers counts how many direct downstream nodes a given node has.
-func countConsumers(graph *CompiledGraph, nodeID, outputKey string) int {
-	// Count direct edge targets plus any nodes whose config references this output
-	directTargets := make(map[string]bool)
-	for _, targets := range graph.Adjacency[nodeID] {
-		for _, t := range targets {
-			directTargets[t] = true
-		}
-	}
-
-	// Also scan all downstream nodes for expression references to this output key
-	for id, node := range graph.Nodes {
-		if id == nodeID {
-			continue
-		}
-		if directTargets[id] {
-			continue // already counted
-		}
-		if configReferences(node.Config, outputKey) {
-			directTargets[id] = true
-		}
-	}
-
-	return len(directTargets)
 }
 
 // configReferences checks if a config map contains expression references to an output key.

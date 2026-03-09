@@ -29,7 +29,7 @@ type readExecutor struct{}
 
 func newReadExecutor(_ map[string]any) api.NodeExecutor { return &readExecutor{} }
 
-func (e *readExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *readExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *readExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.StorageService](services, "storage")
@@ -48,7 +48,7 @@ func (e *readExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	}
 
 	contentType := http.DetectContentType(data)
-	return "success", map[string]any{
+	return api.OutputSuccess, map[string]any{
 		"data":         data,
 		"size":         len(data),
 		"content_type": contentType,

@@ -129,6 +129,7 @@ func TestRuntime_ConsumesAndExecutes(t *testing.T) {
 	rt := NewRuntime(
 		[]WorkerConfig{wc},
 		svcReg, nodeReg, workflows,
+		nil,
 		[]Middleware{trackingMW},
 		nil, nil,
 	)
@@ -190,6 +191,7 @@ func TestRuntime_ConcurrentProcessing(t *testing.T) {
 	rt := NewRuntime(
 		[]WorkerConfig{wc},
 		svcReg, nodeReg, workflows,
+		nil,
 		[]Middleware{trackingMW},
 		nil, nil,
 	)
@@ -241,7 +243,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 			WorkflowID: "test-workflow",
 		}},
 		svcReg, nodeReg, workflows,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -275,7 +277,7 @@ func TestRuntime_MissingStreamService(t *testing.T) {
 			WorkflowID: "wf",
 		}},
 		svcReg, nodeReg, nil,
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 
 	err := rt.Start(context.Background())
@@ -323,6 +325,7 @@ func TestRuntime_TriggerMapping(t *testing.T) {
 	rt := NewRuntime(
 		[]WorkerConfig{wc},
 		svcReg, nodeReg, workflows,
+		nil,
 		[]Middleware{trackingMW},
 		nil, nil,
 	)

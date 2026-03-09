@@ -29,7 +29,7 @@ func newLogExecutor(config map[string]any) api.NodeExecutor {
 	return &logExecutor{}
 }
 
-func (e *logExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *logExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *logExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	level, _ := config["level"].(string)
@@ -61,5 +61,5 @@ func (e *logExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, conf
 
 	nCtx.Log(level, messageStr, resolvedFields)
 
-	return "success", nil, nil
+	return api.OutputSuccess, nil, nil
 }

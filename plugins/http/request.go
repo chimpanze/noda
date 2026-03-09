@@ -36,10 +36,10 @@ type requestExecutor struct{}
 
 func newRequestExecutor(_ map[string]any) api.NodeExecutor { return &requestExecutor{} }
 
-func (e *requestExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *requestExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *requestExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getHTTPService(services)
+	svc, err := plugin.GetService[*Service](services, "client")
 	if err != nil {
 		return "", nil, err
 	}
@@ -68,7 +68,7 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	}
 
 	// Resolve headers
-	headers, err := resolveHeaders(nCtx, config)
+	headers, err := plugin.ResolveHeaders(nCtx, config)
 	if err != nil {
 		return "", nil, fmt.Errorf("http.request: %w", err)
 	}
@@ -169,5 +169,5 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 		"body":    body,
 	}
 
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }

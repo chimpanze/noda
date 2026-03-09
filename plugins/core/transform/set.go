@@ -27,7 +27,7 @@ func newSetExecutor(config map[string]any) api.NodeExecutor {
 	return &setExecutor{}
 }
 
-func (e *setExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *setExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *setExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	fields, _ := config["fields"].(map[string]any)
@@ -49,5 +49,5 @@ func (e *setExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, conf
 		result[key] = resolved
 	}
 
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }

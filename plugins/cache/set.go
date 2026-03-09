@@ -32,7 +32,7 @@ type setExecutor struct{}
 
 func newSetExecutor(_ map[string]any) api.NodeExecutor { return &setExecutor{} }
 
-func (e *setExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *setExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *setExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.CacheService](services, "cache")
@@ -62,5 +62,5 @@ func (e *setExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 		return "", nil, fmt.Errorf("cache.set: %w", err)
 	}
 
-	return "success", map[string]any{"ok": true}, nil
+	return api.OutputSuccess, map[string]any{"ok": true}, nil
 }

@@ -14,7 +14,7 @@ import (
 // mockPassExecutor returns config as output data.
 type mockPassExecutor struct{}
 
-func (e *mockPassExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *mockPassExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *mockPassExecutor) Execute(_ context.Context, _ api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	return "success", config, nil
 }
@@ -23,9 +23,9 @@ type mockDescriptor struct {
 	name string
 }
 
-func (d *mockDescriptor) Name() string                             { return d.name }
-func (d *mockDescriptor) ServiceDeps() map[string]api.ServiceDep   { return nil }
-func (d *mockDescriptor) ConfigSchema() map[string]any             { return nil }
+func (d *mockDescriptor) Name() string                           { return d.name }
+func (d *mockDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
+func (d *mockDescriptor) ConfigSchema() map[string]any           { return nil }
 
 type mockPlugin struct {
 	name   string
@@ -81,7 +81,7 @@ func (r *controlResolver) OutputsForType(nodeType string) ([]string, bool) {
 	case "control.loop":
 		return []string{"done", "error"}, true
 	default:
-		return []string{"success", "error"}, true
+		return api.DefaultOutputs(), true
 	}
 }
 

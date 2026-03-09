@@ -28,13 +28,14 @@ func (d *validateDescriptor) ConfigSchema() map[string]any {
 }
 
 type validateExecutor struct {
-	compiled *jsonschema.Schema
+	compiled   *jsonschema.Schema
+	compileErr error // stored if schema compilation failed at factory time
 }
 
 func newValidateExecutor(config map[string]any) api.NodeExecutor {
 	schemaCfg, _ := config["schema"].(map[string]any)
 	if schemaCfg == nil {
-		return &validateExecutor{}
+		return &validateExecutor{compileErr: fmt.Errorf("missing required field \"schema\"")}
 	}
 
 	// Compile the schema once at creation time
@@ -43,27 +44,27 @@ func newValidateExecutor(config map[string]any) api.NodeExecutor {
 	// Convert Go map to JSON and back for the schema compiler
 	schemaBytes, err := json.Marshal(schemaCfg)
 	if err != nil {
-		return &validateExecutor{}
+		return &validateExecutor{compileErr: fmt.Errorf("marshal schema: %w", err)}
 	}
 
 	var schemaDoc any
 	if err := json.Unmarshal(schemaBytes, &schemaDoc); err != nil {
-		return &validateExecutor{}
+		return &validateExecutor{compileErr: fmt.Errorf("unmarshal schema: %w", err)}
 	}
 
 	if err := c.AddResource("schema.json", schemaDoc); err != nil {
-		return &validateExecutor{}
+		return &validateExecutor{compileErr: fmt.Errorf("add schema resource: %w", err)}
 	}
 
 	compiled, err := c.Compile("schema.json")
 	if err != nil {
-		return &validateExecutor{}
+		return &validateExecutor{compileErr: fmt.Errorf("compile schema: %w", err)}
 	}
 
 	return &validateExecutor{compiled: compiled}
 }
 
-func (e *validateExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *validateExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *validateExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	dataExpr, _ := config["data"].(string)
@@ -74,7 +75,7 @@ func (e *validateExecutor) Execute(_ context.Context, nCtx api.ExecutionContext,
 	}
 
 	if e.compiled == nil {
-		return "", nil, fmt.Errorf("transform.validate: schema not compiled")
+		return "", nil, fmt.Errorf("transform.validate: %w", e.compileErr)
 	}
 
 	// Validate the data - need to round-trip through JSON for proper type handling
@@ -98,7 +99,7 @@ func (e *validateExecutor) Execute(_ context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("transform.validate: %w", err)
 	}
 
-	return "success", resolved, nil
+	return api.OutputSuccess, resolved, nil
 }
 
 // validationResultError contains field-level validation details.

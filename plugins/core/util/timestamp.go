@@ -31,7 +31,7 @@ func newTimestampExecutor(config map[string]any) api.NodeExecutor {
 	return &timestampExecutor{}
 }
 
-func (e *timestampExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *timestampExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *timestampExecutor) Execute(_ context.Context, _ api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	format, _ := config["format"].(string)
@@ -43,11 +43,11 @@ func (e *timestampExecutor) Execute(_ context.Context, _ api.ExecutionContext, c
 
 	switch format {
 	case "iso8601":
-		return "success", now.Format(time.RFC3339), nil
+		return api.OutputSuccess, now.Format(time.RFC3339), nil
 	case "unix":
-		return "success", now.Unix(), nil
+		return api.OutputSuccess, now.Unix(), nil
 	case "unix_ms":
-		return "success", now.UnixMilli(), nil
+		return api.OutputSuccess, now.UnixMilli(), nil
 	default:
 		return "", nil, fmt.Errorf("util.timestamp: unknown format %q", format)
 	}

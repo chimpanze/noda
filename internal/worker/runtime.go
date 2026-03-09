@@ -44,13 +44,14 @@ type WorkflowRunner interface {
 
 // Runtime manages worker consumers that process messages from Redis Streams.
 type Runtime struct {
-	workers    []WorkerConfig
-	services   *registry.ServiceRegistry
-	nodes      *registry.NodeRegistry
-	workflows  map[string]map[string]any
-	compiler   *expr.Compiler
-	logger     *slog.Logger
-	middleware []Middleware
+	workers       []WorkerConfig
+	services      *registry.ServiceRegistry
+	nodes         *registry.NodeRegistry
+	workflows     map[string]map[string]any
+	workflowCache *engine.WorkflowCache
+	compiler      *expr.Compiler
+	logger        *slog.Logger
+	middleware    []Middleware
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -63,6 +64,7 @@ func NewRuntime(
 	services *registry.ServiceRegistry,
 	nodes *registry.NodeRegistry,
 	workflows map[string]map[string]any,
+	workflowCache *engine.WorkflowCache,
 	middleware []Middleware,
 	compiler *expr.Compiler,
 	logger *slog.Logger,
@@ -74,13 +76,14 @@ func NewRuntime(
 		compiler = expr.NewCompilerWithFunctions()
 	}
 	return &Runtime{
-		workers:    workers,
-		services:   services,
-		nodes:      nodes,
-		workflows:  workflows,
-		compiler:   compiler,
-		logger:     logger,
-		middleware: middleware,
+		workers:       workers,
+		services:      services,
+		nodes:         nodes,
+		workflows:     workflows,
+		workflowCache: workflowCache,
+		compiler:      compiler,
+		logger:        logger,
+		middleware:    middleware,
 	}
 }
 
@@ -298,23 +301,29 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	)
 }
 
-// executeWorkflow compiles and runs a workflow.
+// executeWorkflow runs a workflow, using the cache if available or compiling on the fly.
 func (r *Runtime) executeWorkflow(ctx context.Context, workflowID string, execCtx *engine.ExecutionContextImpl) error {
+	if r.workflowCache != nil {
+		graph, ok := r.workflowCache.Get(workflowID)
+		if !ok {
+			return fmt.Errorf("workflow %q not found", workflowID)
+		}
+		return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
+	}
+
+	// Fallback: compile on the fly (used in tests without a cache)
 	wfData, ok := r.workflows[workflowID]
 	if !ok {
 		return fmt.Errorf("workflow %q not found", workflowID)
 	}
-
 	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
 	if err != nil {
 		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
 	}
-
 	graph, err := engine.Compile(wfConfig, r.nodes)
 	if err != nil {
 		return fmt.Errorf("compile workflow %q: %w", workflowID, err)
 	}
-
 	return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
 }
 

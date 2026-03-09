@@ -3,15 +3,8 @@ package db
 import (
 	"fmt"
 
-	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
-	"gorm.io/gorm"
 )
-
-// getDB extracts the *gorm.DB from the resolved services map.
-func getDB(services map[string]any) (*gorm.DB, error) {
-	return plugin.GetService[*gorm.DB](services, "database")
-}
 
 // resolveMap resolves a config key as a map expression.
 func resolveMap(nCtx api.ExecutionContext, config map[string]any, key string) (map[string]any, error) {

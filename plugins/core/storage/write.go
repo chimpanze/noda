@@ -30,7 +30,7 @@ type writeExecutor struct{}
 
 func newWriteExecutor(_ map[string]any) api.NodeExecutor { return &writeExecutor{} }
 
-func (e *writeExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *writeExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *writeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.StorageService](services, "storage")
@@ -62,5 +62,5 @@ func (e *writeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, err
 	}
 
-	return "success", map[string]any{}, nil
+	return api.OutputSuccess, map[string]any{}, nil
 }

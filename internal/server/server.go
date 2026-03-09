@@ -14,13 +14,14 @@ import (
 
 // Server wraps the Fiber app and Noda runtime dependencies.
 type Server struct {
-	app      *fiber.App
-	config   *config.ResolvedConfig
-	compiler *expr.Compiler
-	services *registry.ServiceRegistry
-	nodes    *registry.NodeRegistry
-	port     int
-	logger   *slog.Logger
+	app       *fiber.App
+	config    *config.ResolvedConfig
+	compiler  *expr.Compiler
+	services  *registry.ServiceRegistry
+	nodes     *registry.NodeRegistry
+	workflows *engine.WorkflowCache
+	port      int
+	logger    *slog.Logger
 }
 
 // ServerOption configures a Server.
@@ -34,6 +35,11 @@ func WithLogger(logger *slog.Logger) ServerOption {
 // WithCompiler sets a shared expression compiler.
 func WithCompiler(c *expr.Compiler) ServerOption {
 	return func(s *Server) { s.compiler = c }
+}
+
+// WithWorkflowCache sets a pre-built workflow cache.
+func WithWorkflowCache(c *engine.WorkflowCache) ServerOption {
+	return func(s *Server) { s.workflows = c }
 }
 
 // NewServer creates a Fiber app from the resolved config.
@@ -92,6 +98,15 @@ func (s *Server) Port() int { return s.port }
 
 // Setup registers middleware and routes on the Fiber app.
 func (s *Server) Setup() error {
+	// Pre-compile all workflows (skip if cache was provided via WithWorkflowCache)
+	if s.workflows == nil {
+		cache, err := engine.NewWorkflowCache(s.config.Workflows, s.nodes)
+		if err != nil {
+			return fmt.Errorf("compile workflows: %w", err)
+		}
+		s.workflows = cache
+	}
+
 	// Register health endpoints (before middleware so they're always accessible)
 	s.registerHealthRoutes()
 
@@ -112,6 +127,9 @@ func (s *Server) Setup() error {
 
 	return nil
 }
+
+// WorkflowCache returns the server's workflow cache (for worker/scheduler sharing).
+func (s *Server) WorkflowCache() *engine.WorkflowCache { return s.workflows }
 
 // Start begins listening on the configured port.
 func (s *Server) Start() error {
@@ -159,24 +177,4 @@ func (s *Server) errorHandler(c fiber.Ctx, err error) error {
 			"message": message,
 		},
 	})
-}
-
-// executeWorkflow compiles and runs a workflow, returning the execution context.
-func (s *Server) executeWorkflow(ctx fiber.Ctx, workflowID string, execCtx *engine.ExecutionContextImpl) error {
-	wfData, ok := s.config.Workflows[workflowID]
-	if !ok {
-		return fmt.Errorf("workflow %q not found", workflowID)
-	}
-
-	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
-	if err != nil {
-		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
-	}
-
-	graph, err := engine.Compile(wfConfig, s.nodes)
-	if err != nil {
-		return fmt.Errorf("compile workflow %q: %w", workflowID, err)
-	}
-
-	return engine.ExecuteGraph(ctx.Context(), graph, execCtx, s.services, s.nodes)
 }

@@ -57,7 +57,7 @@ func TestE2E_ScheduledWorkflowExecutes(t *testing.T) {
 		WorkflowID: "side-effect-wf",
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil)
 	require.NoError(t, rt.Start())
 	defer rt.Stop()
 
@@ -126,8 +126,8 @@ func TestE2E_TwoInstances_OnlyOneExecutes(t *testing.T) {
 		LockTTL:     30 * time.Second,
 	}
 
-	rtA := NewRuntime([]ScheduleConfig{sc}, svcRegA, nodeRegA, workflows, nil, nil)
-	rtB := NewRuntime([]ScheduleConfig{sc}, svcRegB, nodeRegB, workflows, nil, nil)
+	rtA := NewRuntime([]ScheduleConfig{sc}, svcRegA, nodeRegA, workflows, nil, nil, nil)
+	rtB := NewRuntime([]ScheduleConfig{sc}, svcRegB, nodeRegB, workflows, nil, nil, nil)
 
 	require.NoError(t, rtA.Start())
 	defer rtA.Stop()
@@ -189,7 +189,7 @@ func TestE2E_SchedulerGracefulShutdown(t *testing.T) {
 		WorkflowID: "shutdown-wf",
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil)
 	require.NoError(t, rt.Start())
 
 	// Let one job fire

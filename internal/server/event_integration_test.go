@@ -171,6 +171,7 @@ func TestE2E_EventEmitAndWorkerConsume(t *testing.T) {
 	rt := worker.NewRuntime(
 		[]worker.WorkerConfig{wc},
 		svcReg, buildTestNodeRegistry(), workerWorkflows,
+		nil,
 		[]worker.Middleware{trackingMW},
 		nil, nil,
 	)
@@ -235,6 +236,7 @@ func TestE2E_WorkerFailureRedelivery(t *testing.T) {
 	rt := worker.NewRuntime(
 		[]worker.WorkerConfig{wc},
 		svcReg, buildTestNodeRegistry(), failWorkflows,
+		nil,
 		[]worker.Middleware{failMW},
 		nil, nil,
 	)

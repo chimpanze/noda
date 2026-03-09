@@ -9,7 +9,7 @@ import (
 
 type switchDescriptor struct{}
 
-func (d *switchDescriptor) Name() string                         { return "switch" }
+func (d *switchDescriptor) Name() string                           { return "switch" }
 func (d *switchDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *switchDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -41,7 +41,7 @@ func newSwitchExecutor(config map[string]any) api.NodeExecutor {
 func (e *switchExecutor) Outputs() []string {
 	outputs := make([]string, 0, len(e.cases)+2)
 	outputs = append(outputs, e.cases...)
-	outputs = append(outputs, "default", "error")
+	outputs = append(outputs, "default", api.OutputError)
 	return outputs
 }
 

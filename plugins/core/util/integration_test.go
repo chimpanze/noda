@@ -7,6 +7,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +15,7 @@ import (
 type utilResolver struct{}
 
 func (r *utilResolver) OutputsForType(nodeType string) ([]string, bool) {
-	return []string{"success", "error"}, true
+	return api.DefaultOutputs(), true
 }
 
 func setupUtilIntegration(t *testing.T) (*registry.NodeRegistry, *registry.ServiceRegistry) {

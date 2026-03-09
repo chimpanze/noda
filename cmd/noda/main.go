@@ -13,6 +13,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/devmode"
+	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
@@ -264,9 +265,16 @@ func newStartCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
+			// Pre-compile all workflows once for server, scheduler, and workers
+			workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error compiling workflows: %s\n", err)
+				os.Exit(1)
+			}
+
 			var srv *server.Server
 			if runServer {
-				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger))
+				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache))
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
 					os.Exit(1)
@@ -291,6 +299,7 @@ func newStartCmd() *cobra.Command {
 					bootstrap.Services,
 					bootstrap.Nodes,
 					rc.Workflows,
+					workflowCache,
 					bootstrap.Compiler,
 					logger,
 				)
@@ -383,8 +392,15 @@ func newDevCmd() *cobra.Command {
 				os.Exit(1)
 			}
 
+			// Pre-compile all workflows
+			workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error compiling workflows: %s\n", err)
+				os.Exit(1)
+			}
+
 			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger))
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
 				os.Exit(1)
@@ -420,6 +436,7 @@ func newDevCmd() *cobra.Command {
 					bootstrap.Services,
 					bootstrap.Nodes,
 					rc.Workflows,
+					workflowCache,
 					bootstrap.Compiler,
 					logger,
 				)

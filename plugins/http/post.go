@@ -3,12 +3,13 @@ package http
 import (
 	"context"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
 type postDescriptor struct{}
 
-func (d *postDescriptor) Name() string                          { return "post" }
+func (d *postDescriptor) Name() string                           { return "post" }
 func (d *postDescriptor) ServiceDeps() map[string]api.ServiceDep { return httpServiceDeps }
 func (d *postDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -27,10 +28,10 @@ type postExecutor struct{}
 
 func newPostExecutor(_ map[string]any) api.NodeExecutor { return &postExecutor{} }
 
-func (e *postExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *postExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *postExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getHTTPService(services)
+	svc, err := plugin.GetService[*Service](services, "client")
 	if err != nil {
 		return "", nil, err
 	}

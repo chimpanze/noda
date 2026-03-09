@@ -29,7 +29,7 @@ func newMapExecutor(config map[string]any) api.NodeExecutor {
 	return &mapExecutor{}
 }
 
-func (e *mapExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *mapExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *mapExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	collectionExpr, _ := config["collection"].(string)
@@ -58,7 +58,7 @@ func (e *mapExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, conf
 		result[i] = resolved
 	}
 
-	return "success", result, nil
+	return api.OutputSuccess, result, nil
 }
 
 // toSlice converts an any value to []any.

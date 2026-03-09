@@ -30,7 +30,7 @@ type convertExecutor struct{}
 
 func newConvertExecutor(_ map[string]any) api.NodeExecutor { return &convertExecutor{} }
 
-func (e *convertExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *convertExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *convertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	data, err := readSourceImage(ctx, services, nCtx, config)
@@ -66,5 +66,5 @@ func (e *convertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		return "", nil, fmt.Errorf("image.convert: %w", err)
 	}
 
-	return "success", meta, nil
+	return api.OutputSuccess, meta, nil
 }

@@ -27,7 +27,7 @@ func newIfExecutor(config map[string]any) api.NodeExecutor {
 	return &ifExecutor{}
 }
 
-func (e *ifExecutor) Outputs() []string { return []string{"then", "else", "error"} }
+func (e *ifExecutor) Outputs() []string { return []string{"then", "else", api.OutputError} }
 
 func (e *ifExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	condExpr, _ := config["condition"].(string)

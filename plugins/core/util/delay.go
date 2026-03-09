@@ -36,7 +36,7 @@ func newDelayExecutor(config map[string]any) api.NodeExecutor {
 	return &delayExecutor{duration: d}
 }
 
-func (e *delayExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *delayExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *delayExecutor) Execute(ctx context.Context, _ api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	if e.duration < 0 {
@@ -46,7 +46,7 @@ func (e *delayExecutor) Execute(ctx context.Context, _ api.ExecutionContext, con
 
 	select {
 	case <-time.After(e.duration):
-		return "success", nil, nil
+		return api.OutputSuccess, nil, nil
 	case <-ctx.Done():
 		return "", nil, &api.TimeoutError{
 			Duration:  e.duration,

@@ -33,10 +33,10 @@ type sendExecutor struct{}
 
 func newSendExecutor(_ map[string]any) api.NodeExecutor { return &sendExecutor{} }
 
-func (e *sendExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *sendExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getEmailService(services)
+	svc, err := plugin.GetService[*Service](services, "mailer")
 	if err != nil {
 		return "", nil, err
 	}
@@ -93,5 +93,5 @@ func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 		return "", nil, fmt.Errorf("email.send: %w", err)
 	}
 
-	return "success", map[string]any{"message_id": messageID}, nil
+	return api.OutputSuccess, map[string]any{"message_id": messageID}, nil
 }

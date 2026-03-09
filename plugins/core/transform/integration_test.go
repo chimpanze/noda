@@ -14,7 +14,7 @@ import (
 // mockPassExecutor returns config as output data.
 type mockPassExecutor struct{}
 
-func (e *mockPassExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *mockPassExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *mockPassExecutor) Execute(_ context.Context, _ api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
 	return "success", config, nil
 }
@@ -47,7 +47,7 @@ func (r *transformResolver) OutputsForType(nodeType string) ([]string, bool) {
 	case "workflow.output":
 		return []string{}, true
 	default:
-		return []string{"success", "error"}, true
+		return api.DefaultOutputs(), true
 	}
 }
 
@@ -88,8 +88,8 @@ func TestIntegration_ValidateSetMap(t *testing.T) {
 			}},
 			"set_total": {Type: "transform.set", Config: map[string]any{
 				"fields": map[string]any{
-					"items":  "{{ input.items }}",
-					"count":  "{{ len(input.items) }}",
+					"items": "{{ input.items }}",
+					"count": "{{ len(input.items) }}",
 				},
 			}},
 			"map_names": {Type: "transform.map", Config: map[string]any{
