@@ -238,17 +238,17 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/wasm/runtime.go`
-- [ ] Implement `LoadModule(config WasmRuntimeConfig) (*Module, error)`:
+- [x] Create `internal/wasm/runtime.go`
+- [x] Implement `LoadModule(config WasmRuntimeConfig) (*Module, error)`:
   - Load `.wasm` binary from configured path
   - Create Extism plugin instance with host function bindings
   - Configure memory limits from config
-- [ ] Module struct tracks: Extism plugin, config, service permissions, encoding format, timers, pending async calls
+- [x] Module struct tracks: Extism plugin, config, service permissions, encoding format, timers, pending async calls
 
 **Tests:**
-- [ ] Module loads from valid .wasm file
-- [ ] Invalid .wasm file → error
-- [ ] Memory limits applied
+- [x] Module loads from valid .wasm file
+- [x] Invalid .wasm file → error
+- [x] Memory limits applied
 
 **Acceptance criteria:** Wasm modules load via Extism.
 
@@ -260,24 +260,24 @@
 
 **Subtasks:**
 
-- [ ] Register `noda_call` as Extism host function
-- [ ] Parse arguments: service name, operation, payload (JSON or MessagePack based on module encoding)
-- [ ] Permission check: verify service is in module's allowed services list. Return `PERMISSION_DENIED` if not.
-- [ ] Dispatch to service:
+- [x] Register `noda_call` as Extism host function
+- [x] Parse arguments: service name, operation, payload (JSON or MessagePack based on module encoding)
+- [x] Permission check: verify service is in module's allowed services list. Return `PERMISSION_DENIED` if not.
+- [x] Dispatch to service:
   - Storage operations: delegate to `StorageService`
   - Cache operations: delegate to `CacheService`
   - Connection operations: delegate to `ConnectionService`
   - Stream/PubSub emit: delegate to stream/pubsub service
   - System operations (service=""): log, trigger_workflow, set_timer, clear_timer
-- [ ] Serialize response and return to module
-- [ ] Error handling: service errors → Extism error mechanism
+- [x] Serialize response and return to module
+- [x] Error handling: service errors → Extism error mechanism
 
 **Tests:**
-- [ ] Cache get/set through noda_call
-- [ ] Storage read/write through noda_call
-- [ ] WS send through noda_call
-- [ ] Unauthorized service → PERMISSION_DENIED
-- [ ] System operations: log, trigger_workflow
+- [x] Cache get/set through noda_call
+- [x] Storage read/write through noda_call
+- [x] WS send through noda_call
+- [x] Unauthorized service → PERMISSION_DENIED
+- [x] System operations: log, trigger_workflow
 
 **Acceptance criteria:** Synchronous host calls dispatch to all service types.
 
@@ -289,19 +289,19 @@
 
 **Subtasks:**
 
-- [ ] Register `noda_call_async` as Extism host function
-- [ ] Parse arguments: service, operation, payload, label
-- [ ] Validate label uniqueness among pending async calls → `VALIDATION_ERROR` on duplicate
-- [ ] Launch goroutine to execute the operation
-- [ ] Return immediately to the module (non-blocking)
-- [ ] When operation completes: store result (ok + data, or error) keyed by label
-- [ ] Results delivered in the next tick's `responses` field
+- [x] Register `noda_call_async` as Extism host function
+- [x] Parse arguments: service, operation, payload, label
+- [x] Validate label uniqueness among pending async calls → `VALIDATION_ERROR` on duplicate
+- [x] Launch goroutine to execute the operation
+- [x] Return immediately to the module (non-blocking)
+- [x] When operation completes: store result (ok + data, or error) keyed by label
+- [x] Results delivered in the next tick's `responses` field
 
 **Tests:**
-- [ ] Async HTTP request → response appears in next tick
-- [ ] Async storage write → response appears in next tick
-- [ ] Duplicate label → VALIDATION_ERROR
-- [ ] Async error → error response in tick
+- [x] Async HTTP request → response appears in next tick
+- [x] Async storage write → response appears in next tick
+- [x] Duplicate label → VALIDATION_ERROR
+- [x] Async error → error response in tick
 
 **Acceptance criteria:** Async calls execute on background goroutines with labeled response delivery.
 
@@ -313,8 +313,8 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/wasm/tick.go`
-- [ ] Implement tick loop:
+- [x] Create `internal/wasm/tick.go`
+- [x] Implement tick loop:
   - Calculate interval from `tick_rate` (1000/Hz milliseconds)
   - Accumulate events between ticks: client_messages, incoming_ws, connection_events, commands
   - On tick: construct tick input (dt, timestamp, accumulated events, async responses, fired timers)
@@ -322,15 +322,15 @@
   - Call module's `tick` export via Extism
   - Clear accumulated events and delivered responses
   - Track timing for tick budget warnings
-- [ ] Tick budget monitoring: if tick exceeds budget, log warning. Consecutive overruns → increasing severity.
-- [ ] Tick is never killed — next tick delayed, receives larger `dt`
+- [x] Tick budget monitoring: if tick exceeds budget, log warning. Consecutive overruns → increasing severity.
+- [x] Tick is never killed — next tick delayed, receives larger `dt`
 
 **Tests:**
-- [ ] Tick fires at configured rate
-- [ ] dt reflects actual time between ticks
-- [ ] Events accumulated and delivered correctly
-- [ ] Async responses delivered in correct tick
-- [ ] Budget overrun logged
+- [x] Tick fires at configured rate
+- [x] dt reflects actual time between ticks
+- [x] Events accumulated and delivered correctly
+- [x] Async responses delivered in correct tick
+- [x] Budget overrun logged
 
 **Acceptance criteria:** Tick loop runs at configured Hz with correct event delivery.
 
@@ -342,16 +342,16 @@
 
 **Subtasks:**
 
-- [ ] Implement `set_timer(name, interval_ms)` and `clear_timer(name)` system operations
-- [ ] Track timers per module: name → next fire time
-- [ ] On each tick: check which timers have elapsed, include their names in `timers` array
-- [ ] Timers fire on tick boundaries (not precise to interval — fire on the next tick after interval elapses)
+- [x] Implement `set_timer(name, interval_ms)` and `clear_timer(name)` system operations
+- [x] Track timers per module: name → next fire time
+- [x] On each tick: check which timers have elapsed, include their names in `timers` array
+- [x] Timers fire on tick boundaries (not precise to interval — fire on the next tick after interval elapses)
 
 **Tests:**
-- [ ] Set timer → fires after interval
-- [ ] Clear timer → stops firing
-- [ ] Timer fires on tick boundary (not between ticks)
-- [ ] Multiple timers with different intervals
+- [x] Set timer → fires after interval
+- [x] Clear timer → stops firing
+- [x] Timer fires on tick boundary (not between ticks)
+- [x] Multiple timers with different intervals
 
 **Acceptance criteria:** Named timers work with tick-aligned delivery.
 
@@ -363,24 +363,24 @@
 
 **Subtasks:**
 
-- [ ] Implement system operations: `ws_connect`, `ws_configure`, `ws_send`, `ws_close`
-- [ ] `ws_connect`: establish WebSocket connection to whitelisted host, buffer incoming messages
-- [ ] `ws_configure`: set heartbeat interval/payload, reconnection settings
-- [ ] `ws_send`: send message on established connection
-- [ ] `ws_close`: close connection with code and reason
-- [ ] Network isolation: URL host must be in `allow_outbound.ws` whitelist
-- [ ] Reconnection: automatic with configurable backoff
-- [ ] Heartbeat: automatic based on ws_configure settings
-- [ ] Incoming messages buffered and delivered in tick's `incoming_ws`
-- [ ] Connection events delivered in tick's `connection_events`
+- [x] Implement system operations: `ws_connect`, `ws_configure`, `ws_send`, `ws_close`
+- [x] `ws_connect`: establish WebSocket connection to whitelisted host, buffer incoming messages
+- [x] `ws_configure`: set heartbeat interval/payload, reconnection settings
+- [x] `ws_send`: send message on established connection
+- [x] `ws_close`: close connection with code and reason
+- [x] Network isolation: URL host must be in `allow_outbound.ws` whitelist
+- [x] Reconnection: automatic with configurable backoff
+- [x] Heartbeat: automatic based on ws_configure settings
+- [x] Incoming messages buffered and delivered in tick's `incoming_ws`
+- [x] Connection events delivered in tick's `connection_events`
 
 **Tests:**
-- [ ] Connect to mock WebSocket server
-- [ ] Send and receive messages
-- [ ] Auto-heartbeat at configured interval
-- [ ] Reconnection on disconnect
-- [ ] Connection event delivery (reconnected, disconnected)
-- [ ] Non-whitelisted host → PERMISSION_DENIED
+- [x] Connect to mock WebSocket server
+- [x] Send and receive messages
+- [x] Auto-heartbeat at configured interval
+- [x] Reconnection on disconnect
+- [x] Connection event delivery (reconnected, disconnected)
+- [x] Non-whitelisted host → PERMISSION_DENIED
 
 **Acceptance criteria:** Outbound WebSocket lifecycle fully managed by Noda.
 
@@ -392,16 +392,16 @@
 
 **Subtasks:**
 
-- [ ] `wasm.query` node: serialize query data, call module's `query` export (serialized with respect to ticks), return response. Enforce timeout from config.
-- [ ] `wasm.send` node: if module exports `command` → call immediately between ticks. Otherwise buffer for next tick's `commands` array.
-- [ ] Call serialization: queries wait for tick to complete, commands dispatched between ticks
+- [x] `wasm.query` node: serialize query data, call module's `query` export (serialized with respect to ticks), return response. Enforce timeout from config.
+- [x] `wasm.send` node: if module exports `command` → call immediately between ticks. Otherwise buffer for next tick's `commands` array.
+- [x] Call serialization: queries wait for tick to complete, commands dispatched between ticks
 
 **Tests:**
-- [ ] wasm.query → module returns data → workflow receives it
-- [ ] wasm.query timeout → TimeoutError
-- [ ] wasm.send with command export → immediate delivery
-- [ ] wasm.send without command export → buffered for tick
-- [ ] Query during tick → waits for tick to complete
+- [x] wasm.query → module returns data → workflow receives it
+- [x] wasm.query timeout → TimeoutError
+- [x] wasm.send with command export → immediate delivery
+- [x] wasm.send without command export → buffered for tick
+- [x] Query during tick → waits for tick to complete
 
 **Acceptance criteria:** Workflow-to-Wasm communication works in both directions.
 
@@ -413,17 +413,17 @@
 
 **Subtasks:**
 
-- [ ] Implement encoding abstraction: `Serialize(data any) ([]byte, error)` and `Deserialize(bytes []byte, target any) error`
-- [ ] JSON encoder/decoder (default)
-- [ ] MessagePack encoder/decoder using `vmihailenco/msgpack/v5`
-- [ ] Encoding set per module from config, applied to all data crossing the boundary
-- [ ] Include `encoding` field in initialize manifest
+- [x] Implement encoding abstraction: `Serialize(data any) ([]byte, error)` and `Deserialize(bytes []byte, target any) error`
+- [x] JSON encoder/decoder (default)
+- [x] MessagePack encoder/decoder using `vmihailenco/msgpack/v5`
+- [x] Encoding set per module from config, applied to all data crossing the boundary
+- [x] Include `encoding` field in initialize manifest
 
 **Tests:**
-- [ ] JSON encoding round-trip
-- [ ] MessagePack encoding round-trip
-- [ ] Same test module works with both encodings (behavioral parity)
-- [ ] Encoding field present in initialize manifest
+- [x] JSON encoding round-trip
+- [x] MessagePack encoding round-trip
+- [x] Same test module works with both encodings (behavioral parity)
+- [x] Encoding field present in initialize manifest
 
 **Acceptance criteria:** Both serialization formats work identically.
 
@@ -435,20 +435,20 @@
 
 **Subtasks:**
 
-- [ ] Create `testdata/wasm/test-module/` with source code
-- [ ] Module implements: `initialize`, `tick`, `query`, `command`, `shutdown`
-- [ ] On initialize: read config, call noda_call to read from storage
-- [ ] On tick: process client_messages, set/get cache, send ws messages, check async responses, fire timers
-- [ ] On query: return in-memory state
-- [ ] On command: update in-memory state
-- [ ] On shutdown: write state to storage
-- [ ] Build `.wasm` binary as part of test setup
+- [x] Create `testdata/wasm/test-module/` with source code
+- [x] Module implements: `initialize`, `tick`, `query`, `command`, `shutdown`
+- [x] On initialize: read config, call noda_call to read from storage
+- [x] On tick: process client_messages, set/get cache, send ws messages, check async responses, fire timers
+- [x] On query: return in-memory state
+- [x] On command: update in-memory state
+- [x] On shutdown: write state to storage
+- [x] Build `.wasm` binary as part of test setup
 
 **Tests:**
-- [ ] Full lifecycle test with the test module
-- [ ] All noda_call operations exercised
-- [ ] All noda_call_async operations exercised
-- [ ] All tick input fields delivered correctly
+- [x] Full lifecycle test with the test module
+- [x] All noda_call operations exercised
+- [x] All noda_call_async operations exercised
+- [x] All tick input fields delivered correctly
 
 **Acceptance criteria:** Test module validates the entire Wasm Host API.
 
@@ -458,10 +458,10 @@
 
 **Subtasks:**
 
-- [ ] Test: HTTP request → workflow → wasm.query → response with Wasm-computed data
-- [ ] Test: wasm.send from workflow → module receives command
-- [ ] Test: Module triggers workflow via noda_call → workflow executes
-- [ ] Test: Module connects to outbound WebSocket → receives messages in tick
+- [x] Test: HTTP request → workflow → wasm.query → response with Wasm-computed data
+- [x] Test: wasm.send from workflow → module receives command
+- [x] Test: Module triggers workflow via noda_call → workflow executes
+- [x] Test: Module connects to outbound WebSocket → receives messages in tick
 
 **Acceptance criteria:** Wasm runtime fully integrated with Noda. Use Cases 4 and 5 are buildable.
 

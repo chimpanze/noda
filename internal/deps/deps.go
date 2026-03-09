@@ -5,7 +5,6 @@ package deps
 
 import (
 	_ "github.com/expr-lang/expr"
-	_ "github.com/extism/go-sdk"
 	_ "github.com/fsnotify/fsnotify"
 	_ "github.com/getkin/kin-openapi/openapi3"
 	_ "github.com/gofiber/contrib/jwt"
@@ -19,7 +18,6 @@ import (
 	_ "github.com/spf13/afero"
 	_ "github.com/spf13/cobra"
 	_ "github.com/stretchr/testify/assert"
-	_ "github.com/vmihailenco/msgpack/v5"
 	_ "go.opentelemetry.io/otel"
 	_ "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	_ "go.opentelemetry.io/otel/sdk"
