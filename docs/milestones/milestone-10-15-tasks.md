@@ -413,12 +413,12 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/image/plugin.go`:
+- [x] Create `plugins/image/plugin.go`:
   - Name: `"image"`, Prefix: `"image"`
   - HasServices: false (uses storage services via slots)
   - Nodes: `image.resize`, `image.crop`, `image.watermark`, `image.convert`, `image.thumbnail`
-- [ ] All nodes share ServiceDeps: `{ "source": { prefix: "storage" }, "target": { prefix: "storage" } }`
-- [ ] Common pattern: read from source storage → process with bimg → write to target storage
+- [x] All nodes share ServiceDeps: `{ "source": { prefix: "storage" }, "target": { prefix: "storage" } }`
+- [x] Common pattern: read from source storage → process with bimg → write to target storage
 
 **Acceptance criteria:** Image plugin registered with all nodes.
 
@@ -428,20 +428,20 @@
 
 **Subtasks:**
 
-- [ ] `image.resize`: read `input` path from source, resize to `width`×`height`, write to `output` path on target. Options: `quality`, `format`.
-- [ ] `image.crop`: similar, with `gravity` option (`center`, `smart`, directional).
-- [ ] `image.watermark`: read source image and watermark image, composite with `opacity` and `position`.
-- [ ] `image.convert`: format conversion (`jpeg`, `png`, `webp`, `avif`) with quality.
-- [ ] `image.thumbnail`: fixed dimensions with smart crop, always crops to exact size.
-- [ ] All nodes return `{ "path", "width", "height", "size" }`.
+- [x] `image.resize`: read `input` path from source, resize to `width`×`height`, write to `output` path on target. Options: `quality`, `format`.
+- [x] `image.crop`: similar, with `gravity` option (`center`, `smart`, directional).
+- [x] `image.watermark`: read source image and watermark image, composite with `opacity` and `position`.
+- [x] `image.convert`: format conversion (`jpeg`, `png`, `webp`, `avif`) with quality.
+- [x] `image.thumbnail`: fixed dimensions with smart crop, always crops to exact size.
+- [x] All nodes return `{ "path", "width", "height", "size" }`.
 
 **Tests:**
-- [ ] Resize produces correct dimensions (verify output metadata)
-- [ ] Crop with smart gravity
-- [ ] Format conversion (PNG → WEBP, verify output format)
-- [ ] Thumbnail exact dimensions
-- [ ] Quality setting affects output size
-- [ ] Source and target can be different storage instances
+- [x] Resize produces correct dimensions (verify output metadata)
+- [x] Crop with smart gravity
+- [x] Format conversion (PNG → WEBP, verify output format)
+- [x] Thumbnail exact dimensions
+- [x] Quality setting affects output size
+- [x] Source and target can be different storage instances
 
 **Acceptance criteria:** All image operations produce correct results.
 
@@ -451,8 +451,8 @@
 
 **Subtasks:**
 
-- [ ] Test: upload image → resize → store thumbnail → read thumbnail via API
-- [ ] Test: convert PNG upload to WEBP
+- [x] Test: upload image → resize → store thumbnail → read thumbnail via API
+- [x] Test: convert PNG upload to WEBP
 
 **Acceptance criteria:** Image pipeline works with storage.
 
