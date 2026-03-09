@@ -79,7 +79,7 @@ func ResolveOptionalAny(nCtx api.ExecutionContext, config map[string]any, key st
 	return raw, true, nil
 }
 
-// ResolveInt resolves an optional config key as an integer.
+// ResolveOptionalInt resolves an optional config key as an integer.
 // Returns (0, false, nil) if the key is absent.
 func ResolveOptionalInt(nCtx api.ExecutionContext, config map[string]any, key string) (int, bool, error) {
 	raw, ok := config[key]

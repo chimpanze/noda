@@ -9,6 +9,7 @@ import (
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 )
 
 const defaultResponseTimeout = 30 * time.Second
@@ -65,6 +66,11 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		return fmt.Errorf("trigger.workflow is required")
 	}
 
+	// Validate workflow exists at startup (fail at load time, not runtime)
+	if _, ok := s.workflows.Get(workflowID); !ok {
+		return fmt.Errorf("trigger.workflow %q not found in workflow cache", workflowID)
+	}
+
 	// Build handler with route-level middleware composed inline.
 	// This ensures middleware only applies to this specific method+path,
 	// not to all methods on the same path.
@@ -101,17 +107,22 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 // buildRouteHandler creates the Fiber handler that runs trigger mapping → workflow → response.
 func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any) fiber.Handler {
 	return func(c fiber.Ctx) error {
+		// Generate trace ID early so it's available for all error paths
+		traceID := uuid.New().String()
+
 		// 1. Trigger mapping
 		triggerResult, err := MapTrigger(c, triggerConfig, s.compiler)
 		if err != nil {
-			s.logger.Error("trigger mapping failed", "route", routeID, "error", err)
+			s.logger.Error("trigger mapping failed", "route", routeID, "error", err, "trace_id", traceID)
 			return writeErrorResponse(c, 400, ErrorResponse{
 				Error: api.ErrorData{
 					Code:    "TRIGGER_MAPPING_ERROR",
 					Message: err.Error(),
+					TraceID: traceID,
 				},
 			})
 		}
+		triggerResult.Trigger.TraceID = traceID
 
 		// 2. Build execution context
 		execCtx := engine.NewExecutionContext(
@@ -134,10 +145,14 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			}
 		})
 
-		// 5. Start workflow in goroutine
+		// 5. Start workflow in goroutine with cancellable context so it
+		// is cleaned up on response timeout or early handler return.
+		ctx, cancel := context.WithCancel(c.Context())
+		defer cancel()
+
 		workflowDone := make(chan error, 1)
 		go func() {
-			workflowDone <- s.runWorkflow(c.Context(), workflowID, execCtx)
+			workflowDone <- s.runWorkflow(ctx, workflowID, execCtx)
 		}()
 
 		// 6. Wait for response or workflow completion or timeout
@@ -161,22 +176,22 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		case wfErr := <-workflowDone:
 			// Workflow completed without sending a response
 			if wfErr != nil {
-				status, errResp := MapErrorToHTTP(wfErr, triggerResult.Trigger.TraceID)
+				status, errResp := MapErrorToHTTP(wfErr, traceID)
 				return writeErrorResponse(c, status, errResp)
 			}
 			// No response node → 202 Accepted
 			return c.Status(fiber.StatusAccepted).JSON(map[string]any{
 				"status":   "accepted",
-				"trace_id": triggerResult.Trigger.TraceID,
+				"trace_id": traceID,
 			})
 
 		case <-timer.C:
-			// Response timeout
+			// Response timeout — cancel cancels the workflow goroutine
 			return writeErrorResponse(c, 504, ErrorResponse{
 				Error: api.ErrorData{
 					Code:    "TIMEOUT",
 					Message: "Response timeout exceeded",
-					TraceID: triggerResult.Trigger.TraceID,
+					TraceID: traceID,
 				},
 			})
 		}

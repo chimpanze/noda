@@ -3,6 +3,7 @@ package connmgr
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -33,11 +34,12 @@ type WebSocketConfig struct {
 
 // WebSocketHandler manages a single WebSocket endpoint.
 type WebSocketHandler struct {
-	config   WebSocketConfig
-	manager  *Manager
-	runner   api.WorkflowRunner
-	compiler *expr.Compiler
-	logger   *slog.Logger
+	config     WebSocketConfig
+	manager    *Manager
+	runner     api.WorkflowRunner
+	compiler   *expr.Compiler
+	logger     *slog.Logger
+	paramNames []string // route param names extracted from path pattern
 }
 
 // NewWebSocketHandler creates a handler for a WebSocket endpoint.
@@ -55,11 +57,12 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner api.WorkflowR
 		compiler = expr.NewCompiler()
 	}
 	return &WebSocketHandler{
-		config:   cfg,
-		manager:  mgr,
-		runner:   runner,
-		compiler: compiler,
-		logger:   logger,
+		config:     cfg,
+		manager:    mgr,
+		runner:     runner,
+		compiler:   compiler,
+		logger:     logger,
+		paramNames: extractParamNamesFromPath(cfg.Path),
 	}
 }
 
@@ -78,10 +81,10 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 	connID := uuid.New().String()
 
 	// Extract params from the path
-	params := extractFiberParams(ws)
+	params := extractFiberParams(ws, h.paramNames)
 	userID := fiberLocal[string](ws, "jwt_user_id")
 
-	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID)
+	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID, h.logger)
 
 	// Check max per channel
 	if h.config.MaxPerChannel > 0 && h.manager.ChannelCount(channel) >= h.config.MaxPerChannel {
@@ -177,19 +180,30 @@ func (h *WebSocketHandler) buildInput(conn *Conn) map[string]any {
 	}
 }
 
-// extractFiberParams extracts route params from a Fiber WebSocket connection.
-func extractFiberParams(ws *websocket.Conn) map[string]string {
+// extractFiberParams extracts route params from a Fiber WebSocket connection
+// using the param names parsed from the route path pattern.
+func extractFiberParams(ws *websocket.Conn, paramNames []string) map[string]string {
 	params := make(map[string]string)
 	if p := ws.Params("*"); p != "" {
 		params["*"] = p
 	}
-	// Common param names — Fiber WebSocket exposes Params() method
-	for _, name := range []string{"id", "channel", "room", "doc_id", "user_id"} {
+	for _, name := range paramNames {
 		if v := ws.Params(name); v != "" {
 			params[name] = v
 		}
 	}
 	return params
+}
+
+// extractParamNamesFromPath parses :paramName segments from a Fiber route path.
+func extractParamNamesFromPath(path string) []string {
+	var names []string
+	for _, part := range strings.Split(path, "/") {
+		if strings.HasPrefix(part, ":") {
+			names = append(names, strings.TrimPrefix(part, ":"))
+		}
+	}
+	return names
 }
 
 // fiberLocal extracts a local value from the WebSocket connection.

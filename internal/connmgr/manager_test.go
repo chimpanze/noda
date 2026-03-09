@@ -227,7 +227,7 @@ func TestChannelPattern(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expect, func(t *testing.T) {
-			result := resolveChannelPattern(nil, tt.pattern, tt.params, tt.userID)
+			result := resolveChannelPattern(nil, tt.pattern, tt.params, tt.userID, nil)
 			assert.Equal(t, tt.expect, result)
 		})
 	}

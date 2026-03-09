@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/chimpanze/noda/internal/connmgr"
@@ -41,9 +42,6 @@ func (s *Server) registerConnections() error {
 			}
 			s.services.Register(name, svc, nil)
 
-			// Build workflow runner
-			runner := s.buildWorkflowRunner()
-
 			// Extract channel pattern
 			channelPattern := ""
 			if channels, ok := ep["channels"].(map[string]any); ok {
@@ -73,6 +71,12 @@ func (s *Server) registerConnections() error {
 					}
 				}
 
+				// Validate lifecycle workflow references at startup
+				if err := s.validateWorkflowRefs(name, cfg.OnConnect, cfg.OnMessage, cfg.OnDisconnect); err != nil {
+					return err
+				}
+
+				runner := s.buildWorkflowRunner("websocket")
 				handler := connmgr.NewWebSocketHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app)
 				s.logger.Debug("websocket endpoint registered", "name", name, "path", path)
@@ -95,6 +99,12 @@ func (s *Server) registerConnections() error {
 					cfg.Retry = int(v)
 				}
 
+				// Validate lifecycle workflow references at startup
+				if err := s.validateWorkflowRefs(name, cfg.OnConnect, cfg.OnDisconnect); err != nil {
+					return err
+				}
+
+				runner := s.buildWorkflowRunner("sse")
 				handler := connmgr.NewSSEHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app)
 				s.logger.Debug("sse endpoint registered", "name", name, "path", path)
@@ -104,13 +114,26 @@ func (s *Server) registerConnections() error {
 	return nil
 }
 
+// validateWorkflowRefs checks that all non-empty workflow IDs exist in the cache.
+func (s *Server) validateWorkflowRefs(endpoint string, workflowIDs ...string) error {
+	for _, id := range workflowIDs {
+		if id == "" {
+			continue
+		}
+		if _, ok := s.workflows.Get(id); !ok {
+			return fmt.Errorf("endpoint %q: workflow %q not found", endpoint, id)
+		}
+	}
+	return nil
+}
+
 // buildWorkflowRunner creates a WorkflowRunner that uses the server's engine.
-func (s *Server) buildWorkflowRunner() api.WorkflowRunner {
+func (s *Server) buildWorkflowRunner(triggerType string) api.WorkflowRunner {
 	return func(ctx context.Context, workflowID string, input map[string]any) error {
 		execCtx := engine.NewExecutionContext(
 			engine.WithInput(input),
 			engine.WithTrigger(api.TriggerData{
-				Type:    "websocket",
+				Type:    triggerType,
 				TraceID: uuid.New().String(),
 			}),
 			engine.WithWorkflowID(workflowID),

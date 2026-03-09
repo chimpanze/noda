@@ -1,6 +1,7 @@
 package connmgr
 
 import (
+	"log/slog"
 	"strings"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -9,7 +10,7 @@ import (
 // resolveChannelPattern evaluates a channel pattern using the expression engine.
 // Supports {{ auth.sub }}, {{ request.params.id }}, and any valid expression.
 // Falls back to literal string replacement for non-expression placeholders like :id.
-func resolveChannelPattern(compiler *expr.Compiler, pattern string, params map[string]string, userID string) string {
+func resolveChannelPattern(compiler *expr.Compiler, pattern string, params map[string]string, userID string, logger *slog.Logger) string {
 	if compiler == nil {
 		compiler = expr.NewCompiler()
 	}
@@ -41,7 +42,11 @@ func resolveChannelPattern(compiler *expr.Compiler, pattern string, params map[s
 				return s
 			}
 		}
-		// Fall through to manual replacement on error
+		// Log warning and fall through to manual replacement on error
+		if err != nil && logger != nil {
+			logger.Warn("channel pattern expression failed, falling back to param replacement",
+				"pattern", pattern, "error", err)
+		}
 	}
 
 	// Fallback: replace :param and {param} style placeholders

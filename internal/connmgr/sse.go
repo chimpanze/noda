@@ -78,11 +78,14 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 		userID = uid
 	}
 
-	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID)
+	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID, h.logger)
 
-	// Event channel for pushing SSE events to the client
+	// Event channel for pushing SSE events to the client.
+	// The done channel signals that the connection is closing, preventing
+	// sends on the events channel after it is closed.
 	const sseEventBuffer = 64
 	events := make(chan sseEvent, sseEventBuffer)
+	done := make(chan struct{})
 
 	conn := &Conn{
 		ID:       connID,
@@ -94,8 +97,15 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 		},
 		SSEFn: func(event, data, id string) error {
 			select {
+			case <-done:
+				return fmt.Errorf("connection closed")
+			default:
+			}
+			select {
 			case events <- sseEvent{Event: event, Data: data, ID: id}:
 				return nil
+			case <-done:
+				return fmt.Errorf("connection closed")
 			default:
 				return fmt.Errorf("sse buffer full")
 			}
@@ -114,6 +124,7 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 
 	return c.SendStreamWriter(func(w *bufio.Writer) {
 		defer func() {
+			close(done) // signal SSEFn to stop accepting events
 			h.manager.Unregister(connID)
 			if h.config.OnDisconnect != "" && h.runner != nil {
 				input := buildSSEInput(conn)

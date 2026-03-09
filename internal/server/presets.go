@@ -44,6 +44,11 @@ func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, 
 	// Deduplicate while preserving order
 	middlewareNames = dedupe(middlewareNames)
 
+	// Validate ordering constraints (e.g., auth.jwt must precede casbin.enforce)
+	if err := ValidateMiddlewareOrder(middlewareNames); err != nil {
+		return nil, err
+	}
+
 	// Build handlers
 	handlers := make([]fiber.Handler, 0, len(middlewareNames))
 	for _, name := range middlewareNames {
@@ -169,4 +174,34 @@ func dedupe(items []string) []string {
 		}
 	}
 	return result
+}
+
+// middlewareOrderRules defines ordering constraints: the key middleware
+// must appear after all listed prerequisites in the chain.
+var middlewareOrderRules = map[string][]string{
+	"casbin.enforce": {"auth.jwt"},
+}
+
+// ValidateMiddlewareOrder checks that middleware ordering constraints are satisfied.
+func ValidateMiddlewareOrder(chain []string) error {
+	positions := make(map[string]int, len(chain))
+	for i, name := range chain {
+		positions[name] = i
+	}
+	for mw, deps := range middlewareOrderRules {
+		mwPos, hasMW := positions[mw]
+		if !hasMW {
+			continue
+		}
+		for _, dep := range deps {
+			depPos, hasDep := positions[dep]
+			if !hasDep {
+				continue
+			}
+			if depPos > mwPos {
+				return fmt.Errorf("middleware %q must appear before %q in the chain", dep, mw)
+			}
+		}
+	}
+	return nil
 }

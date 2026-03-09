@@ -134,8 +134,29 @@ func newHelmetMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, err
 	return helmet.New(), nil
 }
 
-func newCSRFMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error) {
-	return csrf.New(), nil
+func newCSRFMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
+	csrfCfg := csrf.Config{}
+	if cfg != nil {
+		if v, ok := cfg["cookie_name"].(string); ok {
+			csrfCfg.CookieName = v
+		}
+		if v, ok := cfg["cookie_secure"].(bool); ok {
+			csrfCfg.CookieSecure = v
+		}
+		if v, ok := cfg["cookie_http_only"].(bool); ok {
+			csrfCfg.CookieHTTPOnly = v
+		}
+		if v, ok := cfg["cookie_same_site"].(string); ok {
+			csrfCfg.CookieSameSite = v
+		}
+		if v, ok := cfg["cookie_session_only"].(bool); ok {
+			csrfCfg.CookieSessionOnly = v
+		}
+		if v, ok := cfg["single_use_token"].(bool); ok {
+			csrfCfg.SingleUseToken = v
+		}
+	}
+	return csrf.New(csrfCfg), nil
 }
 
 func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
