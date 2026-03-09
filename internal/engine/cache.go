@@ -30,6 +30,10 @@ func NewWorkflowCache(workflows map[string]map[string]any, resolver NodeOutputRe
 			return nil, fmt.Errorf("compile workflow %q: %w", id, err)
 		}
 		c.graphs[id] = graph
+		// Also index by the workflow's "id" field so routes can reference by logical ID
+		if jsonID, ok := raw["id"].(string); ok && jsonID != id {
+			c.graphs[jsonID] = graph
+		}
 	}
 
 	return c, nil
@@ -56,6 +60,10 @@ func (c *WorkflowCache) Invalidate(workflows map[string]map[string]any, resolver
 			return fmt.Errorf("compile workflow %q: %w", id, err)
 		}
 		newGraphs[id] = graph
+		// Also index by the workflow's "id" field so routes can reference by logical ID
+		if jsonID, ok := raw["id"].(string); ok && jsonID != id {
+			newGraphs[jsonID] = graph
+		}
 	}
 
 	c.mu.Lock()
