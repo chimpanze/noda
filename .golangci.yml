@@ -11,3 +11,5 @@ linters:
     - unused
     - misspell
     - gofmt
+
+version: "2"
