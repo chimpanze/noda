@@ -1,5 +1,7 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
+import { AlertCircle } from "lucide-react";
 import { getCategoryStyle, getOutputColor } from "./nodeStyles";
+import { useEditorStore } from "@/stores/editor";
 
 export interface NodaNodeData {
   nodeType: string;
@@ -10,16 +12,23 @@ export interface NodaNodeData {
   [key: string]: unknown;
 }
 
-export function NodaNode({ data, selected }: NodeProps) {
+export function NodaNode({ data, selected, id }: NodeProps) {
   const nodeData = data as unknown as NodaNodeData;
   const style = getCategoryStyle(nodeData.nodeType);
   const outputs = nodeData.outputs ?? ["success", "error"];
+  const validationErrors = useEditorStore((s) => s.validationErrors);
+
+  // Check if this node has validation errors
+  const nodeErrors = validationErrors.filter(
+    (e) => e.path?.includes(id) || e.message?.includes(id)
+  );
+  const hasError = nodeErrors.length > 0;
 
   return (
     <div
-      className={`rounded-lg border-2 shadow-sm min-w-[160px] ${style.bg} ${style.border} ${
-        selected ? "ring-2 ring-blue-400 ring-offset-1" : ""
-      }`}
+      className={`rounded-lg border-2 shadow-sm min-w-[160px] ${style.bg} ${
+        hasError ? "border-red-400" : style.border
+      } ${selected ? "ring-2 ring-blue-400 ring-offset-1" : ""}`}
     >
       {/* Input handle */}
       <Handle
@@ -30,8 +39,15 @@ export function NodaNode({ data, selected }: NodeProps) {
 
       {/* Header */}
       <div className="px-3 py-2 border-b border-inherit">
-        <div className={`text-xs font-mono ${style.iconColor}`}>
-          {nodeData.nodeType}
+        <div className="flex items-center justify-between">
+          <div className={`text-xs font-mono ${style.iconColor}`}>
+            {nodeData.nodeType}
+          </div>
+          {hasError && (
+            <span title={nodeErrors.map((e) => e.message).join("\n")}>
+              <AlertCircle size={14} className="text-red-500" />
+            </span>
+          )}
         </div>
         <div className={`text-sm font-medium ${style.text}`}>
           {nodeData.alias ?? nodeData.label}

@@ -10,6 +10,7 @@ import type {
   NodeDescriptor,
 } from "@/types";
 import * as api from "@/api/client";
+import * as history from "@/stores/history";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -36,6 +37,11 @@ interface EditorState {
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   addEdge: (edge: WorkflowEdge) => void;
   removeEdge: (from: string, output: string, to: string) => void;
+  setWorkflow: (wf: WorkflowConfig) => void;
+
+  // History
+  undo: () => void;
+  redo: () => void;
 
   // Selection
   selectedNodeId: string | null;
@@ -101,50 +107,52 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
-  // Workflow mutations
-  updateNodeConfig: (nodeId, config) =>
-    set((state) => {
-      if (!state.activeWorkflow) return state;
-      const nodes = state.activeWorkflow.nodes.map((n) =>
-        n.id === nodeId ? { ...n, config } : n
-      );
-      const wf = { ...state.activeWorkflow, nodes };
-      get()._debounceSave();
-      return { activeWorkflow: wf };
-    }),
+  // Workflow mutations (all push history before mutating)
+  updateNodeConfig: (nodeId, config) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = activeWorkflow.nodes.map((n) =>
+      n.id === nodeId ? { ...n, config } : n
+    );
+    set({ activeWorkflow: { ...activeWorkflow, nodes } });
+    get()._debounceSave();
+  },
 
-  updateNodeServices: (nodeId, services) =>
-    set((state) => {
-      if (!state.activeWorkflow) return state;
-      const nodes = state.activeWorkflow.nodes.map((n) =>
-        n.id === nodeId ? { ...n, services } : n
-      );
-      const wf = { ...state.activeWorkflow, nodes };
-      get()._debounceSave();
-      return { activeWorkflow: wf };
-    }),
+  updateNodeServices: (nodeId, services) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = activeWorkflow.nodes.map((n) =>
+      n.id === nodeId ? { ...n, services } : n
+    );
+    set({ activeWorkflow: { ...activeWorkflow, nodes } });
+    get()._debounceSave();
+  },
 
-  addNode: (node) =>
-    set((state) => {
-      if (!state.activeWorkflow) return state;
-      const nodes = [...state.activeWorkflow.nodes, node];
-      const wf = { ...state.activeWorkflow, nodes };
-      get()._debounceSave();
-      return { activeWorkflow: wf };
-    }),
+  addNode: (node) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = [...activeWorkflow.nodes, node];
+    set({ activeWorkflow: { ...activeWorkflow, nodes } });
+    get()._debounceSave();
+  },
 
-  removeNode: (nodeId) =>
-    set((state) => {
-      if (!state.activeWorkflow) return state;
-      const nodes = state.activeWorkflow.nodes.filter((n) => n.id !== nodeId);
-      const edges = state.activeWorkflow.edges.filter(
-        (e) => e.from !== nodeId && e.to !== nodeId
-      );
-      const wf = { ...state.activeWorkflow, nodes, edges };
-      const selectedNodeId = state.selectedNodeId === nodeId ? null : state.selectedNodeId;
-      get()._debounceSave();
-      return { activeWorkflow: wf, selectedNodeId };
-    }),
+  removeNode: (nodeId) => {
+    const { activeWorkflow, activeWorkflowPath, selectedNodeId } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = activeWorkflow.nodes.filter((n) => n.id !== nodeId);
+    const edges = activeWorkflow.edges.filter(
+      (e) => e.from !== nodeId && e.to !== nodeId
+    );
+    set({
+      activeWorkflow: { ...activeWorkflow, nodes, edges },
+      selectedNodeId: selectedNodeId === nodeId ? null : selectedNodeId,
+    });
+    get()._debounceSave();
+  },
 
   updateNodePosition: (nodeId, position) =>
     set((state) => {
@@ -155,30 +163,58 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return { activeWorkflow: { ...state.activeWorkflow, nodes } };
     }),
 
-  addEdge: (edge) =>
-    set((state) => {
-      if (!state.activeWorkflow) return state;
-      // Prevent duplicates
-      const exists = state.activeWorkflow.edges.some(
-        (e) => e.from === edge.from && e.output === edge.output && e.to === edge.to
-      );
-      if (exists) return state;
-      const edges = [...state.activeWorkflow.edges, edge];
-      const wf = { ...state.activeWorkflow, edges };
-      get()._debounceSave();
-      return { activeWorkflow: wf };
-    }),
+  addEdge: (edge) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    const exists = activeWorkflow.edges.some(
+      (e) => e.from === edge.from && e.output === edge.output && e.to === edge.to
+    );
+    if (exists) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const edges = [...activeWorkflow.edges, edge];
+    set({ activeWorkflow: { ...activeWorkflow, edges } });
+    get()._debounceSave();
+  },
 
-  removeEdge: (from, output, to) =>
-    set((state) => {
-      if (!state.activeWorkflow) return state;
-      const edges = state.activeWorkflow.edges.filter(
-        (e) => !(e.from === from && e.output === output && e.to === to)
-      );
-      const wf = { ...state.activeWorkflow, edges };
+  removeEdge: (from, output, to) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const edges = activeWorkflow.edges.filter(
+      (e) => !(e.from === from && e.output === output && e.to === to)
+    );
+    set({ activeWorkflow: { ...activeWorkflow, edges } });
+    get()._debounceSave();
+  },
+
+  setWorkflow: (wf) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflowPath) return;
+    if (activeWorkflow) history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    set({ activeWorkflow: wf });
+    get()._debounceSave();
+  },
+
+  // History
+  undo: () => {
+    const { activeWorkflowPath, activeWorkflow } = get();
+    if (!activeWorkflowPath || !activeWorkflow) return;
+    const prev = history.undo(activeWorkflowPath, activeWorkflow);
+    if (prev) {
+      set({ activeWorkflow: prev });
       get()._debounceSave();
-      return { activeWorkflow: wf };
-    }),
+    }
+  },
+
+  redo: () => {
+    const { activeWorkflowPath, activeWorkflow } = get();
+    if (!activeWorkflowPath || !activeWorkflow) return;
+    const next = history.redo(activeWorkflowPath, activeWorkflow);
+    if (next) {
+      set({ activeWorkflow: next });
+      get()._debounceSave();
+    }
+  },
 
   // Selection
   selectedNodeId: null,

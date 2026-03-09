@@ -27,5 +27,15 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-reactflow': ['@xyflow/react'],
+          'vendor-monaco': ['@monaco-editor/react'],
+          'vendor-rjsf': ['@rjsf/core', '@rjsf/utils', '@rjsf/validator-ajv8'],
+        },
+      },
+    },
   },
 })

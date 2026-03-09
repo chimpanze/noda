@@ -1,12 +1,15 @@
 import { useEffect } from "react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { Toolbar } from "@/components/layout/Toolbar";
 import { WorkflowList } from "@/components/layout/WorkflowList";
 import { WorkflowCanvas } from "@/components/canvas/WorkflowCanvas";
 import { NodePalette } from "@/components/canvas/NodePalette";
 import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
 import { DebugPanel } from "@/components/panels/DebugPanel";
 import { useEditorStore } from "@/stores/editor";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useValidation } from "@/hooks/useValidation";
 
 export default function App() {
   const activeView = useEditorStore((s) => s.activeView);
@@ -20,6 +23,9 @@ export default function App() {
     loadNodeTypes();
   }, [loadFiles, loadNodeTypes]);
 
+  useKeyboardShortcuts();
+  useValidation();
+
   return (
     <ReactFlowProvider>
       <div className="flex h-full">
@@ -28,6 +34,9 @@ export default function App() {
 
         {/* Main content area */}
         <div className="flex-1 flex flex-col min-w-0">
+          {/* Toolbar */}
+          <Toolbar />
+
           <div className="flex-1 flex min-h-0">
             {activeView === "workflows" ? (
               <>
