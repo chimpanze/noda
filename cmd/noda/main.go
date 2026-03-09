@@ -23,6 +23,8 @@ import (
 	corestorage "github.com/chimpanze/noda/plugins/core/storage"
 	"github.com/chimpanze/noda/plugins/core/upload"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
+	emailplugin "github.com/chimpanze/noda/plugins/email"
+	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
@@ -510,6 +512,8 @@ func buildCoreNodeRegistry() *registry.NodeRegistry {
 	_ = nodeReg.RegisterFromPlugin(&corestorage.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&upload.Plugin{})
 	_ = nodeReg.RegisterFromPlugin(&imageplugin.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&httpplugin.Plugin{})
+	_ = nodeReg.RegisterFromPlugin(&emailplugin.Plugin{})
 	return nodeReg
 }
 
@@ -528,6 +532,8 @@ func registerCorePlugins(plugins *registry.PluginRegistry) {
 	plugins.Register(&corestorage.Plugin{})
 	plugins.Register(&upload.Plugin{})
 	plugins.Register(&imageplugin.Plugin{})
+	plugins.Register(&httpplugin.Plugin{})
+	plugins.Register(&emailplugin.Plugin{})
 }
 
 func newScheduleCmd() *cobra.Command {

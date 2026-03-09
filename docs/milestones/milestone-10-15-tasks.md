@@ -473,24 +473,24 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/http/plugin.go`:
+- [x] Create `plugins/http/plugin.go`:
   - Name: `"http"`, Prefix: `"http"`
   - HasServices: true
   - CreateService: create `net/http.Client` with configured default timeout, optional base URL, default headers
-- [ ] Nodes: `http.request`, `http.get`, `http.post`
-- [ ] `http.request`: resolve `method`, `url`, `headers`, `body`, `timeout`. Execute request, return `{ "status", "headers", "body" }`.
-- [ ] `http.get`: shorthand — method fixed to GET, no body.
-- [ ] `http.post`: shorthand — method fixed to POST.
-- [ ] Timeout: per-request timeout via context, falls back to service default.
-- [ ] Response body: auto-detect JSON and parse, otherwise return as string.
+- [x] Nodes: `http.request`, `http.get`, `http.post`
+- [x] `http.request`: resolve `method`, `url`, `headers`, `body`, `timeout`. Execute request, return `{ "status", "headers", "body" }`.
+- [x] `http.get`: shorthand — method fixed to GET, no body.
+- [x] `http.post`: shorthand — method fixed to POST.
+- [x] Timeout: per-request timeout via context, falls back to service default.
+- [x] Response body: auto-detect JSON and parse, otherwise return as string.
 
 **Tests:**
-- [ ] GET request to mock server → correct response
-- [ ] POST with JSON body → correct request shape
-- [ ] Custom headers sent
-- [ ] Timeout → `TimeoutError`
-- [ ] Non-200 response → still success output (status code in response data)
-- [ ] Connection error → node error
+- [x] GET request to mock server → correct response
+- [x] POST with JSON body → correct request shape
+- [x] Custom headers sent
+- [x] Timeout → `TimeoutError`
+- [x] Non-200 response → still success output (status code in response data)
+- [x] Connection error → node error
 
 **Acceptance criteria:** Outbound HTTP requests work with all methods.
 
@@ -502,19 +502,19 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/email/plugin.go`:
+- [x] Create `plugins/email/plugin.go`:
   - Name: `"email"`, Prefix: `"email"`
   - HasServices: true
   - CreateService: configure SMTP connection (host, port, username, password, TLS)
-- [ ] `email.send`: resolve `to`, `subject`, `body`, `from`, `cc`, `bcc`, `reply_to`. Static `content_type` (`"text"|"html"`).
-- [ ] Return `{ "message_id" }`.
-- [ ] Support `to` as string or array of strings.
+- [x] `email.send`: resolve `to`, `subject`, `body`, `from`, `cc`, `bcc`, `reply_to`. Static `content_type` (`"text"|"html"`).
+- [x] Return `{ "message_id" }`.
+- [x] Support `to` as string or array of strings.
 
 **Tests:**
-- [ ] Send email to mock SMTP server (MailHog or similar)
-- [ ] HTML content type
-- [ ] Multiple recipients (to, cc, bcc)
-- [ ] SMTP error → node error
+- [x] Send email to mock SMTP server (MailHog or similar)
+- [x] HTML content type
+- [x] Multiple recipients (to, cc, bcc)
+- [x] SMTP error → node error
 
 **Acceptance criteria:** Emails send via SMTP.
 
@@ -524,8 +524,8 @@
 
 **Subtasks:**
 
-- [ ] Test: webhook → workflow makes outbound HTTP call → uses response in subsequent node
-- [ ] Test: workflow sends email after processing
-- [ ] Test: HTTP timeout handling in workflow error path
+- [x] Test: webhook → workflow makes outbound HTTP call → uses response in subsequent node
+- [x] Test: workflow sends email after processing
+- [x] Test: HTTP timeout handling in workflow error path
 
 **Acceptance criteria:** Outbound integrations work in workflows.
