@@ -131,16 +131,20 @@ volumes:
 `
 
 const sampleRoute = `{
+  "id": "hello-route",
   "method": "GET",
   "path": "/api/hello/:name",
-  "workflow": "hello",
-  "input": {
-    "name": "{{ request.params.name }}"
+  "trigger": {
+    "workflow": "hello",
+    "input": {
+      "name": "{{ request.params.name }}"
+    }
   }
 }
 `
 
 const sampleWorkflow = `{
+  "id": "hello",
   "nodes": {
     "greet": {
       "type": "transform.set",
@@ -180,15 +184,16 @@ const sampleSchema = `{
 `
 
 const sampleTest = `{
+  "id": "hello-test",
   "workflow": "hello",
-  "cases": [
+  "tests": [
     {
       "name": "greets by name",
       "input": { "name": "World" },
       "expect": {
-        "output": "respond",
-        "nodes": {
-          "greet": { "message": "Hello, World!" }
+        "status": "success",
+        "output": {
+          "greeting": "Hello, World!"
         }
       }
     }
