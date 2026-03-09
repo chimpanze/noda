@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/chimpanze/noda/pkg/api"
-
+	"github.com/chimpanze/noda/internal/plugin"
 	wasmrt "github.com/chimpanze/noda/internal/wasm"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 var sendServiceDeps = map[string]api.ServiceDep{
@@ -15,7 +15,7 @@ var sendServiceDeps = map[string]api.ServiceDep{
 
 type sendDescriptor struct{}
 
-func (d *sendDescriptor) Name() string                          { return "send" }
+func (d *sendDescriptor) Name() string                           { return "send" }
 func (d *sendDescriptor) ServiceDeps() map[string]api.ServiceDep { return sendServiceDeps }
 func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -39,7 +39,7 @@ func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 		return "", nil, err
 	}
 
-	data, err := resolveData(nCtx, config)
+	data, err := plugin.ResolveAny(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("wasm.send: %w", err)
 	}
@@ -59,19 +59,4 @@ func getWasmService(services map[string]any) (*wasmrt.WasmService, error) {
 		return nil, fmt.Errorf("service does not implement WasmService")
 	}
 	return ws, nil
-}
-
-func resolveData(nCtx api.ExecutionContext, config map[string]any) (any, error) {
-	raw, ok := config["data"]
-	if !ok {
-		return nil, fmt.Errorf("missing required field \"data\"")
-	}
-	if expr, ok := raw.(string); ok {
-		val, err := nCtx.Resolve(expr)
-		if err != nil {
-			return nil, fmt.Errorf("resolve data: %w", err)
-		}
-		return val, nil
-	}
-	return raw, nil
 }

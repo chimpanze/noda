@@ -103,7 +103,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		if err != nil {
 			s.logger.Error("trigger mapping failed", "route", routeID, "error", err)
 			return writeErrorResponse(c, 400, ErrorResponse{
-				Error: ErrorData{
+				Error: api.ErrorData{
 					Code:    "TRIGGER_MAPPING_ERROR",
 					Message: err.Error(),
 				},
@@ -170,7 +170,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		case <-timer.C:
 			// Response timeout
 			return writeErrorResponse(c, 504, ErrorResponse{
-				Error: ErrorData{
+				Error: api.ErrorData{
 					Code:    "TIMEOUT",
 					Message: "Response timeout exceeded",
 					TraceID: triggerResult.Trigger.TraceID,
@@ -187,7 +187,7 @@ func (s *Server) runWorkflow(ctx context.Context, workflowID string, execCtx *en
 		return fmt.Errorf("workflow %q not found", workflowID)
 	}
 
-	wfConfig, err := parseWorkflowConfig(workflowID, wfData)
+	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
 	if err != nil {
 		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
 	}

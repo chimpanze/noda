@@ -136,8 +136,8 @@ func TestBuildMiddleware_JWT_ValidToken(t *testing.T) {
 
 	app.Use(h)
 	app.Get("/protected", func(c fiber.Ctx) error {
-		claims := c.Locals("jwt_claims")
-		userID := c.Locals("jwt_user_id")
+		claims := c.Locals(LocalJWTClaims)
+		userID := c.Locals(LocalJWTUserID)
 		return c.JSON(map[string]any{
 			"claims":  claims,
 			"user_id": userID,

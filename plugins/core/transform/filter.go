@@ -3,8 +3,8 @@ package transform
 import (
 	"context"
 	"fmt"
-	"reflect"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -55,7 +55,7 @@ func (e *filterExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, c
 		if err != nil {
 			return "", nil, fmt.Errorf("transform.filter: item %d: %w", i, err)
 		}
-		if isTruthy(resolved) {
+		if plugin.IsTruthy(resolved) {
 			result = append(result, item)
 		}
 	}
@@ -65,29 +65,4 @@ func (e *filterExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, c
 	}
 
 	return "success", result, nil
-}
-
-// isTruthy determines if a value is truthy.
-func isTruthy(v any) bool {
-	if v == nil {
-		return false
-	}
-	switch val := v.(type) {
-	case bool:
-		return val
-	case int:
-		return val != 0
-	case int64:
-		return val != 0
-	case float64:
-		return val != 0
-	case string:
-		return val != ""
-	default:
-		rv := reflect.ValueOf(v)
-		if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
-			return rv.Len() > 0
-		}
-		return true
-	}
 }

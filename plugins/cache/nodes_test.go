@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ type mockExecCtx struct {
 	resolveFunc func(expr string) (any, error)
 }
 
-func (m *mockExecCtx) Input() any         { return nil }
+func (m *mockExecCtx) Input() any          { return nil }
 func (m *mockExecCtx) Auth() *api.AuthData { return nil }
 func (m *mockExecCtx) Trigger() api.TriggerData {
 	return api.TriggerData{Type: "test", Timestamp: time.Now(), TraceID: "test-trace"}
@@ -163,7 +164,7 @@ func TestGetNode_MissingService(t *testing.T) {
 	_, _, err := exec.Execute(context.Background(), nCtx,
 		map[string]any{"key": "k"}, map[string]any{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cache service not configured")
+	assert.Contains(t, err.Error(), "service not configured")
 }
 
 func TestGetNode_MissingKey(t *testing.T) {
@@ -307,20 +308,20 @@ func TestExistsNode_NotFound(t *testing.T) {
 // --- helpers tests ---
 
 func TestGetCacheService_Missing(t *testing.T) {
-	_, err := getCacheService(map[string]any{})
+	_, err := plugin.GetService[api.CacheService](map[string]any{}, "cache")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "not configured")
 }
 
 func TestGetCacheService_WrongType(t *testing.T) {
-	_, err := getCacheService(map[string]any{"cache": "not a service"})
+	_, err := plugin.GetService[api.CacheService](map[string]any{"cache": "not a service"}, "cache")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "does not implement")
 }
 
 func TestResolveString_Missing(t *testing.T) {
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
-	_, err := resolveString(nCtx, map[string]any{}, "field")
+	_, err := plugin.ResolveString(nCtx, map[string]any{}, "field")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required field")
 }
@@ -330,7 +331,7 @@ func TestResolveAny_Expression(t *testing.T) {
 		return "resolved-" + expr, nil
 	}}
 
-	val, err := resolveAny(nCtx, map[string]any{"data": "expr1"}, "data")
+	val, err := plugin.ResolveAny(nCtx, map[string]any{"data": "expr1"}, "data")
 	require.NoError(t, err)
 	assert.Equal(t, "resolved-expr1", val)
 }
@@ -338,7 +339,7 @@ func TestResolveAny_Expression(t *testing.T) {
 func TestResolveAny_NonString(t *testing.T) {
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
 
-	val, err := resolveAny(nCtx, map[string]any{"data": float64(42)}, "data")
+	val, err := plugin.ResolveAny(nCtx, map[string]any{"data": float64(42)}, "data")
 	require.NoError(t, err)
 	assert.Equal(t, float64(42), val)
 }
@@ -348,18 +349,18 @@ func TestResolveInt_Variants(t *testing.T) {
 		return float64(99), nil
 	}}
 
-	v, err := resolveInt(nCtx, float64(10))
+	v, err := plugin.ResolveIntRaw(nCtx, float64(10))
 	require.NoError(t, err)
 	assert.Equal(t, 10, v)
 
-	v, err = resolveInt(nCtx, int(5))
+	v, err = plugin.ResolveIntRaw(nCtx, int(5))
 	require.NoError(t, err)
 	assert.Equal(t, 5, v)
 
-	v, err = resolveInt(nCtx, "expr")
+	v, err = plugin.ResolveIntRaw(nCtx, "expr")
 	require.NoError(t, err)
 	assert.Equal(t, 99, v)
 
-	_, err = resolveInt(nCtx, true)
+	_, err = plugin.ResolveIntRaw(nCtx, true)
 	require.Error(t, err)
 }

@@ -2,8 +2,9 @@ package upload
 
 import (
 	"context"
-	"fmt"
 	"io"
+
+	"github.com/chimpanze/noda/internal/plugin"
 )
 
 // storageWriter is the interface required by upload.handle.
@@ -13,13 +14,5 @@ type storageWriter interface {
 }
 
 func getStorageService(services map[string]any) (storageWriter, error) {
-	svc, ok := services["destination"]
-	if !ok {
-		return nil, fmt.Errorf("upload.handle: destination storage service not configured")
-	}
-	sw, ok := svc.(storageWriter)
-	if !ok {
-		return nil, fmt.Errorf("upload.handle: destination service does not implement WriteStream")
-	}
-	return sw, nil
+	return plugin.GetService[storageWriter](services, "destination")
 }

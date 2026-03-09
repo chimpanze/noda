@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -40,7 +41,7 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, err
 	}
 
-	query, err := resolveString(nCtx, config, "query")
+	query, err := plugin.ResolveString(nCtx, config, "query")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.query: %w", err)
 	}

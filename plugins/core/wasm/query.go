@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -13,7 +14,7 @@ var queryServiceDeps = map[string]api.ServiceDep{
 
 type queryDescriptor struct{}
 
-func (d *queryDescriptor) Name() string                          { return "query" }
+func (d *queryDescriptor) Name() string                           { return "query" }
 func (d *queryDescriptor) ServiceDeps() map[string]api.ServiceDep { return queryServiceDeps }
 func (d *queryDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -38,19 +39,14 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, err
 	}
 
-	data, err := resolveData(nCtx, config)
+	data, err := plugin.ResolveAny(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("wasm.query: %w", err)
 	}
 
 	timeout := "5s"
-	if t, ok := config["timeout"].(string); ok {
-		resolved, err := nCtx.Resolve(t)
-		if err == nil {
-			if s, ok := resolved.(string); ok {
-				timeout = s
-			}
-		}
+	if t, found, err := plugin.ResolveOptionalString(nCtx, config, "timeout"); err == nil && found {
+		timeout = t
 	}
 
 	result, err := svc.Query(ctx, data, timeout)

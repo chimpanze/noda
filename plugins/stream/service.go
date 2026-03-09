@@ -43,7 +43,7 @@ func (s *Service) Publish(ctx context.Context, topic string, payload any) (strin
 func (s *Service) Subscribe(ctx context.Context, topic, group, consumer string, handler func(messageID string, payload any) error) error {
 	// Auto-create consumer group (MKSTREAM creates the stream too)
 	err := s.client.XGroupCreateMkStream(ctx, topic, group, "0").Err()
-	if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
+	if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
 		return fmt.Errorf("stream subscribe: create group %q: %w", group, err)
 	}
 

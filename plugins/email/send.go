@@ -4,12 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
 type sendDescriptor struct{}
 
-func (d *sendDescriptor) Name() string                          { return "send" }
+func (d *sendDescriptor) Name() string                           { return "send" }
 func (d *sendDescriptor) ServiceDeps() map[string]api.ServiceDep { return emailServiceDeps }
 func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -48,18 +49,18 @@ func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 		return "", nil, fmt.Errorf("email.send: missing required field \"to\"")
 	}
 
-	subject, err := resolveRequiredString(nCtx, config, "subject")
+	subject, err := plugin.ResolveString(nCtx, config, "subject")
 	if err != nil {
 		return "", nil, fmt.Errorf("email.send: %w", err)
 	}
 
-	body, err := resolveRequiredString(nCtx, config, "body")
+	body, err := plugin.ResolveString(nCtx, config, "body")
 	if err != nil {
 		return "", nil, fmt.Errorf("email.send: %w", err)
 	}
 
-	from, _, _ := resolveString(nCtx, config, "from")
-	replyTo, _, _ := resolveString(nCtx, config, "reply_to")
+	from, _, _ := plugin.ResolveOptionalString(nCtx, config, "from")
+	replyTo, _, _ := plugin.ResolveOptionalString(nCtx, config, "reply_to")
 
 	cc, err := resolveRecipients(nCtx, config, "cc")
 	if err != nil {

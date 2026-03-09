@@ -19,17 +19,18 @@ import (
 	"github.com/chimpanze/noda/internal/server"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/chimpanze/noda/internal/trace"
-	"github.com/chimpanze/noda/plugins/core/control"
-	"github.com/chimpanze/noda/plugins/core/response"
-	"github.com/chimpanze/noda/plugins/core/transform"
-	"github.com/chimpanze/noda/plugins/core/util"
-	"github.com/chimpanze/noda/plugins/core/workflow"
+	"github.com/chimpanze/noda/pkg/api"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
+	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
-	corestorage "github.com/chimpanze/noda/plugins/core/storage"
+	"github.com/chimpanze/noda/plugins/core/response"
 	coresse "github.com/chimpanze/noda/plugins/core/sse"
+	corestorage "github.com/chimpanze/noda/plugins/core/storage"
+	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/upload"
+	"github.com/chimpanze/noda/plugins/core/util"
 	corewasm "github.com/chimpanze/noda/plugins/core/wasm"
+	"github.com/chimpanze/noda/plugins/core/workflow"
 	corews "github.com/chimpanze/noda/plugins/core/ws"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
@@ -290,6 +291,7 @@ func newStartCmd() *cobra.Command {
 					bootstrap.Services,
 					bootstrap.Nodes,
 					rc.Workflows,
+					bootstrap.Compiler,
 					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
@@ -418,6 +420,7 @@ func newDevCmd() *cobra.Command {
 					bootstrap.Services,
 					bootstrap.Nodes,
 					rc.Workflows,
+					bootstrap.Compiler,
 					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
@@ -686,47 +689,56 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
 	return db, configDir, nil
 }
 
+// corePlugins returns all built-in plugins. Used by both buildCoreNodeRegistry
+// (for the test runner, which only needs nodes) and registerCorePlugins
+// (for the full runtime, which also needs service-only plugins).
+func corePlugins() []api.Plugin {
+	return []api.Plugin{
+		&control.Plugin{},
+		&transform.Plugin{},
+		&util.Plugin{},
+		&workflow.Plugin{},
+		&response.Plugin{},
+		&dbplugin.Plugin{},
+		&cacheplugin.Plugin{},
+		&event.Plugin{},
+		&corestorage.Plugin{},
+		&upload.Plugin{},
+		&imageplugin.Plugin{},
+		&httpplugin.Plugin{},
+		&emailplugin.Plugin{},
+		&corews.Plugin{},
+		&coresse.Plugin{},
+		&corewasm.Plugin{},
+	}
+}
+
+// serviceOnlyPlugins returns plugins that provide services but no nodes
+// used by workflows (stream, pubsub, storage). These are registered in the
+// full runtime but not needed for the test runner's node registry.
+func serviceOnlyPlugins() []api.Plugin {
+	return []api.Plugin{
+		&streamplugin.Plugin{},
+		&pubsubplugin.Plugin{},
+		&storageplugin.Plugin{},
+	}
+}
+
 func buildCoreNodeRegistry() *registry.NodeRegistry {
 	nodeReg := registry.NewNodeRegistry()
-	_ = nodeReg.RegisterFromPlugin(&control.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&transform.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&util.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&workflow.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&response.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&dbplugin.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&cacheplugin.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&event.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&corestorage.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&upload.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&imageplugin.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&httpplugin.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&emailplugin.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&corews.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&coresse.Plugin{})
-	_ = nodeReg.RegisterFromPlugin(&corewasm.Plugin{})
+	for _, p := range corePlugins() {
+		_ = nodeReg.RegisterFromPlugin(p)
+	}
 	return nodeReg
 }
 
 func registerCorePlugins(plugins *registry.PluginRegistry) {
-	plugins.Register(&control.Plugin{})
-	plugins.Register(&transform.Plugin{})
-	plugins.Register(&util.Plugin{})
-	plugins.Register(&workflow.Plugin{})
-	plugins.Register(&response.Plugin{})
-	plugins.Register(&dbplugin.Plugin{})
-	plugins.Register(&cacheplugin.Plugin{})
-	plugins.Register(&streamplugin.Plugin{})
-	plugins.Register(&pubsubplugin.Plugin{})
-	plugins.Register(&event.Plugin{})
-	plugins.Register(&storageplugin.Plugin{})
-	plugins.Register(&corestorage.Plugin{})
-	plugins.Register(&upload.Plugin{})
-	plugins.Register(&imageplugin.Plugin{})
-	plugins.Register(&httpplugin.Plugin{})
-	plugins.Register(&emailplugin.Plugin{})
-	plugins.Register(&corews.Plugin{})
-	plugins.Register(&coresse.Plugin{})
-	plugins.Register(&corewasm.Plugin{})
+	for _, p := range corePlugins() {
+		plugins.Register(p)
+	}
+	for _, p := range serviceOnlyPlugins() {
+		plugins.Register(p)
+	}
 }
 
 func newScheduleCmd() *cobra.Command {

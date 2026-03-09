@@ -2,14 +2,14 @@ package control
 
 import (
 	"context"
-	"reflect"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
 type ifDescriptor struct{}
 
-func (d *ifDescriptor) Name() string                         { return "if" }
+func (d *ifDescriptor) Name() string                           { return "if" }
 func (d *ifDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *ifDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -37,35 +37,8 @@ func (e *ifExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, confi
 		return "", nil, err
 	}
 
-	if isTruthy(result) {
+	if plugin.IsTruthy(result) {
 		return "then", result, nil
 	}
 	return "else", result, nil
-}
-
-// isTruthy determines if a value is truthy using Go/Noda rules.
-func isTruthy(v any) bool {
-	if v == nil {
-		return false
-	}
-
-	switch val := v.(type) {
-	case bool:
-		return val
-	case int:
-		return val != 0
-	case int64:
-		return val != 0
-	case float64:
-		return val != 0
-	case string:
-		return val != ""
-	default:
-		// Check for empty array/slice
-		rv := reflect.ValueOf(v)
-		if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
-			return rv.Len() > 0
-		}
-		return true
-	}
 }

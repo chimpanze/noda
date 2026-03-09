@@ -128,9 +128,9 @@ func TestMapTrigger_AuthFromJWT(t *testing.T) {
 
 	// Simulate JWT middleware setting locals
 	app.Use(func(c fiber.Ctx) error {
-		c.Locals("jwt_claims", map[string]any{"sub": "user-1", "email": "test@test.com"})
-		c.Locals("jwt_user_id", "user-1")
-		c.Locals("jwt_roles", []string{"admin"})
+		c.Locals(LocalJWTClaims, map[string]any{"sub": "user-1", "email": "test@test.com"})
+		c.Locals(LocalJWTUserID, "user-1")
+		c.Locals(LocalJWTRoles, []string{"admin"})
 		return c.Next()
 	})
 

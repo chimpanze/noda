@@ -1,7 +1,5 @@
 package config
 
-import "fmt"
-
 // ResolvedConfig is the fully resolved, validated configuration structure.
 type ResolvedConfig struct {
 	Environment string
@@ -140,6 +138,3 @@ func GetValidateInfo(rootPath string, envFlag string) (*ValidateInfo, error) {
 
 	return info, nil
 }
-
-// Ensure fmt is used
-var _ = fmt.Sprintf

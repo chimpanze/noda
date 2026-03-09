@@ -33,8 +33,8 @@ func TestIntegration_UUIDAndTimestamp(t *testing.T) {
 	wf := engine.WorkflowConfig{
 		ID: "uuid-timestamp",
 		Nodes: map[string]engine.NodeConfig{
-			"gen_id":    {Type: "util.uuid"},
-			"gen_ts":    {Type: "util.timestamp", Config: map[string]any{"format": "iso8601"}},
+			"gen_id": {Type: "util.uuid"},
+			"gen_ts": {Type: "util.timestamp", Config: map[string]any{"format": "iso8601"}},
 		},
 		Edges: []engine.EdgeConfig{
 			{From: "gen_id", To: "gen_ts"},
@@ -48,14 +48,26 @@ func TestIntegration_UUIDAndTimestamp(t *testing.T) {
 	err = engine.ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
 	require.NoError(t, err)
 
-	id, ok := execCtx.GetOutput("gen_id")
-	assert.True(t, ok)
-	assert.NotEmpty(t, id.(string))
-
+	// gen_id is an intermediate node whose output is evicted after gen_ts completes.
+	// gen_ts is the terminal node — its output is preserved.
 	ts, ok := execCtx.GetOutput("gen_ts")
 	assert.True(t, ok)
 	_, err = time.Parse(time.RFC3339, ts.(string))
 	assert.NoError(t, err)
+
+	// Verify UUID generation works by running it standalone
+	uuidWf := engine.WorkflowConfig{
+		ID:    "uuid-only",
+		Nodes: map[string]engine.NodeConfig{"gen_id": {Type: "util.uuid"}},
+	}
+	uuidGraph, err := engine.Compile(uuidWf, resolver)
+	require.NoError(t, err)
+	uuidCtx := engine.NewExecutionContext()
+	err = engine.ExecuteGraph(context.Background(), uuidGraph, uuidCtx, svcReg, nodeReg)
+	require.NoError(t, err)
+	id, ok := uuidCtx.GetOutput("gen_id")
+	assert.True(t, ok)
+	assert.NotEmpty(t, id.(string))
 }
 
 func TestIntegration_DelayWithTimeout(t *testing.T) {

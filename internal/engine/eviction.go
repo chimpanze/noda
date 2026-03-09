@@ -4,6 +4,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/chimpanze/noda/internal/expr"
 )
 
 // EvictionTracker tracks reference counts for node outputs and evicts them
@@ -16,12 +18,24 @@ type EvictionTracker struct {
 
 // NewEvictionTracker creates an eviction tracker from a compiled graph.
 // It analyzes which downstream nodes reference each output.
+// Terminal node outputs are never evicted (they are the workflow's results).
 func NewEvictionTracker(graph *CompiledGraph, execCtx *ExecutionContextImpl) *EvictionTracker {
 	refs := make(map[string]*atomic.Int32)
+
+	// Build set of terminal node IDs for quick lookup
+	terminalSet := make(map[string]bool, len(graph.TerminalNodes))
+	for _, id := range graph.TerminalNodes {
+		terminalSet[id] = true
+	}
 
 	// For each node, count how many downstream nodes could consume its output.
 	// A node's output is referenced by any node reachable through its outbound edges.
 	for nodeID, node := range graph.Nodes {
+		// Never evict terminal node outputs — they are the workflow's results
+		if terminalSet[nodeID] {
+			continue
+		}
+
 		outputKey := nodeID
 		if node.As != "" {
 			outputKey = node.As
@@ -90,19 +104,77 @@ func countConsumers(graph *CompiledGraph, nodeID, outputKey string) int {
 	return len(directTargets)
 }
 
-// configReferences checks if a config map contains references to an output key.
+// configReferences checks if a config map contains expression references to an output key.
+// Uses the expr parser to correctly handle string literals and nested braces.
 func configReferences(config map[string]any, key string) bool {
 	for _, v := range config {
 		switch val := v.(type) {
 		case string:
-			if strings.Contains(val, key) {
+			if stringReferencesKey(val, key) {
 				return true
 			}
 		case map[string]any:
 			if configReferences(val, key) {
 				return true
 			}
+		case []any:
+			for _, item := range val {
+				if s, ok := item.(string); ok && stringReferencesKey(s, key) {
+					return true
+				}
+				if m, ok := item.(map[string]any); ok && configReferences(m, key) {
+					return true
+				}
+			}
 		}
 	}
 	return false
+}
+
+// stringReferencesKey checks if a string contains a reference to the given key
+// within {{ }} expression segments. Uses the expr parser for correct delimiting
+// (handles string literals, nested braces, etc.).
+func stringReferencesKey(s, key string) bool {
+	parsed, err := expr.Parse(s)
+	if err != nil || parsed.IsLiteral {
+		return false
+	}
+
+	for _, seg := range parsed.Segments {
+		if seg.Type != expr.SegmentExpression {
+			continue
+		}
+		if exprContainsIdentifier(seg.Value, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// exprContainsIdentifier checks if an expression string contains the given key
+// as a whole identifier (not as a substring of another identifier).
+func exprContainsIdentifier(expression, key string) bool {
+	idx := strings.Index(expression, key)
+	for idx != -1 {
+		afterKey := idx + len(key)
+		// Check character after is not part of an identifier
+		if afterKey >= len(expression) || !isIdentChar(expression[afterKey]) {
+			// Check character before is not part of an identifier
+			if idx == 0 || !isIdentChar(expression[idx-1]) {
+				return true
+			}
+		}
+		// Continue searching
+		next := strings.Index(expression[idx+1:], key)
+		if next == -1 {
+			break
+		}
+		idx = idx + 1 + next
+	}
+	return false
+}
+
+// isIdentChar returns true if c is valid in a node ID (alphanumeric, underscore, hyphen).
+func isIdentChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
 }

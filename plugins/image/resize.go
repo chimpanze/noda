@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 )
 
 type resizeDescriptor struct{}
 
-func (d *resizeDescriptor) Name() string                          { return "resize" }
+func (d *resizeDescriptor) Name() string                           { return "resize" }
 func (d *resizeDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *resizeDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -39,11 +40,11 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
 
-	width, _, err := resolveInt(nCtx, config, "width")
+	width, _, err := plugin.ResolveInt(nCtx, config, "width")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
-	height, _, err := resolveInt(nCtx, config, "height")
+	height, _, err := plugin.ResolveInt(nCtx, config, "height")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
@@ -53,7 +54,7 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		Height: height,
 	}
 
-	if quality, ok, _ := resolveInt(nCtx, config, "quality"); ok {
+	if quality, ok, _ := plugin.ResolveInt(nCtx, config, "quality"); ok {
 		opts.Quality = quality
 	}
 	if format, ok := config["format"].(string); ok {

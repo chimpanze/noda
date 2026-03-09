@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/expr"
 )
 
 // ValidateStartup checks all plugin, service, and node references in the config.
@@ -67,6 +68,26 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 				// Check prefix matches
 				if svcPrefix != dep.Prefix {
 					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q", wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix))
+				}
+			}
+		}
+	}
+
+	// 4. Pre-compile all expressions in workflow node configs to catch syntax errors
+	compiler := expr.NewCompilerWithFunctions()
+	for wfName, wf := range rc.Workflows {
+		wfNodes, ok := wf["nodes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for nodeID, raw := range wfNodes {
+			node, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			if cfg, ok := node["config"].(map[string]any); ok {
+				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
+					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
 				}
 			}
 		}

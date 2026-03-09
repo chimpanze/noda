@@ -3,6 +3,7 @@ package db
 import (
 	"testing"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,7 +87,7 @@ func TestToInt(t *testing.T) {
 		{nil, 0, false},
 	}
 	for _, tt := range tests {
-		v, ok := toInt(tt.input)
+		v, ok := plugin.ToInt(tt.input)
 		assert.Equal(t, tt.ok, ok)
 		if ok {
 			assert.Equal(t, tt.expected, v)

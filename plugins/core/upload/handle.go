@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -50,12 +51,12 @@ func (e *handleExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	// Parse static config values
 	maxSize := int64(10 * 1024 * 1024) // default 10MB
-	if v, ok := toInt64(config["max_size"]); ok {
+	if v, ok := plugin.ToInt64(config["max_size"]); ok {
 		maxSize = v
 	}
 
 	maxFiles := 1
-	if v, ok := toInt(config["max_files"]); ok {
+	if v, ok := plugin.ToInt(config["max_files"]); ok {
 		maxFiles = v
 	}
 
@@ -217,23 +218,6 @@ func parseStringSlice(v any) []string {
 		}
 	}
 	return result
-}
-
-func toInt64(v any) (int64, bool) {
-	switch n := v.(type) {
-	case float64:
-		return int64(n), true
-	case int:
-		return int64(n), true
-	case int64:
-		return n, true
-	}
-	return 0, false
-}
-
-func toInt(v any) (int, bool) {
-	n, ok := toInt64(v)
-	return int(n), ok
 }
 
 // limitedReader wraps an io.Reader and sets exceeded=true if more than N bytes are read.

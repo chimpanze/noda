@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -30,12 +31,12 @@ func newListExecutor(_ map[string]any) api.NodeExecutor { return &listExecutor{}
 func (e *listExecutor) Outputs() []string { return []string{"success", "error"} }
 
 func (e *listExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getStorageService(services)
+	svc, err := plugin.GetService[api.StorageService](services, "storage")
 	if err != nil {
 		return "", nil, err
 	}
 
-	prefix, err := resolveString(nCtx, config, "prefix")
+	prefix, err := plugin.ResolveString(nCtx, config, "prefix")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.list: %w", err)
 	}

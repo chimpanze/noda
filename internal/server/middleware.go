@@ -237,9 +237,9 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 		}
 
 		// Store claims in Fiber locals for trigger mapping to access
-		c.Locals("jwt_claims", map[string]any(claims))
+		c.Locals(LocalJWTClaims, map[string]any(claims))
 		if sub, ok := claims["sub"].(string); ok {
-			c.Locals("jwt_user_id", sub)
+			c.Locals(LocalJWTUserID, sub)
 		}
 		if roles, ok := claims["roles"].([]any); ok {
 			roleStrs := make([]string, 0, len(roles))
@@ -248,7 +248,7 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 					roleStrs = append(roleStrs, s)
 				}
 			}
-			c.Locals("jwt_roles", roleStrs)
+			c.Locals(LocalJWTRoles, roleStrs)
 		}
 
 		return c.Next()
@@ -267,4 +267,3 @@ func (s *Server) applyMiddlewareChain(handlers []fiber.Handler) fiber.Handler {
 		return c.Next()
 	}
 }
-

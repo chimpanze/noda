@@ -10,6 +10,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
@@ -23,10 +24,11 @@ type WorkerConfig struct {
 	Topic       string
 	Group       string
 	Concurrency int
+	Timeout     time.Duration // per-message processing timeout (default 5m)
 	Middleware  []string
-	WorkflowID string
-	InputMap   map[string]any
-	DeadLetter *DeadLetterConfig
+	WorkflowID  string
+	InputMap    map[string]any
+	DeadLetter  *DeadLetterConfig
 }
 
 // DeadLetterConfig holds dead letter queue configuration.
@@ -55,23 +57,28 @@ type Runtime struct {
 }
 
 // NewRuntime creates a new worker runtime.
+// If compiler is nil, a new one is created.
 func NewRuntime(
 	workers []WorkerConfig,
 	services *registry.ServiceRegistry,
 	nodes *registry.NodeRegistry,
 	workflows map[string]map[string]any,
 	middleware []Middleware,
+	compiler *expr.Compiler,
 	logger *slog.Logger,
 ) *Runtime {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if compiler == nil {
+		compiler = expr.NewCompilerWithFunctions()
 	}
 	return &Runtime{
 		workers:    workers,
 		services:   services,
 		nodes:      nodes,
 		workflows:  workflows,
-		compiler:   expr.NewCompilerWithFunctions(),
+		compiler:   compiler,
 		logger:     logger,
 		middleware: middleware,
 	}
@@ -94,14 +101,14 @@ func (r *Runtime) Start(ctx context.Context) error {
 			return fmt.Errorf("worker %q: stream service %q not found", w.ID, w.StreamSvc)
 		}
 
-		client, ok := extractRedisClient(svcInstance)
+		client, ok := plugin.ExtractRedisClient(svcInstance)
 		if !ok {
 			return fmt.Errorf("worker %q: service %q does not provide a Redis client", w.ID, w.StreamSvc)
 		}
 
 		// Auto-create consumer group
 		err := client.XGroupCreateMkStream(ctx, w.Topic, w.Group, "0").Err()
-		if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
+		if err != nil && !redis.HasErrorPrefix(err, "BUSYGROUP") {
 			return fmt.Errorf("worker %q: create consumer group: %w", w.ID, err)
 		}
 
@@ -170,8 +177,18 @@ func (r *Runtime) consume(ctx context.Context, w WorkerConfig, client *redis.Cli
 	}
 }
 
+// defaultMessageTimeout is used when no per-worker timeout is configured.
+const defaultMessageTimeout = 5 * time.Minute
+
 // processMessage handles a single message: maps input, runs workflow, acks/nacks.
 func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
+	timeout := w.Timeout
+	if timeout == 0 {
+		timeout = defaultMessageTimeout
+	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
 	traceID := uuid.New().String()
 	start := time.Now()
 
@@ -288,7 +305,10 @@ func (r *Runtime) executeWorkflow(ctx context.Context, workflowID string, execCt
 		return fmt.Errorf("workflow %q not found", workflowID)
 	}
 
-	wfConfig := parseWorkflowConfig(workflowID, wfData)
+	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
+	if err != nil {
+		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
+	}
 
 	graph, err := engine.Compile(wfConfig, r.nodes)
 	if err != nil {
@@ -391,93 +411,21 @@ func deserializePayload(values map[string]any) any {
 	return payload
 }
 
-// extractRedisClient extracts a *redis.Client from a service instance.
-// Supports stream.Service (via Client() method).
-func extractRedisClient(svc any) (*redis.Client, bool) {
-	type clientProvider interface {
-		Client() *redis.Client
-	}
-	if cp, ok := svc.(clientProvider); ok {
-		return cp.Client(), true
-	}
-	return nil, false
-}
-
-// parseWorkflowConfig converts raw workflow config to engine.WorkflowConfig.
-func parseWorkflowConfig(id string, raw map[string]any) engine.WorkflowConfig {
-	wf := engine.WorkflowConfig{
-		ID:    id,
-		Nodes: make(map[string]engine.NodeConfig),
-	}
-
-	nodesRaw, _ := raw["nodes"].(map[string]any)
-	for nodeID, nodeRaw := range nodesRaw {
-		nm, ok := nodeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		nc := engine.NodeConfig{
-			Type: mapStrVal(nm, "type"),
-			As:   mapStrVal(nm, "as"),
-		}
-		if cfg, ok := nm["config"].(map[string]any); ok {
-			nc.Config = cfg
-		}
-		if svc, ok := nm["services"].(map[string]any); ok {
-			nc.Services = make(map[string]string)
-			for k, v := range svc {
-				nc.Services[k] = fmt.Sprintf("%v", v)
-			}
-		}
-		wf.Nodes[nodeID] = nc
-	}
-
-	edgesRaw, _ := raw["edges"].([]any)
-	for _, edgeRaw := range edgesRaw {
-		em, ok := edgeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		ec := engine.EdgeConfig{
-			From:   mapStrVal(em, "from"),
-			To:     mapStrVal(em, "to"),
-			Output: mapStrVal(em, "output"),
-		}
-		if retryRaw, ok := em["retry"].(map[string]any); ok {
-			ec.Retry = &engine.RetryConfig{
-				Backoff: mapStrVal(retryRaw, "backoff"),
-				Delay:   mapStrVal(retryRaw, "delay"),
-			}
-			if a, ok := retryRaw["attempts"].(float64); ok {
-				ec.Retry.Attempts = int(a)
-			}
-		}
-		wf.Edges = append(wf.Edges, ec)
-	}
-
-	return wf
-}
-
-func mapStrVal(m map[string]any, key string) string {
-	v, _ := m[key].(string)
-	return v
-}
-
 // ParseWorkerConfigs extracts WorkerConfig from raw config maps.
 func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 	var configs []WorkerConfig
 	for _, raw := range workers {
 		wc := WorkerConfig{
-			ID: mapStrVal(raw, "id"),
+			ID: engine.MapStrVal(raw, "id"),
 		}
 
 		if svc, ok := raw["services"].(map[string]any); ok {
-			wc.StreamSvc = mapStrVal(svc, "stream")
+			wc.StreamSvc = engine.MapStrVal(svc, "stream")
 		}
 
 		if sub, ok := raw["subscribe"].(map[string]any); ok {
-			wc.Topic = mapStrVal(sub, "topic")
-			wc.Group = mapStrVal(sub, "group")
+			wc.Topic = engine.MapStrVal(sub, "topic")
+			wc.Group = engine.MapStrVal(sub, "group")
 		}
 
 		if c, ok := raw["concurrency"].(float64); ok {
@@ -485,6 +433,12 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 		}
 		if c, ok := raw["concurrency"].(int); ok {
 			wc.Concurrency = c
+		}
+
+		if timeoutStr, ok := raw["timeout"].(string); ok {
+			if d, err := time.ParseDuration(timeoutStr); err == nil {
+				wc.Timeout = d
+			}
 		}
 
 		if mw, ok := raw["middleware"].([]any); ok {
@@ -496,7 +450,7 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 		}
 
 		if trigger, ok := raw["trigger"].(map[string]any); ok {
-			wc.WorkflowID = mapStrVal(trigger, "workflow")
+			wc.WorkflowID = engine.MapStrVal(trigger, "workflow")
 			if input, ok := trigger["input"].(map[string]any); ok {
 				wc.InputMap = input
 			}
@@ -504,7 +458,7 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 
 		if dl, ok := raw["dead_letter"].(map[string]any); ok {
 			wc.DeadLetter = &DeadLetterConfig{
-				Topic: mapStrVal(dl, "topic"),
+				Topic: engine.MapStrVal(dl, "topic"),
 			}
 			if after, ok := dl["after"].(float64); ok {
 				wc.DeadLetter.After = int(after)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -40,46 +41,21 @@ func (e *emitExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("event.emit: missing 'mode'")
 	}
 
-	topicRaw, ok := config["topic"]
-	if !ok {
-		return "", nil, fmt.Errorf("event.emit: missing 'topic'")
-	}
-	topicExpr, ok := topicRaw.(string)
-	if !ok {
-		return "", nil, fmt.Errorf("event.emit: 'topic' must be a string")
-	}
-	topicVal, err := nCtx.Resolve(topicExpr)
+	topic, err := plugin.ResolveString(nCtx, config, "topic")
 	if err != nil {
-		return "", nil, fmt.Errorf("event.emit: resolve topic: %w", err)
-	}
-	topic, ok := topicVal.(string)
-	if !ok {
-		return "", nil, fmt.Errorf("event.emit: topic resolved to %T, expected string", topicVal)
+		return "", nil, fmt.Errorf("event.emit: %w", err)
 	}
 
-	payloadRaw, ok := config["payload"]
-	if !ok {
-		return "", nil, fmt.Errorf("event.emit: missing 'payload'")
-	}
-	var payload any
-	if expr, ok := payloadRaw.(string); ok {
-		payload, err = nCtx.Resolve(expr)
-		if err != nil {
-			return "", nil, fmt.Errorf("event.emit: resolve payload: %w", err)
-		}
-	} else {
-		payload = payloadRaw
+	payload, err := plugin.ResolveAny(nCtx, config, "payload")
+	if err != nil {
+		return "", nil, fmt.Errorf("event.emit: %w", err)
 	}
 
 	switch mode {
 	case "stream":
-		svc, ok := services["stream"]
-		if !ok {
-			return "", nil, fmt.Errorf("event.emit: stream service not configured")
-		}
-		streamSvc, ok := svc.(api.StreamService)
-		if !ok {
-			return "", nil, fmt.Errorf("event.emit: service does not implement StreamService")
+		streamSvc, err := plugin.GetService[api.StreamService](services, "stream")
+		if err != nil {
+			return "", nil, err
 		}
 		msgID, err := streamSvc.Publish(ctx, topic, payload)
 		if err != nil {
@@ -88,13 +64,9 @@ func (e *emitExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "success", map[string]any{"message_id": msgID}, nil
 
 	case "pubsub":
-		svc, ok := services["pubsub"]
-		if !ok {
-			return "", nil, fmt.Errorf("event.emit: pubsub service not configured")
-		}
-		pubsubSvc, ok := svc.(api.PubSubService)
-		if !ok {
-			return "", nil, fmt.Errorf("event.emit: service does not implement PubSubService")
+		pubsubSvc, err := plugin.GetService[api.PubSubService](services, "pubsub")
+		if err != nil {
+			return "", nil, err
 		}
 		if err := pubsubSvc.Publish(ctx, topic, payload); err != nil {
 			return "", nil, fmt.Errorf("event.emit: %w", err)

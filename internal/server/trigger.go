@@ -190,7 +190,7 @@ func containsSubstr(s, substr string) bool {
 
 // extractAuth reads JWT claims from Fiber locals (set by JWT middleware).
 func extractAuth(c fiber.Ctx) *api.AuthData {
-	claims, _ := c.Locals("jwt_claims").(map[string]any)
+	claims, _ := c.Locals(LocalJWTClaims).(map[string]any)
 	if claims == nil {
 		return nil
 	}
@@ -198,10 +198,10 @@ func extractAuth(c fiber.Ctx) *api.AuthData {
 	auth := &api.AuthData{
 		Claims: claims,
 	}
-	if userID, ok := c.Locals("jwt_user_id").(string); ok {
+	if userID, ok := c.Locals(LocalJWTUserID).(string); ok {
 		auth.UserID = userID
 	}
-	if roles, ok := c.Locals("jwt_roles").([]string); ok {
+	if roles, ok := c.Locals(LocalJWTRoles).([]string); ok {
 		auth.Roles = roles
 	}
 

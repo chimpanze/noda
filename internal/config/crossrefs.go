@@ -134,20 +134,25 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 	}
 
 	// Workflow → Workflow (workflow.run and control.loop)
+	wfGraph := make(map[string][]string) // workflow ID → referenced workflow IDs
 	for filePath, wf := range rc.Workflows {
+		wfID, _ := wf["id"].(string)
 		if nodes, ok := wf["nodes"].(map[string]any); ok {
 			for nodeID, nodeVal := range nodes {
 				if node, ok := nodeVal.(map[string]any); ok {
 					nodeType, _ := node["type"].(string)
 					if nodeType == "workflow.run" || nodeType == "control.loop" {
 						if cfg, ok := node["config"].(map[string]any); ok {
-							if wfID, ok := cfg["workflow"].(string); ok {
-								if !workflowIDs[wfID] {
+							if targetID, ok := cfg["workflow"].(string); ok {
+								if !workflowIDs[targetID] {
 									errs = append(errs, ValidationError{
 										FilePath: filePath,
 										JSONPath: fmt.Sprintf("/nodes/%s/config/workflow", nodeID),
-										Message:  fmt.Sprintf("references non-existent workflow %q", wfID),
+										Message:  fmt.Sprintf("references non-existent workflow %q", targetID),
 									})
+								}
+								if wfID != "" {
+									wfGraph[wfID] = append(wfGraph[wfID], targetID)
 								}
 							}
 						}
@@ -156,6 +161,9 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 			}
 		}
 	}
+
+	// Detect circular workflow references
+	errs = append(errs, detectWorkflowCycles(wfGraph)...)
 
 	return errs
 }
@@ -205,10 +213,88 @@ func collectPresets(root map[string]any) map[string]bool {
 }
 
 func validateMiddlewareRefs(filePath string, route map[string]any, presets map[string]bool) []ValidationError {
-	// This validates middleware_preset references if used directly
-	// (individual middleware names are validated at runtime by the plugin system)
-	_ = presets
-	_ = filePath
-	_ = route
-	return nil
+	var errs []ValidationError
+	mw, ok := route["middleware"].([]any)
+	if !ok {
+		return nil
+	}
+	for i, item := range mw {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		if preset, ok := m["preset"].(string); ok {
+			if !presets[preset] {
+				errs = append(errs, ValidationError{
+					FilePath: filePath,
+					JSONPath: fmt.Sprintf("/middleware/%d/preset", i),
+					Message:  fmt.Sprintf("references non-existent middleware preset %q", preset),
+				})
+			}
+		}
+	}
+	return errs
+}
+
+// detectWorkflowCycles uses DFS to find circular references in the workflow
+// dependency graph and returns validation errors for each cycle found.
+func detectWorkflowCycles(graph map[string][]string) []ValidationError {
+	var errs []ValidationError
+
+	const (
+		white = 0 // unvisited
+		gray  = 1 // in current path
+		black = 2 // finished
+	)
+
+	color := make(map[string]int)
+	parent := make(map[string]string)
+
+	var dfs func(node string)
+	dfs = func(node string) {
+		color[node] = gray
+		for _, next := range graph[node] {
+			if color[next] == gray {
+				// Cycle found — reconstruct path
+				cycle := []string{next, node}
+				cur := node
+				for cur != next {
+					cur = parent[cur]
+					cycle = append(cycle, cur)
+				}
+				// Reverse for readable order
+				for i, j := 0, len(cycle)-1; i < j; i, j = i+1, j-1 {
+					cycle[i], cycle[j] = cycle[j], cycle[i]
+				}
+				errs = append(errs, ValidationError{
+					Message: fmt.Sprintf("circular workflow reference: %s", formatCycle(cycle)),
+				})
+				return
+			}
+			if color[next] == white {
+				parent[next] = node
+				dfs(next)
+			}
+		}
+		color[node] = black
+	}
+
+	for node := range graph {
+		if color[node] == white {
+			dfs(node)
+		}
+	}
+
+	return errs
+}
+
+func formatCycle(ids []string) string {
+	result := ""
+	for i, id := range ids {
+		if i > 0 {
+			result += " → "
+		}
+		result += id
+	}
+	return result
 }

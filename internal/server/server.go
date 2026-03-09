@@ -31,11 +31,15 @@ func WithLogger(logger *slog.Logger) ServerOption {
 	return func(s *Server) { s.logger = logger }
 }
 
+// WithCompiler sets a shared expression compiler.
+func WithCompiler(c *expr.Compiler) ServerOption {
+	return func(s *Server) { s.compiler = c }
+}
+
 // NewServer creates a Fiber app from the resolved config.
 func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, nodes *registry.NodeRegistry, opts ...ServerOption) (*Server, error) {
 	s := &Server{
 		config:   rc,
-		compiler: expr.NewCompilerWithFunctions(),
 		services: services,
 		nodes:    nodes,
 		port:     3000,
@@ -43,6 +47,9 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 	}
 	for _, opt := range opts {
 		opt(s)
+	}
+	if s.compiler == nil {
+		s.compiler = expr.NewCompilerWithFunctions()
 	}
 
 	// Read server settings from root config
@@ -161,7 +168,7 @@ func (s *Server) executeWorkflow(ctx fiber.Ctx, workflowID string, execCtx *engi
 		return fmt.Errorf("workflow %q not found", workflowID)
 	}
 
-	wfConfig, err := parseWorkflowConfig(workflowID, wfData)
+	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
 	if err != nil {
 		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
 	}
@@ -172,64 +179,4 @@ func (s *Server) executeWorkflow(ctx fiber.Ctx, workflowID string, execCtx *engi
 	}
 
 	return engine.ExecuteGraph(ctx.Context(), graph, execCtx, s.services, s.nodes)
-}
-
-// parseWorkflowConfig converts a raw workflow map into an engine.WorkflowConfig.
-func parseWorkflowConfig(id string, raw map[string]any) (engine.WorkflowConfig, error) {
-	wf := engine.WorkflowConfig{
-		ID:    id,
-		Nodes: make(map[string]engine.NodeConfig),
-	}
-
-	nodesRaw, _ := raw["nodes"].(map[string]any)
-	for nodeID, nodeRaw := range nodesRaw {
-		nm, ok := nodeRaw.(map[string]any)
-		if !ok {
-			return wf, fmt.Errorf("node %q: invalid format", nodeID)
-		}
-		nc := engine.NodeConfig{
-			Type: mapStrVal(nm, "type"),
-			As:   mapStrVal(nm, "as"),
-		}
-		if cfg, ok := nm["config"].(map[string]any); ok {
-			nc.Config = cfg
-		}
-		if svc, ok := nm["services"].(map[string]any); ok {
-			nc.Services = make(map[string]string)
-			for k, v := range svc {
-				nc.Services[k] = fmt.Sprintf("%v", v)
-			}
-		}
-		wf.Nodes[nodeID] = nc
-	}
-
-	edgesRaw, _ := raw["edges"].([]any)
-	for _, edgeRaw := range edgesRaw {
-		em, ok := edgeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		ec := engine.EdgeConfig{
-			From:   mapStrVal(em, "from"),
-			To:     mapStrVal(em, "to"),
-			Output: mapStrVal(em, "output"),
-		}
-		if retryRaw, ok := em["retry"].(map[string]any); ok {
-			ec.Retry = &engine.RetryConfig{
-				Backoff: mapStrVal(retryRaw, "backoff"),
-				Delay:   mapStrVal(retryRaw, "delay"),
-			}
-			if a, ok := retryRaw["attempts"].(float64); ok {
-				ec.Retry.Attempts = int(a)
-			}
-		}
-		wf.Edges = append(wf.Edges, ec)
-	}
-
-	return wf, nil
-}
-
-func mapStrVal(m map[string]any, key string) string {
-	v, _ := m[key].(string)
-	return v
 }

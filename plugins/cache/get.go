@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -32,12 +33,12 @@ func newGetExecutor(_ map[string]any) api.NodeExecutor { return &getExecutor{} }
 func (e *getExecutor) Outputs() []string { return []string{"success", "error"} }
 
 func (e *getExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getCacheService(services)
+	svc, err := plugin.GetService[api.CacheService](services, "cache")
 	if err != nil {
 		return "", nil, err
 	}
 
-	key, err := resolveString(nCtx, config, "key")
+	key, err := plugin.ResolveString(nCtx, config, "key")
 	if err != nil {
 		return "", nil, fmt.Errorf("cache.get: %w", err)
 	}

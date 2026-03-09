@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/redis/go-redis/v9"
 )
@@ -37,10 +38,10 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	}
 
 	// Pool settings
-	if v, ok := toInt(config["pool_size"]); ok {
+	if v, ok := plugin.ToInt(config["pool_size"]); ok {
 		opts.PoolSize = v
 	}
-	if v, ok := toInt(config["min_idle"]); ok {
+	if v, ok := plugin.ToInt(config["min_idle"]); ok {
 		opts.MinIdleConns = v
 	}
 
@@ -62,16 +63,4 @@ func (p *Plugin) Shutdown(service any) error {
 		return fmt.Errorf("cache: invalid service type")
 	}
 	return svc.client.Close()
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case float64:
-		return int(n), true
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	}
-	return 0, false
 }

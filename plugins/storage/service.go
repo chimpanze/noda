@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -120,9 +121,7 @@ func (s *Service) List(_ context.Context, prefix string) ([]string, error) {
 
 // isNotExist checks if an error is a "not found" error.
 func isNotExist(err error) bool {
-	return strings.Contains(err.Error(), "no such file") ||
-		strings.Contains(err.Error(), "not found") ||
-		strings.Contains(err.Error(), "does not exist")
+	return errors.Is(err, os.ErrNotExist)
 }
 
 // Verify Service implements StorageService at compile time.

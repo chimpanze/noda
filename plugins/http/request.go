@@ -10,12 +10,13 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
 type requestDescriptor struct{}
 
-func (d *requestDescriptor) Name() string                          { return "request" }
+func (d *requestDescriptor) Name() string                           { return "request" }
 func (d *requestDescriptor) ServiceDeps() map[string]api.ServiceDep { return httpServiceDeps }
 func (d *requestDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -50,7 +51,7 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	// Resolve method
 	method := fixedMethod
 	if method == "" {
-		m, err := resolveRequiredString(nCtx, config, "method")
+		m, err := plugin.ResolveString(nCtx, config, "method")
 		if err != nil {
 			return "", nil, fmt.Errorf("http.request: %w", err)
 		}
@@ -58,7 +59,7 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	}
 
 	// Resolve URL
-	url, err := resolveRequiredString(nCtx, config, "url")
+	url, err := plugin.ResolveString(nCtx, config, "url")
 	if err != nil {
 		return "", nil, fmt.Errorf("http.request: %w", err)
 	}
@@ -74,7 +75,7 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 
 	// Resolve body
 	var bodyReader io.Reader
-	if bodyVal, ok, _ := resolveAny(nCtx, config, "body"); ok && bodyVal != nil {
+	if bodyVal, ok, _ := plugin.ResolveOptionalAny(nCtx, config, "body"); ok && bodyVal != nil {
 		switch v := bodyVal.(type) {
 		case string:
 			bodyReader = strings.NewReader(v)
@@ -96,7 +97,7 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	}
 
 	// Per-request timeout
-	if timeoutStr, ok, _ := resolveString(nCtx, config, "timeout"); ok {
+	if timeoutStr, ok, _ := plugin.ResolveOptionalString(nCtx, config, "timeout"); ok {
 		d, err := time.ParseDuration(timeoutStr)
 		if err != nil {
 			return "", nil, fmt.Errorf("http.request: invalid timeout %q: %w", timeoutStr, err)

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 )
 
 type convertDescriptor struct{}
 
-func (d *convertDescriptor) Name() string                          { return "convert" }
+func (d *convertDescriptor) Name() string                           { return "convert" }
 func (d *convertDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *convertDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -51,7 +52,7 @@ func (e *convertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		Type: imgType,
 	}
 
-	if quality, ok, _ := resolveInt(nCtx, config, "quality"); ok {
+	if quality, ok, _ := plugin.ResolveInt(nCtx, config, "quality"); ok {
 		opts.Quality = quality
 	}
 

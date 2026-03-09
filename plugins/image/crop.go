@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 )
 
 type cropDescriptor struct{}
 
-func (d *cropDescriptor) Name() string                          { return "crop" }
+func (d *cropDescriptor) Name() string                           { return "crop" }
 func (d *cropDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *cropDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -38,11 +39,11 @@ func (e *cropExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}
 
-	width, _, err := resolveInt(nCtx, config, "width")
+	width, _, err := plugin.ResolveInt(nCtx, config, "width")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}
-	height, _, err := resolveInt(nCtx, config, "height")
+	height, _, err := plugin.ResolveInt(nCtx, config, "height")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 )
 
 type thumbnailDescriptor struct{}
 
-func (d *thumbnailDescriptor) Name() string                          { return "thumbnail" }
+func (d *thumbnailDescriptor) Name() string                           { return "thumbnail" }
 func (d *thumbnailDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *thumbnailDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -37,11 +38,11 @@ func (e *thumbnailExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}
 
-	width, _, err := resolveInt(nCtx, config, "width")
+	width, _, err := plugin.ResolveInt(nCtx, config, "width")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}
-	height, _, err := resolveInt(nCtx, config, "height")
+	height, _, err := plugin.ResolveInt(nCtx, config, "height")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}

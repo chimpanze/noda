@@ -16,7 +16,7 @@ type mockExecCtx struct {
 	resolveFunc func(expr string) (any, error)
 }
 
-func (m *mockExecCtx) Input() any         { return nil }
+func (m *mockExecCtx) Input() any          { return nil }
 func (m *mockExecCtx) Auth() *api.AuthData { return nil }
 func (m *mockExecCtx) Trigger() api.TriggerData {
 	return api.TriggerData{Type: "test", Timestamp: time.Now(), TraceID: "test-trace"}
@@ -139,7 +139,7 @@ func TestEmit_MissingStreamService(t *testing.T) {
 		map[string]any{},
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "stream service not configured")
+	assert.Contains(t, err.Error(), "service not configured")
 }
 
 func TestEmit_MissingPubSubService(t *testing.T) {
@@ -151,7 +151,7 @@ func TestEmit_MissingPubSubService(t *testing.T) {
 		map[string]any{},
 	)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "pubsub service not configured")
+	assert.Contains(t, err.Error(), "service not configured")
 }
 
 func TestEmit_UnknownMode(t *testing.T) {

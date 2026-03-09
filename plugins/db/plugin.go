@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -49,10 +50,10 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	}
 
 	// Pool settings
-	if v, ok := toInt(config["max_open"]); ok {
+	if v, ok := plugin.ToInt(config["max_open"]); ok {
 		sqlDB.SetMaxOpenConns(v)
 	}
-	if v, ok := toInt(config["max_idle"]); ok {
+	if v, ok := plugin.ToInt(config["max_idle"]); ok {
 		sqlDB.SetMaxIdleConns(v)
 	}
 	if v, ok := config["conn_lifetime"].(string); ok {
@@ -86,16 +87,4 @@ func (p *Plugin) Shutdown(service any) error {
 		return fmt.Errorf("postgres: get sql.DB: %w", err)
 	}
 	return sqlDB.Close()
-}
-
-func toInt(v any) (int, bool) {
-	switch n := v.(type) {
-	case float64:
-		return int(n), true
-	case int:
-		return n, true
-	case int64:
-		return int(n), true
-	}
-	return 0, false
 }

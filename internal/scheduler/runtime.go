@@ -24,6 +24,7 @@ type ScheduleConfig struct {
 	LockSvcName string // cache service name for distributed locking
 	LockEnabled bool
 	LockTTL     time.Duration
+	Timeout     time.Duration // per-job execution timeout (default 5m)
 	WorkflowID  string
 	InputMap    map[string]any
 }
@@ -54,22 +55,27 @@ type Runtime struct {
 }
 
 // NewRuntime creates a new scheduler runtime.
+// If compiler is nil, a new one is created.
 func NewRuntime(
 	schedules []ScheduleConfig,
 	services *registry.ServiceRegistry,
 	nodes *registry.NodeRegistry,
 	workflows map[string]map[string]any,
+	compiler *expr.Compiler,
 	logger *slog.Logger,
 ) *Runtime {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if compiler == nil {
+		compiler = expr.NewCompilerWithFunctions()
 	}
 	return &Runtime{
 		schedules: schedules,
 		services:  services,
 		nodes:     nodes,
 		workflows: workflows,
-		compiler:  expr.NewCompilerWithFunctions(),
+		compiler:  compiler,
 		logger:    logger,
 	}
 }
@@ -139,8 +145,18 @@ func (r *Runtime) NextRun(scheduleID string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+// defaultJobTimeout is used when no per-schedule timeout is configured.
+const defaultJobTimeout = 5 * time.Minute
+
 // runJob executes a single scheduled job with optional distributed locking.
 func (r *Runtime) runJob(sc ScheduleConfig) {
+	timeout := sc.Timeout
+	if timeout == 0 {
+		timeout = defaultJobTimeout
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	now := time.Now()
 	traceID := uuid.New().String()
 	start := now
@@ -171,7 +187,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			return
 		}
 
-		acquired, err := tryAcquireLock(lockSvc, lockKey, sc.LockTTL)
+		acquired, err := tryAcquireLock(ctx, lockSvc, lockKey, sc.LockTTL)
 		if err != nil {
 			r.logger.Error("scheduler: lock error",
 				"schedule_id", sc.ID,
@@ -202,7 +218,10 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			return
 		}
 		defer func() {
-			if err := releaseLockKey(lockSvc, lockKey); err != nil {
+			// Use a fresh context for lock release since the job context may have expired.
+			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer releaseCancel()
+			if err := releaseLockKey(releaseCtx, lockSvc, lockKey); err != nil {
 				r.logger.Warn("scheduler: lock release failed",
 					"schedule_id", sc.ID,
 					"trace_id", traceID,
@@ -250,7 +269,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 		engine.WithCompiler(r.compiler),
 	)
 
-	wfErr := r.executeWorkflow(context.Background(), sc.WorkflowID, execCtx)
+	wfErr := r.executeWorkflow(ctx, sc.WorkflowID, execCtx)
 
 	run := JobRun{
 		ScheduleID: sc.ID,
@@ -284,7 +303,10 @@ func (r *Runtime) executeWorkflow(ctx context.Context, workflowID string, execCt
 		return fmt.Errorf("workflow %q not found", workflowID)
 	}
 
-	wfConfig := parseWorkflowConfig(workflowID, wfData)
+	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
+	if err != nil {
+		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
+	}
 	graph, err := engine.Compile(wfConfig, r.nodes)
 	if err != nil {
 		return fmt.Errorf("compile workflow %q: %w", workflowID, err)
@@ -324,72 +346,23 @@ func (r *Runtime) recordRun(run JobRun) {
 	}
 }
 
-// parseWorkflowConfig converts raw workflow config to engine.WorkflowConfig.
-func parseWorkflowConfig(id string, raw map[string]any) engine.WorkflowConfig {
-	wf := engine.WorkflowConfig{
-		ID:    id,
-		Nodes: make(map[string]engine.NodeConfig),
-	}
-
-	nodesRaw, _ := raw["nodes"].(map[string]any)
-	for nodeID, nodeRaw := range nodesRaw {
-		nm, ok := nodeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		nc := engine.NodeConfig{
-			Type: mapStrVal(nm, "type"),
-			As:   mapStrVal(nm, "as"),
-		}
-		if cfg, ok := nm["config"].(map[string]any); ok {
-			nc.Config = cfg
-		}
-		if svc, ok := nm["services"].(map[string]any); ok {
-			nc.Services = make(map[string]string)
-			for k, v := range svc {
-				nc.Services[k] = fmt.Sprintf("%v", v)
-			}
-		}
-		wf.Nodes[nodeID] = nc
-	}
-
-	edgesRaw, _ := raw["edges"].([]any)
-	for _, edgeRaw := range edgesRaw {
-		em, ok := edgeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		wf.Edges = append(wf.Edges, engine.EdgeConfig{
-			From:   mapStrVal(em, "from"),
-			To:     mapStrVal(em, "to"),
-			Output: mapStrVal(em, "output"),
-		})
-	}
-	return wf
-}
-
-func mapStrVal(m map[string]any, key string) string {
-	v, _ := m[key].(string)
-	return v
-}
-
 // ParseScheduleConfigs extracts ScheduleConfig from raw config maps.
 func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig {
 	var configs []ScheduleConfig
 	for _, raw := range schedules {
 		sc := ScheduleConfig{
-			ID:          mapStrVal(raw, "id"),
-			Cron:        mapStrVal(raw, "cron"),
-			Timezone:    mapStrVal(raw, "timezone"),
-			Description: mapStrVal(raw, "description"),
+			ID:          engine.MapStrVal(raw, "id"),
+			Cron:        engine.MapStrVal(raw, "cron"),
+			Timezone:    engine.MapStrVal(raw, "timezone"),
+			Description: engine.MapStrVal(raw, "description"),
 		}
 
 		if svc, ok := raw["services"].(map[string]any); ok {
-			sc.LockSvcName = mapStrVal(svc, "lock")
+			sc.LockSvcName = engine.MapStrVal(svc, "lock")
 		}
 
 		if trigger, ok := raw["trigger"].(map[string]any); ok {
-			sc.WorkflowID = mapStrVal(trigger, "workflow")
+			sc.WorkflowID = engine.MapStrVal(trigger, "workflow")
 			if input, ok := trigger["input"].(map[string]any); ok {
 				sc.InputMap = input
 			}
@@ -403,6 +376,12 @@ func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig 
 				if d, err := time.ParseDuration(ttlStr); err == nil {
 					sc.LockTTL = d
 				}
+			}
+		}
+
+		if timeoutStr, ok := raw["timeout"].(string); ok {
+			if d, err := time.ParseDuration(timeoutStr); err == nil {
+				sc.Timeout = d
 			}
 		}
 

@@ -54,7 +54,7 @@ func TestParseWorkerConfigs(t *testing.T) {
 				"group": "notification-workers",
 			},
 			"concurrency": float64(5),
-			"middleware":   []any{"worker.log", "worker.timeout"},
+			"middleware":  []any{"worker.log", "worker.timeout"},
 			"trigger": map[string]any{
 				"workflow": "send-welcome-email",
 				"input": map[string]any{
@@ -130,7 +130,7 @@ func TestRuntime_ConsumesAndExecutes(t *testing.T) {
 		[]WorkerConfig{wc},
 		svcReg, nodeReg, workflows,
 		[]Middleware{trackingMW},
-		nil,
+		nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -191,7 +191,7 @@ func TestRuntime_ConcurrentProcessing(t *testing.T) {
 		[]WorkerConfig{wc},
 		svcReg, nodeReg, workflows,
 		[]Middleware{trackingMW},
-		nil,
+		nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -241,7 +241,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 			WorkflowID: "test-workflow",
 		}},
 		svcReg, nodeReg, workflows,
-		nil, nil,
+		nil, nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -275,7 +275,7 @@ func TestRuntime_MissingStreamService(t *testing.T) {
 			WorkflowID: "wf",
 		}},
 		svcReg, nodeReg, nil,
-		nil, nil,
+		nil, nil, nil,
 	)
 
 	err := rt.Start(context.Background())
@@ -324,7 +324,7 @@ func TestRuntime_TriggerMapping(t *testing.T) {
 		[]WorkerConfig{wc},
 		svcReg, nodeReg, workflows,
 		[]Middleware{trackingMW},
-		nil,
+		nil, nil,
 	)
 
 	err := rt.Start(ctx)

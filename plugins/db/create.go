@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -41,7 +42,7 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, err
 	}
 
-	table, err := resolveString(nCtx, config, "table")
+	table, err := plugin.ResolveString(nCtx, config, "table")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.create: %w", err)
 	}

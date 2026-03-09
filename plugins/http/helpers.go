@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -11,61 +12,7 @@ var httpServiceDeps = map[string]api.ServiceDep{
 }
 
 func getHTTPService(services map[string]any) (*Service, error) {
-	svc, ok := services["client"]
-	if !ok {
-		return nil, fmt.Errorf("http client service not configured")
-	}
-	hs, ok := svc.(*Service)
-	if !ok {
-		return nil, fmt.Errorf("service does not implement HTTP client")
-	}
-	return hs, nil
-}
-
-func resolveString(nCtx api.ExecutionContext, config map[string]any, key string) (string, bool, error) {
-	raw, ok := config[key]
-	if !ok {
-		return "", false, nil
-	}
-	expr, ok := raw.(string)
-	if !ok {
-		return "", false, fmt.Errorf("field %q must be a string", key)
-	}
-	val, err := nCtx.Resolve(expr)
-	if err != nil {
-		return "", false, fmt.Errorf("resolve %q: %w", key, err)
-	}
-	s, ok := val.(string)
-	if !ok {
-		return "", false, fmt.Errorf("field %q resolved to %T, expected string", key, val)
-	}
-	return s, true, nil
-}
-
-func resolveRequiredString(nCtx api.ExecutionContext, config map[string]any, key string) (string, error) {
-	s, ok, err := resolveString(nCtx, config, key)
-	if err != nil {
-		return "", err
-	}
-	if !ok {
-		return "", fmt.Errorf("missing required field %q", key)
-	}
-	return s, nil
-}
-
-func resolveAny(nCtx api.ExecutionContext, config map[string]any, key string) (any, bool, error) {
-	raw, ok := config[key]
-	if !ok {
-		return nil, false, nil
-	}
-	if expr, ok := raw.(string); ok {
-		val, err := nCtx.Resolve(expr)
-		if err != nil {
-			return nil, false, fmt.Errorf("resolve %q: %w", key, err)
-		}
-		return val, true, nil
-	}
-	return raw, true, nil
+	return plugin.GetService[*Service](services, "client")
 }
 
 func resolveHeaders(nCtx api.ExecutionContext, config map[string]any) (map[string]string, error) {

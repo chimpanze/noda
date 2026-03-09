@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -32,17 +33,17 @@ func newWriteExecutor(_ map[string]any) api.NodeExecutor { return &writeExecutor
 func (e *writeExecutor) Outputs() []string { return []string{"success", "error"} }
 
 func (e *writeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getStorageService(services)
+	svc, err := plugin.GetService[api.StorageService](services, "storage")
 	if err != nil {
 		return "", nil, err
 	}
 
-	path, err := resolveString(nCtx, config, "path")
+	path, err := plugin.ResolveString(nCtx, config, "path")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.write: %w", err)
 	}
 
-	rawData, err := resolveAny(nCtx, config, "data")
+	rawData, err := plugin.ResolveAny(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.write: %w", err)
 	}

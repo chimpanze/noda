@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -34,24 +35,24 @@ func newSetExecutor(_ map[string]any) api.NodeExecutor { return &setExecutor{} }
 func (e *setExecutor) Outputs() []string { return []string{"success", "error"} }
 
 func (e *setExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getCacheService(services)
+	svc, err := plugin.GetService[api.CacheService](services, "cache")
 	if err != nil {
 		return "", nil, err
 	}
 
-	key, err := resolveString(nCtx, config, "key")
+	key, err := plugin.ResolveString(nCtx, config, "key")
 	if err != nil {
 		return "", nil, fmt.Errorf("cache.set: %w", err)
 	}
 
-	value, err := resolveAny(nCtx, config, "value")
+	value, err := plugin.ResolveAny(nCtx, config, "value")
 	if err != nil {
 		return "", nil, fmt.Errorf("cache.set: %w", err)
 	}
 
 	ttl := 0
 	if ttlRaw, ok := config["ttl"]; ok {
-		ttl, err = resolveInt(nCtx, ttlRaw)
+		ttl, err = plugin.ResolveIntRaw(nCtx, ttlRaw)
 		if err != nil {
 			return "", nil, fmt.Errorf("cache.set ttl: %w", err)
 		}

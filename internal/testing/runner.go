@@ -2,7 +2,6 @@ package testing
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -135,52 +134,7 @@ func parseWorkflowConfig(workflowID string, rc *config.ResolvedConfig) (engine.W
 	if wfData == nil {
 		return engine.WorkflowConfig{}, fmt.Errorf("workflow %q not found", workflowID)
 	}
-
-	wf := engine.WorkflowConfig{
-		ID:    workflowID,
-		Nodes: make(map[string]engine.NodeConfig),
-	}
-
-	// Parse nodes
-	nodesRaw, _ := wfData["nodes"].(map[string]any)
-	for nodeID, nodeRaw := range nodesRaw {
-		nodeMap, ok := nodeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		nc := engine.NodeConfig{
-			Type: nodeMap["type"].(string),
-		}
-		if cfg, ok := nodeMap["config"].(map[string]any); ok {
-			nc.Config = cfg
-		}
-		if svc, ok := nodeMap["services"].(map[string]any); ok {
-			nc.Services = make(map[string]string)
-			for k, v := range svc {
-				nc.Services[k] = fmt.Sprintf("%v", v)
-			}
-		}
-		if as, ok := nodeMap["as"].(string); ok {
-			nc.As = as
-		}
-		wf.Nodes[nodeID] = nc
-	}
-
-	// Parse edges
-	edgesRaw, _ := wfData["edges"].([]any)
-	for _, edgeRaw := range edgesRaw {
-		edgeMap, ok := edgeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		ec := engine.EdgeConfig{}
-		ec.From, _ = edgeMap["from"].(string)
-		ec.To, _ = edgeMap["to"].(string)
-		ec.Output, _ = edgeMap["output"].(string)
-		wf.Edges = append(wf.Edges, ec)
-	}
-
-	return wf, nil
+	return engine.ParseWorkflowFromMap(workflowID, wfData)
 }
 
 // buildTestRegistry creates a NodeRegistry with core types and mock overrides.
@@ -304,50 +258,5 @@ func ParseWorkflowFromConfig(workflowID string, rc *config.ResolvedConfig) (engi
 // WorkflowConfigFromJSON converts raw workflow JSON data to engine.WorkflowConfig.
 func WorkflowConfigFromJSON(data map[string]any) (engine.WorkflowConfig, error) {
 	id, _ := data["id"].(string)
-	wf := engine.WorkflowConfig{
-		ID:    id,
-		Nodes: make(map[string]engine.NodeConfig),
-	}
-
-	nodesRaw, _ := data["nodes"].(map[string]any)
-	for nodeID, nodeRaw := range nodesRaw {
-		nodeMap, ok := nodeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		nc := engine.NodeConfig{
-			Type: fmt.Sprintf("%v", nodeMap["type"]),
-		}
-		if cfg, ok := nodeMap["config"].(map[string]any); ok {
-			nc.Config = cfg
-		}
-		if svc, ok := nodeMap["services"].(map[string]any); ok {
-			nc.Services = make(map[string]string)
-			for k, v := range svc {
-				nc.Services[k] = fmt.Sprintf("%v", v)
-			}
-		}
-		if as, ok := nodeMap["as"].(string); ok {
-			nc.As = as
-		}
-		wf.Nodes[nodeID] = nc
-	}
-
-	edgesRaw, _ := data["edges"].([]any)
-	for _, edgeRaw := range edgesRaw {
-		edgeMap, ok := edgeRaw.(map[string]any)
-		if !ok {
-			continue
-		}
-		ec := engine.EdgeConfig{}
-		ec.From, _ = edgeMap["from"].(string)
-		ec.To, _ = edgeMap["to"].(string)
-		ec.Output, _ = edgeMap["output"].(string)
-		wf.Edges = append(wf.Edges, ec)
-	}
-
-	return wf, nil
+	return engine.ParseWorkflowFromMap(id, data)
 }
-
-// Ensure json is used.
-var _ = json.Marshal

@@ -4,13 +4,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 )
 
 type watermarkDescriptor struct{}
 
-func (d *watermarkDescriptor) Name() string                          { return "watermark" }
+func (d *watermarkDescriptor) Name() string                           { return "watermark" }
 func (d *watermarkDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *watermarkDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
@@ -43,7 +44,7 @@ func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 	if err != nil {
 		return "", nil, fmt.Errorf("image.watermark: %w", err)
 	}
-	wmPath, err := resolveString(nCtx, config, "watermark")
+	wmPath, err := plugin.ResolveString(nCtx, config, "watermark")
 	if err != nil {
 		return "", nil, fmt.Errorf("image.watermark: %w", err)
 	}

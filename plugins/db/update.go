@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -42,7 +43,7 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, err
 	}
 
-	table, err := resolveString(nCtx, config, "table")
+	table, err := plugin.ResolveString(nCtx, config, "table")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
@@ -52,7 +53,7 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
 
-	condition, err := resolveString(nCtx, config, "condition")
+	condition, err := plugin.ResolveString(nCtx, config, "condition")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}

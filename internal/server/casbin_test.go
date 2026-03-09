@@ -65,7 +65,7 @@ func TestCasbin_PermittedRequest(t *testing.T) {
 
 	app := fiber.New()
 	app.Get("/api/data", func(c fiber.Ctx) error {
-		c.Locals("jwt_user_id", "alice")
+		c.Locals(LocalJWTUserID, "alice")
 		return c.Next()
 	}, mw, func(c fiber.Ctx) error {
 		return c.SendString("ok")
@@ -97,7 +97,7 @@ func TestCasbin_DeniedRequest(t *testing.T) {
 		return c.Status(500).SendString(err.Error())
 	}})
 	app.Get("/api/data", func(c fiber.Ctx) error {
-		c.Locals("jwt_user_id", "bob") // bob has no policy
+		c.Locals(LocalJWTUserID, "bob") // bob has no policy
 		return c.Next()
 	}, mw, func(c fiber.Ctx) error {
 		return c.SendString("ok")
@@ -164,7 +164,7 @@ func TestCasbin_RBAC_AdminVsMember(t *testing.T) {
 
 	setUser := func(userID string) fiber.Handler {
 		return func(c fiber.Ctx) error {
-			c.Locals("jwt_user_id", userID)
+			c.Locals(LocalJWTUserID, userID)
 			return c.Next()
 		}
 	}
@@ -241,7 +241,7 @@ func TestCasbin_MultiTenant(t *testing.T) {
 
 	setUser := func(userID string) fiber.Handler {
 		return func(c fiber.Ctx) error {
-			c.Locals("jwt_user_id", userID)
+			c.Locals(LocalJWTUserID, userID)
 			return c.Next()
 		}
 	}
@@ -288,7 +288,7 @@ func TestCasbin_WildcardPath(t *testing.T) {
 
 	app := fiber.New()
 	app.Get("/api/users/:id", func(c fiber.Ctx) error {
-		c.Locals("jwt_user_id", "alice")
+		c.Locals(LocalJWTUserID, "alice")
 		return c.Next()
 	}, mw, func(c fiber.Ctx) error {
 		return c.SendString("ok")

@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,8 @@ type mockExecCtx struct {
 	resolveFunc func(expr string) (any, error)
 }
 
-func (m *mockExecCtx) Input() any           { return nil }
-func (m *mockExecCtx) Auth() *api.AuthData   { return nil }
+func (m *mockExecCtx) Input() any          { return nil }
+func (m *mockExecCtx) Auth() *api.AuthData { return nil }
 func (m *mockExecCtx) Trigger() api.TriggerData {
 	return api.TriggerData{Type: "test", Timestamp: time.Now(), TraceID: "test-trace"}
 }
@@ -166,7 +167,7 @@ func TestQueryNode_MissingService(t *testing.T) {
 
 	_, _, err := exec.Execute(context.Background(), nCtx, map[string]any{"query": "SELECT 1"}, map[string]any{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "database service not configured")
+	assert.Contains(t, err.Error(), "service not configured")
 }
 
 // --- db.exec tests ---
@@ -452,7 +453,7 @@ func TestGetDB_WrongType(t *testing.T) {
 
 func TestResolveString_Missing(t *testing.T) {
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
-	_, err := resolveString(nCtx, map[string]any{}, "field")
+	_, err := plugin.ResolveString(nCtx, map[string]any{}, "field")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required field")
 }

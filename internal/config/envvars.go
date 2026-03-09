@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 )
 
 var envPattern = regexp.MustCompile(`\{\{\s*\$env\(\s*'([^']+)'\s*\)\s*\}\}`)
@@ -60,8 +59,10 @@ func resolveEnvString(s string, path string, errs *[]error) string {
 	})
 }
 
-// ResolveEnvVarsSelective resolves $env() only in root config and wasm_runtimes.*.config sections.
-// Other config sections are returned unchanged.
+// ResolveEnvVarsSelective resolves $env() in the root config only.
+// Since wasm_runtimes is nested inside root, their config sections are resolved too.
+// Other config sections (routes, workflows, etc.) are left unchanged — their {{ }}
+// expressions are runtime expressions, not config-time resolution.
 func ResolveEnvVarsSelective(rc *RawConfig) []error {
 	if rc.Root == nil {
 		return nil
@@ -72,10 +73,6 @@ func ResolveEnvVarsSelective(rc *RawConfig) []error {
 	resolved, errs := ResolveEnvVars(rc.Root)
 	allErrs = append(allErrs, errs...)
 	rc.Root = resolved
-
-	// Strip $env() patterns that leaked into non-root sections are preserved as-is
-	// (they're runtime expressions, not config-time resolution)
-	_ = strings.TrimSpace // avoid unused import
 
 	return allErrs
 }

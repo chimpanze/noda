@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -31,12 +32,12 @@ func newReadExecutor(_ map[string]any) api.NodeExecutor { return &readExecutor{}
 func (e *readExecutor) Outputs() []string { return []string{"success", "error"} }
 
 func (e *readExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getStorageService(services)
+	svc, err := plugin.GetService[api.StorageService](services, "storage")
 	if err != nil {
 		return "", nil, err
 	}
 
-	path, err := resolveString(nCtx, config, "path")
+	path, err := plugin.ResolveString(nCtx, config, "path")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.read: %w", err)
 	}

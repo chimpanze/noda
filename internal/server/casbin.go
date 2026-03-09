@@ -63,7 +63,7 @@ func newCasbinMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, e
 
 // extractSubject gets the user identity from JWT locals (set by auth.jwt middleware).
 func extractSubject(c fiber.Ctx) string {
-	if uid, ok := c.Locals("jwt_user_id").(string); ok && uid != "" {
+	if uid, ok := c.Locals(LocalJWTUserID).(string); ok && uid != "" {
 		return uid
 	}
 	return ""

@@ -4,28 +4,28 @@ import "time"
 
 // ModuleConfig configures a Wasm module runtime.
 type ModuleConfig struct {
-	Name         string            // Module name (key in wasm_runtimes)
-	ModulePath   string            // Path to .wasm binary
-	TickRate     int               // Ticks per second (Hz), 1-120
-	Encoding     string            // "json" (default) or "msgpack"
-	Services     []string          // Allowed service instance names
-	Connections  []string          // Allowed connection endpoint names
-	AllowHTTP    []string          // Whitelisted HTTP hosts
-	AllowWS      []string          // Whitelisted WebSocket hosts
-	Config       map[string]any    // Opaque config passed to initialize
-	MemoryPages  uint32            // Max memory pages (0 = default)
+	Name        string         // Module name (key in wasm_runtimes)
+	ModulePath  string         // Path to .wasm binary
+	TickRate    int            // Ticks per second (Hz), 1-120
+	Encoding    string         // "json" (default) or "msgpack"
+	Services    []string       // Allowed service instance names
+	Connections []string       // Allowed connection endpoint names
+	AllowHTTP   []string       // Whitelisted HTTP hosts
+	AllowWS     []string       // Whitelisted WebSocket hosts
+	Config      map[string]any // Opaque config passed to initialize
+	MemoryPages uint32         // Max memory pages (0 = default)
 }
 
 // TickInput is the data passed to a module's tick export.
 type TickInput struct {
-	DT               int64              `json:"dt" msgpack:"dt"`
-	Timestamp        int64              `json:"timestamp" msgpack:"timestamp"`
-	ClientMessages   []ClientMessage    `json:"client_messages,omitempty" msgpack:"client_messages,omitempty"`
-	IncomingWS       []IncomingWSMsg    `json:"incoming_ws,omitempty" msgpack:"incoming_ws,omitempty"`
-	ConnectionEvents []ConnectionEvent  `json:"connection_events,omitempty" msgpack:"connection_events,omitempty"`
-	Commands         []Command          `json:"commands,omitempty" msgpack:"commands,omitempty"`
+	DT               int64                     `json:"dt" msgpack:"dt"`
+	Timestamp        int64                     `json:"timestamp" msgpack:"timestamp"`
+	ClientMessages   []ClientMessage           `json:"client_messages,omitempty" msgpack:"client_messages,omitempty"`
+	IncomingWS       []IncomingWSMsg           `json:"incoming_ws,omitempty" msgpack:"incoming_ws,omitempty"`
+	ConnectionEvents []ConnectionEvent         `json:"connection_events,omitempty" msgpack:"connection_events,omitempty"`
+	Commands         []Command                 `json:"commands,omitempty" msgpack:"commands,omitempty"`
 	Responses        map[string]*AsyncResponse `json:"responses,omitempty" msgpack:"responses,omitempty"`
-	Timers           []string           `json:"timers,omitempty" msgpack:"timers,omitempty"`
+	Timers           []string                  `json:"timers,omitempty" msgpack:"timers,omitempty"`
 }
 
 // ClientMessage is a message from a client connected to a Noda endpoint.
@@ -60,8 +60,8 @@ type Command struct {
 
 // AsyncResponse is the result of a noda_call_async call.
 type AsyncResponse struct {
-	Status string `json:"status" msgpack:"status"` // "ok" or "error"
-	Data   any    `json:"data,omitempty" msgpack:"data,omitempty"`
+	Status string      `json:"status" msgpack:"status"` // "ok" or "error"
+	Data   any         `json:"data,omitempty" msgpack:"data,omitempty"`
 	Error  *AsyncError `json:"error,omitempty" msgpack:"error,omitempty"`
 }
 
@@ -80,39 +80,26 @@ type HostCallRequest struct {
 	Label     string `json:"label,omitempty" msgpack:"label,omitempty"` // async only
 }
 
-// HostCallResponse is the output of noda_call.
-type HostCallResponse struct {
-	Data any `json:"data,omitempty" msgpack:"data,omitempty"`
-}
-
-// HostCallError is an error from noda_call.
-type HostCallError struct {
-	Code      string `json:"code" msgpack:"code"`
-	Message   string `json:"message" msgpack:"message"`
-	Operation string `json:"operation,omitempty" msgpack:"operation,omitempty"`
-}
-
 // InitializeInput is passed to the module's initialize export.
 type InitializeInput struct {
-	Encoding string         `json:"encoding" msgpack:"encoding"`
-	Config   map[string]any `json:"config" msgpack:"config"`
+	Encoding string                     `json:"encoding" msgpack:"encoding"`
+	Config   map[string]any             `json:"config" msgpack:"config"`
 	Services map[string]ServiceManifest `json:"services" msgpack:"services"`
 }
 
 // ServiceManifest describes a service available to the module.
 type ServiceManifest struct {
-	Type       string   `json:"type" msgpack:"type"`
-	Operations []string `json:"operations" msgpack:"operations"`
+	Type string `json:"type" msgpack:"type"`
 }
 
 // GatewayConfig configures an outbound WebSocket connection.
 type GatewayConfig struct {
-	ID                string        `json:"id"`
-	URL               string        `json:"url"`
+	ID                string            `json:"id"`
+	URL               string            `json:"url"`
 	Headers           map[string]string `json:"headers,omitempty"`
-	HeartbeatInterval time.Duration `json:"heartbeat_interval,omitempty"`
-	HeartbeatPayload  any           `json:"heartbeat_payload,omitempty"`
-	Reconnect         *ReconnectConfig `json:"reconnect,omitempty"`
+	HeartbeatInterval time.Duration     `json:"heartbeat_interval,omitempty"`
+	HeartbeatPayload  any               `json:"heartbeat_payload,omitempty"`
+	Reconnect         *ReconnectConfig  `json:"reconnect,omitempty"`
 }
 
 // ReconnectConfig configures reconnection behavior.

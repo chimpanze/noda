@@ -3,42 +3,14 @@ package db
 import (
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
 )
 
 // getDB extracts the *gorm.DB from the resolved services map.
 func getDB(services map[string]any) (*gorm.DB, error) {
-	svc, ok := services["database"]
-	if !ok {
-		return nil, fmt.Errorf("database service not configured")
-	}
-	db, ok := svc.(*gorm.DB)
-	if !ok {
-		return nil, fmt.Errorf("database service is not a *gorm.DB")
-	}
-	return db, nil
-}
-
-// resolveString resolves a config key as a string expression.
-func resolveString(nCtx api.ExecutionContext, config map[string]any, key string) (string, error) {
-	raw, ok := config[key]
-	if !ok {
-		return "", fmt.Errorf("missing required field %q", key)
-	}
-	expr, ok := raw.(string)
-	if !ok {
-		return "", fmt.Errorf("field %q must be a string", key)
-	}
-	val, err := nCtx.Resolve(expr)
-	if err != nil {
-		return "", fmt.Errorf("resolve %q: %w", key, err)
-	}
-	s, ok := val.(string)
-	if !ok {
-		return "", fmt.Errorf("field %q resolved to %T, expected string", key, val)
-	}
-	return s, nil
+	return plugin.GetService[*gorm.DB](services, "database")
 }
 
 // resolveMap resolves a config key as a map expression.

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/expr"
 )
 
 // BootstrapResult holds all registries after startup initialization.
@@ -11,6 +12,7 @@ type BootstrapResult struct {
 	Plugins  *PluginRegistry
 	Services *ServiceRegistry
 	Nodes    *NodeRegistry
+	Compiler *expr.Compiler
 }
 
 // Bootstrap initializes the full plugin/service/node pipeline from a resolved config.
@@ -51,5 +53,6 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry) (*BootstrapRe
 		Plugins:  plugins,
 		Services: services,
 		Nodes:    nodes,
+		Compiler: expr.NewCompilerWithFunctions(),
 	}, nil
 }

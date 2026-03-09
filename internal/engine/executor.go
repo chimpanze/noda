@@ -34,7 +34,10 @@ func ExecuteGraph(
 		"trigger_type": execCtx.Trigger().Type,
 	})
 
-	// Track pending dependency counts per node (atomic for thread safety)
+	// Track pending dependency counts per node.
+	// CONCURRENCY SAFETY: The map structure is populated here before any goroutines
+	// launch, then only the atomic values within are modified concurrently. The map
+	// keys are never added or removed after this point, so no mutex is needed.
 	pending := make(map[string]*atomic.Int32)
 	for id, count := range graph.DepCount {
 		p := &atomic.Int32{}
@@ -42,7 +45,8 @@ func ExecuteGraph(
 		pending[id] = p
 	}
 
-	// For OR-join nodes, track whether they've already been dispatched
+	// For OR-join nodes, track whether they've already been dispatched.
+	// Same concurrency invariant as pending: map is read-only after init.
 	dispatched := make(map[string]*atomic.Bool)
 	for id := range graph.Nodes {
 		dispatched[id] = &atomic.Bool{}
@@ -51,6 +55,9 @@ func ExecuteGraph(
 	// Track terminal node completion
 	terminalCount := int32(len(graph.TerminalNodes))
 	terminalsCompleted := &atomic.Int32{}
+
+	// Track output eviction for memory management
+	evictionTracker := NewEvictionTracker(graph, execCtx)
 
 	// Use context with cancel for error propagation
 	execCtx2, cancel := context.WithCancel(ctx)
@@ -61,7 +68,9 @@ func ExecuteGraph(
 		firstErr atomic.Value
 	)
 
-	// dispatchIfReady checks if a node's dependencies are met and dispatches it.
+	// dispatchIfReady launches a goroutine to execute a node.
+	// CONCURRENCY SAFETY: wg.Add(1) is called synchronously before the goroutine
+	// is spawned, so wg.Wait() cannot return prematurely.
 	var dispatchIfReady func(nodeID string)
 	dispatchIfReady = func(nodeID string) {
 		node := graph.Nodes[nodeID]
@@ -98,27 +107,32 @@ func ExecuteGraph(
 				"duration": time.Since(nodeStart).String(),
 			})
 
-			// Check for retry on error edges
+			// Per-edge retry on error output: each error edge can specify its own
+			// retry config. We try each edge's retry policy in order. If any retry
+			// succeeds, the node is considered successful and we follow the success
+			// output instead. If all retries fail, we follow the error edges.
 			if output == "error" {
-				targets := graph.Adjacency[nodeID]["error"]
-				for _, target := range targets {
+				errorTargets := graph.Adjacency[nodeID]["error"]
+				for _, target := range errorTargets {
 					edge, ok := graph.GetEdge(nodeID, "error", target)
-					if ok && edge.Retry != nil {
-						// Retry the node
-						retryOutput, retryErr := retryNode(execCtx2, node, execCtx, services, nodes, edge.Retry)
-						if retryErr != nil {
-							firstErr.CompareAndSwap(nil, retryErr)
-							cancel()
-							return
-						}
-						if retryOutput != "error" {
-							// Retry succeeded — use the success output instead
-							output = retryOutput
-							break
-						}
+					if !ok || edge.Retry == nil {
+						continue
+					}
+					retryOutput, retryErr := retryNode(execCtx2, node, execCtx, services, nodes, edge.Retry)
+					if retryErr != nil {
+						firstErr.CompareAndSwap(nil, retryErr)
+						cancel()
+						return
+					}
+					if retryOutput != "error" {
+						output = retryOutput
+						break
 					}
 				}
 			}
+
+			// Evict upstream outputs that are no longer needed
+			evictionTracker.NodeCompleted(nodeID, graph)
 
 			// Follow outbound edges for the fired output
 			targets := graph.Adjacency[nodeID][output]
