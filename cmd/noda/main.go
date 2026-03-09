@@ -290,6 +290,9 @@ func newStartCmd() *cobra.Command {
 				if err := srv.RegisterOpenAPIRoutes(); err != nil {
 					logger.Warn("OpenAPI generation failed", "error", err.Error())
 				}
+
+				// Serve embedded editor UI (production mode)
+				srv.RegisterEditorUI()
 			}
 
 			// Start scheduler if configured and requested

@@ -29,6 +29,9 @@ coverage.html
 /editor/dist/
 /editor/.vite/
 
+# Embedded editor assets (copied during make build)
+/editorfs/dist/
+
 # Environment and secrets
 .env
 .env.local
