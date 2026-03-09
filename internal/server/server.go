@@ -95,6 +95,11 @@ func (s *Server) Setup() error {
 		return fmt.Errorf("register routes: %w", err)
 	}
 
+	// Register WebSocket and SSE endpoints
+	if err := s.registerConnections(); err != nil {
+		return fmt.Errorf("register connections: %w", err)
+	}
+
 	return nil
 }
 

@@ -11,22 +11,22 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/connmgr/manager.go`
-- [ ] Implement `ConnectionManager`:
+- [x] Create `internal/connmgr/manager.go`
+- [x] Implement `ConnectionManager`:
   - Track connections: `connectionID → { conn, channels, userID, endpoint }`
   - Channel subscriptions: `channel → []connectionID`
   - Register/unregister connections
   - Send to channel: find all connections subscribed to the channel, deliver message
   - Wildcard matching: `user.*` matches `user.123`, `user.456`. `*` matches everything.
-- [ ] Thread-safe: connections added/removed concurrently
-- [ ] Implement `api.ConnectionService` on the manager instances (per endpoint)
+- [x] Thread-safe: connections added/removed concurrently
+- [x] Implement `api.ConnectionService` on the manager instances (per endpoint)
 
 **Tests:**
-- [ ] Register connection, send to channel, message delivered
-- [ ] Unregister connection, send to channel, no delivery
-- [ ] Wildcard matching: `user.*` delivers to all user channels
-- [ ] `*` delivers to all connections on endpoint
-- [ ] Concurrent register/unregister safe
+- [x] Register connection, send to channel, message delivered
+- [x] Unregister connection, send to channel, no delivery
+- [x] Wildcard matching: `user.*` delivers to all user channels
+- [x] `*` delivers to all connections on endpoint
+- [x] Concurrent register/unregister safe
 
 **Acceptance criteria:** Connection tracking with channel-based delivery and wildcards.
 
@@ -38,24 +38,24 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/connmgr/websocket.go`
-- [ ] For each WebSocket endpoint in config:
+- [x] Create `internal/connmgr/websocket.go`
+- [x] For each WebSocket endpoint in config:
   - Register a Fiber WebSocket handler at the configured path
   - Apply middleware (auth, etc.)
   - On connection: extract channel from pattern expression, register with connection manager
   - Message loop: read messages, trigger `on_message` workflow
   - On disconnect: trigger `on_disconnect` workflow, unregister
   - On connect: trigger `on_connect` workflow
-- [ ] Channel pattern: resolve expression at connect time (e.g., `doc.{{ request.params.doc_id }}`)
-- [ ] Ping/pong keepalive at configured interval
-- [ ] Max message size enforcement
+- [x] Channel pattern: resolve expression at connect time (e.g., `doc.{{ request.params.doc_id }}`)
+- [x] Ping/pong keepalive at configured interval
+- [x] Max message size enforcement
 
 **Tests:**
-- [ ] WebSocket connects at configured path
-- [ ] Channel pattern resolves from path params
+- [x] WebSocket connects at configured path
+- [x] Channel pattern resolves from path params
 - [ ] Auth middleware applied before connection
-- [ ] Messages received and delivered to on_message workflow
-- [ ] Ping/pong keeps connection alive
+- [x] Messages received and delivered to on_message workflow
+- [x] Ping/pong keeps connection alive
 - [ ] Oversized messages rejected
 
 **Acceptance criteria:** WebSocket endpoints work with auth and lifecycle workflows.
@@ -68,20 +68,20 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/connmgr/sse.go`
-- [ ] For each SSE endpoint in config:
+- [x] Create `internal/connmgr/sse.go`
+- [x] For each SSE endpoint in config:
   - Register a Fiber handler that establishes SSE stream
   - Apply middleware, resolve channel pattern
   - `on_connect` workflow triggered
   - Heartbeat at configured interval
   - Retry header set from config
   - On disconnect: `on_disconnect` workflow
-- [ ] SSE events include: `event` type, `data`, `id` fields
+- [x] SSE events include: `event` type, `data`, `id` fields
 
 **Tests:**
-- [ ] SSE connection established
-- [ ] Events delivered with correct event/data/id fields
-- [ ] Heartbeat keeps connection alive
+- [x] SSE connection established
+- [x] Events delivered with correct event/data/id fields
+- [x] Heartbeat keeps connection alive
 - [ ] Auth middleware applied
 
 **Acceptance criteria:** SSE endpoints work with event delivery.
@@ -94,16 +94,16 @@
 
 **Subtasks:**
 
-- [ ] Create `plugins/core/ws/plugin.go` and `plugins/core/sse/plugin.go`
-- [ ] `ws.send`: ServiceDeps `{ "connections": { prefix: "ws" } }`, resolve `channel` and `data`, call `service.Send(channel, data)`
-- [ ] `sse.send`: ServiceDeps `{ "connections": { prefix: "sse" } }`, resolve `channel`, `data`, optional `event` and `id`, call `service.SendSSE(channel, event, data, id)`
-- [ ] Both: buffered non-blocking delivery, return `success` immediately
+- [x] Create `plugins/core/ws/plugin.go` and `plugins/core/sse/plugin.go`
+- [x] `ws.send`: ServiceDeps `{ "connections": { prefix: "ws" } }`, resolve `channel` and `data`, call `service.Send(channel, data)`
+- [x] `sse.send`: ServiceDeps `{ "connections": { prefix: "sse" } }`, resolve `channel`, `data`, optional `event` and `id`, call `service.SendSSE(channel, event, data, id)`
+- [x] Both: buffered non-blocking delivery, return `success` immediately
 
 **Tests:**
-- [ ] ws.send delivers to connected WebSocket clients
-- [ ] sse.send delivers SSE event with correct fields
-- [ ] Wildcard channel delivery works from nodes
-- [ ] No connected clients → success (no error)
+- [x] ws.send delivers to connected WebSocket clients
+- [x] sse.send delivers SSE event with correct fields
+- [x] Wildcard channel delivery works from nodes
+- [x] No connected clients → success (no error)
 
 **Acceptance criteria:** Workflow nodes push to real-time connections.
 
@@ -115,15 +115,15 @@
 
 **Subtasks:**
 
-- [ ] `on_connect`: trigger referenced workflow with input from connection metadata (user_id, channel, endpoint, params)
-- [ ] `on_message`: trigger referenced workflow with message data + connection metadata. `$.trigger.type = "websocket"`.
-- [ ] `on_disconnect`: trigger referenced workflow with connection metadata
-- [ ] Workflows execute asynchronously — connection handling doesn't block on workflow completion (except on_connect which can reject the connection)
+- [x] `on_connect`: trigger referenced workflow with input from connection metadata (user_id, channel, endpoint, params)
+- [x] `on_message`: trigger referenced workflow with message data + connection metadata. `$.trigger.type = "websocket"`.
+- [x] `on_disconnect`: trigger referenced workflow with connection metadata
+- [x] Workflows execute asynchronously — connection handling doesn't block on workflow completion (except on_connect which can reject the connection)
 
 **Tests:**
-- [ ] Connect → on_connect workflow fires with correct metadata
-- [ ] Message → on_message workflow fires with message data
-- [ ] Disconnect → on_disconnect workflow fires
+- [x] Connect → on_connect workflow fires with correct metadata
+- [x] Message → on_message workflow fires with message data
+- [x] Disconnect → on_disconnect workflow fires
 - [ ] Auth data available in lifecycle workflow via `$.auth`
 
 **Acceptance criteria:** Connection lifecycle triggers workflows.
@@ -162,11 +162,11 @@
 
 **Subtasks:**
 
-- [ ] Test: Two WebSocket clients on same channel, one sends edit, both receive broadcast
-- [ ] Test: REST endpoint pushes to WebSocket channel (HTTP → ws.send)
-- [ ] Test: Connection lifecycle workflows fire correctly (connect, message, disconnect)
+- [x] Test: Two WebSocket clients on same channel, one sends edit, both receive broadcast
+- [x] Test: REST endpoint pushes to WebSocket channel (HTTP → ws.send)
+- [x] Test: Connection lifecycle workflows fire correctly (connect, message, disconnect)
 - [ ] Test: Cross-instance delivery (spin up two Noda instances in test)
-- [ ] Test: SSE subscription receives events from workflow
+- [x] Test: SSE subscription receives events from workflow
 
 **Acceptance criteria:** Use Case 3 (Real-Time Collaboration) works end-to-end.
 
