@@ -76,7 +76,10 @@ func (e *LoopExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 
 		// Build input for this iteration by resolving input template
 		// with $item and $index available
-		iterInput := buildIterInput(inputTemplate, item, i, nCtx)
+		iterInput, err := buildIterInput(inputTemplate, item, i, nCtx)
+		if err != nil {
+			return "", nil, fmt.Errorf("loop: iteration %d input: %w", i, err)
+		}
 
 		_, data, err := e.Runner.RunSubWorkflow(ctx, workflowID, iterInput, nCtx)
 		if err != nil {
@@ -88,29 +91,30 @@ func (e *LoopExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	return "done", results, nil
 }
 
-// buildIterInput resolves the input template with $item and $index.
-func buildIterInput(template map[string]any, item any, index int, nCtx api.ExecutionContext) map[string]any {
+// buildIterInput resolves the input template with $item and $index available
+// in the expression context via ResolveWithVars.
+func buildIterInput(template map[string]any, item any, index int, nCtx api.ExecutionContext) (map[string]any, error) {
+	vars := map[string]any{
+		"$item":  item,
+		"$index": index,
+	}
+
 	if template == nil {
-		return map[string]any{"item": item, "index": index}
+		return map[string]any{"item": item, "index": index}, nil
 	}
 
 	result := make(map[string]any, len(template))
 	for k, v := range template {
 		if s, ok := v.(string); ok {
-			// Simple substitution for $item and $index
-			resolved, err := nCtx.Resolve(s)
+			resolved, err := nCtx.ResolveWithVars(s, vars)
 			if err != nil {
-				result[k] = v
-			} else {
-				result[k] = resolved
+				return nil, fmt.Errorf("field %q: %w", k, err)
 			}
+			result[k] = resolved
 		} else {
 			result[k] = v
 		}
 	}
-	// Always include $item and $index in the resolved input
-	result["$item"] = item
-	result["$index"] = index
 
-	return result
+	return result, nil
 }

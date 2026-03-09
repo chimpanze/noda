@@ -9,7 +9,7 @@ import (
 )
 
 // ValidateStartup checks all plugin, service, and node references in the config.
-func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, services *ServiceRegistry, nodes *NodeRegistry) []error {
+func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, services *ServiceRegistry, nodes *NodeRegistry, compiler *expr.Compiler) []error {
 	var errs []error
 
 	for wfName, wf := range rc.Workflows {
@@ -74,7 +74,6 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 	}
 
 	// 4. Pre-compile all expressions in workflow node configs to catch syntax errors
-	compiler := expr.NewCompilerWithFunctions()
 	for wfName, wf := range rc.Workflows {
 		wfNodes, ok := wf["nodes"].(map[string]any)
 		if !ok {

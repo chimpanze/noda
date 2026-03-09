@@ -12,6 +12,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// shared compiler for channel pattern resolution (thread-safe via internal RWMutex)
+var channelCompiler = expr.NewCompiler()
+
 const (
 	defaultPingInterval   = 30 * time.Second
 	defaultMaxMessageSize = 64 * 1024 // 64KB
@@ -200,8 +203,7 @@ func resolveChannelPattern(pattern string, params map[string]string, userID stri
 
 	// Use the expression engine for {{ }} patterns
 	if strings.Contains(pattern, "{{") {
-		compiler := expr.NewCompiler()
-		resolver := expr.NewResolver(compiler, context)
+		resolver := expr.NewResolver(channelCompiler, context)
 		result, err := resolver.Resolve(pattern)
 		if err == nil {
 			if s, ok := result.(string); ok {

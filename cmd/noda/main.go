@@ -274,7 +274,7 @@ func newStartCmd() *cobra.Command {
 
 			var srv *server.Server
 			if runServer {
-				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache))
+				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler))
 				if err != nil {
 					fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
 					os.Exit(1)
@@ -400,7 +400,7 @@ func newDevCmd() *cobra.Command {
 			}
 
 			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache))
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
 				os.Exit(1)

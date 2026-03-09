@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -68,7 +69,7 @@ func TestValidateStartup_ValidConfig(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	assert.Empty(t, errs)
 }
 
@@ -87,7 +88,7 @@ func TestValidateStartup_UnknownNodeTypePrefix(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "unknown node type prefix")
 	assert.Contains(t, errs[0].Error(), "email")
@@ -112,7 +113,7 @@ func TestValidateStartup_MissingServiceRef(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "nonexistent-db")
 	assert.Contains(t, errs[0].Error(), "not found")
@@ -136,7 +137,7 @@ func TestValidateStartup_WrongPrefixOnSlot(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "prefix")
 	assert.Contains(t, errs[0].Error(), "cache")
@@ -159,7 +160,7 @@ func TestValidateStartup_MissingRequiredSlot(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "missing required service slot")
 	assert.Contains(t, errs[0].Error(), "database")
@@ -196,7 +197,7 @@ func TestValidateStartup_OptionalSlotUnfilled(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	assert.Empty(t, errs)
 }
 
@@ -229,6 +230,6 @@ func TestValidateStartup_MultipleErrors(t *testing.T) {
 		},
 	}
 
-	errs := ValidateStartup(rc, plugins, services, nodes)
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	assert.Len(t, errs, 3)
 }

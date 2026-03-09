@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -34,21 +35,14 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 		Input: make(map[string]any),
 		Trigger: api.TriggerData{
 			Type:      "http",
-			Timestamp: time.Now(),
+			Timestamp: time.Now().UTC(),
 			TraceID:   traceID,
 		},
 	}
 
 	// Handle raw_body preservation
 	if rawBody, ok := triggerConfig["raw_body"].(bool); ok && rawBody {
-		result.Trigger = api.TriggerData{
-			Type:      result.Trigger.Type,
-			Timestamp: result.Trigger.Timestamp,
-			TraceID:   result.Trigger.TraceID,
-		}
-		// Store raw body bytes — read from request before parsing
-		rawBodyBytes := c.Body()
-		rawCtx["raw_body"] = string(rawBodyBytes)
+		rawCtx["raw_body"] = string(c.Body())
 	}
 
 	// Evaluate input expressions
@@ -112,7 +106,7 @@ func parseBody(c fiber.Ctx) any {
 	}
 
 	// Try JSON first
-	if contentType == "" || containsStr(contentType, "json") {
+	if contentType == "" || strings.Contains(contentType, "json") {
 		var parsed any
 		if err := json.Unmarshal(body, &parsed); err == nil {
 			return parsed
@@ -120,7 +114,7 @@ func parseBody(c fiber.Ctx) any {
 	}
 
 	// Try form data
-	if containsStr(contentType, "form") {
+	if strings.Contains(contentType, "form") {
 		form := make(map[string]any)
 		c.Request().PostArgs().VisitAll(func(key, value []byte) {
 			form[string(key)] = string(value)
@@ -169,23 +163,14 @@ func parseHeaders(c fiber.Ctx) map[string]any {
 		if len(v) == 1 {
 			headers[k] = v[0]
 		} else if len(v) > 1 {
-			headers[k] = v[0]
+			vals := make([]any, len(v))
+			for i, s := range v {
+				vals[i] = s
+			}
+			headers[k] = vals
 		}
 	}
 	return headers
-}
-
-func containsStr(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstr(s, substr))
-}
-
-func containsSubstr(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
 
 // extractAuth reads JWT claims from Fiber locals (set by JWT middleware).

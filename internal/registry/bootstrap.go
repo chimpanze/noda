@@ -41,8 +41,11 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry) (*BootstrapRe
 	internalErrs := RegisterInternalServices(rc, services)
 	allErrors = append(allErrors, internalErrs...)
 
-	// 4. Run startup validation
-	valErrs := ValidateStartup(rc, plugins, services, nodes)
+	// 4. Create shared expression compiler
+	compiler := expr.NewCompilerWithFunctions()
+
+	// 5. Run startup validation (pre-compiles expressions into shared compiler cache)
+	valErrs := ValidateStartup(rc, plugins, services, nodes, compiler)
 	allErrors = append(allErrors, valErrs...)
 
 	if len(allErrors) > 0 {
@@ -53,6 +56,6 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry) (*BootstrapRe
 		Plugins:  plugins,
 		Services: services,
 		Nodes:    nodes,
-		Compiler: expr.NewCompilerWithFunctions(),
+		Compiler: compiler,
 	}, nil
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/engine"
-	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
 )
@@ -111,11 +110,11 @@ func (s *Server) buildWorkflowRunner() connmgr.WorkflowRunner {
 		execCtx := engine.NewExecutionContext(
 			engine.WithInput(input),
 			engine.WithTrigger(api.TriggerData{
-				Type:      "websocket",
-				TraceID:   uuid.New().String(),
+				Type:    "websocket",
+				TraceID: uuid.New().String(),
 			}),
 			engine.WithWorkflowID(workflowID),
-			engine.WithCompiler(expr.NewCompilerWithFunctions()),
+			engine.WithCompiler(s.compiler),
 		)
 		return s.runWorkflow(ctx, workflowID, execCtx)
 	}

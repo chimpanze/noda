@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -148,7 +149,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 			},
 		},
 	}
-	valErrs := ValidateStartup(rc, plugins, services, nodes)
+	valErrs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
 	assert.Empty(t, valErrs)
 
 	// 5. Health check

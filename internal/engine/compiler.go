@@ -3,6 +3,8 @@ package engine
 import (
 	"fmt"
 	"strings"
+
+	"github.com/chimpanze/noda/internal/expr"
 )
 
 // JoinType indicates how a node handles multiple inbound edges.
@@ -16,9 +18,9 @@ const (
 
 // EdgeConfig represents a connection between two nodes.
 type EdgeConfig struct {
-	From   string      `json:"from"`
-	To     string      `json:"to"`
-	Output string      `json:"output"` // defaults to "success"
+	From   string       `json:"from"`
+	To     string       `json:"to"`
+	Output string       `json:"output"` // defaults to "success"
 	Retry  *RetryConfig `json:"retry,omitempty"`
 }
 
@@ -31,10 +33,10 @@ type RetryConfig struct {
 
 // NodeConfig represents a node in a workflow.
 type NodeConfig struct {
-	Type     string         `json:"type"`
+	Type     string            `json:"type"`
 	Services map[string]string `json:"services,omitempty"`
-	As       string         `json:"as,omitempty"`
-	Config   map[string]any `json:"config,omitempty"`
+	As       string            `json:"as,omitempty"`
+	Config   map[string]any    `json:"config,omitempty"`
 }
 
 // WorkflowConfig represents a parsed workflow definition.
@@ -52,6 +54,10 @@ type CompiledNode struct {
 	Config   map[string]any
 	Services map[string]string
 	Outputs  []string // valid output names from the node descriptor
+
+	// ConfigRefs holds identifiers referenced in config expressions,
+	// pre-computed at compile time for use by eviction tracking.
+	ConfigRefs map[string]bool
 }
 
 // CompiledEdge represents a compiled edge with resolved retry config.
@@ -122,12 +128,13 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 	for id, nc := range wf.Nodes {
 		outputs, _ := resolver.OutputsForType(nc.Type)
 		g.Nodes[id] = &CompiledNode{
-			ID:       id,
-			Type:     nc.Type,
-			As:       nc.As,
-			Config:   nc.Config,
-			Services: nc.Services,
-			Outputs:  outputs,
+			ID:         id,
+			Type:       nc.Type,
+			As:         nc.As,
+			Config:     nc.Config,
+			Services:   nc.Services,
+			Outputs:    outputs,
+			ConfigRefs: extractConfigRefs(nc.Config),
 		}
 		g.Adjacency[id] = make(map[string][]string)
 	}
@@ -387,6 +394,79 @@ func (g *CompiledGraph) GetEdge(from, output, to string) (*CompiledEdge, bool) {
 	key := fmt.Sprintf("%s:%s:%s", from, output, to)
 	e, ok := g.Edges[key]
 	return e, ok
+}
+
+// extractConfigRefs extracts all identifiers referenced in {{ }} expressions
+// within a config map. Pre-computed at compile time so the eviction tracker
+// doesn't need to re-parse expressions at runtime.
+func extractConfigRefs(config map[string]any) map[string]bool {
+	refs := make(map[string]bool)
+	walkConfigStrings(config, func(s string) {
+		parsed, err := expr.Parse(s)
+		if err != nil || parsed.IsLiteral {
+			return
+		}
+		for _, seg := range parsed.Segments {
+			if seg.Type != expr.SegmentExpression {
+				continue
+			}
+			// Extract identifiers from the expression
+			for _, ident := range extractIdentifiers(seg.Value) {
+				refs[ident] = true
+			}
+		}
+	})
+	return refs
+}
+
+// walkConfigStrings recursively visits all string values in a config map.
+func walkConfigStrings(config map[string]any, fn func(string)) {
+	for _, v := range config {
+		switch val := v.(type) {
+		case string:
+			fn(val)
+		case map[string]any:
+			walkConfigStrings(val, fn)
+		case []any:
+			for _, item := range val {
+				if s, ok := item.(string); ok {
+					fn(s)
+				}
+				if m, ok := item.(map[string]any); ok {
+					walkConfigStrings(m, fn)
+				}
+			}
+		}
+	}
+}
+
+// extractIdentifiers returns all top-level identifiers from an expression string.
+// An identifier is a sequence of alphanumeric chars, underscores, and hyphens.
+func extractIdentifiers(expression string) []string {
+	var idents []string
+	i := 0
+	for i < len(expression) {
+		if isIdentChar(expression[i]) {
+			start := i
+			for i < len(expression) && (isIdentChar(expression[i]) || expression[i] == '.') {
+				i++
+			}
+			// Take only the root identifier (before any dot)
+			ident := expression[start:i]
+			if dot := strings.IndexByte(ident, '.'); dot != -1 {
+				ident = ident[:dot]
+			}
+			idents = append(idents, ident)
+		} else {
+			i++
+		}
+	}
+	return idents
+}
+
+// isIdentChar returns true if c is valid in a node ID (alphanumeric, underscore, hyphen).
+func isIdentChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-'
 }
 
 func containsString(slice []string, s string) bool {
