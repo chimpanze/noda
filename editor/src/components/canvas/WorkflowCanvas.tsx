@@ -1,11 +1,13 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
   Controls,
   MiniMap,
+  useReactFlow,
   type Node,
   type Edge,
+  type Connection,
 } from "@xyflow/react";
 import { useEditorStore } from "@/stores/editor";
 import { NodaNode } from "./NodaNode";
@@ -17,11 +19,24 @@ import { getOutputColor } from "./nodeStyles";
 const nodeTypes = { noda: NodaNode };
 const edgeTypes = { noda: NodaEdge };
 
+let nextNodeCounter = 1;
+
+function generateNodeId(nodeType: string): string {
+  const suffix = nodeType.replace(/\./g, "-");
+  return `${suffix}-${nextNodeCounter++}`;
+}
+
 export function WorkflowCanvas() {
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
   const selectNode = useEditorStore((s) => s.selectNode);
   const deselectAll = useEditorStore((s) => s.deselectAll);
   const nodeTypeRegistry = useEditorStore((s) => s.nodeTypes);
+  const addNode = useEditorStore((s) => s.addNode);
+  const addEdge = useEditorStore((s) => s.addEdge);
+  const updateNodePosition = useEditorStore((s) => s.updateNodePosition);
+
+  const reactFlowWrapper = useRef<HTMLDivElement>(null);
+  const { screenToFlowPosition } = useReactFlow();
 
   // Build a lookup: nodeType → outputs
   const outputsByType = useMemo(() => {
@@ -73,7 +88,10 @@ export function WorkflowCanvas() {
         type: "noda",
         data,
         style: {
-          stroke: edge.output === "error" ? "#ef4444" : getOutputColor(edge.output),
+          stroke:
+            edge.output === "error"
+              ? "#ef4444"
+              : getOutputColor(edge.output),
         },
       };
     });
@@ -90,6 +108,60 @@ export function WorkflowCanvas() {
     deselectAll();
   }, [deselectAll]);
 
+  // Edge connection handler
+  const onConnect = useCallback(
+    (connection: Connection) => {
+      if (!connection.source || !connection.target) return;
+      // Prevent self-connection
+      if (connection.source === connection.target) return;
+      const output = connection.sourceHandle ?? "success";
+      addEdge({
+        from: connection.source,
+        output,
+        to: connection.target,
+      });
+    },
+    [addEdge]
+  );
+
+  // Node position update on drag end
+  const onNodeDragStop = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      updateNodePosition(node.id, node.position);
+    },
+    [updateNodePosition]
+  );
+
+  // Drag-and-drop from palette
+  const onDragOver = useCallback((event: React.DragEvent) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onDrop = useCallback(
+    (event: React.DragEvent) => {
+      event.preventDefault();
+      const nodeType = event.dataTransfer.getData("application/noda-node-type");
+      if (!nodeType) return;
+
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+
+      const newNode = {
+        id: generateNodeId(nodeType),
+        type: nodeType,
+        position,
+        config: {},
+      };
+
+      addNode(newNode);
+      selectNode(newNode.id);
+    },
+    [screenToFlowPosition, addNode, selectNode]
+  );
+
   if (!activeWorkflow) {
     return (
       <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
@@ -99,7 +171,7 @@ export function WorkflowCanvas() {
   }
 
   return (
-    <div className="flex-1">
+    <div className="flex-1" ref={reactFlowWrapper}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -107,17 +179,18 @@ export function WorkflowCanvas() {
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onConnect={onConnect}
+        onNodeDragStop={onNodeDragStop}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         fitView
         minZoom={0.1}
         maxZoom={2}
+        deleteKeyCode="Delete"
       >
         <Background gap={16} size={1} />
         <Controls />
-        <MiniMap
-          nodeStrokeWidth={3}
-          pannable
-          zoomable
-        />
+        <MiniMap nodeStrokeWidth={3} pannable zoomable />
       </ReactFlow>
     </div>
   );

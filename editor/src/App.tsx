@@ -3,7 +3,8 @@ import { ReactFlowProvider } from "@xyflow/react";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { WorkflowList } from "@/components/layout/WorkflowList";
 import { WorkflowCanvas } from "@/components/canvas/WorkflowCanvas";
-import { NodeDetail } from "@/components/panels/NodeDetail";
+import { NodePalette } from "@/components/canvas/NodePalette";
+import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
 import { DebugPanel } from "@/components/panels/DebugPanel";
 import { useEditorStore } from "@/stores/editor";
 
@@ -12,6 +13,7 @@ export default function App() {
   const loadFiles = useEditorStore((s) => s.loadFiles);
   const loadNodeTypes = useEditorStore((s) => s.loadNodeTypes);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+  const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
 
   useEffect(() => {
     loadFiles();
@@ -29,16 +31,19 @@ export default function App() {
           <div className="flex-1 flex min-h-0">
             {activeView === "workflows" ? (
               <>
-                {/* Workflow list panel */}
+                {/* Workflow list */}
                 <WorkflowList />
+
+                {/* Node palette (when a workflow is open) */}
+                {activeWorkflow && <NodePalette />}
 
                 {/* Canvas */}
                 <WorkflowCanvas />
 
-                {/* Right panel - node detail */}
+                {/* Right panel - node config */}
                 {selectedNodeId && (
-                  <div className="w-72 border-l border-gray-200 bg-white overflow-hidden">
-                    <NodeDetail />
+                  <div className="w-80 border-l border-gray-200 bg-white overflow-hidden">
+                    <NodeConfigPanel />
                   </div>
                 )}
               </>
