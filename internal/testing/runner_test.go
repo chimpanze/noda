@@ -223,7 +223,7 @@ func TestRunner_AuthPassedThrough(t *testing.T) {
 						"type": "transform.set",
 						"config": map[string]any{
 							"fields": map[string]any{
-								"user": "{{ auth.userId }}",
+								"user": "{{ auth.sub }}",
 							},
 						},
 					},

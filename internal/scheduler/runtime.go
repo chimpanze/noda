@@ -15,6 +15,11 @@ import (
 	"github.com/robfig/cron/v3"
 )
 
+const (
+	// maxHistoryEntries is the maximum number of job run records to retain.
+	maxHistoryEntries = 1000
+)
+
 // ScheduleConfig holds the parsed configuration for a single schedule.
 type ScheduleConfig struct {
 	ID          string
@@ -128,8 +133,11 @@ func (r *Runtime) Stop() {
 func (r *Runtime) History() []JobRun {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	result := make([]JobRun, len(r.history))
-	copy(result, r.history)
+	n := len(r.history)
+	result := make([]JobRun, n)
+	for i, run := range r.history {
+		result[n-1-i] = run
+	}
 	return result
 }
 
@@ -347,13 +355,14 @@ func (r *Runtime) resolveInput(inputMap map[string]any, scheduleCtx map[string]a
 	return result, nil
 }
 
-// recordRun appends a job run to history (capped at 1000 entries).
+// recordRun appends a job run to history (capped at maxHistoryEntries).
 func (r *Runtime) recordRun(run JobRun) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.history = append([]JobRun{run}, r.history...)
-	if len(r.history) > 1000 {
-		r.history = r.history[:1000]
+	r.history = append(r.history, run)
+	if len(r.history) > maxHistoryEntries {
+		// Drop the oldest entry (front of the slice)
+		r.history = r.history[len(r.history)-maxHistoryEntries:]
 	}
 }
 

@@ -141,7 +141,7 @@ func TestE2E_JWT_AuthInWorkflow(t *testing.T) {
 				"middleware": []any{"auth.jwt"},
 				"trigger": map[string]any{
 					"workflow": "whoami",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -152,7 +152,7 @@ func TestE2E_JWT_AuthInWorkflow(t *testing.T) {
 						"type": "transform.set",
 						"config": map[string]any{
 							"fields": map[string]any{
-								"user_id": "{{ auth.userId }}",
+								"user_id": "{{ auth.sub }}",
 								"email":   "{{ auth.claims.email }}",
 							},
 						},
@@ -208,7 +208,7 @@ func TestE2E_NoResponseNode_202(t *testing.T) {
 				"path":   "/webhook",
 				"trigger": map[string]any{
 					"workflow": "handle-webhook",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -244,7 +244,7 @@ func TestE2E_WorkflowError_StandardizedResponse(t *testing.T) {
 				"path":   "/broken",
 				"trigger": map[string]any{
 					"workflow": "broken-wf",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -285,7 +285,7 @@ func TestE2E_MiddlewareChainOrder(t *testing.T) {
 				"middleware": []any{"auth.jwt"},
 				"trigger": map[string]any{
 					"workflow": "secret-wf",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -341,7 +341,7 @@ func TestE2E_RouteGroupsWithPresets(t *testing.T) {
 				"path":   "/api/admin/users",
 				"trigger": map[string]any{
 					"workflow": "admin-users",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -411,7 +411,7 @@ func TestE2E_OpenAPIEndpoint(t *testing.T) {
 				"tags":    []any{"greeting"},
 				"trigger": map[string]any{
 					"workflow": "hello",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 				"response": map[string]any{
 					"200": map[string]any{

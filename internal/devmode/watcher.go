@@ -10,6 +10,11 @@ import (
 	"github.com/fsnotify/fsnotify"
 )
 
+const (
+	// defaultDebounce is the silence period before triggering a config reload.
+	defaultDebounce = 100 * time.Millisecond
+)
+
 // Watcher monitors config directories for changes with debouncing.
 type Watcher struct {
 	watcher  *fsnotify.Watcher
@@ -30,7 +35,7 @@ func NewWatcher(onChange func(path string), logger *slog.Logger) (*Watcher, erro
 		watcher:  fsw,
 		logger:   logger,
 		onChange: onChange,
-		debounce: 100 * time.Millisecond,
+		debounce: defaultDebounce,
 		done:     make(chan struct{}),
 	}, nil
 }

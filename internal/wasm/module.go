@@ -8,6 +8,11 @@ import (
 	"time"
 )
 
+const (
+	// maxTickRate is the upper bound for Wasm module tick rate in Hz.
+	maxTickRate = 120
+)
+
 // PluginInstance abstracts the Extism plugin for testability.
 type PluginInstance interface {
 	Call(name string, data []byte) (uint32, []byte, error)
@@ -26,10 +31,10 @@ type Module struct {
 	Logger *slog.Logger
 
 	// Tick state
-	running    bool
-	stopCh     chan struct{}
-	lastTick   time.Time
-	tickRate   int
+	running  bool
+	stopCh   chan struct{}
+	lastTick time.Time
+	tickRate int
 
 	// Event accumulation (protected by mu)
 	clientMessages   []ClientMessage
@@ -80,8 +85,8 @@ func NewModule(name string, plugin PluginInstance, cfg ModuleConfig, dispatcher 
 	if tickRate <= 0 {
 		tickRate = 1
 	}
-	if tickRate > 120 {
-		tickRate = 120
+	if tickRate > maxTickRate {
+		tickRate = maxTickRate
 	}
 
 	m := &Module{

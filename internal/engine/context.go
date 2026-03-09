@@ -22,7 +22,7 @@ type ExecutionContextImpl struct {
 	trigger api.TriggerData
 
 	mu      sync.RWMutex
-	outputs map[string]any // nodeID (or alias) → output data
+	outputs map[string]any    // nodeID (or alias) → output data
 	aliases map[string]string // nodeID → alias (from "as" field)
 
 	compiler *expr.Compiler
@@ -239,10 +239,15 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 	ctx["input"] = c.input
 	if c.auth != nil {
 		ctx["auth"] = map[string]any{
-			"userId": c.auth.UserID,
+			"sub":    c.auth.UserID,
 			"roles":  c.auth.Roles,
 			"claims": c.auth.Claims,
 		}
+	}
+	ctx["trigger"] = map[string]any{
+		"type":      c.trigger.Type,
+		"timestamp": c.trigger.Timestamp,
+		"trace_id":  c.trigger.TraceID,
 	}
 	// Add all node outputs as top-level context entries
 	for k, v := range c.outputs {

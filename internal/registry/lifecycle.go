@@ -47,31 +47,32 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 }
 
 // HealthCheckAll runs health checks on all registered services.
-func HealthCheckAll(registry *ServiceRegistry) []error {
-	var errs []error
+func (r *ServiceRegistry) HealthCheckAll() []error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
-	for name, entry := range registry.services {
+	var errs []error
+	for name, entry := range r.services {
 		if err := entry.plugin.HealthCheck(entry.instance); err != nil {
 			errs = append(errs, fmt.Errorf("service %q health check failed: %w", name, err))
 		}
 	}
-
 	return errs
 }
 
 // ShutdownAll shuts down all services in reverse initialization order.
-func ShutdownAll(registry *ServiceRegistry) []error {
-	var errs []error
-	order := registry.Order()
+func (r *ServiceRegistry) ShutdownAll() []error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 
-	// Reverse order
-	for i := len(order) - 1; i >= 0; i-- {
-		name := order[i]
-		entry := registry.services[name]
+	var errs []error
+	// Reverse initialization order
+	for i := len(r.order) - 1; i >= 0; i-- {
+		name := r.order[i]
+		entry := r.services[name]
 		if err := entry.plugin.Shutdown(entry.instance); err != nil {
 			errs = append(errs, fmt.Errorf("service %q shutdown failed: %w", name, err))
 		}
 	}
-
 	return errs
 }

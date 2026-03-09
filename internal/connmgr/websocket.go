@@ -6,9 +6,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/internal/expr"
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+)
+
+const (
+	defaultPingInterval   = 30 * time.Second
+	defaultMaxMessageSize = 64 * 1024 // 64KB
 )
 
 // WebSocketConfig holds configuration for a WebSocket endpoint.
@@ -42,10 +48,10 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner WorkflowRunne
 		logger = slog.Default()
 	}
 	if cfg.PingInterval == 0 {
-		cfg.PingInterval = 30 * time.Second
+		cfg.PingInterval = defaultPingInterval
 	}
 	if cfg.MaxMessageSize == 0 {
-		cfg.MaxMessageSize = 64 * 1024 // 64KB default
+		cfg.MaxMessageSize = defaultMaxMessageSize
 	}
 	return &WebSocketHandler{
 		config:  cfg,
@@ -169,15 +175,46 @@ func (h *WebSocketHandler) buildInput(conn *Conn) map[string]any {
 	}
 }
 
-// resolveChannelPattern replaces placeholders in channel pattern.
+// resolveChannelPattern evaluates a channel pattern using the expression engine.
+// Supports {{ auth.sub }}, {{ request.params.id }}, and any valid expression.
+// Falls back to literal string replacement for non-expression placeholders like :id.
 func resolveChannelPattern(pattern string, params map[string]string, userID string) string {
+	// If pattern has no expression markers, return as-is
+	if !strings.Contains(pattern, "{{") && !strings.Contains(pattern, ":") && !strings.Contains(pattern, "{") {
+		return pattern
+	}
+
+	// Build expression context
+	paramsAny := make(map[string]any, len(params))
+	for k, v := range params {
+		paramsAny[k] = v
+	}
+	context := map[string]any{
+		"auth": map[string]any{
+			"sub": userID,
+		},
+		"request": map[string]any{
+			"params": paramsAny,
+		},
+	}
+
+	// Use the expression engine for {{ }} patterns
+	if strings.Contains(pattern, "{{") {
+		compiler := expr.NewCompiler()
+		resolver := expr.NewResolver(compiler, context)
+		result, err := resolver.Resolve(pattern)
+		if err == nil {
+			if s, ok := result.(string); ok {
+				return s
+			}
+		}
+		// Fall through to manual replacement on error
+	}
+
+	// Fallback: replace :param and {param} style placeholders
 	result := pattern
-	result = strings.ReplaceAll(result, "{{ auth.sub }}", userID)
-	result = strings.ReplaceAll(result, "{{auth.sub}}", userID)
 	for k, v := range params {
 		result = strings.ReplaceAll(result, "{"+k+"}", v)
-		result = strings.ReplaceAll(result, "{{ request.params."+k+" }}", v)
-		result = strings.ReplaceAll(result, "{{request.params."+k+"}}", v)
 		result = strings.ReplaceAll(result, ":"+k, v)
 	}
 	return result

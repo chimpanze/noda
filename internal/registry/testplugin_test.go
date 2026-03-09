@@ -14,8 +14,8 @@ import (
 // testKVPlugin is a full-lifecycle test plugin implementing an in-memory key-value store.
 type testKVPlugin struct{}
 
-func (p *testKVPlugin) Name() string   { return "test-kv" }
-func (p *testKVPlugin) Prefix() string { return "kv" }
+func (p *testKVPlugin) Name() string      { return "test-kv" }
+func (p *testKVPlugin) Prefix() string    { return "kv" }
 func (p *testKVPlugin) HasServices() bool { return true }
 
 func (p *testKVPlugin) CreateService(cfg map[string]any) (any, error) {
@@ -152,7 +152,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 	assert.Empty(t, valErrs)
 
 	// 5. Health check
-	healthErrs := HealthCheckAll(services)
+	healthErrs := services.HealthCheckAll()
 	assert.Empty(t, healthErrs)
 
 	// 6. Execute nodes
@@ -184,7 +184,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 	assert.Equal(t, "not_found", output)
 
 	// 7. Shutdown
-	shutdownErrs := ShutdownAll(services)
+	shutdownErrs := services.ShutdownAll()
 	assert.Empty(t, shutdownErrs)
 
 	// Verify store was cleared

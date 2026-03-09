@@ -34,7 +34,7 @@ func newSendExecutor(_ map[string]any) api.NodeExecutor { return &sendExecutor{}
 func (e *sendExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getWasmService(services)
+	svc, err := plugin.GetService[*wasmrt.WasmService](services, "runtime")
 	if err != nil {
 		return "", nil, err
 	}
@@ -47,16 +47,4 @@ func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 	svc.SendCommand(data)
 
 	return api.OutputSuccess, map[string]any{"sent": true}, nil
-}
-
-func getWasmService(services map[string]any) (*wasmrt.WasmService, error) {
-	svc, ok := services["runtime"]
-	if !ok {
-		return nil, fmt.Errorf("wasm runtime service not configured")
-	}
-	ws, ok := svc.(*wasmrt.WasmService)
-	if !ok {
-		return nil, fmt.Errorf("service does not implement WasmService")
-	}
-	return ws, nil
 }

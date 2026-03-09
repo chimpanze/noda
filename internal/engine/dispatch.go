@@ -77,6 +77,15 @@ func dispatchNode(
 	if output == "" {
 		output = "success"
 	}
+
+	// Validate that the executor returned a declared output name
+	if !containsString(node.Outputs, output) {
+		execErr := fmt.Errorf("node %q returned undeclared output %q", node.ID, output)
+		trace.EndNodeSpan(nodeSpan, "", execErr)
+		execCtx.EmitTrace("node:failed", node.ID, node.Type, "", execErr.Error(), nil)
+		return "", execErr
+	}
+
 	trace.EndNodeSpan(nodeSpan, output, nil)
 	execCtx.EmitTrace("node:completed", node.ID, node.Type, output, "", data)
 	return output, nil

@@ -58,19 +58,15 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 		s.compiler = expr.NewCompilerWithFunctions()
 	}
 
+	fiberCfg := fiber.Config{
+		ErrorHandler: s.errorHandler,
+	}
+
 	// Read server settings from root config
 	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
 		if p, ok := serverCfg["port"].(float64); ok {
 			s.port = int(p)
 		}
-	}
-
-	fiberCfg := fiber.Config{
-		ErrorHandler: s.errorHandler,
-	}
-
-	// Apply timeouts and body limit from config
-	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
 		if v, ok := serverCfg["read_timeout"].(string); ok {
 			if d, err := time.ParseDuration(v); err == nil {
 				fiberCfg.ReadTimeout = d

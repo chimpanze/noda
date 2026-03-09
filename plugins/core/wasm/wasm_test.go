@@ -161,10 +161,9 @@ func TestWasmQuery_Timeout(t *testing.T) {
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
 	e := newQueryExecutor(nil)
-	output, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
 		"data":    map[string]any{"type": "get_state"},
 		"timeout": "100ms",
 	}, services)
-	require.NoError(t, err)
-	assert.Equal(t, "error", output)
+	require.Error(t, err)
 }

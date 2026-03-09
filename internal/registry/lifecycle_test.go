@@ -120,7 +120,7 @@ func TestHealthCheckAll_Healthy(t *testing.T) {
 	registry, errs := InitializeServices(servicesConfig, plugins)
 	require.Empty(t, errs)
 
-	healthErrs := HealthCheckAll(registry)
+	healthErrs := registry.HealthCheckAll()
 	assert.Empty(t, healthErrs)
 }
 
@@ -141,7 +141,7 @@ func TestHealthCheckAll_Unhealthy(t *testing.T) {
 	registry, errs := InitializeServices(servicesConfig, plugins)
 	require.Empty(t, errs)
 
-	healthErrs := HealthCheckAll(registry)
+	healthErrs := registry.HealthCheckAll()
 	require.Len(t, healthErrs, 1)
 	assert.Contains(t, healthErrs[0].Error(), "connection lost")
 }
@@ -159,7 +159,7 @@ func TestShutdownAll_ReverseOrder(t *testing.T) {
 	require.NoError(t, registry.Register("svc-first", "inst1", p1))
 	require.NoError(t, registry.Register("svc-second", "inst2", p2))
 
-	errs := ShutdownAll(registry)
+	errs := registry.ShutdownAll()
 	assert.Empty(t, errs)
 	assert.Equal(t, []string{"second", "first"}, shutdownLog)
 }

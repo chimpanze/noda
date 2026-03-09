@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/chimpanze/noda/internal/plugin"
+	wasmrt "github.com/chimpanze/noda/internal/wasm"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -34,7 +35,7 @@ func newQueryExecutor(_ map[string]any) api.NodeExecutor { return &queryExecutor
 func (e *queryExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
-	svc, err := getWasmService(services)
+	svc, err := plugin.GetService[*wasmrt.WasmService](services, "runtime")
 	if err != nil {
 		return "", nil, err
 	}
@@ -51,7 +52,7 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 
 	result, err := svc.Query(ctx, data, timeout)
 	if err != nil {
-		return api.OutputError, map[string]any{"error": err.Error()}, nil
+		return "", nil, err
 	}
 
 	return api.OutputSuccess, result, nil

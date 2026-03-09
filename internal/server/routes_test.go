@@ -10,13 +10,13 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/registry"
+	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
+	"github.com/chimpanze/noda/plugins/core/event"
 	"github.com/chimpanze/noda/plugins/core/response"
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
-	cacheplugin "github.com/chimpanze/noda/plugins/cache"
-	"github.com/chimpanze/noda/plugins/core/event"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +61,7 @@ func TestRoute_GET_SimpleResponse(t *testing.T) {
 				"path":   "/hello",
 				"trigger": map[string]any{
 					"workflow": "hello",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -219,7 +219,7 @@ func TestRoute_NotFound(t *testing.T) {
 				"path":   "/hello",
 				"trigger": map[string]any{
 					"workflow": "hello",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -254,7 +254,7 @@ func TestRoute_NoResponseNode_202Accepted(t *testing.T) {
 				"path":   "/fire",
 				"trigger": map[string]any{
 					"workflow": "fire-forget",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -295,7 +295,7 @@ func TestRoute_WorkflowError_MappedResponse(t *testing.T) {
 				"path":   "/fail",
 				"trigger": map[string]any{
 					"workflow": "failing",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -330,7 +330,7 @@ func TestRoute_JWTAuth_ClaimsAvailable(t *testing.T) {
 				"middleware": []any{"auth.jwt"},
 				"trigger": map[string]any{
 					"workflow": "get-me",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -341,7 +341,7 @@ func TestRoute_JWTAuth_ClaimsAvailable(t *testing.T) {
 						"type": "transform.set",
 						"config": map[string]any{
 							"fields": map[string]any{
-								"user_id": "{{ auth.userId }}",
+								"user_id": "{{ auth.sub }}",
 							},
 						},
 					},
@@ -394,7 +394,7 @@ func TestRoute_ResponseRedirect(t *testing.T) {
 				"path":   "/old",
 				"trigger": map[string]any{
 					"workflow": "redirect",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -430,7 +430,7 @@ func TestRoute_ResponseError(t *testing.T) {
 				"path":   "/missing",
 				"trigger": map[string]any{
 					"workflow": "not-found",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
