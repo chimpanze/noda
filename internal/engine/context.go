@@ -8,6 +8,8 @@ import (
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
+	oteltrace "go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 // ResponseInterceptor is called when a node produces an HTTPResponse.
@@ -29,6 +31,8 @@ type ExecutionContextImpl struct {
 	workflowID          string
 	currentNode         atomic.Value // set during node execution
 	responseInterceptor ResponseInterceptor
+	tracer              oteltrace.Tracer
+	traceCallback       func(eventType, nodeID, nodeType, output, errMsg string, data any)
 }
 
 // NewExecutionContext creates a new execution context for a workflow run.
@@ -41,6 +45,7 @@ func NewExecutionContext(opts ...ExecutionContextOption) *ExecutionContextImpl {
 		},
 		compiler: expr.NewCompilerWithFunctions(),
 		logger:   slog.Default(),
+		tracer:   noop.NewTracerProvider().Tracer("noda"),
 	}
 	for _, opt := range opts {
 		opt(ctx)
@@ -84,6 +89,29 @@ func WithLogger(logger *slog.Logger) ExecutionContextOption {
 // WithCompiler sets the expression compiler.
 func WithCompiler(compiler *expr.Compiler) ExecutionContextOption {
 	return func(c *ExecutionContextImpl) { c.compiler = compiler }
+}
+
+// WithTracer sets the OTel tracer.
+func WithTracer(tracer oteltrace.Tracer) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.tracer = tracer }
+}
+
+// Tracer returns the OTel tracer.
+func (c *ExecutionContextImpl) Tracer() oteltrace.Tracer { return c.tracer }
+
+// TraceCallback is a function called for each execution event (dev mode).
+type TraceCallback func(eventType, nodeID, nodeType, output, errMsg string, data any)
+
+// WithTraceCallback sets a callback for dev-mode trace events.
+func WithTraceCallback(fn TraceCallback) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.traceCallback = fn }
+}
+
+// EmitTrace sends a trace event if a callback is configured.
+func (c *ExecutionContextImpl) EmitTrace(eventType, nodeID, nodeType, output, errMsg string, data any) {
+	if c.traceCallback != nil {
+		c.traceCallback(eventType, nodeID, nodeType, output, errMsg, data)
+	}
 }
 
 // Input returns the workflow input data.

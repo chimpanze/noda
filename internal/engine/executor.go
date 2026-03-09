@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/trace"
 )
 
 // ExecuteGraph runs a compiled workflow graph to completion.
@@ -22,7 +23,13 @@ func ExecuteGraph(
 		return fmt.Errorf("workflow %q has no entry nodes", graph.WorkflowID)
 	}
 
+	// Start OTel workflow span
+	var workflowErr error
+	ctx, workflowSpan := trace.StartWorkflowSpan(ctx, execCtx.Tracer(), graph.WorkflowID, execCtx.Trigger().TraceID, execCtx.Trigger().Type)
+	defer func() { trace.EndWorkflowSpan(workflowSpan, workflowErr) }()
+
 	startTime := time.Now()
+	execCtx.EmitTrace("workflow:started", "", "", "", "", nil)
 	execCtx.Log("info", "workflow started", map[string]any{
 		"trigger_type": execCtx.Trigger().Type,
 	})
@@ -116,6 +123,10 @@ func ExecuteGraph(
 			// Follow outbound edges for the fired output
 			targets := graph.Adjacency[nodeID][output]
 			for _, targetID := range targets {
+				execCtx.EmitTrace("edge:followed", "", "", output, "", map[string]any{
+					"from": nodeID,
+					"to":   targetID,
+				})
 				targetNode := graph.Nodes[targetID]
 				joinType := graph.JoinTypes[targetID]
 
@@ -160,9 +171,12 @@ func ExecuteGraph(
 		execCtx.Log("info", "workflow failed", map[string]any{
 			"duration": duration.String(),
 		})
-		return errVal.(error)
+		workflowErr = errVal.(error)
+		execCtx.EmitTrace("workflow:failed", "", "", "", workflowErr.Error(), nil)
+		return workflowErr
 	}
 
+	execCtx.EmitTrace("workflow:completed", "", "", "", "", map[string]any{"duration": duration.String()})
 	execCtx.Log("info", "workflow completed", map[string]any{
 		"status":   "success",
 		"duration": duration.String(),

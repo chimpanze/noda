@@ -18,9 +18,7 @@ import (
 	_ "github.com/spf13/afero"
 	_ "github.com/spf13/cobra"
 	_ "github.com/stretchr/testify/assert"
-	_ "go.opentelemetry.io/otel"
-	_ "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	_ "go.opentelemetry.io/otel/sdk"
+
 	_ "gorm.io/driver/postgres"
 	_ "gorm.io/gorm"
 )

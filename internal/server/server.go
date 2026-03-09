@@ -85,6 +85,9 @@ func (s *Server) Port() int { return s.port }
 
 // Setup registers middleware and routes on the Fiber app.
 func (s *Server) Setup() error {
+	// Register health endpoints (before middleware so they're always accessible)
+	s.registerHealthRoutes()
+
 	// Apply global middleware
 	if err := s.applyGlobalMiddleware(); err != nil {
 		return fmt.Errorf("global middleware: %w", err)

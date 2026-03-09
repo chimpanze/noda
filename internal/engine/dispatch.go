@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/trace"
 )
 
 // dispatchNode executes a single node: resolves services, calls Execute, stores output.
@@ -34,6 +35,10 @@ func dispatchNode(
 		resolvedServices[slot] = svc
 	}
 
+	// Start OTel node span
+	ctx, nodeSpan := trace.StartNodeSpan(ctx, execCtx.Tracer(), node.ID, node.Type)
+	execCtx.EmitTrace("node:entered", node.ID, node.Type, "", "", nil)
+
 	// Set current node for logging context
 	execCtx.SetCurrentNode(node.ID)
 	defer execCtx.SetCurrentNode("")
@@ -55,8 +60,12 @@ func dispatchNode(
 				"node_id": node.ID,
 			}
 			execCtx.SetOutput(node.ID, errorData)
+			trace.EndNodeSpan(nodeSpan, "error", nil)
+			execCtx.EmitTrace("node:completed", node.ID, node.Type, "error", execErr.Error(), errorData)
 			return "error", nil
 		}
+		trace.EndNodeSpan(nodeSpan, "", execErr)
+		execCtx.EmitTrace("node:failed", node.ID, node.Type, "", execErr.Error(), nil)
 		return "", fmt.Errorf("node %q: %w", node.ID, execErr)
 	}
 
@@ -68,5 +77,7 @@ func dispatchNode(
 	if output == "" {
 		output = "success"
 	}
+	trace.EndNodeSpan(nodeSpan, output, nil)
+	execCtx.EmitTrace("node:completed", node.ID, node.Type, output, "", data)
 	return output, nil
 }

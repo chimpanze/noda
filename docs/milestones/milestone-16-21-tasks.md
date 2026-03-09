@@ -482,18 +482,18 @@
 
 **Subtasks:**
 
-- [ ] Initialize OTel tracer provider from config (exporter: stdout in dev, OTLP in production)
-- [ ] Create span per workflow execution (root span)
-- [ ] Create child span per node execution
-- [ ] Span attributes: workflow_id, node_id, node_type, trigger_type, status
-- [ ] Error recording on spans
-- [ ] Trace ID from M4 used as OTel trace ID (correlation)
+- [x] Initialize OTel tracer provider from config (exporter: stdout in dev, OTLP in production)
+- [x] Create span per workflow execution (root span)
+- [x] Create child span per node execution
+- [x] Span attributes: workflow_id, node_id, node_type, trigger_type, status
+- [x] Error recording on spans
+- [x] Trace ID from M4 used as OTel trace ID (correlation)
 
 **Tests:**
-- [ ] Spans emitted for workflow execution
-- [ ] Child spans for each node
-- [ ] Trace ID correlates across spans
-- [ ] Error spans recorded on failure
+- [x] Spans emitted for workflow execution
+- [x] Child spans for each node
+- [x] Trace ID correlates across spans
+- [x] Error spans recorded on failure
 
 **Acceptance criteria:** OTel traces exported for all workflow executions.
 
@@ -505,16 +505,16 @@
 
 **Subtasks:**
 
-- [ ] `/health` — checks all service instances (DB, Redis, Wasm modules), returns aggregate status
-- [ ] `/health/ready` — returns 200 when all services initialized, 503 otherwise
-- [ ] `/health/live` — returns 200 if process is running
-- [ ] Service health detail: `{ "status": "healthy", "services": { "main-db": "ok", "app-cache": "ok" } }`
+- [x] `/health` — checks all service instances (DB, Redis, Wasm modules), returns aggregate status
+- [x] `/health/ready` — returns 200 when all services initialized, 503 otherwise
+- [x] `/health/live` — returns 200 if process is running
+- [x] Service health detail: `{ "status": "healthy", "services": { "main-db": "ok", "app-cache": "ok" } }`
 
 **Tests:**
-- [ ] Healthy system → 200 with all services OK
-- [ ] One unhealthy service → 503 with details
-- [ ] Readiness probe during startup → 503, after init → 200
-- [ ] Liveness always 200 if process runs
+- [x] Healthy system → 200 with all services OK
+- [x] One unhealthy service → 503 with details
+- [x] Readiness probe during startup → 503, after init → 200
+- [x] Liveness always 200 if process runs
 
 **Acceptance criteria:** Container orchestrators can probe health.
 
@@ -526,17 +526,17 @@
 
 **Subtasks:**
 
-- [ ] Create `internal/trace/websocket.go`
-- [ ] Serve WebSocket at `/ws/trace` in dev mode
-- [ ] Emit events: workflow:started, workflow:completed, node:entered, node:completed, node:failed, edge:followed, retry:attempted
-- [ ] Each event includes full data (input/output for nodes) — dev mode only, never in production
-- [ ] Multiple editor connections can subscribe simultaneously
-- [ ] Event format matches the visual editor document specification
+- [x] Create `internal/trace/websocket.go`
+- [x] Serve WebSocket at `/ws/trace` in dev mode
+- [x] Emit events: workflow:started, workflow:completed, node:entered, node:completed, node:failed, edge:followed, retry:attempted
+- [x] Each event includes full data (input/output for nodes) — dev mode only, never in production
+- [x] Multiple editor connections can subscribe simultaneously
+- [x] Event format matches the visual editor document specification
 
 **Tests:**
-- [ ] WebSocket connects and receives events
-- [ ] Events match execution flow
-- [ ] Multiple clients receive same events
+- [x] WebSocket connects and receives events
+- [x] Events match execution flow
+- [x] Multiple clients receive same events
 
 **Acceptance criteria:** Visual editor can consume live execution traces.
 
