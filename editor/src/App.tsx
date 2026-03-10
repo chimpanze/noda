@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/layout/Sidebar";
 import { Toolbar } from "@/components/layout/Toolbar";
 import { WorkflowList } from "@/components/layout/WorkflowList";
 import { WorkflowCanvas } from "@/components/canvas/WorkflowCanvas";
+import { WorkflowTabs } from "@/components/layout/WorkflowTabs";
 import { NodePalette } from "@/components/canvas/NodePalette";
 import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
 import { EdgeConfigPanel } from "@/components/panels/EdgeConfigPanel";
@@ -73,11 +74,19 @@ export default function App() {
                 {/* Workflow list */}
                 <WorkflowList />
 
-                {/* Node palette (when a workflow is open) */}
-                {activeWorkflow && <NodePalette />}
+                {/* Canvas area with tabs */}
+                <div className="flex-1 flex flex-col min-w-0">
+                  {/* Workflow tabs */}
+                  <WorkflowTabs />
 
-                {/* Canvas */}
-                <WorkflowCanvas />
+                  <div className="flex-1 flex min-h-0">
+                    {/* Node palette (when a workflow is open) */}
+                    {activeWorkflow && <NodePalette />}
+
+                    {/* Canvas */}
+                    <WorkflowCanvas />
+                  </div>
+                </div>
 
                 {/* Right panel - node/edge config */}
                 {(selectedNodeId || selectedEdgeIndex !== null) && (

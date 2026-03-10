@@ -52,6 +52,16 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Ctrl+W — close active tab
+      if (meta && e.key === "w") {
+        e.preventDefault();
+        const state = useEditorStore.getState();
+        if (state.activeWorkflowPath && state.openTabs.length > 0) {
+          state.closeTab(state.activeWorkflowPath);
+        }
+        return;
+      }
+
       // Ctrl+A — select all (not applicable in canvas context, but prevent default)
       if (meta && e.key === "a") {
         // React Flow handles its own multi-select; prevent browser select-all

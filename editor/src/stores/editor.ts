@@ -27,7 +27,9 @@ interface EditorState {
   activeWorkflowPath: string | null;
   activeWorkflow: WorkflowConfig | null;
   _rawWorkflow: Record<string, unknown> | null; // original JSON for round-trip
+  openTabs: string[]; // ordered list of open workflow paths
   setActiveWorkflow: (path: string | null) => void;
+  closeTab: (path: string) => void;
   loadWorkflow: (path: string) => Promise<void>;
 
   // Workflow mutations
@@ -168,11 +170,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   activeWorkflowPath: null,
   activeWorkflow: null,
   _rawWorkflow: null,
+  openTabs: [],
   setActiveWorkflow: (path) => {
     if (path === null) {
       set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null });
     } else {
+      // Add to tabs if not already open
+      const tabs = get().openTabs;
+      if (!tabs.includes(path)) {
+        set({ openTabs: [...tabs, path] });
+      }
       get().loadWorkflow(path);
+    }
+  },
+  closeTab: (path) => {
+    const { openTabs, activeWorkflowPath } = get();
+    const newTabs = openTabs.filter((t) => t !== path);
+    set({ openTabs: newTabs });
+    // If closing the active tab, switch to the last remaining tab (or none)
+    if (activeWorkflowPath === path) {
+      if (newTabs.length > 0) {
+        get().loadWorkflow(newTabs[newTabs.length - 1]);
+      } else {
+        set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null });
+      }
     }
   },
   loadWorkflow: async (path) => {
