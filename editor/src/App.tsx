@@ -15,6 +15,7 @@ import { TestsView } from "@/components/views/TestsView";
 import { WorkersView } from "@/components/views/WorkersView";
 import { SchedulesView } from "@/components/views/SchedulesView";
 import { ConnectionsView } from "@/components/views/ConnectionsView";
+import { WasmView } from "@/components/views/WasmView";
 import { ShortcutModal } from "@/components/panels/ShortcutModal";
 import { ToastContainer } from "@/components/panels/Toast";
 import { ConnectionOverlay } from "@/components/panels/ConnectionOverlay";
@@ -86,6 +87,8 @@ export default function App() {
               <SchedulesView />
             ) : activeView === "connections" ? (
               <ConnectionsView />
+            ) : activeView === "wasm" ? (
+              <WasmView />
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
                 {activeView.charAt(0).toUpperCase() + activeView.slice(1)} view
