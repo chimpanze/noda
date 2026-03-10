@@ -294,7 +294,7 @@ func newStartCmd() *cobra.Command {
 
 				// Serve embedded editor UI and read-only API (production mode)
 				srv.RegisterEditorUI()
-				editorAPI := server.NewEditorAPIReadOnly(configDir, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services)
+				editorAPI := server.NewEditorAPIReadOnly(configDir, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
 				editorAPI.Register(srv.App())
 			}
 
@@ -464,7 +464,7 @@ func newDevCmd() *cobra.Command {
 			})
 
 			// Register editor API endpoints (dev mode only)
-			editorAPI := server.NewEditorAPI(configDir, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services)
+			editorAPI := server.NewEditorAPI(configDir, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
 			editorAPI.Register(srv.App())
 
 			// Serve editor static files: prefer local dist (for live dev),

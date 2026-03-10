@@ -77,6 +77,46 @@ export async function computeNodeOutputs(
   return data.outputs;
 }
 
+// Expression tools
+export interface ExpressionValidation {
+  valid: boolean;
+  error?: string;
+}
+
+export interface ExpressionContextVar {
+  name: string;
+  type: string;
+  description: string;
+}
+
+export interface ExpressionContext {
+  variables: ExpressionContextVar[];
+  functions: ExpressionContextVar[];
+  upstream: { node_id: string; node_type: string; ref: string }[];
+}
+
+export async function validateExpression(
+  expression: string
+): Promise<ExpressionValidation> {
+  const { data } = await api.post<ExpressionValidation>(
+    "/expressions/validate",
+    { expression }
+  );
+  return data;
+}
+
+export async function getExpressionContext(
+  workflow: string,
+  node?: string
+): Promise<ExpressionContext> {
+  const params = new URLSearchParams({ workflow });
+  if (node) params.set("node", node);
+  const { data } = await api.get<ExpressionContext>(
+    `/expressions/context?${params}`
+  );
+  return data;
+}
+
 // Services and plugins
 export async function listServices(): Promise<ServiceInfo[]> {
   const { data } = await api.get<{ services: ServiceInfo[] }>("/services");

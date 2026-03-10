@@ -11,6 +11,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/devmode"
+	nodaexpr "github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/gofiber/fiber/v3"
 )
@@ -26,6 +27,7 @@ type EditorAPI struct {
 	plugins   *registry.PluginRegistry
 	nodes     *registry.NodeRegistry
 	services  *registry.ServiceRegistry
+	compiler  *nodaexpr.Compiler
 }
 
 // NewEditorAPI creates the editor API handler for dev mode (all endpoints).
@@ -35,6 +37,7 @@ func NewEditorAPI(
 	plugins *registry.PluginRegistry,
 	nodes *registry.NodeRegistry,
 	services *registry.ServiceRegistry,
+	compiler *nodaexpr.Compiler,
 ) *EditorAPI {
 	return &EditorAPI{
 		configDir: configDir,
@@ -43,6 +46,7 @@ func NewEditorAPI(
 		plugins:   plugins,
 		nodes:     nodes,
 		services:  services,
+		compiler:  compiler,
 	}
 }
 
@@ -54,6 +58,7 @@ func NewEditorAPIReadOnly(
 	plugins *registry.PluginRegistry,
 	nodes *registry.NodeRegistry,
 	services *registry.ServiceRegistry,
+	compiler *nodaexpr.Compiler,
 ) *EditorAPI {
 	return &EditorAPI{
 		configDir: configDir,
@@ -62,6 +67,7 @@ func NewEditorAPIReadOnly(
 		plugins:   plugins,
 		nodes:     nodes,
 		services:  services,
+		compiler:  compiler,
 	}
 }
 
@@ -87,6 +93,10 @@ func (e *EditorAPI) Register(app *fiber.App) {
 	api.Get("/nodes", e.listNodes)
 	api.Get("/nodes/:type/schema", e.getNodeSchema)
 	api.Post("/nodes/:type/outputs", e.computeOutputs)
+
+	// Expression tools
+	api.Post("/expressions/validate", e.validateExpression)
+	api.Get("/expressions/context", e.expressionContext)
 
 	// Services and plugins
 	api.Get("/services", e.listServices)
@@ -424,6 +434,160 @@ func (e *EditorAPI) listSchemas(c fiber.Ctx) error {
 	})
 
 	return c.JSON(map[string]any{"schemas": schemas})
+}
+
+// validateExpression compiles an expression and returns any errors.
+func (e *EditorAPI) validateExpression(c fiber.Ctx) error {
+	var req struct {
+		Expression string `json:"expression"`
+	}
+	if err := c.Bind().JSON(&req); err != nil {
+		return c.Status(400).JSON(map[string]any{"error": "invalid request body"})
+	}
+
+	if req.Expression == "" {
+		return c.JSON(map[string]any{"valid": true})
+	}
+
+	compiler := e.compiler
+	if compiler == nil {
+		compiler = nodaexpr.NewCompiler()
+	}
+
+	_, err := compiler.Compile(req.Expression)
+	if err != nil {
+		return c.JSON(map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+	}
+
+	return c.JSON(map[string]any{"valid": true})
+}
+
+// expressionContext returns available variables for a node's position in a workflow.
+func (e *EditorAPI) expressionContext(c fiber.Ctx) error {
+	workflowName := c.Query("workflow")
+	nodeID := c.Query("node")
+
+	if workflowName == "" {
+		return c.Status(400).JSON(map[string]any{"error": "workflow query parameter required"})
+	}
+
+	// Load workflow config
+	rc := e.resolvedConfig()
+	var wfConfig map[string]any
+	if rc != nil {
+		for id, wf := range rc.Workflows {
+			if id == workflowName {
+				wfConfig = wf
+				break
+			}
+		}
+	}
+
+	// Build context variables
+	vars := make([]map[string]any, 0)
+
+	// Always available: input
+	vars = append(vars, map[string]any{
+		"name":        "input",
+		"type":        "object",
+		"description": "Workflow input data from trigger",
+	})
+
+	// Always available: trigger
+	vars = append(vars, map[string]any{
+		"name":        "trigger",
+		"type":        "object",
+		"description": "Trigger metadata (method, path, trace_id, etc.)",
+	})
+
+	// Always available: auth
+	vars = append(vars, map[string]any{
+		"name":        "auth",
+		"type":        "object",
+		"description": "Authentication context (user_id, roles, claims)",
+	})
+
+	// Built-in functions
+	builtins := []map[string]any{
+		{"name": "$uuid()", "type": "function", "description": "Generate UUID v4"},
+		{"name": "now()", "type": "function", "description": "Current timestamp"},
+		{"name": "upper(s)", "type": "function", "description": "Uppercase string"},
+		{"name": "lower(s)", "type": "function", "description": "Lowercase string"},
+		{"name": "len(v)", "type": "function", "description": "Length of array/string/map"},
+		{"name": "toInt(v)", "type": "function", "description": "Convert to integer"},
+		{"name": "toFloat(v)", "type": "function", "description": "Convert to float"},
+	}
+
+	// If we have a workflow config and node ID, find upstream nodes
+	upstreamNodes := make([]map[string]any, 0)
+	if wfConfig != nil && nodeID != "" {
+		upstreamNodes = e.findUpstreamNodes(wfConfig, nodeID)
+	}
+
+	return c.JSON(map[string]any{
+		"variables": vars,
+		"functions": builtins,
+		"upstream":  upstreamNodes,
+	})
+}
+
+// findUpstreamNodes walks the workflow graph backwards from the given node
+// and returns all upstream node IDs with their types.
+func (e *EditorAPI) findUpstreamNodes(wfConfig map[string]any, targetNodeID string) []map[string]any {
+	// Parse edges
+	rawEdges, _ := wfConfig["edges"].([]any)
+	type edge struct{ from, output, to string }
+	var edges []edge
+	for _, re := range rawEdges {
+		em, _ := re.(map[string]any)
+		if em == nil {
+			continue
+		}
+		edges = append(edges, edge{
+			from:   fmt.Sprintf("%v", em["from"]),
+			output: fmt.Sprintf("%v", em["output"]),
+			to:     fmt.Sprintf("%v", em["to"]),
+		})
+	}
+
+	// Parse node types
+	nodeTypes := make(map[string]string)
+	rawNodes, _ := wfConfig["nodes"].(map[string]any)
+	for id, v := range rawNodes {
+		if nm, ok := v.(map[string]any); ok {
+			nodeTypes[id] = fmt.Sprintf("%v", nm["type"])
+		}
+	}
+
+	// BFS backwards from targetNodeID
+	visited := map[string]bool{}
+	queue := []string{targetNodeID}
+	var result []map[string]any
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		if visited[current] {
+			continue
+		}
+		visited[current] = true
+
+		for _, edge := range edges {
+			if edge.to == current && !visited[edge.from] {
+				queue = append(queue, edge.from)
+				result = append(result, map[string]any{
+					"node_id":   edge.from,
+					"node_type": nodeTypes[edge.from],
+					"ref":       fmt.Sprintf("nodes.%s", edge.from),
+				})
+			}
+		}
+	}
+
+	return result
 }
 
 // relPath returns a relative path from base, or the original if Rel fails.
