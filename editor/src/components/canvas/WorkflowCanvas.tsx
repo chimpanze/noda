@@ -19,11 +19,17 @@ import { getOutputColor } from "./nodeStyles";
 const nodeTypes = { noda: NodaNode };
 const edgeTypes = { noda: NodaEdge };
 
-let nextNodeCounter = 1;
-
-function generateNodeId(nodeType: string): string {
-  const suffix = nodeType.replace(/\./g, "-");
-  return `${suffix}-${nextNodeCounter++}`;
+function generateNodeId(nodeType: string, existingIds: string[]): string {
+  const prefix = nodeType.replace(/\./g, "-");
+  // Find highest numeric suffix for this prefix among existing nodes
+  let max = 0;
+  for (const id of existingIds) {
+    if (id.startsWith(prefix + "-")) {
+      const num = parseInt(id.slice(prefix.length + 1), 10);
+      if (!isNaN(num) && num > max) max = num;
+    }
+  }
+  return `${prefix}-${max + 1}`;
 }
 
 export function WorkflowCanvas() {
@@ -159,8 +165,9 @@ export function WorkflowCanvas() {
         y: event.clientY,
       });
 
+      const existingIds = activeWorkflow?.nodes.map((n) => n.id) ?? [];
       const newNode = {
-        id: generateNodeId(nodeType),
+        id: generateNodeId(nodeType, existingIds),
         type: nodeType,
         position,
         config: {},
@@ -169,7 +176,7 @@ export function WorkflowCanvas() {
       addNode(newNode);
       selectNode(newNode.id);
     },
-    [screenToFlowPosition, addNode, selectNode]
+    [screenToFlowPosition, addNode, selectNode, activeWorkflow?.nodes]
   );
 
   if (!activeWorkflow) {
