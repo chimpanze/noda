@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
   ReactFlow,
   Background,
@@ -15,13 +15,15 @@ import { NodaEdge } from "./NodaEdge";
 import type { NodaNodeData } from "./NodaNode";
 import type { NodaEdgeData } from "./NodaEdge";
 import { getOutputColor } from "./nodeStyles";
+import { CanvasContextMenu, type ContextMenuState } from "./CanvasContextMenu";
+import { copyNodes, pasteNodes, hasClipboard } from "@/stores/clipboard";
+import { autoLayout } from "./autoLayout";
 
 const nodeTypes = { noda: NodaNode };
 const edgeTypes = { noda: NodaEdge };
 
 function generateNodeId(nodeType: string, existingIds: string[]): string {
   const prefix = nodeType.replace(/\./g, "-");
-  // Find highest numeric suffix for this prefix among existing nodes
   let max = 0;
   for (const id of existingIds) {
     if (id.startsWith(prefix + "-")) {
@@ -40,10 +42,16 @@ export function WorkflowCanvas() {
   const nodeTypeRegistry = useEditorStore((s) => s.nodeTypes);
   const addNode = useEditorStore((s) => s.addNode);
   const addEdge = useEditorStore((s) => s.addEdge);
+  const removeNode = useEditorStore((s) => s.removeNode);
+  const removeEdge = useEditorStore((s) => s.removeEdge);
   const updateNodePosition = useEditorStore((s) => s.updateNodePosition);
+  const updateEdgeRetry = useEditorStore((s) => s.updateEdgeRetry);
+  const setWorkflow = useEditorStore((s) => s.setWorkflow);
 
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition } = useReactFlow();
+
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
 
   // Build a lookup: nodeType → outputs
   const outputsByType = useMemo(() => {
@@ -113,7 +121,6 @@ export function WorkflowCanvas() {
 
   const onEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
-      // Extract index from edge id format "e-{index}"
       const index = parseInt(edge.id.replace("e-", ""), 10);
       if (!isNaN(index)) selectEdge(index);
     },
@@ -122,13 +129,105 @@ export function WorkflowCanvas() {
 
   const onPaneClick = useCallback(() => {
     deselectAll();
+    setContextMenu(null);
   }, [deselectAll]);
+
+  // Context menu handlers
+  const onNodeContextMenu = useCallback(
+    (event: React.MouseEvent, node: Node) => {
+      event.preventDefault();
+      selectNode(node.id);
+      setContextMenu({ type: "node", x: event.clientX, y: event.clientY, targetId: node.id });
+    },
+    [selectNode]
+  );
+
+  const onEdgeContextMenu = useCallback(
+    (event: React.MouseEvent, edge: Edge) => {
+      event.preventDefault();
+      const index = parseInt(edge.id.replace("e-", ""), 10);
+      if (!isNaN(index)) selectEdge(index);
+      setContextMenu({ type: "edge", x: event.clientX, y: event.clientY, targetId: edge.id });
+    },
+    [selectEdge]
+  );
+
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent) => {
+      event.preventDefault();
+      setContextMenu({ type: "pane", x: event.clientX, y: event.clientY });
+    },
+    []
+  );
+
+  // Context menu action handlers
+  const handleCopyNode = useCallback(() => {
+    if (!activeWorkflow || !contextMenu?.targetId) return;
+    copyNodes(activeWorkflow.nodes, activeWorkflow.edges, new Set([contextMenu.targetId]));
+  }, [activeWorkflow, contextMenu]);
+
+  const handleDuplicateNode = useCallback(() => {
+    if (!activeWorkflow || !contextMenu?.targetId) return;
+    copyNodes(activeWorkflow.nodes, activeWorkflow.edges, new Set([contextMenu.targetId]));
+    const result = pasteNodes();
+    if (result) {
+      for (const n of result.nodes) addNode(n);
+      for (const e of result.edges) addEdge(e);
+      if (result.nodes.length > 0) selectNode(result.nodes[0].id);
+    }
+  }, [activeWorkflow, contextMenu, addNode, addEdge, selectNode]);
+
+  const handleDeleteNode = useCallback(() => {
+    if (contextMenu?.targetId) removeNode(contextMenu.targetId);
+  }, [contextMenu, removeNode]);
+
+  const handleToggleRetry = useCallback(() => {
+    if (!contextMenu?.targetId || !activeWorkflow) return;
+    const edgeIndex = parseInt(contextMenu.targetId.replace("e-", ""), 10);
+    if (isNaN(edgeIndex)) return;
+    const edge = activeWorkflow.edges[edgeIndex];
+    if (!edge) return;
+    if (edge.retry) {
+      updateEdgeRetry(edgeIndex, undefined);
+    } else {
+      updateEdgeRetry(edgeIndex, { attempts: 3, delay: "1s" });
+    }
+  }, [contextMenu, activeWorkflow, updateEdgeRetry]);
+
+  const handleDeleteEdge = useCallback(() => {
+    if (!contextMenu?.targetId || !activeWorkflow) return;
+    const edgeIndex = parseInt(contextMenu.targetId.replace("e-", ""), 10);
+    if (isNaN(edgeIndex)) return;
+    const edge = activeWorkflow.edges[edgeIndex];
+    if (edge) removeEdge(edge.from, edge.output, edge.to);
+  }, [contextMenu, activeWorkflow, removeEdge]);
+
+  const handlePaste = useCallback(() => {
+    const result = pasteNodes();
+    if (result) {
+      for (const n of result.nodes) addNode(n);
+      for (const e of result.edges) addEdge(e);
+      if (result.nodes.length > 0) selectNode(result.nodes[0].id);
+    }
+  }, [addNode, addEdge, selectNode]);
+
+  const handleAutoLayout = useCallback(async () => {
+    if (!activeWorkflow) return;
+    const layouted = await autoLayout(activeWorkflow);
+    setWorkflow(layouted);
+  }, [activeWorkflow, setWorkflow]);
+
+  const getEdgeRetryState = useCallback(() => {
+    if (!contextMenu?.targetId || !activeWorkflow) return false;
+    const edgeIndex = parseInt(contextMenu.targetId.replace("e-", ""), 10);
+    if (isNaN(edgeIndex)) return false;
+    return !!activeWorkflow.edges[edgeIndex]?.retry;
+  }, [contextMenu, activeWorkflow]);
 
   // Edge connection handler
   const onConnect = useCallback(
     (connection: Connection) => {
       if (!connection.source || !connection.target) return;
-      // Prevent self-connection
       if (connection.source === connection.target) return;
       const output = connection.sourceHandle ?? "success";
       addEdge({
@@ -197,6 +296,9 @@ export function WorkflowCanvas() {
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
+        onNodeContextMenu={onNodeContextMenu}
+        onEdgeContextMenu={onEdgeContextMenu}
+        onPaneContextMenu={onPaneContextMenu}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}
         onDragOver={onDragOver}
@@ -210,6 +312,23 @@ export function WorkflowCanvas() {
         <Controls />
         <MiniMap nodeStrokeWidth={3} pannable zoomable />
       </ReactFlow>
+
+      {contextMenu && (
+        <CanvasContextMenu
+          menu={contextMenu}
+          onClose={() => setContextMenu(null)}
+          onCopyNode={handleCopyNode}
+          onDuplicateNode={handleDuplicateNode}
+          onDeleteNode={handleDeleteNode}
+          onToggleRetry={handleToggleRetry}
+          onDeleteEdge={handleDeleteEdge}
+          hasRetry={getEdgeRetryState()}
+          onAddNode={() => {/* TODO: quick-add dialog (task 9) */}}
+          onPaste={handlePaste}
+          onAutoLayout={handleAutoLayout}
+          canPaste={hasClipboard()}
+        />
+      )}
     </div>
   );
 }
