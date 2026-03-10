@@ -1,6 +1,9 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { WidgetProps } from "@rjsf/utils";
-import Editor from "@monaco-editor/react";
+import Editor, { type Monaco } from "@monaco-editor/react";
+import type { editor as MonacoEditor } from "monaco-editor";
+import { registerExpressionLanguage } from "@/utils/expressionLanguage";
+import * as api from "@/api/client";
 
 // RJSF custom widget for expression fields (string fields that may contain {{ }})
 export function ExpressionWidget(props: WidgetProps) {
@@ -8,24 +11,58 @@ export function ExpressionWidget(props: WidgetProps) {
   const [useMonaco, setUseMonaco] = useState(
     typeof value === "string" && value.includes("{{")
   );
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMonacoMount = useCallback((_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
+    registerExpressionLanguage(monaco);
+  }, []);
+
+  // Debounced expression validation
+  const validateExpression = useCallback((val: string) => {
+    if (validateTimer.current) clearTimeout(validateTimer.current);
+    if (!val.includes("{{")) {
+      setValidationError(null);
+      return;
+    }
+    validateTimer.current = setTimeout(async () => {
+      try {
+        const result = await api.validateExpression(val);
+        setValidationError(result.valid ? null : (result.error ?? "Invalid expression"));
+      } catch {
+        // API not available — skip validation
+        setValidationError(null);
+      }
+    }, 500);
+  }, []);
+
+  // Cleanup timer
+  useEffect(() => {
+    return () => {
+      if (validateTimer.current) clearTimeout(validateTimer.current);
+    };
+  }, []);
 
   const handleMonacoChange = useCallback(
     (val: string | undefined) => {
-      onChange(val ?? "");
+      const v = val ?? "";
+      onChange(v);
+      validateExpression(v);
     },
-    [onChange]
+    [onChange, validateExpression]
   );
 
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const v = e.target.value;
       onChange(v);
+      validateExpression(v);
       // Auto-switch to Monaco if user types {{
       if (v.includes("{{") && !useMonaco) {
         setUseMonaco(true);
       }
     },
-    [onChange, useMonaco]
+    [onChange, useMonaco, validateExpression]
   );
 
   return (
@@ -44,12 +81,13 @@ export function ExpressionWidget(props: WidgetProps) {
         </button>
       </div>
       {useMonaco ? (
-        <div className="border border-gray-300 rounded overflow-hidden">
+        <div className={`border rounded overflow-hidden ${validationError ? "border-red-400" : "border-gray-300"}`}>
           <Editor
             height="60px"
             language="plaintext"
             value={typeof value === "string" ? value : ""}
             onChange={handleMonacoChange}
+            onMount={handleMonacoMount}
             options={{
               minimap: { enabled: false },
               lineNumbers: "off",
@@ -64,6 +102,8 @@ export function ExpressionWidget(props: WidgetProps) {
               wordWrap: "on",
               fontSize: 13,
               readOnly: readonly,
+              quickSuggestions: true,
+              suggestOnTriggerCharacters: true,
             }}
           />
         </div>
@@ -73,9 +113,16 @@ export function ExpressionWidget(props: WidgetProps) {
           value={typeof value === "string" ? value : ""}
           onChange={handleInputChange}
           readOnly={readonly}
-          className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+          className={`w-full px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent ${
+            validationError ? "border-red-400" : "border-gray-300"
+          }`}
           placeholder={`Enter ${label?.toLowerCase() ?? "value"}...`}
         />
+      )}
+      {validationError && (
+        <p className="mt-0.5 text-xs text-red-500 truncate" title={validationError}>
+          {validationError}
+        </p>
       )}
     </div>
   );
@@ -93,6 +140,10 @@ export function ExpressionEditor({
   height?: string;
   readOnly?: boolean;
 }) {
+  const handleMount = useCallback((_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
+    registerExpressionLanguage(monaco);
+  }, []);
+
   return (
     <div className="border border-gray-300 rounded overflow-hidden">
       <Editor
@@ -100,6 +151,7 @@ export function ExpressionEditor({
         language="plaintext"
         value={value}
         onChange={(v) => onChange(v ?? "")}
+        onMount={handleMount}
         options={{
           minimap: { enabled: false },
           lineNumbers: "off",
@@ -114,6 +166,8 @@ export function ExpressionEditor({
           wordWrap: "on",
           fontSize: 13,
           readOnly,
+          quickSuggestions: true,
+          suggestOnTriggerCharacters: true,
         }}
       />
     </div>

@@ -4,6 +4,7 @@ import validator from "@rjsf/validator-ajv8";
 import type { RJSFSchema, UiSchema } from "@rjsf/utils";
 import { useEditorStore } from "@/stores/editor";
 import * as api from "@/api/client";
+import { updateExpressionContext } from "@/utils/expressionLanguage";
 import { ExpressionWidget } from "./ExpressionWidget";
 import { ServiceSlotWidget } from "./ServiceSlotWidget";
 import { EnumSelectWidget } from "@/components/widgets/EnumSelectWidget";
@@ -66,6 +67,14 @@ export function NodeConfigPanel() {
     });
     return () => { cancelled = true; };
   }, [node?.type]);
+
+  // Update expression autocomplete context when node selection changes
+  const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
+  useEffect(() => {
+    if (!activeWorkflowPath || !selectedNodeId) return;
+    const wfName = activeWorkflowPath.replace(/^workflows\//, "").replace(/\.json$/, "");
+    updateExpressionContext(wfName, selectedNodeId);
+  }, [activeWorkflowPath, selectedNodeId]);
 
   const onConfigChange = useCallback(
     (data: IChangeEvent<Record<string, unknown>>) => {
