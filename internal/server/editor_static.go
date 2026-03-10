@@ -7,11 +7,15 @@ import (
 	"strings"
 
 	"github.com/chimpanze/noda/editorfs"
+	"github.com/chimpanze/noda/internal/trace"
 	"github.com/gofiber/fiber/v3"
 )
 
 // RegisterEditorUI serves the embedded editor SPA at /editor/.
 // If the binary was built without the embed_editor tag, a placeholder is shown.
+// In production mode a no-op trace WebSocket is registered so the editor
+// connects without errors; in dev mode the real trace endpoint is registered
+// separately via trace.RegisterTraceWebSocket.
 func (s *Server) RegisterEditorUI() {
 	if editorfs.FS == nil {
 		s.app.Get("/editor", func(c fiber.Ctx) error {
@@ -69,6 +73,11 @@ func (s *Server) RegisterEditorUI() {
 
 		return fiber.ErrNotFound
 	})
+
+	// Register a no-op /ws/trace so the editor can connect without errors.
+	// In dev mode this is overridden by trace.RegisterTraceWebSocket which
+	// streams real execution events.
+	trace.RegisterNoOpTraceWebSocket(s.app)
 
 	s.logger.Info("editor UI registered at /editor/")
 }

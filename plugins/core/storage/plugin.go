@@ -5,7 +5,7 @@ import "github.com/chimpanze/noda/pkg/api"
 // Plugin registers all storage.* nodes.
 type Plugin struct{}
 
-func (p *Plugin) Name() string   { return "storage" }
+func (p *Plugin) Name() string   { return "core.storage" }
 func (p *Plugin) Prefix() string { return "storage" }
 
 func (p *Plugin) HasServices() bool { return false }

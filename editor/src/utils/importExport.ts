@@ -1,4 +1,26 @@
-import type { WorkflowConfig } from "@/types";
+import type { WorkflowConfig, WorkflowNode } from "@/types";
+
+/**
+ * Convert nodes from Noda's map format to array format if needed.
+ */
+function normalizeNodes(
+  raw: unknown
+): WorkflowNode[] {
+  if (Array.isArray(raw)) return raw as WorkflowNode[];
+  if (raw && typeof raw === "object") {
+    return Object.entries(raw as Record<string, Record<string, unknown>>).map(
+      ([id, node]) => ({
+        id,
+        type: node.type as string,
+        config: node.config as Record<string, unknown> | undefined,
+        as: node.as as string | undefined,
+        services: node.services as Record<string, string> | undefined,
+        position: node.position as { x: number; y: number } | undefined,
+      })
+    );
+  }
+  return [];
+}
 
 /**
  * Download a workflow as a JSON file.
@@ -26,23 +48,24 @@ export function importWorkflow(file: File): Promise<WorkflowConfig> {
         if (!data || typeof data !== "object") {
           throw new Error("File does not contain a valid JSON object");
         }
-        if (!Array.isArray(data.nodes)) {
-          throw new Error("Missing or invalid 'nodes' array");
+        if (!data.nodes || (typeof data.nodes !== "object")) {
+          throw new Error("Missing or invalid 'nodes' field");
         }
         if (!Array.isArray(data.edges)) {
           throw new Error("Missing or invalid 'edges' array");
         }
-        for (const node of data.nodes) {
+        const nodes = normalizeNodes(data.nodes);
+        for (const node of nodes) {
           if (!node.id || !node.type) {
             throw new Error(`Node missing required 'id' or 'type' field`);
           }
         }
         for (const edge of data.edges) {
-          if (!edge.from || !edge.to || !edge.output) {
-            throw new Error(`Edge missing required 'from', 'to', or 'output' field`);
+          if (!edge.from || !edge.to) {
+            throw new Error(`Edge missing required 'from' or 'to' field`);
           }
         }
-        resolve(data as WorkflowConfig);
+        resolve({ nodes, edges: data.edges } as WorkflowConfig);
       } catch (e) {
         reject(e instanceof Error ? e : new Error(String(e)));
       }

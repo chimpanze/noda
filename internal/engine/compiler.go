@@ -101,6 +101,13 @@ type NodeOutputResolver interface {
 	OutputsForType(nodeType string) ([]string, bool)
 }
 
+// ConfigAwareResolver is an optional interface that resolvers can implement
+// to resolve outputs using the node's config. This is needed for nodes like
+// control.switch whose outputs depend on their "cases" config.
+type ConfigAwareResolver interface {
+	OutputsForTypeWithConfig(nodeType string, config map[string]any) ([]string, bool)
+}
+
 // DefaultOutputResolver returns ["success", "error"] for all types.
 type DefaultOutputResolver struct{}
 
@@ -126,7 +133,12 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 
 	// Compile nodes
 	for id, nc := range wf.Nodes {
-		outputs, _ := resolver.OutputsForType(nc.Type)
+		var outputs []string
+		if car, ok := resolver.(ConfigAwareResolver); ok {
+			outputs, _ = car.OutputsForTypeWithConfig(nc.Type, nc.Config)
+		} else {
+			outputs, _ = resolver.OutputsForType(nc.Type)
+		}
 		g.Nodes[id] = &CompiledNode{
 			ID:         id,
 			Type:       nc.Type,

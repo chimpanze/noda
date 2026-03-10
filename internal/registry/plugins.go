@@ -20,18 +20,60 @@ func NewPluginRegistry() *PluginRegistry {
 	}
 }
 
-// Register adds a plugin to the registry. Returns an error if the prefix is already taken.
+// Register adds a plugin to the registry. If a prefix collision occurs between
+// a node-only plugin and a service-only plugin, they are merged into a composite
+// so that both node types and service creation work under the same prefix.
 func (r *PluginRegistry) Register(plugin api.Plugin) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
 	prefix := plugin.Prefix()
-	if existing, ok := r.plugins[prefix]; ok {
-		return fmt.Errorf("duplicate plugin prefix %q: %q and %q", prefix, existing.Name(), plugin.Name())
+	existing, conflict := r.plugins[prefix]
+	if !conflict {
+		r.plugins[prefix] = plugin
+		return nil
 	}
-	r.plugins[prefix] = plugin
-	return nil
+
+	// Allow merging when one provides nodes and the other provides services
+	existingNodes := existing.Nodes()
+	newNodes := plugin.Nodes()
+	existingHasServices := existing.HasServices()
+	newHasServices := plugin.HasServices()
+
+	if len(existingNodes) > 0 && len(newNodes) == 0 && !existingHasServices && newHasServices {
+		// Existing has nodes, new has services → merge
+		r.plugins[prefix] = &compositePlugin{nodes: existing, services: plugin}
+		return nil
+	}
+	if len(existingNodes) == 0 && len(newNodes) > 0 && existingHasServices && !newHasServices {
+		// Existing has services, new has nodes → merge
+		r.plugins[prefix] = &compositePlugin{nodes: plugin, services: existing}
+		return nil
+	}
+
+	return fmt.Errorf("duplicate plugin prefix %q: %q and %q", prefix, existing.Name(), plugin.Name())
 }
+
+// compositePlugin merges a node-providing plugin with a service-providing plugin
+// that share the same prefix.
+type compositePlugin struct {
+	nodes    api.Plugin // provides Nodes()
+	services api.Plugin // provides HasServices(), CreateService(), etc.
+}
+
+func (c *compositePlugin) Name() string   { return c.services.Name() }
+func (c *compositePlugin) Prefix() string { return c.services.Prefix() }
+
+func (c *compositePlugin) Nodes() []api.NodeRegistration {
+	return c.nodes.Nodes()
+}
+
+func (c *compositePlugin) HasServices() bool { return true }
+func (c *compositePlugin) CreateService(config map[string]any) (any, error) {
+	return c.services.CreateService(config)
+}
+func (c *compositePlugin) HealthCheck(service any) error { return c.services.HealthCheck(service) }
+func (c *compositePlugin) Shutdown(service any) error    { return c.services.Shutdown(service) }
 
 // Get looks up a plugin by prefix.
 func (r *PluginRegistry) Get(prefix string) (api.Plugin, bool) {

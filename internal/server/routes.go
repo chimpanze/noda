@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
@@ -125,13 +126,22 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		triggerResult.Trigger.TraceID = traceID
 
 		// 2. Build execution context
-		execCtx := engine.NewExecutionContext(
+		opts := []engine.ExecutionContextOption{
 			engine.WithInput(triggerResult.Input),
 			engine.WithAuth(triggerResult.Auth),
 			engine.WithTrigger(triggerResult.Trigger),
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(s.compiler),
-		)
+		}
+
+		// Attach trace callback when hub is available (dev mode)
+		if s.traceHub != nil {
+			opts = append(opts, engine.WithTraceCallback(
+				s.traceCallbackFor(traceID, workflowID),
+			))
+		}
+
+		execCtx := engine.NewExecutionContext(opts...)
 
 		// 3. Create response channel
 		responseCh := make(chan *api.HTTPResponse, 1)
@@ -195,6 +205,22 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 				},
 			})
 		}
+	}
+}
+
+// traceCallbackFor returns a TraceCallback that emits events to the trace hub.
+func (s *Server) traceCallbackFor(traceID, workflowID string) engine.TraceCallback {
+	return func(eventType, nodeID, nodeType, output, errMsg string, data any) {
+		s.traceHub.Emit(trace.Event{
+			Type:       trace.EventType(eventType),
+			TraceID:    traceID,
+			WorkflowID: workflowID,
+			NodeID:     nodeID,
+			NodeType:   nodeType,
+			Output:     output,
+			Error:      errMsg,
+			Data:       data,
+		})
 	}
 }
 

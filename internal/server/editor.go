@@ -15,17 +15,20 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// EditorAPI provides endpoints for the visual editor (dev mode only).
+// EditorAPI provides endpoints for the visual editor.
+// In dev mode all endpoints are available (including write/delete).
+// In production mode only read-only endpoints are registered.
 type EditorAPI struct {
 	configDir string
 	envFlag   string
-	reloader  *devmode.Reloader
+	reloader  *devmode.Reloader // nil in production mode
+	rc        *config.ResolvedConfig
 	plugins   *registry.PluginRegistry
 	nodes     *registry.NodeRegistry
 	services  *registry.ServiceRegistry
 }
 
-// NewEditorAPI creates the editor API handler.
+// NewEditorAPI creates the editor API handler for dev mode (all endpoints).
 func NewEditorAPI(
 	configDir, envFlag string,
 	reloader *devmode.Reloader,
@@ -43,15 +46,38 @@ func NewEditorAPI(
 	}
 }
 
+// NewEditorAPIReadOnly creates the editor API handler for production mode.
+// Write and delete endpoints are not registered.
+func NewEditorAPIReadOnly(
+	configDir, envFlag string,
+	rc *config.ResolvedConfig,
+	plugins *registry.PluginRegistry,
+	nodes *registry.NodeRegistry,
+	services *registry.ServiceRegistry,
+) *EditorAPI {
+	return &EditorAPI{
+		configDir: configDir,
+		envFlag:   envFlag,
+		rc:        rc,
+		plugins:   plugins,
+		nodes:     nodes,
+		services:  services,
+	}
+}
+
 // Register mounts all editor API routes on the Fiber app.
 func (e *EditorAPI) Register(app *fiber.App) {
-	api := app.Group("/api/editor")
+	api := app.Group("/_noda")
 
-	// File operations
+	// File operations (read always available)
 	api.Get("/files", e.listFiles)
 	api.Get("/files/*", e.readFile)
-	api.Put("/files/*", e.writeFile)
-	api.Delete("/files/*", e.deleteFile)
+
+	// Write/delete only in dev mode
+	if e.reloader != nil {
+		api.Put("/files/*", e.writeFile)
+		api.Delete("/files/*", e.deleteFile)
+	}
 
 	// Validation
 	api.Post("/validate", e.validateFile)
@@ -66,6 +92,15 @@ func (e *EditorAPI) Register(app *fiber.App) {
 	api.Get("/services", e.listServices)
 	api.Get("/plugins", e.listPlugins)
 	api.Get("/schemas", e.listSchemas)
+}
+
+// resolvedConfig returns the current resolved config, preferring the
+// reloader's live config in dev mode, falling back to the static config.
+func (e *EditorAPI) resolvedConfig() *config.ResolvedConfig {
+	if e.reloader != nil {
+		return e.reloader.Config()
+	}
+	return e.rc
 }
 
 // listFiles returns all config files grouped by category.
@@ -124,6 +159,7 @@ func (e *EditorAPI) readFile(c fiber.Ctx) error {
 }
 
 // writeFile writes JSON content to a config file and triggers hot reload.
+// Only available in dev mode.
 func (e *EditorAPI) writeFile(c fiber.Ctx) error {
 	relFilePath, err := url.PathUnescape(c.Params("*"))
 	if err != nil {
@@ -167,6 +203,7 @@ func (e *EditorAPI) writeFile(c fiber.Ctx) error {
 }
 
 // deleteFile removes a config file.
+// Only available in dev mode.
 func (e *EditorAPI) deleteFile(c fiber.Ctx) error {
 	relFilePath, err := url.PathUnescape(c.Params("*"))
 	if err != nil {
@@ -372,7 +409,7 @@ func (e *EditorAPI) listPlugins(c fiber.Ctx) error {
 
 // listSchemas returns all shared schema definitions.
 func (e *EditorAPI) listSchemas(c fiber.Ctx) error {
-	rc := e.reloader.Config()
+	rc := e.resolvedConfig()
 
 	schemas := make([]map[string]any, 0, len(rc.Schemas))
 	for path, schema := range rc.Schemas {

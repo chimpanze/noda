@@ -6,10 +6,27 @@ import { useEditorStore } from "@/stores/editor";
 import * as api from "@/api/client";
 import { ExpressionWidget } from "./ExpressionWidget";
 import { ServiceSlotWidget } from "./ServiceSlotWidget";
+import { EnumSelectWidget } from "@/components/widgets/EnumSelectWidget";
+import { BooleanToggleWidget } from "@/components/widgets/BooleanToggleWidget";
+import { NumberWidget } from "@/components/widgets/NumberWidget";
+import { StringArrayField } from "@/components/widgets/StringArrayField";
+import { KeyValueMapField } from "@/components/widgets/KeyValueMapField";
+import { FlexibleValueField } from "@/components/widgets/FlexibleValueField";
+import { StyledObjectFieldTemplate } from "@/components/widgets/StyledObjectFieldTemplate";
 
 // Custom widget registry for RJSF
 const widgets = {
   expression: ExpressionWidget,
+  enumSelect: EnumSelectWidget,
+  booleanToggle: BooleanToggleWidget,
+  number: NumberWidget,
+};
+
+// Custom field registry for RJSF
+const fields = {
+  stringArray: StringArrayField,
+  keyValueMap: KeyValueMapField,
+  flexibleValue: FlexibleValueField,
 };
 
 export function NodeConfigPanel() {
@@ -17,6 +34,8 @@ export function NodeConfigPanel() {
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
   const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
   const updateNodeServices = useEditorStore((s) => s.updateNodeServices);
+  const renameNode = useEditorStore((s) => s.renameNode);
+  const updateNodeAlias = useEditorStore((s) => s.updateNodeAlias);
   const nodeTypes = useEditorStore((s) => s.nodeTypes);
   const saveStatus = useEditorStore((s) => s.saveStatus);
 
@@ -75,13 +94,25 @@ export function NodeConfigPanel() {
     );
   }
 
-  // Build uiSchema — mark string fields as expression widgets
+  // Build uiSchema — assign widgets/fields based on schema type
   const uiSchema: UiSchema = {};
   if (schema?.properties) {
     for (const [key, prop] of Object.entries(schema.properties)) {
       const p = prop as Record<string, unknown>;
-      if (p.type === "string") {
+      if (p.enum) {
+        uiSchema[key] = { "ui:widget": "enumSelect" };
+      } else if (p.type === "string") {
         uiSchema[key] = { "ui:widget": "expression" };
+      } else if (p.type === "boolean") {
+        uiSchema[key] = { "ui:widget": "booleanToggle" };
+      } else if (p.type === "integer" || p.type === "number") {
+        uiSchema[key] = { "ui:widget": "number" };
+      } else if (p.type === "array" && (p.items as Record<string, unknown> | undefined)?.type === "string") {
+        uiSchema[key] = { "ui:field": "stringArray" };
+      } else if (p.type === "object" && !p.properties) {
+        uiSchema[key] = { "ui:field": "keyValueMap" };
+      } else if (!p.type && !p.enum && !p.properties) {
+        uiSchema[key] = { "ui:field": "flexibleValue" };
       }
     }
   }
@@ -90,14 +121,30 @@ export function NodeConfigPanel() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 shrink-0">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-xs font-mono text-gray-400">{node.type}</div>
-            <div className="text-sm font-semibold text-gray-900">
-              {node.as ?? node.id}
-            </div>
-          </div>
+        <div className="flex items-center justify-between mb-2">
+          <div className="text-xs font-mono text-gray-400">{node.type}</div>
           <SaveIndicator status={saveStatus} />
+        </div>
+        <div className="space-y-1.5">
+          <div>
+            <label className="text-xs text-gray-500">ID</label>
+            <input
+              type="text"
+              value={node.id}
+              onChange={(e) => renameNode(node.id, e.target.value)}
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded font-mono focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-500">Alias</label>
+            <input
+              type="text"
+              value={node.as ?? ""}
+              onChange={(e) => updateNodeAlias(node.id, e.target.value || undefined)}
+              className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
+              placeholder="Optional alias"
+            />
+          </div>
         </div>
       </div>
 
@@ -136,6 +183,8 @@ export function NodeConfigPanel() {
               validator={validator}
               onChange={onConfigChange}
               widgets={widgets}
+              fields={fields}
+              templates={{ ObjectFieldTemplate: StyledObjectFieldTemplate }}
               liveValidate
               showErrorList={false}
             >

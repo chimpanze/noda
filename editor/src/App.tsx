@@ -6,6 +6,7 @@ import { WorkflowList } from "@/components/layout/WorkflowList";
 import { WorkflowCanvas } from "@/components/canvas/WorkflowCanvas";
 import { NodePalette } from "@/components/canvas/NodePalette";
 import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
+import { EdgeConfigPanel } from "@/components/panels/EdgeConfigPanel";
 import { TracePanel } from "@/components/panels/TracePanel";
 import { RoutesView } from "@/components/views/RoutesView";
 import { ServicesView } from "@/components/views/ServicesView";
@@ -25,6 +26,7 @@ export default function App() {
   const loadFiles = useEditorStore((s) => s.loadFiles);
   const loadNodeTypes = useEditorStore((s) => s.loadNodeTypes);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+  const selectedEdgeIndex = useEditorStore((s) => s.selectedEdgeIndex);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
 
   useEffect(() => {
@@ -60,10 +62,10 @@ export default function App() {
                 {/* Canvas */}
                 <WorkflowCanvas />
 
-                {/* Right panel - node config */}
-                {selectedNodeId && (
+                {/* Right panel - node/edge config */}
+                {(selectedNodeId || selectedEdgeIndex !== null) && (
                   <div className="w-80 border-l border-gray-200 bg-white overflow-hidden">
-                    <NodeConfigPanel />
+                    {selectedNodeId ? <NodeConfigPanel /> : <EdgeConfigPanel />}
                   </div>
                 )}
               </>

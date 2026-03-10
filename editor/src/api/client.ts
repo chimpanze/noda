@@ -9,7 +9,7 @@ import type {
 } from "@/types";
 
 const api = axios.create({
-  baseURL: "/api/editor",
+  baseURL: "/_noda",
 });
 
 // File operations

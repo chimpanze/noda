@@ -9,6 +9,7 @@ import (
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/trace"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -20,6 +21,7 @@ type Server struct {
 	services  *registry.ServiceRegistry
 	nodes     *registry.NodeRegistry
 	workflows *engine.WorkflowCache
+	traceHub  *trace.EventHub
 	port      int
 	logger    *slog.Logger
 }
@@ -40,6 +42,13 @@ func WithCompiler(c *expr.Compiler) ServerOption {
 // WithWorkflowCache sets a pre-built workflow cache.
 func WithWorkflowCache(c *engine.WorkflowCache) ServerOption {
 	return func(s *Server) { s.workflows = c }
+}
+
+// WithTraceHub sets the trace event hub for dev-mode live tracing.
+// When set, every workflow execution emits trace events to connected
+// editor clients via the /ws/trace WebSocket.
+func WithTraceHub(hub *trace.EventHub) ServerOption {
+	return func(s *Server) { s.traceHub = hub }
 }
 
 // NewServer creates a Fiber app from the resolved config.

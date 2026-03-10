@@ -26,17 +26,21 @@ interface EditorState {
   // Workflows
   activeWorkflowPath: string | null;
   activeWorkflow: WorkflowConfig | null;
+  _rawWorkflow: Record<string, unknown> | null; // original JSON for round-trip
   setActiveWorkflow: (path: string | null) => void;
   loadWorkflow: (path: string) => Promise<void>;
 
   // Workflow mutations
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void;
   updateNodeServices: (nodeId: string, services: Record<string, string>) => void;
+  renameNode: (oldId: string, newId: string) => void;
+  updateNodeAlias: (nodeId: string, alias: string | undefined) => void;
   addNode: (node: WorkflowNode) => void;
   removeNode: (nodeId: string) => void;
   updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
   addEdge: (edge: WorkflowEdge) => void;
   removeEdge: (from: string, output: string, to: string) => void;
+  updateEdgeRetry: (index: number, retry: WorkflowEdge["retry"]) => void;
   setWorkflow: (wf: WorkflowConfig) => void;
 
   // History
@@ -70,6 +74,81 @@ interface EditorState {
   markClean: (path: string) => void;
 }
 
+/**
+ * Convert raw Noda workflow JSON (nodes as object map) to the editor's
+ * internal format (nodes as array). Also handles the case where nodes
+ * is already an array (e.g. after a round-trip through the editor).
+ */
+function normalizeWorkflow(raw: Record<string, unknown>): WorkflowConfig {
+  const rawNodes = raw.nodes;
+  let nodes: WorkflowNode[];
+
+  if (Array.isArray(rawNodes)) {
+    nodes = rawNodes as WorkflowNode[];
+  } else if (rawNodes && typeof rawNodes === "object") {
+    // Convert { nodeId: { type, config, ... } } → [{ id, type, config, ... }]
+    nodes = Object.entries(rawNodes as Record<string, Record<string, unknown>>).map(
+      ([id, node]) => ({
+        id,
+        type: node.type as string,
+        config: node.config as Record<string, unknown> | undefined,
+        as: node.as as string | undefined,
+        services: node.services as Record<string, string> | undefined,
+        position: node.position as { x: number; y: number } | undefined,
+      })
+    );
+  } else {
+    nodes = [];
+  }
+
+  const rawEdges = raw.edges;
+  let edges: WorkflowEdge[];
+
+  if (Array.isArray(rawEdges)) {
+    edges = (rawEdges as Record<string, unknown>[]).map((e) => ({
+      from: e.from as string,
+      output: (e.output as string) ?? "success",
+      to: e.to as string,
+      retry: e.retry as WorkflowEdge["retry"],
+    }));
+  } else {
+    edges = [];
+  }
+
+  return { nodes, edges };
+}
+
+/**
+ * Convert the editor's internal format back to the Noda JSON format
+ * (nodes as object map) for saving.
+ */
+function denormalizeWorkflow(
+  wf: WorkflowConfig,
+  original: Record<string, unknown>
+): Record<string, unknown> {
+  const nodesMap: Record<string, Record<string, unknown>> = {};
+  for (const node of wf.nodes) {
+    const entry: Record<string, unknown> = { type: node.type };
+    if (node.services && Object.keys(node.services).length > 0)
+      entry.services = node.services;
+    if (node.config && Object.keys(node.config).length > 0)
+      entry.config = node.config;
+    if (node.as) entry.as = node.as;
+    // Don't persist position into config (it's editor-only state)
+    nodesMap[node.id] = entry;
+  }
+
+  const edges = wf.edges.map((e) => {
+    const edge: Record<string, unknown> = { from: e.from, to: e.to };
+    if (e.output && e.output !== "success") edge.output = e.output;
+    if (e.retry) edge.retry = e.retry;
+    return edge;
+  });
+
+  // Preserve top-level fields from the original file (id, name, etc.)
+  return { ...original, nodes: nodesMap, edges };
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   // Navigation
   activeView: "workflows",
@@ -85,18 +164,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // Workflows
   activeWorkflowPath: null,
   activeWorkflow: null,
+  _rawWorkflow: null,
   setActiveWorkflow: (path) => {
     if (path === null) {
-      set({ activeWorkflowPath: null, activeWorkflow: null, selectedNodeId: null, selectedEdgeIndex: null });
+      set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedEdgeIndex: null });
     } else {
       get().loadWorkflow(path);
     }
   },
   loadWorkflow: async (path) => {
-    const data = (await api.readFile(path)) as WorkflowConfig;
+    const raw = (await api.readFile(path)) as Record<string, unknown>;
+    const data = normalizeWorkflow(raw);
     set({
       activeWorkflowPath: path,
       activeWorkflow: data,
+      _rawWorkflow: raw,
       selectedNodeId: null,
       selectedEdgeIndex: null,
     });
@@ -109,6 +191,38 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const nodes = activeWorkflow.nodes.map((n) =>
       n.id === nodeId ? { ...n, config } : n
+    );
+    set({ activeWorkflow: { ...activeWorkflow, nodes } });
+    get()._debounceSave();
+  },
+
+  renameNode: (oldId, newId) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath || !newId || oldId === newId) return;
+    // Check for duplicate
+    if (activeWorkflow.nodes.some((n) => n.id === newId)) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = activeWorkflow.nodes.map((n) =>
+      n.id === oldId ? { ...n, id: newId } : n
+    );
+    const edges = activeWorkflow.edges.map((e) => ({
+      ...e,
+      from: e.from === oldId ? newId : e.from,
+      to: e.to === oldId ? newId : e.to,
+    }));
+    set({
+      activeWorkflow: { ...activeWorkflow, nodes, edges },
+      selectedNodeId: newId,
+    });
+    get()._debounceSave();
+  },
+
+  updateNodeAlias: (nodeId, alias) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = activeWorkflow.nodes.map((n) =>
+      n.id === nodeId ? { ...n, as: alias } : n
     );
     set({ activeWorkflow: { ...activeWorkflow, nodes } });
     get()._debounceSave();
@@ -182,6 +296,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     get()._debounceSave();
   },
 
+  updateEdgeRetry: (index, retry) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const edges = activeWorkflow.edges.map((e, i) =>
+      i === index ? { ...e, retry } : e
+    );
+    set({ activeWorkflow: { ...activeWorkflow, edges } });
+    get()._debounceSave();
+  },
+
   setWorkflow: (wf) => {
     const { activeWorkflow, activeWorkflowPath } = get();
     if (!activeWorkflowPath) return;
@@ -240,11 +365,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ _saveTimer: timer });
   },
   saveWorkflow: async () => {
-    const { activeWorkflowPath, activeWorkflow } = get();
+    const { activeWorkflowPath, activeWorkflow, _rawWorkflow } = get();
     if (!activeWorkflowPath || !activeWorkflow) return;
     set({ saveStatus: "saving" });
     try {
-      await api.writeFile(activeWorkflowPath, activeWorkflow);
+      const payload = denormalizeWorkflow(activeWorkflow, _rawWorkflow ?? {});
+      await api.writeFile(activeWorkflowPath, payload);
       set({ saveStatus: "saved" });
       get().markClean(activeWorkflowPath);
       setTimeout(() => {

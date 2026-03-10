@@ -14,11 +14,41 @@ export function TracePanel() {
   const connectionStatus = useTraceStore((s) => s.connectionStatus);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const selectNode = useEditorStore((s) => s.selectNode);
+  const files = useEditorStore((s) => s.files);
+  const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
+  const setActiveView = useEditorStore((s) => s.setActiveView);
+  const setActiveWorkflow = useEditorStore((s) => s.setActiveWorkflow);
 
   const [tab, setTab] = useState<Tab>("executions");
   const [showErrorsOnly, setShowErrorsOnly] = useState(false);
 
   const activeExec = executions.find((e) => e.traceId === activeTraceId);
+
+  // Navigate to the execution's workflow when selecting an execution
+  const handleSelectExecution = (traceId: string) => {
+    setActiveTraceId(traceId);
+    const exec = executions.find((e) => e.traceId === traceId);
+    if (!exec) return;
+    const wfFiles = files?.workflows ?? [];
+    const match = wfFiles.find((f) => f.includes(exec.workflowId));
+    if (match && match !== activeWorkflowPath) {
+      setActiveView("workflows");
+      setActiveWorkflow(match);
+    }
+  };
+
+  // Select a node, navigating to the execution's workflow first if needed
+  const handleSelectNode = (nodeId: string) => {
+    if (activeExec) {
+      const wfFiles = files?.workflows ?? [];
+      const match = wfFiles.find((f) => f.includes(activeExec.workflowId));
+      if (match && match !== activeWorkflowPath) {
+        setActiveView("workflows");
+        setActiveWorkflow(match);
+      }
+    }
+    selectNode(nodeId);
+  };
 
   return (
     <div className="h-full flex flex-col text-sm">
@@ -54,13 +84,13 @@ export function TracePanel() {
           <ExecutionList
             executions={executions}
             activeTraceId={activeTraceId}
-            onSelect={setActiveTraceId}
+            onSelect={handleSelectExecution}
           />
         ) : (
           <NodeDetailView
             execution={activeExec}
             selectedNodeId={selectedNodeId}
-            onSelectNode={selectNode}
+            onSelectNode={handleSelectNode}
             showErrorsOnly={showErrorsOnly}
             setShowErrorsOnly={setShowErrorsOnly}
           />

@@ -292,8 +292,10 @@ func newStartCmd() *cobra.Command {
 					logger.Warn("OpenAPI generation failed", "error", err.Error())
 				}
 
-				// Serve embedded editor UI (production mode)
+				// Serve embedded editor UI and read-only API (production mode)
 				srv.RegisterEditorUI()
+				editorAPI := server.NewEditorAPIReadOnly(configDir, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services)
+				editorAPI.Register(srv.App())
 			}
 
 			// Start scheduler if configured and requested
@@ -411,7 +413,7 @@ func newDevCmd() *cobra.Command {
 			}
 
 			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler))
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
 				os.Exit(1)
@@ -465,7 +467,8 @@ func newDevCmd() *cobra.Command {
 			editorAPI := server.NewEditorAPI(configDir, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services)
 			editorAPI.Register(srv.App())
 
-			// Serve editor static files (or placeholder if not built yet)
+			// Serve editor static files: prefer local dist (for live dev),
+			// fall back to embedded assets (for Docker / production builds).
 			editorDist := filepath.Join("editor", "dist")
 			if info, err := os.Stat(editorDist); err == nil && info.IsDir() {
 				srv.App().Get("/editor/*", func(c fiber.Ctx) error {
@@ -476,12 +479,8 @@ func newDevCmd() *cobra.Command {
 					return c.SendFile(filepath.Join(editorDist, file))
 				})
 			} else {
-				srv.App().Get("/editor", func(c fiber.Ctx) error {
-					return c.SendString("Noda Visual Editor — run 'npm run build' in editor/ to enable")
-				})
-				srv.App().Get("/editor/*", func(c fiber.Ctx) error {
-					return c.SendString("Noda Visual Editor — run 'npm run build' in editor/ to enable")
-				})
+				// Use embedded editor assets
+				srv.RegisterEditorUI()
 			}
 
 			// Set up file watcher
@@ -521,7 +520,7 @@ func newDevCmd() *cobra.Command {
 
 			fmt.Printf("Noda dev server starting on port %d\n", srv.Port())
 			fmt.Println("Trace WebSocket available at /ws/trace")
-			fmt.Println("Editor placeholder at /editor")
+			fmt.Println("Editor available at /editor/")
 			return srv.Start()
 		},
 	}

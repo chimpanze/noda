@@ -29,6 +29,7 @@ function generateNodeId(nodeType: string): string {
 export function WorkflowCanvas() {
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
   const selectNode = useEditorStore((s) => s.selectNode);
+  const selectEdge = useEditorStore((s) => s.selectEdge);
   const deselectAll = useEditorStore((s) => s.deselectAll);
   const nodeTypeRegistry = useEditorStore((s) => s.nodeTypes);
   const addNode = useEditorStore((s) => s.addNode);
@@ -102,6 +103,15 @@ export function WorkflowCanvas() {
       selectNode(node.id);
     },
     [selectNode]
+  );
+
+  const onEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: Edge) => {
+      // Extract index from edge id format "e-{index}"
+      const index = parseInt(edge.id.replace("e-", ""), 10);
+      if (!isNaN(index)) selectEdge(index);
+    },
+    [selectEdge]
   );
 
   const onPaneClick = useCallback(() => {
@@ -178,6 +188,7 @@ export function WorkflowCanvas() {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         onConnect={onConnect}
         onNodeDragStop={onNodeDragStop}

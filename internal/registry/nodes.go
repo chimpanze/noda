@@ -92,6 +92,22 @@ func (r *NodeRegistry) OutputsForType(nodeType string) ([]string, bool) {
 	return executor.Outputs(), true
 }
 
+// OutputsForTypeWithConfig returns the valid outputs by creating an executor with
+// the actual node config. This is needed for config-dependent nodes like
+// control.switch whose outputs are determined by their "cases" config.
+// Implements engine.ConfigAwareResolver.
+func (r *NodeRegistry) OutputsForTypeWithConfig(nodeType string, config map[string]any) ([]string, bool) {
+	r.mu.RLock()
+	factory, ok := r.factories[nodeType]
+	r.mu.RUnlock()
+
+	if !ok {
+		return nil, false
+	}
+	executor := factory(config)
+	return executor.Outputs(), true
+}
+
 // CountByPrefix returns the number of node types registered under a prefix.
 func (r *NodeRegistry) CountByPrefix(prefix string) int {
 	return len(r.TypesByPrefix(prefix))

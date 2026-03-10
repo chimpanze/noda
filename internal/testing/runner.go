@@ -213,20 +213,20 @@ func (r *testOutputResolver) OutputsForType(nodeType string) ([]string, bool) {
 		return outputs, true
 	}
 
-	// Check core registry
-	desc, ok := r.coreReg.GetDescriptor(nodeType)
-	if ok {
-		// Use descriptor to determine outputs by creating a temporary executor
-		factory, _ := r.coreReg.GetFactory(nodeType)
-		if factory != nil {
-			exec := factory(nil)
-			return exec.Outputs(), true
-		}
-		_ = desc
+	// Delegate to core registry (which handles config-aware resolution)
+	return r.coreReg.OutputsForType(nodeType)
+}
+
+// OutputsForTypeWithConfig implements engine.ConfigAwareResolver.
+// This is needed for config-dependent core nodes like control.switch.
+func (r *testOutputResolver) OutputsForTypeWithConfig(nodeType string, config map[string]any) ([]string, bool) {
+	// Check synthetic types first (mocks don't use config)
+	if outputs, ok := r.syntheticOutputs[nodeType]; ok {
+		return outputs, true
 	}
 
-	// Default
-	return []string{"success", "error"}, true
+	// Delegate to core registry with config
+	return r.coreReg.OutputsForTypeWithConfig(nodeType, config)
 }
 
 func collectOutputs(graph *engine.CompiledGraph, execCtx *engine.ExecutionContextImpl) map[string]any {
