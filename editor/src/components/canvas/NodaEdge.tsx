@@ -4,6 +4,7 @@ import {
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
+import { useTraceStore } from "@/stores/trace";
 
 export interface NodaEdgeData {
   output: string;
@@ -18,12 +19,21 @@ export function NodaEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  source,
   data,
   selected,
 }: EdgeProps) {
   const edgeData = data as unknown as NodaEdgeData | undefined;
   const isError = edgeData?.output === "error";
   const hasRetry = edgeData?.retry != null;
+  const output = edgeData?.output ?? "success";
+
+  // Check if this edge is active during trace
+  const activeEdgeKeys = useTraceStore((s) => s.activeEdgeKeys);
+  const edgeKey = `${source}:${output}`;
+  const isActive = activeEdgeKeys.has(edgeKey);
+  const isErrorActive = isError && isActive;
+  const isSuccessActive = !isError && isActive;
 
   const [edgePath, labelX, labelY] = getBezierPath({
     sourceX,
@@ -34,16 +44,39 @@ export function NodaEdge({
     targetPosition,
   });
 
+  // Determine stroke color
+  let strokeColor = isError ? "#ef4444" : "#64748b";
+  if (isSuccessActive) strokeColor = "#22c55e";
+  if (isErrorActive) strokeColor = "#ef4444";
+
   return (
     <>
+      {/* Glow effect for active edges */}
+      {isActive && (
+        <BaseEdge
+          path={edgePath}
+          style={{
+            stroke: isErrorActive ? "#ef4444" : "#22c55e",
+            strokeWidth: 6,
+            strokeOpacity: 0.3,
+            filter: "blur(3px)",
+          }}
+        />
+      )}
       <BaseEdge
         path={edgePath}
         style={{
-          stroke: isError ? "#ef4444" : "#64748b",
-          strokeWidth: selected ? 3 : 2,
+          stroke: strokeColor,
+          strokeWidth: selected ? 3 : isActive ? 2.5 : 2,
           strokeDasharray: isError ? "6 3" : undefined,
         }}
       />
+      {/* Animated flow indicator */}
+      {isActive && (
+        <circle r="3" fill={isErrorActive ? "#ef4444" : "#22c55e"}>
+          <animateMotion dur="1s" repeatCount="indefinite" path={edgePath} />
+        </circle>
+      )}
       {hasRetry && (
         <EdgeLabelRenderer>
           <div

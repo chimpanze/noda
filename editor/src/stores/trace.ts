@@ -24,6 +24,9 @@ interface TraceState {
   getActiveExecution: () => Execution | undefined;
   getNodeState: (traceId: string, nodeId: string) => NodeExecState;
   getNodeData: (traceId: string, nodeId: string) => { output?: string; data?: unknown; error?: string; duration?: string } | undefined;
+
+  // Edge animation: set of "from:output" keys that are currently active
+  activeEdgeKeys: Set<string>;
 }
 
 export const useTraceStore = create<TraceState>((set, get) => ({
@@ -32,6 +35,7 @@ export const useTraceStore = create<TraceState>((set, get) => ({
 
   executions: [],
   activeTraceId: null,
+  activeEdgeKeys: new Set(),
   setActiveTraceId: (id) => set({ activeTraceId: id }),
 
   processEvent: (event) =>
@@ -57,14 +61,18 @@ export const useTraceStore = create<TraceState>((set, get) => ({
 
       exec.events.push(event);
 
+      const newActiveEdgeKeys = new Set(state.activeEdgeKeys);
+
       switch (event.type) {
         case "workflow:completed":
           exec.status = "completed";
           exec.duration = event.duration;
+          newActiveEdgeKeys.clear();
           break;
         case "workflow:failed":
           exec.status = "failed";
           exec.duration = event.duration;
+          newActiveEdgeKeys.clear();
           break;
         case "node:entered":
           if (event.node_id) exec.nodeStates.set(event.node_id, "running");
@@ -77,6 +85,10 @@ export const useTraceStore = create<TraceState>((set, get) => ({
               data: event.data,
               duration: event.duration,
             });
+            // Mark the outgoing edge as active for animation
+            if (event.output) {
+              newActiveEdgeKeys.add(`${event.node_id}:${event.output}`);
+            }
           }
           break;
         case "node:failed":
@@ -86,15 +98,17 @@ export const useTraceStore = create<TraceState>((set, get) => ({
               error: event.error,
               duration: event.duration,
             });
+            // Mark error edge as active
+            newActiveEdgeKeys.add(`${event.node_id}:error`);
           }
           break;
       }
 
       // Auto-activate latest execution
-      return { executions, activeTraceId: exec.traceId };
+      return { executions, activeTraceId: exec.traceId, activeEdgeKeys: newActiveEdgeKeys };
     }),
 
-  clearExecutions: () => set({ executions: [], activeTraceId: null }),
+  clearExecutions: () => set({ executions: [], activeTraceId: null, activeEdgeKeys: new Set() }),
 
   getExecution: (traceId) => get().executions.find((e) => e.traceId === traceId),
 
