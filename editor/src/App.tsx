@@ -33,12 +33,25 @@ export default function App() {
   const selectedEdgeIndex = useEditorStore((s) => s.selectedEdgeIndex);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
 
+  const dirtyFiles = useEditorStore((s) => s.dirtyFiles);
+
   useEffect(() => {
     loadFiles();
     loadNodeTypes();
     connectTrace();
     return () => disconnectTrace();
   }, [loadFiles, loadNodeTypes]);
+
+  // Warn before navigating away with unsaved changes
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (dirtyFiles.size > 0) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirtyFiles]);
 
   const { showShortcuts, closeShortcuts } = useKeyboardShortcuts();
   useValidation();
