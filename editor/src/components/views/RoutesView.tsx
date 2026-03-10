@@ -3,6 +3,7 @@ import { ExternalLink, Plus } from "lucide-react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { RouteFormPanel, type RouteConfig } from "./RouteFormPanel";
+import { TryItPanel } from "./TryItPanel";
 import { showToast } from "@/components/panels/Toast";
 
 const methodColors: Record<string, string> = {
@@ -223,15 +224,20 @@ export function RoutesView() {
       {/* Route editor */}
       <div className="flex-1 overflow-y-auto p-6">
         {editRoute ? (
-          <RouteFormPanel
-            route={editRoute}
-            workflows={files?.workflows ?? []}
-            onChange={setEditRoute}
-            onSave={handleSave}
-            onDelete={!isNew ? handleDelete : undefined}
-            saving={saving}
-            isNew={isNew}
-          />
+          <div className="max-w-3xl">
+            <RouteFormPanel
+              route={editRoute}
+              workflows={files?.workflows ?? []}
+              onChange={setEditRoute}
+              onSave={handleSave}
+              onDelete={!isNew ? handleDelete : undefined}
+              saving={saving}
+              isNew={isNew}
+            />
+            {!isNew && editRoute.path && editRoute.method && (
+              <TryItPanel route={editRoute} />
+            )}
+          </div>
         ) : (
           <div className="text-sm text-gray-400">
             Select a route to edit or click "New" to create one.
