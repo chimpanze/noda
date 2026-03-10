@@ -1,0 +1,84 @@
+{
+  "id": "test-create-task",
+  "workflow": "create-task",
+  "tests": [
+    {
+      "name": "creates task with assignee emits event",
+      "input": {
+        "workspace_id": "ws-1",
+        "project_id": "proj-1",
+        "title": "Fix login bug",
+        "description": "Users cannot log in",
+        "assignee_id": "user-2",
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "validate": {
+          "output": { "project_id": "proj-1", "title": "Fix login bug" }
+        },
+        "insert": {
+          "output": {
+            "id": "task-1",
+            "workspace_id": "ws-1",
+            "project_id": "proj-1",
+            "title": "Fix login bug",
+            "status": "todo",
+            "assignee_id": "user-2"
+          }
+        },
+        "emit_assigned": {
+          "output": { "status": "emitted" }
+        },
+        "respond_with_event": {
+          "output": { "status": 201 }
+        },
+        "respond": {
+          "output": { "status": 201 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_with_event.status": 201
+        }
+      }
+    },
+    {
+      "name": "creates task without assignee skips event",
+      "input": {
+        "workspace_id": "ws-1",
+        "project_id": "proj-1",
+        "title": "Write docs",
+        "description": "",
+        "assignee_id": "",
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "validate": {
+          "output": { "project_id": "proj-1", "title": "Write docs" }
+        },
+        "insert": {
+          "output": {
+            "id": "task-2",
+            "workspace_id": "ws-1",
+            "project_id": "proj-1",
+            "title": "Write docs",
+            "status": "todo"
+          }
+        },
+        "respond_with_event": {
+          "output": { "status": 201 }
+        },
+        "respond": {
+          "output": { "status": 201 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    }
+  ]
+}

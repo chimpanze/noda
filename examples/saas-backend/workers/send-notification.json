@@ -1,0 +1,24 @@
+{
+  "id": "send-notification-worker",
+  "services": {
+    "stream": "main-stream"
+  },
+  "subscribe": {
+    "topic": "member.invited",
+    "group": "notification-workers"
+  },
+  "concurrency": 5,
+  "retry": {
+    "max_attempts": 3,
+    "dlq": "notification-dlq"
+  },
+  "trigger": {
+    "workflow": "send-notification",
+    "input": {
+      "workspace_id": "{{ message.payload.workspace_id }}",
+      "email": "{{ message.payload.email }}",
+      "role": "{{ message.payload.role }}",
+      "invited_by": "{{ message.payload.invited_by }}"
+    }
+  }
+}

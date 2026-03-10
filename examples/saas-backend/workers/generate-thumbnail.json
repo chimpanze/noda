@@ -1,0 +1,24 @@
+{
+  "id": "generate-thumbnail-worker",
+  "services": {
+    "stream": "main-stream"
+  },
+  "subscribe": {
+    "topic": "attachment.uploaded",
+    "group": "thumbnail-workers"
+  },
+  "concurrency": 3,
+  "retry": {
+    "max_attempts": 3,
+    "dlq": "thumbnail-dlq"
+  },
+  "trigger": {
+    "workflow": "generate-thumbnail",
+    "input": {
+      "attachment_id": "{{ message.payload.attachment_id }}",
+      "workspace_id": "{{ message.payload.workspace_id }}",
+      "path": "{{ message.payload.path }}",
+      "content_type": "{{ message.payload.content_type }}"
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "id": "handle-stripe-webhook",
+  "name": "Handle Stripe Webhook",
+  "nodes": {
+    "switch_event": {
+      "type": "control.switch",
+      "config": {
+        "expression": "{{ input.event_type }}",
+        "cases": ["invoice.paid"]
+      }
+    },
+    "lookup_workspace": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT * FROM workspaces WHERE stripe_customer_id = $1",
+        "params": ["{{ input.payload.data.object.customer }}"]
+      }
+    },
+    "update_subscription": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "UPDATE workspaces SET subscription_status = 'active' WHERE stripe_customer_id = $1",
+        "params": ["{{ input.payload.data.object.customer }}"]
+      }
+    },
+    "emit_payment": {
+      "type": "event.emit",
+      "services": { "stream": "main-stream" },
+      "config": {
+        "mode": "stream",
+        "topic": "payment.received",
+        "payload": {
+          "customer_id": "{{ input.payload.data.object.customer }}",
+          "amount": "{{ input.payload.data.object.amount_paid }}"
+        }
+      }
+    },
+    "log_unknown": {
+      "type": "util.log",
+      "config": {
+        "level": "info",
+        "message": "Ignoring Stripe event: {{ input.event_type }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "status": "ok" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "switch_event", "output": "invoice.paid", "to": "lookup_workspace" },
+    { "from": "switch_event", "output": "default", "to": "log_unknown" },
+    { "from": "lookup_workspace", "to": "update_subscription" },
+    { "from": "update_subscription", "to": "emit_payment" },
+    { "from": "emit_payment", "to": "respond" },
+    { "from": "log_unknown", "to": "respond" }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "upload-attachment",
+  "method": "POST",
+  "path": "/api/workspaces/:workspace_id/projects/:project_id/attachments",
+  "summary": "Upload a file attachment to a project",
+  "tags": ["attachments"],
+  "trigger": {
+    "workflow": "upload-attachment",
+    "files": ["file"],
+    "input": {
+      "workspace_id": "{{ params.workspace_id }}",
+      "project_id": "{{ params.project_id }}",
+      "uploaded_by": "{{ auth.sub }}"
+    }
+  }
+}

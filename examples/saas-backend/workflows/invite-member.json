@@ -1,0 +1,62 @@
+{
+  "id": "invite-member",
+  "name": "Invite Member",
+  "nodes": {
+    "validate": {
+      "type": "transform.validate",
+      "config": {
+        "data": "{{ input }}",
+        "schema": { "$ref": "schemas/InviteMember" }
+      }
+    },
+    "gen_id": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "member_id": "{{ $uuid() }}"
+        }
+      }
+    },
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "workspace_members",
+        "data": {
+          "id": "{{ nodes.gen_id.member_id }}",
+          "workspace_id": "{{ input.workspace_id }}",
+          "user_id": "{{ input.email }}",
+          "email": "{{ input.email }}",
+          "role": "{{ input.role }}"
+        }
+      }
+    },
+    "emit": {
+      "type": "event.emit",
+      "services": { "stream": "main-stream" },
+      "config": {
+        "mode": "stream",
+        "topic": "member.invited",
+        "payload": {
+          "workspace_id": "{{ input.workspace_id }}",
+          "email": "{{ input.email }}",
+          "role": "{{ input.role }}",
+          "invited_by": "{{ input.invited_by }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.insert }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "validate", "to": "gen_id" },
+    { "from": "gen_id", "to": "insert" },
+    { "from": "insert", "to": "emit" },
+    { "from": "emit", "to": "respond" }
+  ]
+}

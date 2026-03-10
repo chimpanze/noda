@@ -1,0 +1,26 @@
+{
+  "id": "sync-github-issue-worker",
+  "services": {
+    "stream": "main-stream"
+  },
+  "subscribe": {
+    "topic": "github.issue",
+    "group": "github-sync-workers"
+  },
+  "concurrency": 3,
+  "retry": {
+    "max_attempts": 3,
+    "dlq": "github-sync-dlq"
+  },
+  "trigger": {
+    "workflow": "sync-github-issue",
+    "input": {
+      "action": "{{ message.payload.action }}",
+      "issue_id": "{{ message.payload.issue.id }}",
+      "title": "{{ message.payload.issue.title }}",
+      "body": "{{ message.payload.issue.body }}",
+      "workspace_id": "{{ message.payload.workspace_id }}",
+      "project_id": "{{ message.payload.project_id }}"
+    }
+  }
+}

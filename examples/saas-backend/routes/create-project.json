@@ -1,0 +1,18 @@
+{
+  "id": "create-project",
+  "method": "POST",
+  "path": "/api/workspaces/:workspace_id/projects",
+  "summary": "Create a new project in a workspace",
+  "tags": ["projects"],
+  "body": {
+    "schema": { "$ref": "schemas/CreateProject" }
+  },
+  "trigger": {
+    "workflow": "create-project",
+    "input": {
+      "workspace_id": "{{ params.workspace_id }}",
+      "name": "{{ body.name }}",
+      "description": "{{ body.description }}"
+    }
+  }
+}

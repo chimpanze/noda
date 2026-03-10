@@ -1,0 +1,14 @@
+{
+  "id": "list-workspaces",
+  "method": "GET",
+  "path": "/api/workspaces",
+  "summary": "List workspaces for the current user",
+  "tags": ["workspaces"],
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "list-workspaces",
+    "input": {
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

@@ -1,0 +1,3 @@
+services:
+  noda:
+    command: ["dev", "--config", "/app/config"]

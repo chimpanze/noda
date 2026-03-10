@@ -1,0 +1,61 @@
+{
+  "edges": [
+    {
+      "from": "validate",
+      "to": "gen_id"
+    },
+    {
+      "from": "gen_id",
+      "to": "insert"
+    },
+    {
+      "from": "insert",
+      "to": "respond"
+    }
+  ],
+  "id": "create-project",
+  "name": "Create Project",
+  "nodes": {
+    "gen_id": {
+      "config": {
+        "data": {},
+        "fields": {
+          "project_id": "{{ $uuid() }}"
+        }
+      },
+      "type": "transform.set"
+    },
+    "insert": {
+      "config": {
+        "data": {
+          "description": "{{ input.description }}",
+          "id": "{{ nodes.gen_id.project_id }}",
+          "name": "{{ input.name }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        },
+        "fields": {},
+        "table": "projects"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.create"
+    },
+    "respond": {
+      "config": {
+        "body": "{{ nodes.insert }}",
+        "status": 201
+      },
+      "type": "response.json"
+    },
+    "validate": {
+      "config": {
+        "data": "{{ input }}",
+        "schema": {
+          "$ref": "schemas/CreateProject"
+        }
+      },
+      "type": "transform.validate"
+    }
+  }
+}

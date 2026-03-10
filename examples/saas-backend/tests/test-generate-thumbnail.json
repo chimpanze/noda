@@ -1,0 +1,54 @@
+{
+  "id": "test-generate-thumbnail",
+  "workflow": "generate-thumbnail",
+  "tests": [
+    {
+      "name": "generates thumbnail for image",
+      "input": {
+        "attachment_id": "att-1",
+        "workspace_id": "ws-1",
+        "path": "ws-1/proj-1/photo.jpg",
+        "content_type": "image/jpeg"
+      },
+      "mocks": {
+        "thumbnail": {
+          "output": {
+            "path": "ws-1/proj-1/photo_thumb.jpg"
+          }
+        },
+        "update_record": {
+          "output": { "rows_affected": 1 }
+        },
+        "skip": {
+          "output": {}
+        }
+      },
+      "expect": {
+        "status": "success"
+      }
+    },
+    {
+      "name": "skips thumbnail for non-image",
+      "input": {
+        "attachment_id": "att-2",
+        "workspace_id": "ws-1",
+        "path": "ws-1/proj-1/document.pdf",
+        "content_type": "application/pdf"
+      },
+      "mocks": {
+        "thumbnail": {
+          "output": {}
+        },
+        "update_record": {
+          "output": {}
+        },
+        "skip": {
+          "output": {}
+        }
+      },
+      "expect": {
+        "status": "success"
+      }
+    }
+  ]
+}

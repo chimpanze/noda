@@ -1,0 +1,16 @@
+{
+  "id": "list-tasks",
+  "method": "GET",
+  "path": "/api/workspaces/:workspace_id/tasks",
+  "summary": "List tasks in a workspace",
+  "tags": ["tasks"],
+  "trigger": {
+    "workflow": "list-tasks",
+    "input": {
+      "workspace_id": "{{ params.workspace_id }}",
+      "project_id": "{{ query.project_id }}",
+      "page": "{{ query.page ?? '1' }}",
+      "limit": "{{ query.limit ?? '20' }}"
+    }
+  }
+}

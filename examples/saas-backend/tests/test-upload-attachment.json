@@ -1,0 +1,48 @@
+{
+  "id": "test-upload-attachment",
+  "workflow": "upload-attachment",
+  "tests": [
+    {
+      "name": "uploads file and emits event",
+      "input": {
+        "workspace_id": "ws-1",
+        "project_id": "proj-1",
+        "uploaded_by": "user-1"
+      },
+      "mocks": {
+        "upload": {
+          "output": {
+            "filename": "screenshot.png",
+            "path": "ws-1/proj-1/screenshot.png",
+            "content_type": "image/png",
+            "size": 204800
+          }
+        },
+        "insert": {
+          "output": {
+            "id": "att-1",
+            "workspace_id": "ws-1",
+            "project_id": "proj-1",
+            "filename": "screenshot.png",
+            "path": "ws-1/proj-1/screenshot.png",
+            "content_type": "image/png",
+            "size": 204800,
+            "uploaded_by": "user-1"
+          }
+        },
+        "emit": {
+          "output": { "status": "emitted" }
+        },
+        "respond": {
+          "output": { "status": 201 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    }
+  ]
+}

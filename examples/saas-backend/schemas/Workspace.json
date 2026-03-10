@@ -1,0 +1,20 @@
+{
+  "Workspace": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "name": { "type": "string" },
+      "slug": { "type": "string" },
+      "owner_id": { "type": "string" },
+      "created_at": { "type": "string" }
+    }
+  },
+  "CreateWorkspace": {
+    "type": "object",
+    "properties": {
+      "name": { "type": "string", "minLength": 1 },
+      "slug": { "type": "string", "minLength": 1, "pattern": "^[a-z0-9-]+$" }
+    },
+    "required": ["name", "slug"]
+  }
+}

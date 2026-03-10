@@ -1,0 +1,64 @@
+{
+  "id": "update-task",
+  "name": "Update Task",
+  "nodes": {
+    "lookup": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT * FROM tasks WHERE id = $1 AND workspace_id = $2",
+        "params": ["{{ input.task_id }}", "{{ input.workspace_id }}"]
+      }
+    },
+    "check": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ len(nodes.lookup) > 0 }}"
+      }
+    },
+    "update": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "UPDATE tasks SET title = COALESCE($1, title), description = COALESCE($2, description), status = COALESCE($3, status), assignee_id = COALESCE($4, assignee_id) WHERE id = $5 AND workspace_id = $6",
+        "params": [
+          "{{ input.title }}",
+          "{{ input.description }}",
+          "{{ input.status }}",
+          "{{ input.assignee_id }}",
+          "{{ input.task_id }}",
+          "{{ input.workspace_id }}"
+        ]
+      }
+    },
+    "refetch": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT * FROM tasks WHERE id = $1",
+        "params": ["{{ input.task_id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.refetch[0] }}"
+      }
+    },
+    "notfound": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "message": "Task not found"
+      }
+    }
+  },
+  "edges": [
+    { "from": "lookup", "to": "check" },
+    { "from": "check", "output": "then", "to": "update" },
+    { "from": "check", "output": "else", "to": "notfound" },
+    { "from": "update", "to": "refetch" },
+    { "from": "refetch", "to": "respond" }
+  ]
+}

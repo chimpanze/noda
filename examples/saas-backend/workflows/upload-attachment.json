@@ -1,0 +1,67 @@
+{
+  "id": "upload-attachment",
+  "name": "Upload Attachment",
+  "nodes": {
+    "upload": {
+      "type": "upload.handle",
+      "services": { "destination": "uploads" },
+      "config": {
+        "field": "file",
+        "max_size": 10485760,
+        "allowed_types": ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"]
+      }
+    },
+    "gen_id": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "attachment_id": "{{ $uuid() }}"
+        }
+      }
+    },
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "attachments",
+        "data": {
+          "id": "{{ nodes.gen_id.attachment_id }}",
+          "workspace_id": "{{ input.workspace_id }}",
+          "project_id": "{{ input.project_id }}",
+          "filename": "{{ nodes.upload.filename }}",
+          "path": "{{ nodes.upload.path }}",
+          "content_type": "{{ nodes.upload.content_type }}",
+          "size": "{{ nodes.upload.size }}",
+          "uploaded_by": "{{ input.uploaded_by }}"
+        }
+      }
+    },
+    "emit": {
+      "type": "event.emit",
+      "services": { "stream": "main-stream" },
+      "config": {
+        "mode": "stream",
+        "topic": "attachment.uploaded",
+        "payload": {
+          "attachment_id": "{{ nodes.gen_id.attachment_id }}",
+          "workspace_id": "{{ input.workspace_id }}",
+          "path": "{{ nodes.upload.path }}",
+          "content_type": "{{ nodes.upload.content_type }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.insert }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "upload", "to": "gen_id" },
+    { "from": "gen_id", "to": "insert" },
+    { "from": "insert", "to": "emit" },
+    { "from": "emit", "to": "respond" }
+  ]
+}

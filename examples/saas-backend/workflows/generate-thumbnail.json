@@ -1,0 +1,44 @@
+{
+  "id": "generate-thumbnail",
+  "name": "Generate Thumbnail",
+  "nodes": {
+    "check_image": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ input.content_type contains 'image/' }}"
+      }
+    },
+    "thumbnail": {
+      "type": "image.thumbnail",
+      "services": {
+        "source": "uploads",
+        "target": "thumbnails"
+      },
+      "config": {
+        "input_path": "{{ input.path }}",
+        "width": 200,
+        "height": 200
+      }
+    },
+    "update_record": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "UPDATE attachments SET thumbnail_path = $1 WHERE id = $2",
+        "params": ["{{ nodes.thumbnail.path }}", "{{ input.attachment_id }}"]
+      }
+    },
+    "skip": {
+      "type": "util.log",
+      "config": {
+        "level": "info",
+        "message": "Skipping thumbnail for non-image: {{ input.content_type }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "check_image", "output": "then", "to": "thumbnail" },
+    { "from": "check_image", "output": "else", "to": "skip" },
+    { "from": "thumbnail", "to": "update_record" }
+  ]
+}

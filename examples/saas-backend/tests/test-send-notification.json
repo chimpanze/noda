@@ -1,0 +1,33 @@
+{
+  "id": "test-send-notification",
+  "workflow": "send-notification",
+  "tests": [
+    {
+      "name": "sends invitation email",
+      "input": {
+        "workspace_id": "ws-1",
+        "email": "alice@example.com",
+        "role": "member",
+        "invited_by": "user-1"
+      },
+      "mocks": {
+        "load_workspace": {
+          "output": [{ "id": "ws-1", "name": "Acme Corp" }]
+        },
+        "build_email": {
+          "output": {
+            "to": "alice@example.com",
+            "subject": "You've been invited to Acme Corp",
+            "body": "You have been invited to join the workspace 'Acme Corp' as a member. Log in to accept your invitation."
+          }
+        },
+        "send": {
+          "output": { "status": "sent" }
+        }
+      },
+      "expect": {
+        "status": "success"
+      }
+    }
+  ]
+}

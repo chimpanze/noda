@@ -1,0 +1,35 @@
+{
+  "Task": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "workspace_id": { "type": "string" },
+      "project_id": { "type": "string" },
+      "title": { "type": "string" },
+      "description": { "type": "string" },
+      "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
+      "assignee_id": { "type": "string" },
+      "github_issue_id": { "type": "string" },
+      "created_at": { "type": "string" }
+    }
+  },
+  "CreateTask": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "minLength": 1 },
+      "description": { "type": "string" },
+      "project_id": { "type": "string", "minLength": 1 },
+      "assignee_id": { "type": "string" }
+    },
+    "required": ["project_id", "title"]
+  },
+  "UpdateTask": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "minLength": 1 },
+      "description": { "type": "string" },
+      "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
+      "assignee_id": { "type": "string" }
+    }
+  }
+}

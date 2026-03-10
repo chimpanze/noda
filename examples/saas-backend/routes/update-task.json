@@ -1,0 +1,21 @@
+{
+  "id": "update-task",
+  "method": "PUT",
+  "path": "/api/workspaces/:workspace_id/tasks/:task_id",
+  "summary": "Update a task",
+  "tags": ["tasks"],
+  "body": {
+    "schema": { "$ref": "schemas/UpdateTask" }
+  },
+  "trigger": {
+    "workflow": "update-task",
+    "input": {
+      "workspace_id": "{{ params.workspace_id }}",
+      "task_id": "{{ params.task_id }}",
+      "title": "{{ body.title }}",
+      "description": "{{ body.description }}",
+      "status": "{{ body.status }}",
+      "assignee_id": "{{ body.assignee_id }}"
+    }
+  }
+}

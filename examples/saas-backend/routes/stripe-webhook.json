@@ -1,0 +1,17 @@
+{
+  "id": "stripe-webhook",
+  "method": "POST",
+  "path": "/webhooks/stripe",
+  "summary": "Handle Stripe webhook events",
+  "tags": ["webhooks"],
+  "middleware": [],
+  "trigger": {
+    "workflow": "handle-stripe-webhook",
+    "raw_body": true,
+    "input": {
+      "signature": "{{ headers['Stripe-Signature'] }}",
+      "event_type": "{{ body.type }}",
+      "payload": "{{ body }}"
+    }
+  }
+}

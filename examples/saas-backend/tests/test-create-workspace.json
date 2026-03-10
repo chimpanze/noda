@@ -1,0 +1,44 @@
+{
+  "id": "test-create-workspace",
+  "workflow": "create-workspace",
+  "tests": [
+    {
+      "name": "creates workspace and owner member",
+      "input": {
+        "name": "Acme Corp",
+        "slug": "acme-corp",
+        "owner_id": "user-1"
+      },
+      "mocks": {
+        "validate": {
+          "output": { "name": "Acme Corp", "slug": "acme-corp" }
+        },
+        "insert_workspace": {
+          "output": {
+            "id": "ws-1",
+            "name": "Acme Corp",
+            "slug": "acme-corp",
+            "owner_id": "user-1"
+          }
+        },
+        "insert_member": {
+          "output": {
+            "id": "mem-1",
+            "workspace_id": "ws-1",
+            "user_id": "user-1",
+            "role": "owner"
+          }
+        },
+        "respond": {
+          "output": { "status": 201 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "id": "create-workspace",
+  "method": "POST",
+  "path": "/api/workspaces",
+  "summary": "Create a new workspace",
+  "tags": ["workspaces"],
+  "middleware": ["auth.jwt"],
+  "body": {
+    "schema": { "$ref": "schemas/CreateWorkspace" }
+  },
+  "trigger": {
+    "workflow": "create-workspace",
+    "input": {
+      "name": "{{ body.name }}",
+      "slug": "{{ body.slug }}",
+      "owner_id": "{{ auth.sub }}"
+    }
+  }
+}

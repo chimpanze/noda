@@ -1,0 +1,17 @@
+{
+  "Attachment": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "workspace_id": { "type": "string" },
+      "project_id": { "type": "string" },
+      "filename": { "type": "string" },
+      "path": { "type": "string" },
+      "content_type": { "type": "string" },
+      "size": { "type": "integer" },
+      "thumbnail_path": { "type": "string" },
+      "uploaded_by": { "type": "string" },
+      "created_at": { "type": "string" }
+    }
+  }
+}

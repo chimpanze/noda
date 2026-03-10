@@ -1,0 +1,90 @@
+{
+  "id": "test-handle-github-webhook",
+  "workflow": "handle-github-webhook",
+  "tests": [
+    {
+      "name": "handles issues event",
+      "input": {
+        "event_type": "issues",
+        "signature": "sha256=abc123",
+        "payload": { "action": "opened", "issue": { "id": 42, "title": "Bug report" } }
+      },
+      "mocks": {
+        "emit_issue": {
+          "output": { "status": "emitted" }
+        },
+        "emit_pr": {
+          "output": { "status": "emitted" }
+        },
+        "log_unknown": {
+          "output": {}
+        },
+        "respond": {
+          "output": { "status": 200 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200
+        }
+      }
+    },
+    {
+      "name": "handles pull_request event",
+      "input": {
+        "event_type": "pull_request",
+        "signature": "sha256=abc123",
+        "payload": { "action": "opened", "pull_request": { "id": 99 } }
+      },
+      "mocks": {
+        "emit_issue": {
+          "output": { "status": "emitted" }
+        },
+        "emit_pr": {
+          "output": { "status": "emitted" }
+        },
+        "log_unknown": {
+          "output": {}
+        },
+        "respond": {
+          "output": { "status": 200 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200
+        }
+      }
+    },
+    {
+      "name": "logs unknown event type",
+      "input": {
+        "event_type": "star",
+        "signature": "sha256=abc123",
+        "payload": { "action": "created" }
+      },
+      "mocks": {
+        "emit_issue": {
+          "output": { "status": "emitted" }
+        },
+        "emit_pr": {
+          "output": { "status": "emitted" }
+        },
+        "log_unknown": {
+          "output": {}
+        },
+        "respond": {
+          "output": { "status": 200 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200
+        }
+      }
+    }
+  ]
+}

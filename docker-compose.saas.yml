@@ -1,0 +1,4 @@
+services:
+  noda:
+    volumes:
+      - ./examples/saas-backend:/app/config

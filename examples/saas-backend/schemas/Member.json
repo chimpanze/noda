@@ -1,0 +1,21 @@
+{
+  "Member": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "workspace_id": { "type": "string" },
+      "user_id": { "type": "string" },
+      "email": { "type": "string" },
+      "role": { "type": "string", "enum": ["owner", "admin", "member", "viewer"] },
+      "created_at": { "type": "string" }
+    }
+  },
+  "InviteMember": {
+    "type": "object",
+    "properties": {
+      "email": { "type": "string", "format": "email" },
+      "role": { "type": "string", "enum": ["admin", "member", "viewer"] }
+    },
+    "required": ["email", "role"]
+  }
+}

@@ -1,0 +1,57 @@
+{
+  "id": "sync-github-issue",
+  "name": "Sync GitHub Issue",
+  "nodes": {
+    "switch_action": {
+      "type": "control.switch",
+      "config": {
+        "expression": "{{ input.action }}",
+        "cases": ["opened", "closed"]
+      }
+    },
+    "create_task": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "tasks",
+        "data": {
+          "workspace_id": "{{ input.workspace_id }}",
+          "project_id": "{{ input.project_id }}",
+          "title": "{{ input.title }}",
+          "description": "{{ input.body }}",
+          "github_issue_id": "{{ input.issue_id }}",
+          "status": "todo"
+        }
+      }
+    },
+    "find_task": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT * FROM tasks WHERE github_issue_id = $1",
+        "params": ["{{ input.issue_id }}"]
+      }
+    },
+    "close_task": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "UPDATE tasks SET status = 'done' WHERE github_issue_id = $1",
+        "params": ["{{ input.issue_id }}"]
+      }
+    },
+    "log_unknown": {
+      "type": "util.log",
+      "config": {
+        "level": "info",
+        "message": "Ignoring GitHub issue action: {{ input.action }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "switch_action", "output": "opened", "to": "create_task" },
+    { "from": "switch_action", "output": "closed", "to": "find_task" },
+    { "from": "switch_action", "output": "default", "to": "log_unknown" },
+    { "from": "find_task", "to": "close_task" }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "id": "list-projects",
+  "name": "List Projects",
+  "nodes": {
+    "total": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT COUNT(*) as cnt FROM projects WHERE workspace_id = $1",
+        "params": ["{{ input.workspace_id }}"]
+      }
+    },
+    "rows": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT * FROM projects WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        "params": [
+          "{{ input.workspace_id }}",
+          "{{ input.limit }}",
+          "{{ (toInt(input.page) - 1) * toInt(input.limit) }}"
+        ]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "data": "{{ nodes.rows }}",
+          "pagination": {
+            "page": "{{ input.page }}",
+            "limit": "{{ input.limit }}",
+            "total": "{{ nodes.total[0].cnt }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "total", "to": "respond" },
+    { "from": "rows", "to": "respond" }
+  ]
+}

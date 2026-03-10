@@ -1,0 +1,17 @@
+{
+  "id": "github-webhook",
+  "method": "POST",
+  "path": "/webhooks/github",
+  "summary": "Handle GitHub webhook events",
+  "tags": ["webhooks"],
+  "middleware": [],
+  "trigger": {
+    "workflow": "handle-github-webhook",
+    "raw_body": true,
+    "input": {
+      "event_type": "{{ headers['X-GitHub-Event'] }}",
+      "signature": "{{ headers['X-Hub-Signature-256'] }}",
+      "payload": "{{ body }}"
+    }
+  }
+}

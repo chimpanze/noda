@@ -1,0 +1,19 @@
+{
+  "id": "invite-member",
+  "method": "POST",
+  "path": "/api/workspaces/:workspace_id/members",
+  "summary": "Invite a member to a workspace",
+  "tags": ["members"],
+  "body": {
+    "schema": { "$ref": "schemas/InviteMember" }
+  },
+  "trigger": {
+    "workflow": "invite-member",
+    "input": {
+      "workspace_id": "{{ params.workspace_id }}",
+      "email": "{{ body.email }}",
+      "role": "{{ body.role }}",
+      "invited_by": "{{ auth.sub }}"
+    }
+  }
+}

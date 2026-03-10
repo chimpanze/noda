@@ -1,0 +1,21 @@
+{
+  "id": "create-task",
+  "method": "POST",
+  "path": "/api/workspaces/:workspace_id/tasks",
+  "summary": "Create a new task",
+  "tags": ["tasks"],
+  "body": {
+    "schema": { "$ref": "schemas/CreateTask" }
+  },
+  "trigger": {
+    "workflow": "create-task",
+    "input": {
+      "workspace_id": "{{ params.workspace_id }}",
+      "project_id": "{{ body.project_id }}",
+      "title": "{{ body.title }}",
+      "description": "{{ body.description }}",
+      "assignee_id": "{{ body.assignee_id }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}
