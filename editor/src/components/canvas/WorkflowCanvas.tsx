@@ -18,6 +18,7 @@ import { getOutputColor } from "./nodeStyles";
 import { CanvasContextMenu, type ContextMenuState } from "./CanvasContextMenu";
 import { copyNodes, pasteNodes, hasClipboard } from "@/stores/clipboard";
 import { autoLayout } from "./autoLayout";
+import { QuickAddDialog } from "./QuickAddDialog";
 
 const nodeTypes = { noda: NodaNode };
 const edgeTypes = { noda: NodaEdge };
@@ -52,6 +53,7 @@ export function WorkflowCanvas() {
   const { screenToFlowPosition } = useReactFlow();
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [quickAdd, setQuickAdd] = useState<{ x: number; y: number } | null>(null);
 
   // Build a lookup: nodeType → outputs
   const outputsByType = useMemo(() => {
@@ -211,6 +213,24 @@ export function WorkflowCanvas() {
     }
   }, [addNode, addEdge, selectNode]);
 
+  const handleQuickAdd = useCallback(
+    (nodeType: string) => {
+      if (!quickAdd) return;
+      const position = screenToFlowPosition({ x: quickAdd.x, y: quickAdd.y });
+      const existingIds = activeWorkflow?.nodes.map((n) => n.id) ?? [];
+      const newNode = {
+        id: generateNodeId(nodeType, existingIds),
+        type: nodeType,
+        position,
+        config: {},
+      };
+      addNode(newNode);
+      selectNode(newNode.id);
+      setQuickAdd(null);
+    },
+    [quickAdd, screenToFlowPosition, activeWorkflow?.nodes, addNode, selectNode]
+  );
+
   const handleAutoLayout = useCallback(async () => {
     if (!activeWorkflow) return;
     const layouted = await autoLayout(activeWorkflow);
@@ -313,6 +333,15 @@ export function WorkflowCanvas() {
         <MiniMap nodeStrokeWidth={3} pannable zoomable />
       </ReactFlow>
 
+      {quickAdd && (
+        <QuickAddDialog
+          x={quickAdd.x}
+          y={quickAdd.y}
+          onAdd={handleQuickAdd}
+          onClose={() => setQuickAdd(null)}
+        />
+      )}
+
       {contextMenu && (
         <CanvasContextMenu
           menu={contextMenu}
@@ -323,7 +352,9 @@ export function WorkflowCanvas() {
           onToggleRetry={handleToggleRetry}
           onDeleteEdge={handleDeleteEdge}
           hasRetry={getEdgeRetryState()}
-          onAddNode={() => {/* TODO: quick-add dialog (task 9) */}}
+          onAddNode={() => {
+            if (contextMenu) setQuickAdd({ x: contextMenu.x, y: contextMenu.y });
+          }}
           onPaste={handlePaste}
           onAutoLayout={handleAutoLayout}
           canPaste={hasClipboard()}
