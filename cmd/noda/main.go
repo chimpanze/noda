@@ -97,6 +97,9 @@ func newValidateCmd() *cobra.Command {
 			envFlag, _ := cmd.Flags().GetString("env")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 
+			// Load .env files before config validation
+			loadDotEnv(configDir, envFlag, nil)
+
 			if verbose {
 				info, err := config.GetValidateInfo(configDir, envFlag)
 				if err != nil {
@@ -151,6 +154,9 @@ func newTestCmd() *cobra.Command {
 			envFlag, _ := cmd.Flags().GetString("env")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			workflowFilter, _ := cmd.Flags().GetString("workflow")
+
+			// Load .env files before config validation
+			loadDotEnv(configDir, envFlag, nil)
 
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
@@ -242,6 +248,9 @@ func newStartCmd() *cobra.Command {
 				runServer = true
 				runScheduler = true
 			}
+
+			// Load .env files before config validation
+			loadDotEnv(configDir, envFlag, nil)
 
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
@@ -372,6 +381,9 @@ func newDevCmd() *cobra.Command {
 			configDir, _ := cmd.Flags().GetString("config")
 			envFlag, _ := cmd.Flags().GetString("env")
 			logger := slog.Default()
+
+			// Load .env files before config validation
+			loadDotEnv(configDir, envFlag, logger)
 
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
@@ -828,4 +840,17 @@ func newScheduleCmd() *cobra.Command {
 
 	cmd.AddCommand(statusCmd)
 	return cmd
+}
+
+// loadDotEnv loads .env files from the config directory and working directory.
+// Logs which files were loaded for transparency.
+func loadDotEnv(configDir, envFlag string, logger *slog.Logger) {
+	loaded := config.LoadDotEnv(configDir, envFlag)
+	for _, f := range loaded {
+		if logger != nil {
+			logger.Info("loaded environment file", "path", f)
+		} else {
+			fmt.Printf("Loaded environment from %s\n", f)
+		}
+	}
 }
