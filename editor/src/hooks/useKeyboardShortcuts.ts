@@ -15,6 +15,8 @@ export function useKeyboardShortcuts() {
 
   const [showShortcuts, setShowShortcuts] = useState(false);
   const closeShortcuts = useCallback(() => setShowShortcuts(false), []);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const closeCommandPalette = useCallback(() => setShowCommandPalette(false), []);
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -23,6 +25,13 @@ export function useKeyboardShortcuts() {
       // Don't intercept when typing in inputs/textareas
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+
+      // Ctrl+K — command palette
+      if (meta && e.key === "k") {
+        e.preventDefault();
+        setShowCommandPalette((prev) => !prev);
+        return;
+      }
 
       // ? — show shortcut reference
       if (e.key === "?" && !meta && !e.altKey) {
@@ -137,5 +146,5 @@ export function useKeyboardShortcuts() {
     return () => document.removeEventListener("keydown", handler);
   }, [undo, redo, saveWorkflow, deselectAll]);
 
-  return { showShortcuts, closeShortcuts };
+  return { showShortcuts, closeShortcuts, showCommandPalette, closeCommandPalette };
 }

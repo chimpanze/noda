@@ -18,6 +18,7 @@ import { SchedulesView } from "@/components/views/SchedulesView";
 import { ConnectionsView } from "@/components/views/ConnectionsView";
 import { WasmView } from "@/components/views/WasmView";
 import { ShortcutModal } from "@/components/panels/ShortcutModal";
+import { CommandPalette } from "@/components/panels/CommandPalette";
 import { ToastContainer } from "@/components/panels/Toast";
 import { ConnectionOverlay } from "@/components/panels/ConnectionOverlay";
 import { ValidationSummary } from "@/components/panels/ValidationSummary";
@@ -54,7 +55,7 @@ export default function App() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirtyFiles]);
 
-  const { showShortcuts, closeShortcuts } = useKeyboardShortcuts();
+  const { showShortcuts, closeShortcuts, showCommandPalette, closeCommandPalette } = useKeyboardShortcuts();
   useValidation();
 
   return (
@@ -129,6 +130,7 @@ export default function App() {
         </div>
       </div>
       {showShortcuts && <ShortcutModal onClose={closeShortcuts} />}
+      {showCommandPalette && <CommandPalette onClose={closeCommandPalette} />}
       <ConnectionOverlay />
       <ToastContainer />
     </ReactFlowProvider>
