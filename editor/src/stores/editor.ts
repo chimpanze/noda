@@ -49,10 +49,13 @@ interface EditorState {
 
   // Selection
   selectedNodeId: string | null;
+  selectedNodeIds: Set<string>;
   selectedEdgeIndex: number | null;
   selectNode: (id: string | null) => void;
+  setSelectedNodeIds: (ids: Set<string>) => void;
   selectEdge: (index: number | null) => void;
   deselectAll: () => void;
+  removeSelectedNodes: () => void;
 
   // Node registry
   nodeTypes: NodeDescriptor[];
@@ -167,7 +170,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   _rawWorkflow: null,
   setActiveWorkflow: (path) => {
     if (path === null) {
-      set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedEdgeIndex: null });
+      set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null });
     } else {
       get().loadWorkflow(path);
     }
@@ -180,6 +183,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       activeWorkflow: data,
       _rawWorkflow: raw,
       selectedNodeId: null,
+      selectedNodeIds: new Set(),
       selectedEdgeIndex: null,
     });
   },
@@ -256,9 +260,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const edges = activeWorkflow.edges.filter(
       (e) => e.from !== nodeId && e.to !== nodeId
     );
+    const newSelectedIds = new Set(get().selectedNodeIds);
+    newSelectedIds.delete(nodeId);
     set({
       activeWorkflow: { ...activeWorkflow, nodes, edges },
       selectedNodeId: selectedNodeId === nodeId ? null : selectedNodeId,
+      selectedNodeIds: newSelectedIds,
     });
     get()._debounceSave();
   },
@@ -338,10 +345,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   // Selection
   selectedNodeId: null,
+  selectedNodeIds: new Set(),
   selectedEdgeIndex: null,
-  selectNode: (id) => set({ selectedNodeId: id, selectedEdgeIndex: null }),
-  selectEdge: (index) => set({ selectedEdgeIndex: index, selectedNodeId: null }),
-  deselectAll: () => set({ selectedNodeId: null, selectedEdgeIndex: null }),
+  selectNode: (id) => set({
+    selectedNodeId: id,
+    selectedNodeIds: id ? new Set([id]) : new Set(),
+    selectedEdgeIndex: null,
+  }),
+  setSelectedNodeIds: (ids) => {
+    // When multiple nodes are selected, show config panel for the first one
+    const arr = Array.from(ids);
+    set({
+      selectedNodeIds: ids,
+      selectedNodeId: arr.length === 1 ? arr[0] : (arr.length > 0 ? arr[0] : null),
+      selectedEdgeIndex: null,
+    });
+  },
+  selectEdge: (index) => set({ selectedEdgeIndex: index, selectedNodeId: null, selectedNodeIds: new Set() }),
+  deselectAll: () => set({ selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null }),
+  removeSelectedNodes: () => {
+    const { activeWorkflow, activeWorkflowPath, selectedNodeIds } = get();
+    if (!activeWorkflow || !activeWorkflowPath || selectedNodeIds.size === 0) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    const nodes = activeWorkflow.nodes.filter((n) => !selectedNodeIds.has(n.id));
+    const edges = activeWorkflow.edges.filter(
+      (e) => !selectedNodeIds.has(e.from) && !selectedNodeIds.has(e.to)
+    );
+    set({
+      activeWorkflow: { ...activeWorkflow, nodes, edges },
+      selectedNodeId: null,
+      selectedNodeIds: new Set(),
+    });
+    get()._debounceSave();
+  },
 
   // Node registry
   nodeTypes: [],

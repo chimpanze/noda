@@ -8,6 +8,7 @@ import {
   type Node,
   type Edge,
   type Connection,
+  type OnSelectionChangeParams,
 } from "@xyflow/react";
 import { useEditorStore } from "@/stores/editor";
 import { NodaNode } from "./NodaNode";
@@ -43,7 +44,10 @@ export function WorkflowCanvas() {
   const nodeTypeRegistry = useEditorStore((s) => s.nodeTypes);
   const addNode = useEditorStore((s) => s.addNode);
   const addEdge = useEditorStore((s) => s.addEdge);
+  const selectedNodeIds = useEditorStore((s) => s.selectedNodeIds);
+  const setSelectedNodeIds = useEditorStore((s) => s.setSelectedNodeIds);
   const removeNode = useEditorStore((s) => s.removeNode);
+  const removeSelectedNodes = useEditorStore((s) => s.removeSelectedNodes);
   const removeEdge = useEditorStore((s) => s.removeEdge);
   const updateNodePosition = useEditorStore((s) => s.updateNodePosition);
   const updateEdgeRetry = useEditorStore((s) => s.updateEdgeRetry);
@@ -134,6 +138,15 @@ export function WorkflowCanvas() {
     setContextMenu(null);
   }, [deselectAll]);
 
+  const onSelectionChange = useCallback(
+    ({ nodes: selectedNodes }: OnSelectionChangeParams) => {
+      if (selectedNodes.length > 0) {
+        setSelectedNodeIds(new Set(selectedNodes.map((n) => n.id)));
+      }
+    },
+    [setSelectedNodeIds]
+  );
+
   // Context menu handlers
   const onNodeContextMenu = useCallback(
     (event: React.MouseEvent, node: Node) => {
@@ -162,26 +175,34 @@ export function WorkflowCanvas() {
     []
   );
 
-  // Context menu action handlers
+  // Context menu action handlers — use multi-select if available, else target node
   const handleCopyNode = useCallback(() => {
-    if (!activeWorkflow || !contextMenu?.targetId) return;
-    copyNodes(activeWorkflow.nodes, activeWorkflow.edges, new Set([contextMenu.targetId]));
-  }, [activeWorkflow, contextMenu]);
+    if (!activeWorkflow) return;
+    const ids = selectedNodeIds.size > 1 ? selectedNodeIds : contextMenu?.targetId ? new Set([contextMenu.targetId]) : new Set<string>();
+    if (ids.size === 0) return;
+    copyNodes(activeWorkflow.nodes, activeWorkflow.edges, ids);
+  }, [activeWorkflow, contextMenu, selectedNodeIds]);
 
   const handleDuplicateNode = useCallback(() => {
-    if (!activeWorkflow || !contextMenu?.targetId) return;
-    copyNodes(activeWorkflow.nodes, activeWorkflow.edges, new Set([contextMenu.targetId]));
+    if (!activeWorkflow) return;
+    const ids = selectedNodeIds.size > 1 ? selectedNodeIds : contextMenu?.targetId ? new Set([contextMenu.targetId]) : new Set<string>();
+    if (ids.size === 0) return;
+    copyNodes(activeWorkflow.nodes, activeWorkflow.edges, ids);
     const result = pasteNodes();
     if (result) {
       for (const n of result.nodes) addNode(n);
       for (const e of result.edges) addEdge(e);
       if (result.nodes.length > 0) selectNode(result.nodes[0].id);
     }
-  }, [activeWorkflow, contextMenu, addNode, addEdge, selectNode]);
+  }, [activeWorkflow, contextMenu, selectedNodeIds, addNode, addEdge, selectNode]);
 
   const handleDeleteNode = useCallback(() => {
-    if (contextMenu?.targetId) removeNode(contextMenu.targetId);
-  }, [contextMenu, removeNode]);
+    if (selectedNodeIds.size > 1) {
+      removeSelectedNodes();
+    } else if (contextMenu?.targetId) {
+      removeNode(contextMenu.targetId);
+    }
+  }, [contextMenu, selectedNodeIds, removeNode, removeSelectedNodes]);
 
   const handleToggleRetry = useCallback(() => {
     if (!contextMenu?.targetId || !activeWorkflow) return;
@@ -259,10 +280,12 @@ export function WorkflowCanvas() {
     [addEdge]
   );
 
-  // Node position update on drag end
+  // Node position update on drag end (handles single + multi-select drag)
   const onNodeDragStop = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      updateNodePosition(node.id, node.position);
+    (_: React.MouseEvent, _node: Node, nodes: Node[]) => {
+      for (const n of nodes) {
+        updateNodePosition(n.id, n.position);
+      }
     },
     [updateNodePosition]
   );
@@ -323,10 +346,12 @@ export function WorkflowCanvas() {
         onNodeDragStop={onNodeDragStop}
         onDragOver={onDragOver}
         onDrop={onDrop}
+        onSelectionChange={onSelectionChange}
+        selectionOnDrag
         fitView
         minZoom={0.1}
         maxZoom={2}
-        deleteKeyCode="Delete"
+        deleteKeyCode={null}
       >
         <Background gap={16} size={1} />
         <Controls />

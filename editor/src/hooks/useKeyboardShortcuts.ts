@@ -59,16 +59,15 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Ctrl+C — copy
+      // Ctrl+C — copy selected nodes
       if (meta && e.key === "c") {
         e.preventDefault();
         const state = useEditorStore.getState();
-        if (!state.activeWorkflow || !state.selectedNodeId) return;
-        copyNodes(
-          state.activeWorkflow.nodes,
-          state.activeWorkflow.edges,
-          new Set([state.selectedNodeId])
-        );
+        if (!state.activeWorkflow) return;
+        const ids = state.selectedNodeIds.size > 0 ? state.selectedNodeIds
+          : state.selectedNodeId ? new Set([state.selectedNodeId]) : null;
+        if (!ids || ids.size === 0) return;
+        copyNodes(state.activeWorkflow.nodes, state.activeWorkflow.edges, ids);
         return;
       }
 
@@ -110,10 +109,13 @@ export function useKeyboardShortcuts() {
         return;
       }
 
-      // Delete — remove selected
+      // Delete — remove selected node(s)
       if (e.key === "Delete" || e.key === "Backspace") {
         const state = useEditorStore.getState();
-        if (state.selectedNodeId) {
+        if (state.selectedNodeIds.size > 1) {
+          e.preventDefault();
+          state.removeSelectedNodes();
+        } else if (state.selectedNodeId) {
           e.preventDefault();
           state.removeNode(state.selectedNodeId);
         }
