@@ -12,6 +12,7 @@ import { RoutesView } from "@/components/views/RoutesView";
 import { ServicesView } from "@/components/views/ServicesView";
 import { SchemasView } from "@/components/views/SchemasView";
 import { TestsView } from "@/components/views/TestsView";
+import { WorkersView } from "@/components/views/WorkersView";
 import { ShortcutModal } from "@/components/panels/ShortcutModal";
 import { ToastContainer } from "@/components/panels/Toast";
 import { ConnectionOverlay } from "@/components/panels/ConnectionOverlay";
@@ -77,6 +78,8 @@ export default function App() {
               <SchemasView />
             ) : activeView === "tests" ? (
               <TestsView />
+            ) : activeView === "workers" ? (
+              <WorkersView />
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
                 {activeView.charAt(0).toUpperCase() + activeView.slice(1)} view
