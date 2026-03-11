@@ -64,6 +64,155 @@ func (m *mockPlugin) FunctionExists(name string) bool {
 
 func (m *mockPlugin) Close(_ context.Context) error { return nil }
 
+func TestPlugin(t *testing.T) {
+	p := &Plugin{}
+
+	assert.Equal(t, "wasm", p.Name())
+	assert.Equal(t, "wasm", p.Prefix())
+	assert.False(t, p.HasServices())
+
+	nodes := p.Nodes()
+	require.Len(t, nodes, 2)
+
+	// Verify send descriptor
+	assert.Equal(t, "send", nodes[0].Descriptor.Name())
+	sendDeps := nodes[0].Descriptor.ServiceDeps()
+	require.Contains(t, sendDeps, "runtime")
+	assert.Equal(t, "wasm", sendDeps["runtime"].Prefix)
+	assert.True(t, sendDeps["runtime"].Required)
+	sendSchema := nodes[0].Descriptor.ConfigSchema()
+	assert.Equal(t, "object", sendSchema["type"])
+	required, ok := sendSchema["required"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, required, "data")
+
+	// Verify query descriptor
+	assert.Equal(t, "query", nodes[1].Descriptor.Name())
+	queryDeps := nodes[1].Descriptor.ServiceDeps()
+	require.Contains(t, queryDeps, "runtime")
+	assert.Equal(t, "wasm", queryDeps["runtime"].Prefix)
+	assert.True(t, queryDeps["runtime"].Required)
+	querySchema := nodes[1].Descriptor.ConfigSchema()
+	assert.Equal(t, "object", querySchema["type"])
+	props, ok := querySchema["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, props, "timeout")
+
+	// Verify factory creates executors with correct outputs
+	sendExec := nodes[0].Factory(nil)
+	assert.Equal(t, []string{"success", "error"}, sendExec.Outputs())
+	queryExec := nodes[1].Factory(nil)
+	assert.Equal(t, []string{"success", "error"}, queryExec.Outputs())
+
+	// Service lifecycle methods should be no-ops
+	svc, err := p.CreateService(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, svc)
+	assert.NoError(t, p.HealthCheck(nil))
+	assert.NoError(t, p.Shutdown(nil))
+}
+
+func TestWasmSend_MissingService(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	e := newSendExecutor(nil)
+
+	// Empty services map - no "runtime" key
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"data": "hello",
+	}, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "runtime")
+}
+
+func TestWasmSend_MissingData(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	rt := wasmrt.NewRuntime(svcReg, nil, slog.Default())
+
+	plug := newMockPlugin()
+	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 20}, plug)
+	_ = rt.StartAll(context.Background())
+	defer rt.StopAll(context.Background())
+
+	time.Sleep(50 * time.Millisecond)
+
+	ws := wasmrt.NewWasmService(rt, "game")
+	services := map[string]any{"runtime": ws}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newSendExecutor(nil)
+	// Config without "data" key
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "wasm.send")
+}
+
+func TestWasmQuery_MissingService(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	e := newQueryExecutor(nil)
+
+	// Empty services map - no "runtime" key
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"data": map[string]any{"type": "get_state"},
+	}, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "runtime")
+}
+
+func TestWasmQuery_MissingData(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	rt := wasmrt.NewRuntime(svcReg, nil, slog.Default())
+
+	plug := newMockPlugin()
+	plug.exports["query"] = true
+	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plug)
+	_ = rt.StartAll(context.Background())
+	defer rt.StopAll(context.Background())
+
+	time.Sleep(50 * time.Millisecond)
+
+	ws := wasmrt.NewWasmService(rt, "game")
+	services := map[string]any{"runtime": ws}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newQueryExecutor(nil)
+	// Config without "data" key
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "wasm.query")
+}
+
+func TestWasmQuery_DefaultTimeout(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	rt := wasmrt.NewRuntime(svcReg, nil, slog.Default())
+
+	plug := newMockPlugin()
+	plug.exports["query"] = true
+	plug.responses["query"] = mockResponse{
+		data: []byte(`{"status":"ok"}`),
+	}
+	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plug)
+	_ = rt.StartAll(context.Background())
+	defer rt.StopAll(context.Background())
+
+	time.Sleep(50 * time.Millisecond)
+
+	ws := wasmrt.NewWasmService(rt, "game")
+	services := map[string]any{"runtime": ws}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newQueryExecutor(nil)
+	// No "timeout" in config - should use default "5s"
+	output, result, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"data": map[string]any{"type": "get_status"},
+	}, services)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+
+	resultMap, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "ok", resultMap["status"])
+}
+
 func TestWasmSend(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	rt := wasmrt.NewRuntime(svcReg, nil, slog.Default())

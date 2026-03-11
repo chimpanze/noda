@@ -30,3 +30,15 @@ func TestUUID_Unique(t *testing.T) {
 	_, data2, _ := executor.Execute(context.Background(), execCtx, nil, nil)
 	assert.NotEqual(t, data1, data2)
 }
+
+func TestUUID_Descriptor(t *testing.T) {
+	d := &uuidDescriptor{}
+	assert.Equal(t, "uuid", d.Name())
+	assert.Nil(t, d.ServiceDeps())
+	assert.Nil(t, d.ConfigSchema())
+}
+
+func TestUUID_Outputs(t *testing.T) {
+	executor := newUUIDExecutor(nil)
+	assert.Equal(t, []string{"success", "error"}, executor.Outputs())
+}

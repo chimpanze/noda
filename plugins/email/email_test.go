@@ -328,3 +328,328 @@ func TestSend_ReplyTo(t *testing.T) {
 	require.Len(t, mock.messages, 1)
 	assert.Contains(t, mock.messages[0].data, "Reply-To: reply@example.com")
 }
+
+// --- Plugin tests ---
+
+func TestPlugin_Name(t *testing.T) {
+	p := &Plugin{}
+	assert.Equal(t, "email", p.Name())
+}
+
+func TestPlugin_Prefix(t *testing.T) {
+	p := &Plugin{}
+	assert.Equal(t, "email", p.Prefix())
+}
+
+func TestPlugin_HasServices(t *testing.T) {
+	p := &Plugin{}
+	assert.True(t, p.HasServices())
+}
+
+func TestPlugin_Nodes(t *testing.T) {
+	p := &Plugin{}
+	nodes := p.Nodes()
+	require.Len(t, nodes, 1)
+	assert.Equal(t, "send", nodes[0].Descriptor.Name())
+}
+
+func TestPlugin_Shutdown(t *testing.T) {
+	p := &Plugin{}
+	assert.NoError(t, p.Shutdown(nil))
+}
+
+// --- CreateService tests ---
+
+func TestCreateService_Default(t *testing.T) {
+	p := &Plugin{}
+	svc, err := p.CreateService(map[string]any{
+		"host": "smtp.example.com",
+	})
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, "smtp.example.com", s.host)
+	assert.Equal(t, 587, s.port) // default port
+	assert.True(t, s.useTLS)     // default TLS
+	assert.Empty(t, s.username)
+	assert.Empty(t, s.password)
+	assert.Empty(t, s.from)
+}
+
+func TestCreateService_MissingHost(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing 'host'")
+}
+
+func TestCreateService_AllOptions(t *testing.T) {
+	p := &Plugin{}
+	svc, err := p.CreateService(map[string]any{
+		"host":     "mail.example.com",
+		"port":     float64(465),
+		"username": "user",
+		"password": "pass",
+		"from":     "sender@example.com",
+		"tls":      false,
+	})
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, "mail.example.com", s.host)
+	assert.Equal(t, 465, s.port)
+	assert.Equal(t, "user", s.username)
+	assert.Equal(t, "pass", s.password)
+	assert.Equal(t, "sender@example.com", s.from)
+	assert.False(t, s.useTLS)
+}
+
+func TestCreateService_PortAsInt(t *testing.T) {
+	p := &Plugin{}
+	svc, err := p.CreateService(map[string]any{
+		"host": "smtp.example.com",
+		"port": 25,
+	})
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, 25, s.port)
+}
+
+// --- resolveRecipients tests ---
+
+func TestResolveRecipients_MissingKey(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	result, err := resolveRecipients(execCtx, map[string]any{}, "to")
+	require.NoError(t, err)
+	assert.Nil(t, result)
+}
+
+func TestResolveRecipients_StringLiteral(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": "user@example.com",
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"user@example.com"}, result)
+}
+
+func TestResolveRecipients_StringResolvesToSliceAny(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"recipients": []any{"a@example.com", "b@example.com"},
+	}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": "{{ input.recipients }}",
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a@example.com", "b@example.com"}, result)
+}
+
+func TestResolveRecipients_StringResolvesToStringSlice(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"recipients": []string{"a@example.com", "b@example.com"},
+	}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": "{{ input.recipients }}",
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a@example.com", "b@example.com"}, result)
+}
+
+func TestResolveRecipients_StringResolvesToInvalidType(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"recipients": 42,
+	}))
+	_, err := resolveRecipients(execCtx, map[string]any{
+		"to": "{{ input.recipients }}",
+	}, "to")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected string or []string")
+}
+
+func TestResolveRecipients_SliceAny(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": []any{"a@example.com", "b@example.com"},
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a@example.com", "b@example.com"}, result)
+}
+
+func TestResolveRecipients_SliceString(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": []string{"a@example.com"},
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a@example.com"}, result)
+}
+
+func TestResolveRecipients_InvalidType(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	_, err := resolveRecipients(execCtx, map[string]any{
+		"to": 123,
+	}, "to")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid type")
+}
+
+// --- anySliceToStrings tests ---
+
+func TestAnySliceToStrings_NonStringElement(t *testing.T) {
+	_, err := anySliceToStrings([]any{"a@example.com", 42}, "to")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "non-string element")
+}
+
+func TestAnySliceToStrings_AllStrings(t *testing.T) {
+	result, err := anySliceToStrings([]any{"a@example.com", "b@example.com"}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a@example.com", "b@example.com"}, result)
+}
+
+func TestAnySliceToStrings_Empty(t *testing.T) {
+	result, err := anySliceToStrings([]any{}, "to")
+	require.NoError(t, err)
+	assert.Empty(t, result)
+}
+
+// --- Send: missing from ---
+
+func TestSend_MissingFromBothConfigAndMessage(t *testing.T) {
+	mock := newMockSMTP(t)
+	defer mock.close()
+
+	host, _, _ := net.SplitHostPort(mock.addr())
+	svc := &Service{
+		host:   host,
+		from:   "", // no default from
+		useTLS: false,
+	}
+	svc.dialFn = func() (*smtp.Client, error) {
+		conn, err := net.Dial("tcp", mock.addr())
+		if err != nil {
+			return nil, err
+		}
+		return smtp.NewClient(conn, host)
+	}
+
+	msg := &Message{
+		From:    "", // no per-message from
+		To:      []string{"user@example.com"},
+		Subject: "Test",
+		Body:    "body",
+	}
+	_, err := svc.Send(msg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing 'from' address")
+}
+
+// --- Send executor: missing from via executor ---
+
+func TestSendExecutor_MissingFromNoDefault(t *testing.T) {
+	mock := newMockSMTP(t)
+	defer mock.close()
+
+	host, _, _ := net.SplitHostPort(mock.addr())
+	svc := &Service{
+		host:   host,
+		from:   "", // no default from
+		useTLS: false,
+	}
+	svc.dialFn = func() (*smtp.Client, error) {
+		conn, err := net.Dial("tcp", mock.addr())
+		if err != nil {
+			return nil, err
+		}
+		return smtp.NewClient(conn, host)
+	}
+	services := map[string]any{"mailer": svc}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newSendExecutor(nil)
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"to":      "user@example.com",
+		"subject": "Test",
+		"body":    "test",
+	}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing 'from' address")
+}
+
+// --- Send executor: missing service ---
+
+func TestSendExecutor_MissingService(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	e := newSendExecutor(nil)
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"to":      "user@example.com",
+		"subject": "Test",
+		"body":    "test",
+	}, map[string]any{})
+	require.Error(t, err)
+}
+
+// --- Send executor: missing "to" ---
+
+func TestSendExecutor_MissingTo(t *testing.T) {
+	mock := newMockSMTP(t)
+	defer mock.close()
+
+	svc := newTestEmailService(t, mock)
+	services := map[string]any{"mailer": svc}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newSendExecutor(nil)
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"subject": "Test",
+		"body":    "test",
+	}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing required field \"to\"")
+}
+
+// --- Descriptor tests ---
+
+func TestSendDescriptor_Name(t *testing.T) {
+	d := &sendDescriptor{}
+	assert.Equal(t, "send", d.Name())
+}
+
+func TestSendDescriptor_ServiceDeps(t *testing.T) {
+	d := &sendDescriptor{}
+	deps := d.ServiceDeps()
+	require.Contains(t, deps, "mailer")
+	assert.Equal(t, "email", deps["mailer"].Prefix)
+	assert.True(t, deps["mailer"].Required)
+}
+
+func TestSendDescriptor_ConfigSchema(t *testing.T) {
+	d := &sendDescriptor{}
+	schema := d.ConfigSchema()
+	assert.Equal(t, "object", schema["type"])
+	props := schema["properties"].(map[string]any)
+	assert.Contains(t, props, "to")
+	assert.Contains(t, props, "subject")
+	assert.Contains(t, props, "body")
+}
+
+// --- SendExecutor Outputs ---
+
+func TestSendExecutor_Outputs(t *testing.T) {
+	e := newSendExecutor(nil)
+	outputs := e.Outputs()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}
+
+// --- Service SetDialFn ---
+
+func TestService_SetDialFn(t *testing.T) {
+	svc := &Service{host: "localhost", port: 25}
+	called := false
+	svc.SetDialFn(func() (*smtp.Client, error) {
+		called = true
+		return nil, fmt.Errorf("test dial")
+	})
+	_, err := svc.dial()
+	assert.True(t, called)
+	assert.Error(t, err)
+}

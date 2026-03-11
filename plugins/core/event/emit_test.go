@@ -2,6 +2,7 @@ package event
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -64,6 +65,26 @@ func (m *mockPubSubService) Publish(_ context.Context, channel string, payload a
 		payload any
 	}{channel, payload})
 	return nil
+}
+
+// failingStreamService always returns an error on Publish.
+type failingStreamService struct {
+	err error
+}
+
+func (f *failingStreamService) Publish(_ context.Context, _ string, _ any) (string, error) {
+	return "", f.err
+}
+
+func (f *failingStreamService) Ack(_ context.Context, _, _, _ string) error { return nil }
+
+// failingPubSubService always returns an error on Publish.
+type failingPubSubService struct {
+	err error
+}
+
+func (f *failingPubSubService) Publish(_ context.Context, _ string, _ any) error {
+	return f.err
 }
 
 func TestPlugin_Metadata(t *testing.T) {
@@ -176,6 +197,144 @@ func TestEmit_MissingMode(t *testing.T) {
 	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing 'mode'")
+}
+
+func TestEmit_EmptyModeString(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) { return expr, nil }}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "", "topic": "t", "payload": "p"},
+		map[string]any{},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing 'mode'")
+}
+
+func TestEmit_MissingTopic(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) { return expr, nil }}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "stream", "payload": "p"},
+		map[string]any{},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event.emit")
+	assert.Contains(t, err.Error(), "topic")
+}
+
+func TestEmit_MissingPayload(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) { return expr, nil }}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "stream", "topic": "t"},
+		map[string]any{},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event.emit")
+	assert.Contains(t, err.Error(), "payload")
+}
+
+func TestEmit_StreamPublishError(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) { return expr, nil }}
+	streamSvc := &failingStreamService{err: fmt.Errorf("connection refused")}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "stream", "topic": "t", "payload": "p"},
+		map[string]any{"stream": streamSvc},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event.emit")
+	assert.Contains(t, err.Error(), "connection refused")
+}
+
+func TestEmit_PubSubPublishError(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) { return expr, nil }}
+	pubsubSvc := &failingPubSubService{err: fmt.Errorf("publish failed")}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "pubsub", "topic": "t", "payload": "p"},
+		map[string]any{"pubsub": pubsubSvc},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event.emit")
+	assert.Contains(t, err.Error(), "publish failed")
+}
+
+func TestEmit_ConfigSchema(t *testing.T) {
+	d := &emitDescriptor{}
+	schema := d.ConfigSchema()
+
+	require.NotNil(t, schema)
+	assert.Equal(t, "object", schema["type"])
+
+	props, ok := schema["properties"].(map[string]any)
+	require.True(t, ok)
+	assert.Contains(t, props, "mode")
+	assert.Contains(t, props, "topic")
+	assert.Contains(t, props, "payload")
+
+	required, ok := schema["required"].([]any)
+	require.True(t, ok)
+	assert.Contains(t, required, "mode")
+	assert.Contains(t, required, "topic")
+	assert.Contains(t, required, "payload")
+}
+
+func TestPlugin_ServiceMethods(t *testing.T) {
+	p := &Plugin{}
+
+	svc, err := p.CreateService(nil)
+	assert.NoError(t, err)
+	assert.Nil(t, svc)
+
+	assert.NoError(t, p.HealthCheck(nil))
+	assert.NoError(t, p.Shutdown(nil))
+}
+
+func TestEmit_Outputs(t *testing.T) {
+	exec := newEmitExecutor(nil)
+	outputs := exec.Outputs()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}
+
+func TestEmit_TopicResolveError(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) {
+		return nil, fmt.Errorf("expression error")
+	}}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "stream", "topic": "{{ bad }}", "payload": "p"},
+		map[string]any{},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event.emit")
+}
+
+func TestEmit_PayloadResolveError(t *testing.T) {
+	exec := &emitExecutor{}
+	callCount := 0
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) {
+		callCount++
+		// First call resolves topic successfully, second call (payload) fails
+		if callCount == 1 {
+			return expr, nil
+		}
+		return nil, fmt.Errorf("payload resolve error")
+	}}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"mode": "stream", "topic": "t", "payload": "{{ bad_payload }}"},
+		map[string]any{},
+	)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "event.emit")
 }
 
 func TestEmit_TopicExpression(t *testing.T) {
