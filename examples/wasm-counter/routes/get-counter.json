@@ -1,0 +1,10 @@
+{
+  "id": "get-counter",
+  "method": "GET",
+  "path": "/api/counter",
+  "summary": "Get the current counter value",
+  "trigger": {
+    "workflow": "get-counter",
+    "input": {}
+  }
+}

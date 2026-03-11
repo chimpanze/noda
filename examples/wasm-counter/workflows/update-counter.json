@@ -1,0 +1,25 @@
+{
+  "id": "update-counter",
+  "name": "Send Operation to Counter",
+  "nodes": {
+    "send": {
+      "type": "wasm.send",
+      "services": { "runtime": "counter" },
+      "config": {
+        "data": {
+          "op": "{{ input.op }}",
+          "value": "{{ input.value }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "body": "{{ nodes.send }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "send", "to": "respond" }
+  ]
+}

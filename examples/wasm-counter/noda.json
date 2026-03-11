@@ -1,0 +1,12 @@
+{
+  "wasm_runtimes": {
+    "counter": {
+      "module": "wasm/counter.wasm",
+      "tick_rate": 1,
+      "encoding": "json",
+      "config": {
+        "initial_value": 0
+      }
+    }
+  }
+}

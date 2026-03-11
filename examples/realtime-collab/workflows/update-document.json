@@ -1,0 +1,51 @@
+{
+  "id": "update-document",
+  "name": "Update Document",
+  "nodes": {
+    "validate": {
+      "type": "transform.validate",
+      "config": {
+        "data": "{{ input }}",
+        "schema": { "$ref": "schemas/CreateDocument" }
+      }
+    },
+    "update": {
+      "type": "db.update",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "documents",
+        "condition": "id = ?",
+        "params": ["{{ input.doc_id }}"],
+        "data": {
+          "title": "{{ input.title }}",
+          "content": "{{ input.content }}"
+        }
+      }
+    },
+    "broadcast": {
+      "type": "ws.send",
+      "services": { "connections": "collab" },
+      "config": {
+        "channel": "doc.{{ input.doc_id }}",
+        "data": {
+          "type": "edit",
+          "user_id": "{{ input.user_id }}",
+          "title": "{{ input.title }}",
+          "content": "{{ input.content }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.update }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "validate", "to": "update" },
+    { "from": "update", "to": "broadcast" },
+    { "from": "broadcast", "to": "respond" }
+  ]
+}

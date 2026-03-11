@@ -40,7 +40,7 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, err
 	}
 
-	data, err := plugin.ResolveAny(nCtx, config, "data")
+	data, err := plugin.ResolveDeepAny(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("wasm.query: %w", err)
 	}

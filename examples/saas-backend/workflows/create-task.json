@@ -1,79 +1,105 @@
 {
+  "edges": [
+    {
+      "from": "validate",
+      "to": "gen_id"
+    },
+    {
+      "from": "gen_id",
+      "to": "insert"
+    },
+    {
+      "from": "insert",
+      "to": "check_assignee"
+    },
+    {
+      "from": "check_assignee",
+      "output": "then",
+      "to": "emit_assigned"
+    },
+    {
+      "from": "check_assignee",
+      "output": "else",
+      "to": "respond"
+    },
+    {
+      "from": "emit_assigned",
+      "to": "respond_with_event"
+    }
+  ],
   "id": "create-task",
   "name": "Create Task",
   "nodes": {
-    "validate": {
-      "type": "transform.validate",
+    "check_assignee": {
       "config": {
-        "data": "{{ input }}",
-        "schema": { "$ref": "schemas/CreateTask" }
-      }
+        "condition": "{{ input.assignee_id != nil \u0026\u0026 input.assignee_id != '' }}"
+      },
+      "type": "control.if"
+    },
+    "emit_assigned": {
+      "config": {
+        "mode": "stream",
+        "payload": {
+          "assignee_id": "{{ input.assignee_id }}",
+          "task_id": "{{ nodes.gen_id.task_id }}",
+          "title": "{{ input.title }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        },
+        "topic": "task.assigned"
+      },
+      "services": {
+        "stream": "main-stream"
+      },
+      "type": "event.emit"
     },
     "gen_id": {
-      "type": "transform.set",
       "config": {
         "fields": {
           "task_id": "{{ $uuid() }}"
         }
-      }
+      },
+      "type": "transform.set"
     },
     "insert": {
-      "type": "db.create",
-      "services": { "database": "main-db" },
       "config": {
-        "table": "tasks",
         "data": {
-          "id": "{{ nodes.gen_id.task_id }}",
-          "workspace_id": "{{ input.workspace_id }}",
-          "project_id": "{{ input.project_id }}",
-          "title": "{{ input.title }}",
+          "assignee_id": "{{ input.assignee_id }}",
           "description": "{{ input.description }}",
-          "assignee_id": "{{ input.assignee_id }}",
-          "status": "todo"
-        }
-      }
-    },
-    "check_assignee": {
-      "type": "control.if",
-      "config": {
-        "condition": "{{ input.assignee_id != nil && input.assignee_id != '' }}"
-      }
-    },
-    "emit_assigned": {
-      "type": "event.emit",
-      "services": { "stream": "main-stream" },
-      "config": {
-        "mode": "stream",
-        "topic": "task.assigned",
-        "payload": {
-          "task_id": "{{ nodes.gen_id.task_id }}",
-          "workspace_id": "{{ input.workspace_id }}",
-          "assignee_id": "{{ input.assignee_id }}",
-          "title": "{{ input.title }}"
-        }
-      }
-    },
-    "respond_with_event": {
-      "type": "response.json",
-      "config": {
-        "status": 201,
-        "body": "{{ nodes.insert }}"
-      }
+          "id": "{{ nodes.gen_id.task_id }}",
+          "project_id": "{{ input.project_id }}",
+          "status": "todo",
+          "title": "{{ input.title }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        },
+        "table": "tasks"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.create"
     },
     "respond": {
-      "type": "response.json",
       "config": {
-        "status": 201,
-        "body": "{{ nodes.insert }}"
-      }
+        "body": "{{ nodes.insert }}",
+        "status": 201
+      },
+      "type": "response.json"
+    },
+    "respond_with_event": {
+      "config": {
+        "body": "{{ nodes.insert }}",
+        "status": 201
+      },
+      "type": "response.json"
+    },
+    "validate": {
+      "config": {
+        "data": "{{ input }}",
+        "schema": {
+          "$ref": "schemas/CreateTask"
+        }
+      },
+      "type": "transform.validate"
     }
-  },
-  "edges": [
-    { "from": "validate", "to": "gen_id" },
-    { "from": "gen_id", "to": "insert" },
-    { "from": "insert", "to": "check_assignee" },
-    { "from": "check_assignee", "output": "then", "to": "emit_assigned" },
-    { "from": "check_assignee", "output": "else", "to": "respond" },
-    { "from": "emit_assigned", "to": "respond_with_event" }
-  ]
+  }
 }

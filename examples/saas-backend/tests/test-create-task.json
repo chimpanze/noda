@@ -1,84 +1,100 @@
 {
   "id": "test-create-task",
-  "workflow": "create-task",
   "tests": [
     {
-      "name": "creates task with assignee emits event",
+      "expect": {
+        "output": {
+          "respond_with_event.status": 201
+        },
+        "status": "success"
+      },
       "input": {
-        "workspace_id": "ws-1",
+        "assignee_id": "user-2",
+        "description": "Users cannot log in",
         "project_id": "proj-1",
         "title": "Fix login bug",
-        "description": "Users cannot log in",
-        "assignee_id": "user-2",
-        "user_id": "user-1"
+        "user_id": "user-1",
+        "workspace_id": "ws-1"
       },
       "mocks": {
-        "validate": {
-          "output": { "project_id": "proj-1", "title": "Fix login bug" }
+        "emit_assigned": {
+          "output": {
+            "status": "emitted"
+          }
         },
         "insert": {
           "output": {
+            "assignee_id": "user-2",
             "id": "task-1",
-            "workspace_id": "ws-1",
             "project_id": "proj-1",
-            "title": "Fix login bug",
             "status": "todo",
-            "assignee_id": "user-2"
+            "title": "Fix login bug",
+            "workspace_id": "ws-1"
           }
         },
-        "emit_assigned": {
-          "output": { "status": "emitted" }
+        "respond": {
+          "output": {
+            "status": 201
+          }
         },
         "respond_with_event": {
-          "output": { "status": 201 }
+          "output": {
+            "status": 201
+          }
         },
-        "respond": {
-          "output": { "status": 201 }
+        "validate": {
+          "output": {
+            "project_id": "proj-1",
+            "title": "Fix login bug"
+          }
         }
       },
-      "expect": {
-        "status": "success",
-        "output": {
-          "respond_with_event.status": 201
-        }
-      }
+      "name": "creates task with assignee emits event"
     },
     {
-      "name": "creates task without assignee skips event",
+      "expect": {
+        "output": {
+          "respond.status": 201
+        },
+        "status": "success"
+      },
       "input": {
-        "workspace_id": "ws-1",
+        "assignee_id": "",
+        "description": "",
         "project_id": "proj-1",
         "title": "Write docs",
-        "description": "",
-        "assignee_id": "",
-        "user_id": "user-1"
+        "user_id": "user-1",
+        "workspace_id": "ws-1"
       },
       "mocks": {
-        "validate": {
-          "output": { "project_id": "proj-1", "title": "Write docs" }
-        },
         "insert": {
           "output": {
             "id": "task-2",
-            "workspace_id": "ws-1",
             "project_id": "proj-1",
+            "status": "todo",
             "title": "Write docs",
-            "status": "todo"
+            "workspace_id": "ws-1"
+          }
+        },
+        "respond": {
+          "output": {
+            "status": 201
           }
         },
         "respond_with_event": {
-          "output": { "status": 201 }
+          "output": {
+            "status": 201
+          }
         },
-        "respond": {
-          "output": { "status": 201 }
+        "validate": {
+          "output": {
+            "project_id": "proj-1",
+            "title": "Write docs"
+          }
         }
       },
-      "expect": {
-        "status": "success",
-        "output": {
-          "respond.status": 201
-        }
-      }
+      "name": "creates task without assignee skips event"
     }
-  ]
+  ],
+  "workflow": "create-task"
 }

@@ -15,12 +15,15 @@ import (
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/devmode"
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/server"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/chimpanze/noda/internal/trace"
+	"github.com/chimpanze/noda/internal/wasm"
+	"github.com/chimpanze/noda/internal/worker"
 	"github.com/chimpanze/noda/pkg/api"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
@@ -42,13 +45,18 @@ import (
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
 	"github.com/gofiber/fiber/v3"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
-// Version is set at build time via -ldflags.
-var Version = "0.0.1-dev"
+// Build info set at build time via -ldflags.
+var (
+	Version   = "0.0.1-dev"
+	Commit    = ""
+	BuildTime = ""
+)
 
 func main() {
 	rootCmd := &cobra.Command{
@@ -69,6 +77,12 @@ func main() {
 				fmt.Printf("noda %s\n", Version)
 				fmt.Printf("go    %s\n", runtime.Version())
 				fmt.Printf("os    %s/%s\n", runtime.GOOS, runtime.GOARCH)
+				if Commit != "" {
+					fmt.Printf("commit %s\n", Commit)
+				}
+				if BuildTime != "" {
+					fmt.Printf("built  %s\n", BuildTime)
+				}
 			},
 		},
 		newValidateCmd(),
@@ -236,19 +250,22 @@ func newStartCmd() *cobra.Command {
 			configDir, _ := cmd.Flags().GetString("config")
 			envFlag, _ := cmd.Flags().GetString("env")
 			runServer, _ := cmd.Flags().GetBool("server")
+			runWorkers, _ := cmd.Flags().GetBool("workers")
 			runScheduler, _ := cmd.Flags().GetBool("scheduler")
+			runWasm, _ := cmd.Flags().GetBool("wasm")
 			runAll, _ := cmd.Flags().GetBool("all")
 			logger := slog.Default()
 
 			// Default to --all if no specific flags are set
-			if !runServer && !runScheduler {
+			if !runServer && !runWorkers && !runScheduler && !runWasm {
 				runAll = true
 			}
 			if runAll {
 				runServer = true
+				runWorkers = true
 				runScheduler = true
+				runWasm = true
 			}
-
 			// Load .env files before config validation
 			loadDotEnv(configDir, envFlag, nil)
 
@@ -307,6 +324,28 @@ func newStartCmd() *cobra.Command {
 				editorAPI.Register(srv.App())
 			}
 
+			// Start workers if configured and requested
+			var workerRuntime *worker.Runtime
+			if runWorkers && len(rc.Workers) > 0 {
+				workerConfigs := worker.ParseWorkerConfigs(rc.Workers)
+				mw := worker.DefaultMiddleware(5 * time.Minute)
+				workerRuntime = worker.NewRuntime(
+					workerConfigs,
+					bootstrap.Services,
+					bootstrap.Nodes,
+					rc.Workflows,
+					workflowCache,
+					mw,
+					bootstrap.Compiler,
+					logger,
+				)
+				if err := workerRuntime.Start(context.Background()); err != nil {
+					fmt.Fprintf(os.Stderr, "Error starting workers: %s\n", err)
+					os.Exit(1)
+				}
+				fmt.Printf("Workers started with %d consumer(s)\n", len(workerConfigs))
+			}
+
 			// Start scheduler if configured and requested
 			var schedulerRuntime *scheduler.Runtime
 			if runScheduler && len(rc.Schedules) > 0 {
@@ -332,6 +371,35 @@ func newStartCmd() *cobra.Command {
 				fmt.Printf("Scheduler started with %d job(s)\n", len(scheduleConfigs))
 			}
 
+			// Start Wasm runtimes if configured and requested
+			var wasmRuntime *wasm.Runtime
+			if runWasm {
+				wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any)
+				if len(wasmRuntimes) > 0 {
+					workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler)
+					wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
+					for name, raw := range wasmRuntimes {
+						cfg := parseWasmModuleConfig(name, raw)
+						// Resolve module path relative to config directory
+						if cfg.ModulePath != "" && !filepath.IsAbs(cfg.ModulePath) {
+							cfg.ModulePath = filepath.Join(configDir, cfg.ModulePath)
+						}
+						if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
+							fmt.Fprintf(os.Stderr, "Error loading wasm module %q: %s\n", name, err)
+							os.Exit(1)
+						}
+						// Register WasmService so wasm.send/wasm.query nodes can reference this module
+						wasmSvc := wasm.NewWasmService(wasmRuntime, name)
+						bootstrap.Services.Register(name, wasmSvc, nil)
+					}
+					if err := wasmRuntime.StartAll(context.Background()); err != nil {
+						fmt.Fprintf(os.Stderr, "Error starting wasm runtimes: %s\n", err)
+						os.Exit(1)
+					}
+					fmt.Printf("Wasm runtimes started with %d module(s)\n", len(wasmRuntimes))
+				}
+			}
+
 			// Mark ready
 			server.SetReady()
 
@@ -351,7 +419,7 @@ func newStartCmd() *cobra.Command {
 					}
 				}
 
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, nil, traceProvider)
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, workerRuntime, wasmRuntime, nil, nil, bootstrap.Services, traceProvider)
 				os.Exit(0)
 			}()
 
@@ -367,7 +435,9 @@ func newStartCmd() *cobra.Command {
 	}
 
 	cmd.Flags().Bool("server", false, "start HTTP server only")
+	cmd.Flags().Bool("workers", false, "start worker runtime only")
 	cmd.Flags().Bool("scheduler", false, "start scheduler only")
+	cmd.Flags().Bool("wasm", false, "start Wasm runtimes only")
 	cmd.Flags().Bool("all", false, "start all runtimes (default)")
 
 	return cmd
@@ -526,7 +596,7 @@ func newDevCmd() *cobra.Command {
 					}
 				}
 
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, watcher, traceProvider)
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, nil, watcher, nil, bootstrap.Services, traceProvider)
 				os.Exit(0)
 			}()
 
@@ -609,7 +679,7 @@ func newMigrateCmd() *cobra.Command {
 		Short: "Run database migrations",
 	}
 
-	cmd.Flags().String("service", "main-db", "database service name from config")
+	cmd.PersistentFlags().String("service", "main-db", "database service name from config")
 
 	createCmd := &cobra.Command{
 		Use:   "create [name]",
@@ -718,6 +788,8 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
 	envFlag, _ := cmd.Flags().GetString("env")
 	serviceName, _ := cmd.Flags().GetString("service")
 
+	loadDotEnv(configDir, envFlag, nil)
+
 	rc, errs := config.ValidateAll(configDir, envFlag)
 	if len(errs) > 0 {
 		return nil, "", fmt.Errorf("config validation failed")
@@ -734,8 +806,13 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
 		return nil, "", fmt.Errorf("service %q not found in config", serviceName)
 	}
 
+	innerConfig, _ := svcConfig["config"].(map[string]any)
+	if innerConfig == nil {
+		innerConfig = svcConfig
+	}
+
 	plugin := &dbplugin.Plugin{}
-	svc, err := plugin.CreateService(svcConfig)
+	svc, err := plugin.CreateService(innerConfig)
 	if err != nil {
 		return nil, "", fmt.Errorf("create database service: %w", err)
 	}
@@ -853,4 +930,85 @@ func loadDotEnv(configDir, envFlag string, logger *slog.Logger) {
 			fmt.Printf("Loaded environment from %s\n", f)
 		}
 	}
+}
+
+// buildWorkflowRunner creates a standalone WorkflowRunner for use outside
+// the HTTP server (e.g., by the Wasm runtime).
+func buildWorkflowRunner(
+	cache *engine.WorkflowCache,
+	services *registry.ServiceRegistry,
+	nodes *registry.NodeRegistry,
+	compiler *expr.Compiler,
+) api.WorkflowRunner {
+	return func(ctx context.Context, workflowID string, input map[string]any) error {
+		graph, ok := cache.Get(workflowID)
+		if !ok {
+			return fmt.Errorf("workflow %q not found", workflowID)
+		}
+		execCtx := engine.NewExecutionContext(
+			engine.WithInput(input),
+			engine.WithTrigger(api.TriggerData{
+				Type:    "wasm",
+				TraceID: uuid.New().String(),
+			}),
+			engine.WithWorkflowID(workflowID),
+			engine.WithCompiler(compiler),
+		)
+		return engine.ExecuteGraph(ctx, graph, execCtx, services, nodes)
+	}
+}
+
+// parseWasmModuleConfig converts a raw config map into a wasm.ModuleConfig.
+func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
+	cfg := wasm.ModuleConfig{Name: name}
+	m, ok := raw.(map[string]any)
+	if !ok {
+		return cfg
+	}
+
+	if v, ok := m["module"].(string); ok {
+		cfg.ModulePath = v
+	}
+	if v, ok := m["tick_rate"].(float64); ok {
+		cfg.TickRate = int(v)
+	}
+	if v, ok := m["encoding"].(string); ok {
+		cfg.Encoding = v
+	}
+	if v, ok := m["config"].(map[string]any); ok {
+		cfg.Config = v
+	}
+	if v, ok := m["memory_pages"].(float64); ok {
+		cfg.MemoryPages = uint32(v)
+	}
+	if v, ok := m["services"].([]any); ok {
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				cfg.Services = append(cfg.Services, str)
+			}
+		}
+	}
+	if v, ok := m["connections"].([]any); ok {
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				cfg.Connections = append(cfg.Connections, str)
+			}
+		}
+	}
+	if v, ok := m["allow_http"].([]any); ok {
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				cfg.AllowHTTP = append(cfg.AllowHTTP, str)
+			}
+		}
+	}
+	if v, ok := m["allow_ws"].([]any); ok {
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				cfg.AllowWS = append(cfg.AllowWS, str)
+			}
+		}
+	}
+
+	return cfg
 }

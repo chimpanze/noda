@@ -1,0 +1,14 @@
+{
+  "wasm_runtimes": {
+    "discord-bot": {
+      "module": "wasm/bot.wasm",
+      "tick_rate": 2,
+      "encoding": "json",
+      "config": {
+        "token": "{{ $env('DISCORD_BOT_TOKEN') }}"
+      },
+      "allow_ws": ["gateway.discord.gg"],
+      "allow_http": ["discord.com"]
+    }
+  }
+}

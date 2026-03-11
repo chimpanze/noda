@@ -1,57 +1,86 @@
 {
+  "edges": [
+    {
+      "from": "switch_action",
+      "output": "opened",
+      "to": "create_task"
+    },
+    {
+      "from": "switch_action",
+      "output": "closed",
+      "to": "find_task"
+    },
+    {
+      "from": "switch_action",
+      "output": "default",
+      "to": "log_unknown"
+    },
+    {
+      "from": "find_task",
+      "to": "close_task"
+    }
+  ],
   "id": "sync-github-issue",
   "name": "Sync GitHub Issue",
   "nodes": {
-    "switch_action": {
-      "type": "control.switch",
+    "close_task": {
       "config": {
-        "expression": "{{ input.action }}",
-        "cases": ["opened", "closed"]
-      }
+        "params": [
+          "{{ input.issue_id }}"
+        ],
+        "query": "UPDATE tasks SET status = 'done' WHERE github_issue_id = $1"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.exec"
     },
     "create_task": {
-      "type": "db.create",
-      "services": { "database": "main-db" },
       "config": {
-        "table": "tasks",
         "data": {
-          "workspace_id": "{{ input.workspace_id }}",
-          "project_id": "{{ input.project_id }}",
-          "title": "{{ input.title }}",
           "description": "{{ input.body }}",
           "github_issue_id": "{{ input.issue_id }}",
-          "status": "todo"
-        }
-      }
+          "project_id": "{{ input.project_id }}",
+          "status": "todo",
+          "title": "{{ input.title }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        },
+        "table": "tasks"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.create"
     },
     "find_task": {
-      "type": "db.query",
-      "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT * FROM tasks WHERE github_issue_id = $1",
-        "params": ["{{ input.issue_id }}"]
-      }
-    },
-    "close_task": {
-      "type": "db.exec",
-      "services": { "database": "main-db" },
-      "config": {
-        "query": "UPDATE tasks SET status = 'done' WHERE github_issue_id = $1",
-        "params": ["{{ input.issue_id }}"]
-      }
+        "params": [
+          "{{ input.issue_id }}"
+        ],
+        "query": "SELECT * FROM tasks WHERE github_issue_id = $1"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.query"
     },
     "log_unknown": {
-      "type": "util.log",
       "config": {
         "level": "info",
         "message": "Ignoring GitHub issue action: {{ input.action }}"
-      }
+      },
+      "type": "util.log"
+    },
+    "switch_action": {
+      "config": {
+        "cases": [
+          "opened",
+          "closed"
+        ],
+        "data": {},
+        "expression": "{{ input.action }}"
+      },
+      "type": "control.switch"
     }
-  },
-  "edges": [
-    { "from": "switch_action", "output": "opened", "to": "create_task" },
-    { "from": "switch_action", "output": "closed", "to": "find_task" },
-    { "from": "switch_action", "output": "default", "to": "log_unknown" },
-    { "from": "find_task", "to": "close_task" }
-  ]
+  }
 }

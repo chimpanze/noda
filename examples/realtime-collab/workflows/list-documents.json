@@ -1,0 +1,24 @@
+{
+  "id": "list-documents",
+  "name": "List Documents",
+  "nodes": {
+    "fetch": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id, title, content, owner_id, created_at, updated_at FROM documents WHERE owner_id = $1 ORDER BY created_at DESC",
+        "params": ["{{ input.owner_id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.fetch }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "fetch", "to": "respond" }
+  ]
+}

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Stoppable is something that can be stopped gracefully.
+// Stoppable is something that can be stopped gracefully (e.g., scheduler).
 type Stoppable interface {
 	Stop()
 }
@@ -26,19 +26,29 @@ type TraceShutdownable interface {
 	Shutdown(ctx context.Context) error
 }
 
+// ServiceShutdownable shuts down all services (e.g., DB, Redis connections).
+type ServiceShutdownable interface {
+	ShutdownAll() []error
+}
+
 // ShutdownSequence performs ordered graceful shutdown of all components.
+// Order: server → workers → scheduler → wasm → watcher → services → tracer
 func ShutdownSequence(
 	logger *slog.Logger,
 	deadline time.Duration,
 	server Shutdownable,
 	scheduler Stoppable,
+	workers Stoppable,
 	wasm ContextStoppable,
 	watcher *Watcher,
+	connMgr Stoppable,
+	services ServiceShutdownable,
 	tracer TraceShutdownable,
 ) {
 	ctx, cancel := context.WithTimeout(context.Background(), deadline)
 	defer cancel()
 
+	// 1. Stop accepting new connections
 	logger.Info("shutdown: stopping HTTP server")
 	if server != nil {
 		if err := server.Stop(); err != nil {
@@ -46,21 +56,47 @@ func ShutdownSequence(
 		}
 	}
 
+	// 2. Stop workers (drains in-flight messages)
+	logger.Info("shutdown: stopping workers")
+	if workers != nil {
+		workers.Stop()
+	}
+
+	// 3. Stop scheduler
 	logger.Info("shutdown: stopping scheduler")
 	if scheduler != nil {
 		scheduler.Stop()
 	}
 
-	logger.Info("shutdown: stopping wasm runtime")
+	// 4. Stop Wasm runtimes (calls shutdown on each module)
+	logger.Info("shutdown: stopping wasm runtimes")
 	if wasm != nil {
 		wasm.StopAll(ctx)
 	}
 
-	logger.Info("shutdown: stopping file watcher")
+	// 5. Stop file watcher (dev mode only)
 	if watcher != nil {
+		logger.Info("shutdown: stopping file watcher")
 		watcher.Stop()
 	}
 
+	// 6. Close WebSocket/SSE connections
+	if connMgr != nil {
+		logger.Info("shutdown: closing connections")
+		connMgr.Stop()
+	}
+
+	// 7. Close service connections (DB, Redis, storage)
+	if services != nil {
+		logger.Info("shutdown: closing services")
+		if errs := services.ShutdownAll(); len(errs) > 0 {
+			for _, err := range errs {
+				logger.Error("shutdown: service error", "error", err.Error())
+			}
+		}
+	}
+
+	// 8. Flush telemetry
 	logger.Info("shutdown: flushing telemetry")
 	if tracer != nil {
 		if err := tracer.Shutdown(ctx); err != nil {

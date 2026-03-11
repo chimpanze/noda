@@ -3,15 +3,16 @@
   "method": "POST",
   "path": "/webhooks/stripe",
   "summary": "Handle Stripe webhook events",
-  "tags": ["webhooks"],
-  "middleware": [],
+  "tags": [
+    "webhooks"
+  ],
   "trigger": {
-    "workflow": "handle-stripe-webhook",
-    "raw_body": true,
     "input": {
-      "signature": "{{ headers['Stripe-Signature'] }}",
       "event_type": "{{ body.type }}",
-      "payload": "{{ body }}"
-    }
+      "payload": "{{ body }}",
+      "signature": "{{ headers['Stripe-Signature'] }}"
+    },
+    "raw_body": true,
+    "workflow": "handle-stripe-webhook"
   }
 }

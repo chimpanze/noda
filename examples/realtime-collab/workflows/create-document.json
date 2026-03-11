@@ -1,0 +1,46 @@
+{
+  "id": "create-document",
+  "name": "Create Document",
+  "nodes": {
+    "validate": {
+      "type": "transform.validate",
+      "config": {
+        "data": "{{ input }}",
+        "schema": { "$ref": "schemas/CreateDocument" }
+      }
+    },
+    "gen_id": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "doc_id": "{{ $uuid() }}"
+        }
+      }
+    },
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "documents",
+        "data": {
+          "id": "{{ nodes.gen_id.doc_id }}",
+          "title": "{{ input.title }}",
+          "content": "{{ input.content }}",
+          "owner_id": "{{ input.owner_id }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.insert }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "validate", "to": "gen_id" },
+    { "from": "gen_id", "to": "insert" },
+    { "from": "insert", "to": "respond" }
+  ]
+}

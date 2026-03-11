@@ -1,26 +1,33 @@
 {
+  "edges": [
+    {
+      "from": "rows",
+      "to": "respond"
+    }
+  ],
   "id": "list-workspaces",
   "name": "List Workspaces",
   "nodes": {
-    "rows": {
-      "type": "db.query",
-      "services": { "database": "main-db" },
-      "config": {
-        "query": "SELECT w.* FROM workspaces w INNER JOIN workspace_members wm ON w.id = wm.workspace_id WHERE wm.user_id = $1 ORDER BY w.created_at DESC",
-        "params": ["{{ input.user_id }}"]
-      }
-    },
     "respond": {
-      "type": "response.json",
       "config": {
-        "status": 200,
         "body": {
           "data": "{{ nodes.rows }}"
-        }
-      }
+        },
+        "status": 200
+      },
+      "type": "response.json"
+    },
+    "rows": {
+      "config": {
+        "params": [
+          "{{ input.user_id }}"
+        ],
+        "query": "SELECT w.* FROM workspaces w INNER JOIN workspace_members wm ON w.id = wm.workspace_id WHERE wm.user_id = $1 ORDER BY w.created_at DESC"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.query"
     }
-  },
-  "edges": [
-    { "from": "rows", "to": "respond" }
-  ]
+  }
 }

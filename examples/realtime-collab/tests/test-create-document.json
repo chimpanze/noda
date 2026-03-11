@@ -1,0 +1,23 @@
+{
+  "id": "test-create-document",
+  "workflow": "create-document",
+  "tests": [
+    {
+      "name": "creates document successfully",
+      "input": {
+        "title": "My Document",
+        "content": "Hello world",
+        "owner_id": "user-1"
+      },
+      "mocks": {
+        "validate": { "output": { "title": "My Document" } },
+        "insert": { "output": { "id": "doc-1", "title": "My Document", "content": "Hello world", "owner_id": "user-1" } },
+        "respond": { "output": { "status": 201 } }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond.status": 201 }
+      }
+    }
+  ]
+}

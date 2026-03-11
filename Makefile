@@ -8,7 +8,11 @@ build-editor:
 	cp -r editor/dist editorfs/dist
 
 build-go:
-	go build -tags embed_editor -o dist/noda ./cmd/noda
+	go build -tags embed_editor -ldflags "\
+		-X main.Version=$$(git describe --tags --always --dirty 2>/dev/null || echo 0.0.1-dev) \
+		-X main.Commit=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
+		-X main.BuildTime=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+		-o dist/noda ./cmd/noda
 
 test:
 	go test ./... -race -count=1

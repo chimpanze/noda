@@ -2,6 +2,7 @@ package connmgr
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"strings"
 	"time"
@@ -67,11 +68,21 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner api.WorkflowR
 }
 
 // Register sets up the WebSocket route on the Fiber app.
-func (h *WebSocketHandler) Register(app *fiber.App) {
-	app.Get(h.config.Path, websocket.New(h.handleConnection, websocket.Config{
+// Middleware handlers (e.g., auth) run before the WebSocket upgrade.
+func (h *WebSocketHandler) Register(app *fiber.App, middleware ...fiber.Handler) {
+	wsHandler := websocket.New(h.handleConnection, websocket.Config{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
-	}))
+	})
+
+	// Build handler chain: middleware first, then WebSocket handler
+	handlers := make([]any, 0, len(middleware)+1)
+	for _, mw := range middleware {
+		handlers = append(handlers, mw)
+	}
+	handlers = append(handlers, wsHandler)
+
+	app.Get(h.config.Path, handlers[0], handlers[1:]...)
 }
 
 // handleConnection is the Fiber WebSocket handler callback.
@@ -150,7 +161,7 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 
 		if h.config.OnMessage != "" && h.runner != nil {
 			input := h.buildInput(conn)
-			input["message"] = string(msg)
+			input["data"] = parseJSONMessage(msg)
 			go func() {
 				if err := h.runner(context.Background(), h.config.OnMessage, input); err != nil {
 					h.logger.Error("on_message workflow failed", "workflow", h.config.OnMessage, "error", err)
@@ -204,6 +215,16 @@ func extractParamNamesFromPath(path string) []string {
 		}
 	}
 	return names
+}
+
+// parseJSONMessage attempts to parse a WebSocket message as JSON.
+// Returns the parsed map if valid JSON, otherwise returns the raw string.
+func parseJSONMessage(msg []byte) any {
+	var parsed map[string]any
+	if err := json.Unmarshal(msg, &parsed); err == nil {
+		return parsed
+	}
+	return string(msg)
 }
 
 // fiberLocal extracts a local value from the WebSocket connection.

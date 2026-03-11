@@ -1,67 +1,96 @@
 {
+  "edges": [
+    {
+      "from": "upload",
+      "to": "gen_id"
+    },
+    {
+      "from": "gen_id",
+      "to": "insert"
+    },
+    {
+      "from": "insert",
+      "to": "emit"
+    },
+    {
+      "from": "emit",
+      "to": "respond"
+    }
+  ],
   "id": "upload-attachment",
   "name": "Upload Attachment",
   "nodes": {
-    "upload": {
-      "type": "upload.handle",
-      "services": { "destination": "uploads" },
+    "emit": {
       "config": {
-        "field": "file",
-        "max_size": 10485760,
-        "allowed_types": ["image/jpeg", "image/png", "image/gif", "image/webp", "application/pdf"]
-      }
+        "data": {},
+        "mode": "stream",
+        "payload": {
+          "attachment_id": "{{ nodes.gen_id.attachment_id }}",
+          "content_type": "{{ nodes.upload.content_type }}",
+          "path": "{{ nodes.upload.path }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        },
+        "topic": "attachment.uploaded"
+      },
+      "services": {
+        "stream": "main-stream"
+      },
+      "type": "event.emit"
     },
     "gen_id": {
-      "type": "transform.set",
       "config": {
+        "allowed_types": [],
         "fields": {
           "attachment_id": "{{ $uuid() }}"
         }
-      }
+      },
+      "type": "transform.set"
     },
     "insert": {
-      "type": "db.create",
-      "services": { "database": "main-db" },
       "config": {
-        "table": "attachments",
         "data": {
-          "id": "{{ nodes.gen_id.attachment_id }}",
-          "workspace_id": "{{ input.workspace_id }}",
-          "project_id": "{{ input.project_id }}",
-          "filename": "{{ nodes.upload.filename }}",
-          "path": "{{ nodes.upload.path }}",
           "content_type": "{{ nodes.upload.content_type }}",
-          "size": "{{ nodes.upload.size }}",
-          "uploaded_by": "{{ input.uploaded_by }}"
-        }
-      }
-    },
-    "emit": {
-      "type": "event.emit",
-      "services": { "stream": "main-stream" },
-      "config": {
-        "mode": "stream",
-        "topic": "attachment.uploaded",
-        "payload": {
-          "attachment_id": "{{ nodes.gen_id.attachment_id }}",
-          "workspace_id": "{{ input.workspace_id }}",
+          "filename": "{{ nodes.upload.filename }}",
+          "id": "{{ nodes.gen_id.attachment_id }}",
           "path": "{{ nodes.upload.path }}",
-          "content_type": "{{ nodes.upload.content_type }}"
-        }
-      }
+          "project_id": "{{ input.project_id }}",
+          "size": "{{ nodes.upload.size }}",
+          "uploaded_by": "{{ input.uploaded_by }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        },
+        "fields": {},
+        "table": "attachments"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.create"
     },
     "respond": {
-      "type": "response.json",
       "config": {
-        "status": 201,
-        "body": "{{ nodes.insert }}"
-      }
+        "body": "{{ nodes.insert }}",
+        "data": {},
+        "status": 201
+      },
+      "type": "response.json"
+    },
+    "upload": {
+      "config": {
+        "allowed_types": [
+          "image/jpeg",
+          "image/png",
+          "image/gif",
+          "image/webp",
+          "application/pdf"
+        ],
+        "data": {},
+        "field": "file",
+        "max_size": 10485760
+      },
+      "services": {
+        "destination": "uploads"
+      },
+      "type": "upload.handle"
     }
-  },
-  "edges": [
-    { "from": "upload", "to": "gen_id" },
-    { "from": "gen_id", "to": "insert" },
-    { "from": "insert", "to": "emit" },
-    { "from": "emit", "to": "respond" }
-  ]
+  }
 }

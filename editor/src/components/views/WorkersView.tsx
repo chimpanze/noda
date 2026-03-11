@@ -425,7 +425,7 @@ function KeyValueEditor({
                 for (const [k, v] of pairs) next[k === key ? e.target.value : k] = v;
                 onChange(next);
               }}
-              className="w-1/3 input-field font-mono"
+              className="shrink-0 input-field !w-1/3 font-mono"
               placeholder="key"
             />
             <span className="text-gray-400 text-xs">:</span>
@@ -433,7 +433,7 @@ function KeyValueEditor({
               type="text"
               value={val}
               onChange={(e) => onChange({ ...entries, [key]: e.target.value })}
-              className="flex-1 input-field font-mono"
+              className="flex-1 min-w-0 input-field !w-auto font-mono"
               placeholder="{{ message.payload.field }}"
             />
             <button

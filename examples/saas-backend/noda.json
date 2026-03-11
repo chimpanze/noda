@@ -1,75 +1,133 @@
 {
-  "services": {
-    "main-db": {
-      "plugin": "postgres",
-      "config": {
-        "url": "{{ $env('DATABASE_URL') }}"
-      }
-    },
-    "app-cache": {
-      "plugin": "cache",
-      "config": {
-        "url": "{{ $env('REDIS_URL') }}"
-      }
-    },
-    "main-stream": {
-      "plugin": "stream",
-      "config": {
-        "url": "{{ $env('REDIS_URL') }}"
-      }
-    },
-    "uploads": {
-      "plugin": "storage",
-      "config": {
-        "backend": "local",
-        "path": "./uploads"
-      }
-    },
-    "thumbnails": {
-      "plugin": "storage",
-      "config": {
-        "backend": "local",
-        "path": "./thumbnails"
-      }
-    },
-    "mailer": {
-      "plugin": "email",
-      "config": {
-        "host": "{{ $env('SMTP_HOST') }}",
-        "port": "{{ $env('SMTP_PORT') }}",
-        "from": "{{ $env('SMTP_FROM') }}"
-      }
-    }
-  },
-  "security": {
-    "jwt": {
-      "secret": "{{ $env('JWT_SECRET') }}",
-      "algorithm": "HS256",
-      "token_lookup": "header:Authorization"
-    },
-    "casbin": {
-      "model": "[request_definition]\nr = sub, dom, obj, act\n\n[policy_definition]\np = sub, dom, obj, act\n\n[role_definition]\ng = _, _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub, r.dom) && keyMatch2(r.obj, p.obj) && (r.act == p.act || p.act == \"*\")",
-      "policies": [
-        ["p", "owner", "*", "/*", "*"],
-        ["p", "admin", "*", "/projects/*", "*"],
-        ["p", "admin", "*", "/tasks/*", "*"],
-        ["p", "admin", "*", "/members/*", "GET"],
-        ["p", "admin", "*", "/members/*", "POST"],
-        ["p", "member", "*", "/projects/*", "GET"],
-        ["p", "member", "*", "/tasks/*", "*"],
-        ["p", "viewer", "*", "/projects/*", "GET"],
-        ["p", "viewer", "*", "/tasks/*", "GET"]
-      ],
-      "tenant_param": "workspace_id"
-    }
-  },
   "middleware_presets": {
-    "authenticated": ["auth.jwt"],
-    "workspace_auth": ["auth.jwt"]
+    "authenticated": [
+      "auth.jwt"
+    ],
+    "workspace_auth": [
+      "auth.jwt"
+    ]
   },
   "route_groups": {
     "/api/workspaces/:workspace_id": {
       "middleware_preset": "workspace_auth"
+    }
+  },
+  "security": {
+    "casbin": {
+      "model": "[request_definition]\nr = sub, dom, obj, act\n\n[policy_definition]\np = sub, dom, obj, act\n\n[role_definition]\ng = _, _, _\n\n[policy_effect]\ne = some(where (p.eft == allow))\n\n[matchers]\nm = g(r.sub, p.sub, r.dom) \u0026\u0026 keyMatch2(r.obj, p.obj) \u0026\u0026 (r.act == p.act || p.act == \"*\")",
+      "policies": [
+        [
+          "p",
+          "owner",
+          "*",
+          "/*",
+          "*"
+        ],
+        [
+          "p",
+          "admin",
+          "*",
+          "/projects/*",
+          "*"
+        ],
+        [
+          "p",
+          "admin",
+          "*",
+          "/tasks/*",
+          "*"
+        ],
+        [
+          "p",
+          "admin",
+          "*",
+          "/members/*",
+          "GET"
+        ],
+        [
+          "p",
+          "admin",
+          "*",
+          "/members/*",
+          "POST"
+        ],
+        [
+          "p",
+          "member",
+          "*",
+          "/projects/*",
+          "GET"
+        ],
+        [
+          "p",
+          "member",
+          "*",
+          "/tasks/*",
+          "*"
+        ],
+        [
+          "p",
+          "viewer",
+          "*",
+          "/projects/*",
+          "GET"
+        ],
+        [
+          "p",
+          "viewer",
+          "*",
+          "/tasks/*",
+          "GET"
+        ]
+      ],
+      "tenant_param": "workspace_id"
+    },
+    "jwt": {
+      "algorithm": "HS256",
+      "secret": "{{ $env('JWT_SECRET') }}",
+      "token_lookup": "header:Authorization"
+    }
+  },
+  "services": {
+    "app-cache": {
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      },
+      "plugin": "cache"
+    },
+    "mailer": {
+      "config": {
+        "from": "{{ $env('SMTP_FROM') }}",
+        "host": "{{ $env('SMTP_HOST') }}",
+        "port": "{{ $env('SMTP_PORT') }}"
+      },
+      "plugin": "email"
+    },
+    "main-db": {
+      "config": {
+        "url": "{{ $env('DATABASE_URL') }}"
+      },
+      "plugin": "postgres"
+    },
+    "main-stream": {
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      },
+      "plugin": "stream"
+    },
+    "thumbnails": {
+      "config": {
+        "backend": "local",
+        "path": "./thumbnails"
+      },
+      "plugin": "storage"
+    },
+    "uploads": {
+      "config": {
+        "backend": "local",
+        "path": "./uploads"
+      },
+      "plugin": "storage"
     }
   }
 }

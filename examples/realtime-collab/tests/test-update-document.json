@@ -1,0 +1,25 @@
+{
+  "id": "test-update-document",
+  "workflow": "update-document",
+  "tests": [
+    {
+      "name": "updates document and broadcasts via WebSocket",
+      "input": {
+        "doc_id": "doc-1",
+        "title": "Updated Title",
+        "content": "New content",
+        "user_id": "user-1"
+      },
+      "mocks": {
+        "validate": { "output": { "title": "Updated Title" } },
+        "update": { "output": { "id": "doc-1", "title": "Updated Title" } },
+        "broadcast": { "output": { "channel": "doc.doc-1" } },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond.status": 200 }
+      }
+    }
+  ]
+}

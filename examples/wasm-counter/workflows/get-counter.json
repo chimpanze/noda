@@ -1,0 +1,23 @@
+{
+  "id": "get-counter",
+  "name": "Query Counter Value",
+  "nodes": {
+    "query": {
+      "type": "wasm.query",
+      "services": { "runtime": "counter" },
+      "config": {
+        "data": { "type": "get_value" },
+        "timeout": "5s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "body": "{{ nodes.query }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "query", "to": "respond" }
+  ]
+}

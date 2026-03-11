@@ -1,53 +1,84 @@
 {
+  "edges": [
+    {
+      "from": "switch_event",
+      "output": "issues",
+      "to": "emit_issue"
+    },
+    {
+      "from": "switch_event",
+      "output": "pull_request",
+      "to": "emit_pr"
+    },
+    {
+      "from": "switch_event",
+      "output": "default",
+      "to": "log_unknown"
+    },
+    {
+      "from": "emit_issue",
+      "to": "respond"
+    },
+    {
+      "from": "emit_pr",
+      "to": "respond"
+    },
+    {
+      "from": "log_unknown",
+      "to": "respond"
+    }
+  ],
   "id": "handle-github-webhook",
   "name": "Handle GitHub Webhook",
   "nodes": {
-    "switch_event": {
-      "type": "control.switch",
-      "config": {
-        "expression": "{{ input.event_type }}",
-        "cases": ["issues", "pull_request"]
-      }
-    },
     "emit_issue": {
-      "type": "event.emit",
-      "services": { "stream": "main-stream" },
       "config": {
         "mode": "stream",
-        "topic": "github.issue",
-        "payload": "{{ input.payload }}"
-      }
+        "payload": "{{ input.payload }}",
+        "topic": "github.issue"
+      },
+      "services": {
+        "stream": "main-stream"
+      },
+      "type": "event.emit"
     },
     "emit_pr": {
-      "type": "event.emit",
-      "services": { "stream": "main-stream" },
       "config": {
+        "cases": [],
         "mode": "stream",
-        "topic": "github.pr",
-        "payload": "{{ input.payload }}"
-      }
+        "payload": "{{ input.payload }}",
+        "topic": "github.pr"
+      },
+      "services": {
+        "stream": "main-stream"
+      },
+      "type": "event.emit"
     },
     "log_unknown": {
-      "type": "util.log",
       "config": {
         "level": "info",
         "message": "Ignoring unknown GitHub event: {{ input.event_type }}"
-      }
+      },
+      "type": "util.log"
     },
     "respond": {
-      "type": "response.json",
       "config": {
-        "status": 200,
-        "body": { "status": "ok" }
-      }
+        "body": {
+          "status": "ok"
+        },
+        "status": 200
+      },
+      "type": "response.json"
+    },
+    "switch_event": {
+      "config": {
+        "cases": [
+          "issues",
+          "pull_request"
+        ],
+        "expression": "{{ input.event_type }}"
+      },
+      "type": "control.switch"
     }
-  },
-  "edges": [
-    { "from": "switch_event", "output": "issues", "to": "emit_issue" },
-    { "from": "switch_event", "output": "pull_request", "to": "emit_pr" },
-    { "from": "switch_event", "output": "default", "to": "log_unknown" },
-    { "from": "emit_issue", "to": "respond" },
-    { "from": "emit_pr", "to": "respond" },
-    { "from": "log_unknown", "to": "respond" }
-  ]
+  }
 }

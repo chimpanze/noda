@@ -1,0 +1,15 @@
+{
+  "id": "get-document",
+  "method": "GET",
+  "path": "/api/documents/:id",
+  "summary": "Get a document by ID",
+  "tags": ["documents"],
+  "middleware_preset": "authenticated",
+  "trigger": {
+    "workflow": "get-document",
+    "input": {
+      "doc_id": "{{ params.id }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

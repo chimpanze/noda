@@ -1,0 +1,39 @@
+{
+  "id": "test-ws-on-connect",
+  "workflow": "ws-on-connect",
+  "tests": [
+    {
+      "name": "user joins document and presence is broadcast",
+      "input": {
+        "params": { "doc_id": "doc-1" },
+        "user_id": "user-1",
+        "channel": "doc.doc-1"
+      },
+      "mocks": {
+        "fetch_doc": { "output": [{ "id": "doc-1" }] },
+        "set_presence": { "output": { "ok": true } },
+        "broadcast_joined": { "output": { "channel": "doc.doc-1" } }
+      },
+      "expect": {
+        "status": "success"
+      }
+    },
+    {
+      "name": "document not found ends workflow without broadcast",
+      "input": {
+        "params": { "doc_id": "nonexistent" },
+        "user_id": "user-1",
+        "channel": "doc.nonexistent"
+      },
+      "mocks": {
+        "fetch_doc": { "output": [] },
+        "set_presence": { "output": { "ok": true } },
+        "broadcast_joined": { "output": { "channel": "doc.nonexistent" } }
+      },
+      "expect": {
+        "status": "success",
+        "nodes_not_executed": ["set_presence", "broadcast_joined"]
+      }
+    }
+  ]
+}

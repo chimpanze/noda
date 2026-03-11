@@ -1,0 +1,63 @@
+{
+  "id": "ws-on-message",
+  "name": "WebSocket Message — Handle Edit or Cursor",
+  "nodes": {
+    "route": {
+      "type": "control.switch",
+      "config": {
+        "expression": "{{ input.data.type }}",
+        "cases": ["edit", "cursor"]
+      }
+    },
+    "save_edit": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "edit_history",
+        "data": {
+          "id": "{{ $uuid() }}",
+          "document_id": "{{ input.params.doc_id }}",
+          "user_id": "{{ input.user_id }}",
+          "operations": "{{ input.data.operations }}"
+        }
+      }
+    },
+    "broadcast_edit": {
+      "type": "ws.send",
+      "services": { "connections": "collab" },
+      "config": {
+        "channel": "{{ input.channel }}",
+        "data": {
+          "type": "edit",
+          "user_id": "{{ input.user_id }}",
+          "operations": "{{ input.data.operations }}"
+        }
+      }
+    },
+    "broadcast_cursor": {
+      "type": "ws.send",
+      "services": { "connections": "collab" },
+      "config": {
+        "channel": "{{ input.channel }}",
+        "data": {
+          "type": "cursor",
+          "user_id": "{{ input.user_id }}",
+          "position": "{{ input.data.position }}"
+        }
+      }
+    },
+    "log_unknown": {
+      "type": "util.log",
+      "config": {
+        "level": "warn",
+        "message": "Unknown WS message type: {{ input.data.type }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "route", "output": "edit", "to": "save_edit" },
+    { "from": "save_edit", "to": "broadcast_edit" },
+    { "from": "route", "output": "cursor", "to": "broadcast_cursor" },
+    { "from": "route", "output": "default", "to": "log_unknown" }
+  ]
+}

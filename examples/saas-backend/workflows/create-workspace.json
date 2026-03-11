@@ -1,60 +1,78 @@
 {
+  "edges": [
+    {
+      "from": "validate",
+      "to": "gen_id"
+    },
+    {
+      "from": "gen_id",
+      "to": "insert_workspace"
+    },
+    {
+      "from": "insert_workspace",
+      "to": "insert_member"
+    },
+    {
+      "from": "insert_member",
+      "to": "respond"
+    }
+  ],
   "id": "create-workspace",
   "name": "Create Workspace",
   "nodes": {
-    "validate": {
-      "type": "transform.validate",
-      "config": {
-        "data": "{{ input }}",
-        "schema": { "$ref": "schemas/CreateWorkspace" }
-      }
-    },
     "gen_id": {
-      "type": "transform.set",
       "config": {
         "fields": {
           "workspace_id": "{{ $uuid() }}"
         }
-      }
+      },
+      "type": "transform.set"
+    },
+    "insert_member": {
+      "config": {
+        "data": {
+          "email": "",
+          "role": "owner",
+          "user_id": "{{ input.owner_id }}",
+          "workspace_id": "{{ nodes.gen_id.workspace_id }}"
+        },
+        "table": "workspace_members"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.create"
     },
     "insert_workspace": {
-      "type": "db.create",
-      "services": { "database": "main-db" },
       "config": {
-        "table": "workspaces",
         "data": {
           "id": "{{ nodes.gen_id.workspace_id }}",
           "name": "{{ input.name }}",
-          "slug": "{{ input.slug }}",
-          "owner_id": "{{ input.owner_id }}"
-        }
-      }
-    },
-    "insert_member": {
-      "type": "db.create",
-      "services": { "database": "main-db" },
-      "config": {
-        "table": "workspace_members",
-        "data": {
-          "workspace_id": "{{ nodes.gen_id.workspace_id }}",
-          "user_id": "{{ input.owner_id }}",
-          "email": "",
-          "role": "owner"
-        }
-      }
+          "owner_id": "{{ input.owner_id }}",
+          "slug": "{{ input.slug }}"
+        },
+        "table": "workspaces"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.create"
     },
     "respond": {
-      "type": "response.json",
       "config": {
-        "status": 201,
-        "body": "{{ nodes.insert_workspace }}"
-      }
+        "body": "{{ nodes.insert_workspace }}",
+        "status": 201
+      },
+      "type": "response.json"
+    },
+    "validate": {
+      "config": {
+        "data": "{{ input }}",
+        "schema": {
+          "$ref": "schemas/CreateWorkspace"
+        }
+      },
+      "type": "transform.validate"
     }
-  },
-  "edges": [
-    { "from": "validate", "to": "gen_id" },
-    { "from": "gen_id", "to": "insert_workspace" },
-    { "from": "insert_workspace", "to": "insert_member" },
-    { "from": "insert_member", "to": "respond" }
-  ]
+  }
 }

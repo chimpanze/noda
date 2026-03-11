@@ -79,6 +79,45 @@ func ResolveOptionalAny(nCtx api.ExecutionContext, config map[string]any, key st
 	return raw, true, nil
 }
 
+// ResolveDeepAny resolves a required config key, recursively resolving
+// expression strings inside nested maps and slices.
+func ResolveDeepAny(nCtx api.ExecutionContext, config map[string]any, key string) (any, error) {
+	raw, ok := config[key]
+	if !ok {
+		return nil, fmt.Errorf("missing required field %q", key)
+	}
+	return resolveDeep(nCtx, raw)
+}
+
+func resolveDeep(nCtx api.ExecutionContext, raw any) (any, error) {
+	switch v := raw.(type) {
+	case string:
+		return nCtx.Resolve(v)
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			resolved, err := resolveDeep(nCtx, val)
+			if err != nil {
+				return nil, err
+			}
+			result[k] = resolved
+		}
+		return result, nil
+	case []any:
+		result := make([]any, len(v))
+		for i, val := range v {
+			resolved, err := resolveDeep(nCtx, val)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = resolved
+		}
+		return result, nil
+	default:
+		return raw, nil
+	}
+}
+
 // ResolveOptionalInt resolves an optional config key as an integer.
 // Returns (0, false, nil) if the key is absent.
 func ResolveOptionalInt(nCtx api.ExecutionContext, config map[string]any, key string) (int, bool, error) {

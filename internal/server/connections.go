@@ -8,6 +8,7 @@ import (
 	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/pkg/api"
+	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 )
 
@@ -48,6 +49,12 @@ func (s *Server) registerConnections() error {
 				channelPattern, _ = channels["pattern"].(string)
 			}
 
+			// Resolve middleware for this endpoint (auth, etc.)
+			middleware, err := s.resolveEndpointMiddleware(ep)
+			if err != nil {
+				return fmt.Errorf("endpoint %q middleware: %w", name, err)
+			}
+
 			switch epType {
 			case "websocket":
 				cfg := connmgr.WebSocketConfig{
@@ -78,7 +85,7 @@ func (s *Server) registerConnections() error {
 
 				runner := s.buildWorkflowRunner("websocket")
 				handler := connmgr.NewWebSocketHandler(cfg, mgr, runner, s.compiler, s.logger)
-				handler.Register(s.app)
+				handler.Register(s.app, middleware...)
 				s.logger.Debug("websocket endpoint registered", "name", name, "path", path)
 
 			case "sse":
@@ -106,7 +113,7 @@ func (s *Server) registerConnections() error {
 
 				runner := s.buildWorkflowRunner("sse")
 				handler := connmgr.NewSSEHandler(cfg, mgr, runner, s.compiler, s.logger)
-				handler.Register(s.app)
+				handler.Register(s.app, middleware...)
 				s.logger.Debug("sse endpoint registered", "name", name, "path", path)
 			}
 		}
@@ -141,6 +148,43 @@ func (s *Server) buildWorkflowRunner(triggerType string) api.WorkflowRunner {
 		)
 		return s.runWorkflow(ctx, workflowID, execCtx)
 	}
+}
+
+// resolveEndpointMiddleware resolves middleware handlers for a connection endpoint.
+// Supports both "middleware": ["auth.jwt"] and "middleware_preset": "authenticated".
+func (s *Server) resolveEndpointMiddleware(ep map[string]any) ([]fiber.Handler, error) {
+	var middlewareNames []string
+
+	// Expand preset if specified
+	if preset, ok := ep["middleware_preset"].(string); ok && preset != "" {
+		expanded, err := s.expandPreset(preset)
+		if err != nil {
+			return nil, err
+		}
+		middlewareNames = append(middlewareNames, expanded...)
+	}
+
+	// Direct middleware list
+	if mwList, ok := ep["middleware"].([]any); ok {
+		for _, mw := range mwList {
+			if name, ok := mw.(string); ok {
+				middlewareNames = append(middlewareNames, name)
+			}
+		}
+	}
+
+	middlewareNames = dedupe(middlewareNames)
+
+	handlers := make([]fiber.Handler, 0, len(middlewareNames))
+	for _, name := range middlewareNames {
+		h, err := BuildMiddleware(name, s.config.Root)
+		if err != nil {
+			return nil, fmt.Errorf("middleware %q: %w", name, err)
+		}
+		handlers = append(handlers, h)
+	}
+
+	return handlers, nil
 }
 
 func mapStr(m map[string]any, key string) string {

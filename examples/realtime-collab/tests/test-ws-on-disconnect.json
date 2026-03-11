@@ -1,0 +1,21 @@
+{
+  "id": "test-ws-on-disconnect",
+  "workflow": "ws-on-disconnect",
+  "tests": [
+    {
+      "name": "user leaves and departure is broadcast",
+      "input": {
+        "params": { "doc_id": "doc-1" },
+        "user_id": "user-1",
+        "channel": "doc.doc-1"
+      },
+      "mocks": {
+        "remove_presence": { "output": { "ok": true } },
+        "broadcast_left": { "output": { "channel": "doc.doc-1" } }
+      },
+      "expect": {
+        "status": "success"
+      }
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "sync": {
+    "pubsub": "realtime"
+  },
+  "endpoints": {
+    "collab": {
+      "type": "websocket",
+      "path": "/ws/documents/:doc_id",
+      "middleware": ["auth.jwt"],
+      "channels": {
+        "pattern": "doc.{{ request.params.doc_id }}",
+        "max_per_channel": 50
+      },
+      "ping_interval": "30s",
+      "on_connect": "ws-on-connect",
+      "on_message": "ws-on-message",
+      "on_disconnect": "ws-on-disconnect"
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "id": "ws-on-connect",
+  "name": "WebSocket Connect — Join Document",
+  "nodes": {
+    "fetch_doc": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id FROM documents WHERE id = $1 LIMIT 1",
+        "params": ["{{ input.params.doc_id }}"]
+      }
+    },
+    "check_exists": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ len(nodes.fetch_doc) > 0 }}"
+      }
+    },
+    "set_presence": {
+      "type": "cache.set",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "presence:{{ input.params.doc_id }}:{{ input.user_id }}",
+        "value": {
+          "user_id": "{{ input.user_id }}",
+          "connected_at": "{{ $now() }}"
+        },
+        "ttl": 120
+      }
+    },
+    "broadcast_joined": {
+      "type": "ws.send",
+      "services": { "connections": "collab" },
+      "config": {
+        "channel": "{{ input.channel }}",
+        "data": {
+          "type": "user_joined",
+          "user_id": "{{ input.user_id }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "fetch_doc", "to": "check_exists" },
+    { "from": "check_exists", "output": "then", "to": "set_presence" },
+    { "from": "set_presence", "to": "broadcast_joined" }
+  ]
+}

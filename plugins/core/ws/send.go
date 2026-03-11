@@ -44,7 +44,7 @@ func (e *sendExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("ws.send: %w", err)
 	}
 
-	data, _, err := plugin.ResolveOptionalAny(nCtx, config, "data")
+	data, err := plugin.ResolveDeepAny(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("ws.send: %w", err)
 	}

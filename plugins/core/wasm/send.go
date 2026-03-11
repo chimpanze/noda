@@ -39,7 +39,7 @@ func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 		return "", nil, err
 	}
 
-	data, err := plugin.ResolveAny(nCtx, config, "data")
+	data, err := plugin.ResolveDeepAny(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("wasm.send: %w", err)
 	}

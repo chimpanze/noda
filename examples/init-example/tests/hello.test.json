@@ -1,0 +1,16 @@
+{
+  "id": "hello-test",
+  "workflow": "hello",
+  "tests": [
+    {
+      "name": "greets by name",
+      "input": { "name": "World" },
+      "expect": {
+        "status": "success",
+        "output": {
+          "greeting": "Hello, World!"
+        }
+      }
+    }
+  ]
+}

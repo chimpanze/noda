@@ -63,11 +63,17 @@ func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, was
 	// Create host dispatcher
 	dispatcher := NewHostDispatcher(r.services, r.runner, r.logger)
 
-	// Create Extism plugin
+	// Build host functions that delegate to the dispatcher.
+	// The dispatcher's module reference is set after NewModule (via SetModule),
+	// which is safe because host functions only execute during module exports
+	// (initialize, tick, query, command) — all called after module creation.
+	hostFns := buildHostFunctions(dispatcher, r.logger)
+
+	// Create Extism plugin with host functions
 	pluginCfg := extism.PluginConfig{
 		EnableWasi: true,
 	}
-	plugin, err := extism.NewPlugin(ctx, manifest, pluginCfg, nil)
+	plugin, err := extism.NewPlugin(ctx, manifest, pluginCfg, hostFns)
 	if err != nil {
 		return nil, fmt.Errorf("create extism plugin: %w", err)
 	}
@@ -84,6 +90,96 @@ func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, was
 	r.mu.Unlock()
 
 	return module, nil
+}
+
+// buildHostFunctions creates the noda_call and noda_call_async Extism host functions.
+func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extism.HostFunction {
+	// noda_call: synchronous host call.
+	// Input (PTR): JSON-encoded HostCallRequest {service, operation, payload}
+	// Output (PTR): JSON-encoded response data (or empty on void operations)
+	// On error: sets Extism error string.
+	nodaCall := extism.NewHostFunctionWithStack(
+		"noda_call",
+		func(ctx context.Context, p *extism.CurrentPlugin, stack []uint64) {
+			input, err := p.ReadBytes(stack[0])
+			if err != nil {
+				logger.Error("noda_call: read input failed", "error", err)
+				stack[0] = 0
+				return
+			}
+
+			var req HostCallRequest
+			codec := &jsonCodec{}
+			if err := codec.Unmarshal(input, &req); err != nil {
+				p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
+				stack[0] = 0
+				return
+			}
+
+			result, err := dispatcher.Call(ctx, req)
+			if err != nil {
+				// Set error via Extism's error mechanism — the PDK reads this via pdk.GetError()
+				errMsg, _ := codec.Marshal(map[string]any{
+					"code":    "INTERNAL_ERROR",
+					"message": err.Error(),
+				})
+				p.WriteBytes(errMsg) // write error as output so PDK can read it
+				stack[0] = 0
+				return
+			}
+
+			if result == nil {
+				stack[0] = 0
+				return
+			}
+
+			out, err := codec.Marshal(result)
+			if err != nil {
+				logger.Error("noda_call: marshal response failed", "error", err)
+				stack[0] = 0
+				return
+			}
+
+			offset, err := p.WriteBytes(out)
+			if err != nil {
+				logger.Error("noda_call: write response failed", "error", err)
+				stack[0] = 0
+				return
+			}
+			stack[0] = offset
+		},
+		[]extism.ValueType{extism.ValueTypePTR},
+		[]extism.ValueType{extism.ValueTypePTR},
+	)
+
+	// noda_call_async: asynchronous host call.
+	// Input (PTR): JSON-encoded HostCallRequest {service, operation, payload, label}
+	// No output — result delivered in next tick's responses field.
+	nodaCallAsync := extism.NewHostFunctionWithStack(
+		"noda_call_async",
+		func(ctx context.Context, p *extism.CurrentPlugin, stack []uint64) {
+			input, err := p.ReadBytes(stack[0])
+			if err != nil {
+				logger.Error("noda_call_async: read input failed", "error", err)
+				return
+			}
+
+			var req HostCallRequest
+			codec := &jsonCodec{}
+			if err := codec.Unmarshal(input, &req); err != nil {
+				logger.Error("noda_call_async: invalid request", "error", err)
+				return
+			}
+
+			if err := dispatcher.CallAsync(ctx, req); err != nil {
+				logger.Error("noda_call_async: dispatch failed", "error", err, "label", req.Label)
+			}
+		},
+		[]extism.ValueType{extism.ValueTypePTR},
+		[]extism.ValueType{},
+	)
+
+	return []extism.HostFunction{nodaCall, nodaCallAsync}
 }
 
 // LoadModuleWithPlugin loads a module using a pre-created PluginInstance (for testing).

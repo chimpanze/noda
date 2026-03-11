@@ -41,7 +41,13 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 		}
 	}
 
-	// 2. Initialize services from root config (skip in dry-run mode)
+	// 2. Collect deferred services (connection endpoints, wasm runtimes)
+	// These will be created later by the server/wasm runtime, but we need
+	// their names and prefixes for startup validation.
+	deferred, deferredErrs := CollectDeferredServices(rc)
+	allErrors = append(allErrors, deferredErrs...)
+
+	// 3. Initialize services from root config (skip in dry-run mode)
 	services := NewServiceRegistry()
 	if !opt.DryRun {
 		if servicesMap, ok := rc.Root["services"].(map[string]any); ok {
@@ -49,10 +55,6 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 			services, svcErrs = InitializeServices(servicesMap, plugins)
 			allErrors = append(allErrors, svcErrs...)
 		}
-
-		// 3. Register internal services (ws, sse, wasm placeholders)
-		internalErrs := RegisterInternalServices(rc, services)
-		allErrors = append(allErrors, internalErrs...)
 	}
 
 	// 4. Create shared expression compiler
@@ -60,12 +62,10 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 
 	// 5. Run startup validation
 	if opt.DryRun {
-		// Dry-run: validate node types and expressions, but skip service slot checks
-		// (services aren't initialized so we can't verify them)
-		valErrs := ValidateStartupDryRun(rc, plugins, nodes, compiler)
+		valErrs := ValidateStartupDryRun(rc, plugins, nodes, compiler, deferred)
 		allErrors = append(allErrors, valErrs...)
 	} else {
-		valErrs := ValidateStartup(rc, plugins, services, nodes, compiler)
+		valErrs := ValidateStartup(rc, plugins, services, nodes, compiler, deferred)
 		allErrors = append(allErrors, valErrs...)
 	}
 

@@ -356,7 +356,7 @@ function KeyValueEditor({
               type="text"
               value={key}
               onChange={(e) => updateKey(key, e.target.value)}
-              className="w-1/3 input-field font-mono"
+              className="shrink-0 input-field !w-1/3 font-mono"
               placeholder="key"
             />
             <span className="text-gray-400 text-xs">:</span>
@@ -364,7 +364,7 @@ function KeyValueEditor({
               type="text"
               value={val}
               onChange={(e) => updateValue(key, e.target.value)}
-              className="flex-1 input-field font-mono"
+              className="flex-1 min-w-0 input-field !w-auto font-mono"
               placeholder={valuePlaceholder}
             />
             <button

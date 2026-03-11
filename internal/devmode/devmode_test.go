@@ -135,7 +135,7 @@ func TestReloader_HandleChange_Valid(t *testing.T) {
 
 	hub := trace.NewEventHub()
 	initial := &config.ResolvedConfig{
-		Root:     map[string]any{"server": map[string]any{"port": 3000}},
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
 		FileCount: 1,
 	}
 
@@ -176,7 +176,7 @@ func TestReloader_HandleChange_Invalid(t *testing.T) {
 
 	hub := trace.NewEventHub()
 	initial := &config.ResolvedConfig{
-		Root:     map[string]any{"server": map[string]any{"port": 3000}},
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
 		FileCount: 1,
 	}
 
@@ -216,7 +216,7 @@ func TestReloader_HandleChange_Invalid(t *testing.T) {
 
 func TestReloader_Config_ThreadSafe(t *testing.T) {
 	initial := &config.ResolvedConfig{
-		Root:     map[string]any{},
+		Root:      map[string]any{},
 		FileCount: 1,
 	}
 	r := NewReloader(".", "", initial, nil, slog.Default())
@@ -281,7 +281,7 @@ func TestShutdownSequence_AllComponentsStopped(t *testing.T) {
 	watcher.WatchDir(dir)
 	watcher.Start()
 
-	ShutdownSequence(slog.Default(), 5*time.Second, srv, sched, wasm, watcher, tracer)
+	ShutdownSequence(slog.Default(), 5*time.Second, srv, sched, nil, wasm, watcher, nil, nil, tracer)
 
 	assert.True(t, srv.stopped.Load())
 	assert.True(t, sched.stopped.Load())
@@ -291,7 +291,7 @@ func TestShutdownSequence_AllComponentsStopped(t *testing.T) {
 
 func TestShutdownSequence_NilComponents(t *testing.T) {
 	// Should not panic with nil components
-	ShutdownSequence(slog.Default(), 5*time.Second, nil, nil, nil, nil, nil)
+	ShutdownSequence(slog.Default(), 5*time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
 }
 
 // --- helpers ---

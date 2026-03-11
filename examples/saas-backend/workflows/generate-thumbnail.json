@@ -1,44 +1,60 @@
 {
+  "edges": [
+    {
+      "from": "check_image",
+      "output": "then",
+      "to": "thumbnail"
+    },
+    {
+      "from": "check_image",
+      "output": "else",
+      "to": "skip"
+    },
+    {
+      "from": "thumbnail",
+      "to": "update_record"
+    }
+  ],
   "id": "generate-thumbnail",
   "name": "Generate Thumbnail",
   "nodes": {
     "check_image": {
-      "type": "control.if",
       "config": {
         "condition": "{{ input.content_type contains 'image/' }}"
-      }
+      },
+      "type": "control.if"
+    },
+    "skip": {
+      "config": {
+        "level": "info",
+        "message": "Skipping thumbnail for non-image: {{ input.content_type }}"
+      },
+      "type": "util.log"
     },
     "thumbnail": {
-      "type": "image.thumbnail",
+      "config": {
+        "height": 200,
+        "input_path": "{{ input.path }}",
+        "width": 200
+      },
       "services": {
         "source": "uploads",
         "target": "thumbnails"
       },
-      "config": {
-        "input_path": "{{ input.path }}",
-        "width": 200,
-        "height": 200
-      }
+      "type": "image.thumbnail"
     },
     "update_record": {
-      "type": "db.exec",
-      "services": { "database": "main-db" },
       "config": {
-        "query": "UPDATE attachments SET thumbnail_path = $1 WHERE id = $2",
-        "params": ["{{ nodes.thumbnail.path }}", "{{ input.attachment_id }}"]
-      }
-    },
-    "skip": {
-      "type": "util.log",
-      "config": {
-        "level": "info",
-        "message": "Skipping thumbnail for non-image: {{ input.content_type }}"
-      }
+        "params": [
+          "{{ nodes.thumbnail.path }}",
+          "{{ input.attachment_id }}"
+        ],
+        "query": "UPDATE attachments SET thumbnail_path = $1 WHERE id = $2"
+      },
+      "services": {
+        "database": "main-db"
+      },
+      "type": "db.exec"
     }
-  },
-  "edges": [
-    { "from": "check_image", "output": "then", "to": "thumbnail" },
-    { "from": "check_image", "output": "else", "to": "skip" },
-    { "from": "thumbnail", "to": "update_record" }
-  ]
+  }
 }

@@ -116,7 +116,7 @@ export function NodeConfigPanel() {
         uiSchema[key] = { "ui:widget": "booleanToggle" };
       } else if (p.type === "integer" || p.type === "number") {
         uiSchema[key] = { "ui:widget": "number" };
-      } else if (p.type === "array" && (p.items as Record<string, unknown> | undefined)?.type === "string") {
+      } else if (p.type === "array" && (!p.items || (p.items as Record<string, unknown>)?.type === "string")) {
         uiSchema[key] = { "ui:field": "stringArray" };
       } else if (p.type === "object" && !p.properties) {
         uiSchema[key] = { "ui:field": "keyValueMap" };

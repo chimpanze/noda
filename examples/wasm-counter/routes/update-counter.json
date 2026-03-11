@@ -1,0 +1,13 @@
+{
+  "id": "update-counter",
+  "method": "POST",
+  "path": "/api/counter",
+  "summary": "Send an operation to the counter",
+  "trigger": {
+    "workflow": "update-counter",
+    "input": {
+      "op": "{{ body.op }}",
+      "value": "{{ toInt(body.value) }}"
+    }
+  }
+}

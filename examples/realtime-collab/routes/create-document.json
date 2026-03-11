@@ -1,0 +1,19 @@
+{
+  "id": "create-document",
+  "method": "POST",
+  "path": "/api/documents",
+  "summary": "Create a new document",
+  "tags": ["documents"],
+  "middleware_preset": "authenticated",
+  "body": {
+    "schema": { "$ref": "schemas/CreateDocument" }
+  },
+  "trigger": {
+    "workflow": "create-document",
+    "input": {
+      "title": "{{ body.title }}",
+      "content": "{{ body.content }}",
+      "owner_id": "{{ auth.sub }}"
+    }
+  }
+}

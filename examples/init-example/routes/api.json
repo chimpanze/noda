@@ -1,0 +1,11 @@
+{
+  "id": "hello-route",
+  "method": "GET",
+  "path": "/api/hello/:name",
+  "trigger": {
+    "workflow": "hello",
+    "input": {
+      "name": "{{ request.params.name }}"
+    }
+  }
+}

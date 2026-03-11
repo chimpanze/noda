@@ -21,8 +21,29 @@ import { copyNodes, pasteNodes, hasClipboard } from "@/stores/clipboard";
 import { autoLayout } from "./autoLayout";
 import { QuickAddDialog } from "./QuickAddDialog";
 
-const nodeTypes = { noda: NodaNode };
-const edgeTypes = { noda: NodaEdge };
+const rfNodeTypes = { noda: NodaNode };
+const rfEdgeTypes = { noda: NodaEdge };
+
+/**
+ * Compute outputs for a node, taking config into account for dynamic types.
+ * Falls back to static registry outputs.
+ */
+function computeNodeOutputs(
+  nodeType: string,
+  config: Record<string, unknown> | undefined,
+  staticOutputs: Map<string, string[]>
+): string[] {
+  // control.switch: outputs are derived from cases config
+  if (nodeType === "control.switch" && config?.cases) {
+    const cases = config.cases;
+    if (Array.isArray(cases)) {
+      const outputs = cases.filter((c): c is string => typeof c === "string");
+      return [...outputs, "default", "error"];
+    }
+  }
+
+  return staticOutputs.get(nodeType) ?? ["success", "error"];
+}
 
 function generateNodeId(nodeType: string, existingIds: string[]): string {
   const prefix = nodeType.replace(/\./g, "-");
@@ -59,7 +80,7 @@ export function WorkflowCanvas() {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [quickAdd, setQuickAdd] = useState<{ x: number; y: number } | null>(null);
 
-  // Build a lookup: nodeType → outputs
+  // Build a lookup: nodeType → static outputs (fallback)
   const outputsByType = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const nt of nodeTypeRegistry) {
@@ -73,7 +94,7 @@ export function WorkflowCanvas() {
     if (!activeWorkflow?.nodes) return [];
 
     return activeWorkflow.nodes.map((node, index) => {
-      const outputs = outputsByType.get(node.type) ?? ["success", "error"];
+      const outputs = computeNodeOutputs(node.type, node.config, outputsByType);
       const data: NodaNodeData = {
         nodeType: node.type,
         label: node.id,
@@ -334,8 +355,8 @@ export function WorkflowCanvas() {
       <ReactFlow
         nodes={nodes}
         edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
+        nodeTypes={rfNodeTypes}
+        edgeTypes={rfEdgeTypes}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}

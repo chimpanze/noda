@@ -1,0 +1,34 @@
+{
+  "middleware_presets": {
+    "authenticated": [
+      "auth.jwt"
+    ]
+  },
+  "security": {
+    "jwt": {
+      "algorithm": "HS256",
+      "secret": "{{ $env('JWT_SECRET') }}",
+      "token_lookup": "header:Authorization"
+    }
+  },
+  "services": {
+    "main-db": {
+      "plugin": "postgres",
+      "config": {
+        "url": "{{ $env('DATABASE_URL') }}"
+      }
+    },
+    "app-cache": {
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
+    },
+    "realtime": {
+      "plugin": "pubsub",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
+    }
+  }
+}

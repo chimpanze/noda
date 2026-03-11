@@ -55,8 +55,15 @@ func NewSSEHandler(cfg SSEConfig, mgr *Manager, runner api.WorkflowRunner, compi
 }
 
 // Register sets up the SSE route on the Fiber app.
-func (h *SSEHandler) Register(app *fiber.App) {
-	app.Get(h.config.Path, h.handleConnection)
+// Middleware handlers (e.g., auth) run before the SSE connection.
+func (h *SSEHandler) Register(app *fiber.App, middleware ...fiber.Handler) {
+	handlers := make([]any, 0, len(middleware)+1)
+	for _, mw := range middleware {
+		handlers = append(handlers, mw)
+	}
+	handlers = append(handlers, h.handleConnection)
+
+	app.Get(h.config.Path, handlers[0], handlers[1:]...)
 }
 
 // handleConnection is the Fiber handler for SSE connections.

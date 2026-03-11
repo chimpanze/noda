@@ -1,0 +1,49 @@
+{
+  "id": "test-ws-on-message",
+  "workflow": "ws-on-message",
+  "tests": [
+    {
+      "name": "edit message saves to history and broadcasts",
+      "input": {
+        "params": { "doc_id": "doc-1" },
+        "user_id": "user-1",
+        "channel": "doc.doc-1",
+        "data": {
+          "type": "edit",
+          "operations": [{ "type": "insert", "position": 0, "content": "Hello" }]
+        }
+      },
+      "mocks": {
+        "save_edit": { "output": { "id": "edit-1" } },
+        "broadcast_edit": { "output": { "channel": "doc.doc-1" } },
+        "broadcast_cursor": { "output": { "channel": "doc.doc-1" } },
+        "log_unknown": { "output": {} }
+      },
+      "expect": {
+        "status": "success"
+      }
+    },
+    {
+      "name": "cursor message broadcasts without persisting",
+      "input": {
+        "params": { "doc_id": "doc-1" },
+        "user_id": "user-1",
+        "channel": "doc.doc-1",
+        "data": {
+          "type": "cursor",
+          "position": { "line": 5, "col": 10 }
+        }
+      },
+      "mocks": {
+        "save_edit": { "output": { "id": "edit-1" } },
+        "broadcast_edit": { "output": { "channel": "doc.doc-1" } },
+        "broadcast_cursor": { "output": { "channel": "doc.doc-1" } },
+        "log_unknown": { "output": {} }
+      },
+      "expect": {
+        "status": "success",
+        "nodes_not_executed": ["save_edit", "broadcast_edit"]
+      }
+    }
+  ]
+}

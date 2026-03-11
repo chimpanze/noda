@@ -1,0 +1,27 @@
+{
+  "id": "ws-on-disconnect",
+  "name": "WebSocket Disconnect — Leave Document",
+  "nodes": {
+    "remove_presence": {
+      "type": "cache.del",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "presence:{{ input.params.doc_id }}:{{ input.user_id }}"
+      }
+    },
+    "broadcast_left": {
+      "type": "ws.send",
+      "services": { "connections": "collab" },
+      "config": {
+        "channel": "{{ input.channel }}",
+        "data": {
+          "type": "user_left",
+          "user_id": "{{ input.user_id }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "remove_presence", "to": "broadcast_left" }
+  ]
+}

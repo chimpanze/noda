@@ -9,7 +9,9 @@ import (
 )
 
 // ValidateStartup checks all plugin, service, and node references in the config.
-func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, services *ServiceRegistry, nodes *NodeRegistry, compiler *expr.Compiler) []error {
+// The deferred parameter lists services that will be created later (connection endpoints,
+// wasm runtimes) — these are treated as valid references during slot validation.
+func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, services *ServiceRegistry, nodes *NodeRegistry, compiler *expr.Compiler, deferred map[string]DeferredService) []error {
 	var errs []error
 
 	for wfName, wf := range rc.Workflows {
@@ -58,8 +60,14 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 					continue
 				}
 
-				// Check service exists
+				// Check service exists in registry or deferred set
 				svcPrefix, exists := services.GetPrefix(svcNameStr)
+				if !exists {
+					if ds, ok := deferred[svcNameStr]; ok {
+						svcPrefix = ds.Prefix
+						exists = true
+					}
+				}
 				if !exists {
 					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q not found (slot: %s)", wfName, nodeID, svcNameStr, slot))
 					continue
@@ -97,11 +105,11 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 
 // ValidateStartupDryRun checks node types and pre-compiles expressions without
 // requiring live services. Used by the validate command for offline validation.
-func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, nodes *NodeRegistry, compiler *expr.Compiler) []error {
+func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, nodes *NodeRegistry, compiler *expr.Compiler, deferred map[string]DeferredService) []error {
 	var errs []error
 
 	// Collect configured service names for reference checking
-	configuredServices := make(map[string]string) // name → plugin name
+	configuredServices := make(map[string]string) // name → prefix
 	if servicesMap, ok := rc.Root["services"].(map[string]any); ok {
 		for name, raw := range servicesMap {
 			if cfg, ok := raw.(map[string]any); ok {
@@ -110,6 +118,11 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				}
 			}
 		}
+	}
+
+	// Include deferred services (connection endpoints, wasm runtimes)
+	for name, ds := range deferred {
+		configuredServices[name] = ds.Prefix
 	}
 
 	for wfName, wf := range rc.Workflows {

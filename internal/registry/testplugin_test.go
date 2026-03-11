@@ -149,7 +149,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 			},
 		},
 	}
-	valErrs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions())
+	valErrs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions(), nil)
 	assert.Empty(t, valErrs)
 
 	// 5. Health check

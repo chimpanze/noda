@@ -1,0 +1,14 @@
+{
+  "id": "list-documents",
+  "method": "GET",
+  "path": "/api/documents",
+  "summary": "List documents for the authenticated user",
+  "tags": ["documents"],
+  "middleware_preset": "authenticated",
+  "trigger": {
+    "workflow": "list-documents",
+    "input": {
+      "owner_id": "{{ auth.sub }}"
+    }
+  }
+}

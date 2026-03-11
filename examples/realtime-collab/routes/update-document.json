@@ -1,0 +1,20 @@
+{
+  "id": "update-document",
+  "method": "PUT",
+  "path": "/api/documents/:id",
+  "summary": "Update a document (REST edit with WebSocket broadcast)",
+  "tags": ["documents"],
+  "middleware_preset": "authenticated",
+  "body": {
+    "schema": { "$ref": "schemas/CreateDocument" }
+  },
+  "trigger": {
+    "workflow": "update-document",
+    "input": {
+      "doc_id": "{{ params.id }}",
+      "title": "{{ body.title }}",
+      "content": "{{ body.content }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

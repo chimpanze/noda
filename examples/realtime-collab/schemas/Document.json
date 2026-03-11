@@ -1,0 +1,31 @@
+{
+  "Document": {
+    "type": "object",
+    "properties": {
+      "id": { "type": "string" },
+      "title": { "type": "string" },
+      "content": { "type": "string" },
+      "owner_id": { "type": "string" },
+      "created_at": { "type": "string" },
+      "updated_at": { "type": "string" }
+    }
+  },
+  "CreateDocument": {
+    "type": "object",
+    "properties": {
+      "title": { "type": "string", "minLength": 1 },
+      "content": { "type": "string" }
+    },
+    "required": ["title"]
+  },
+  "EditOperation": {
+    "type": "object",
+    "properties": {
+      "type": { "type": "string", "enum": ["insert", "delete", "replace"] },
+      "position": { "type": "integer", "minimum": 0 },
+      "content": { "type": "string" },
+      "length": { "type": "integer", "minimum": 0 }
+    },
+    "required": ["type", "position"]
+  }
+}

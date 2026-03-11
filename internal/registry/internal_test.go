@@ -8,82 +8,87 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRegisterInternalServices_WebSocket(t *testing.T) {
+func TestCollectDeferredServices_WebSocket(t *testing.T) {
 	rc := &config.ResolvedConfig{
 		Connections: map[string]map[string]any{
-			"live": {"type": "websocket", "path": "/ws"},
+			"connections/realtime.json": {
+				"endpoints": map[string]any{
+					"live": map[string]any{"type": "websocket", "path": "/ws"},
+				},
+			},
 		},
 	}
 
-	registry := NewServiceRegistry()
-	errs := RegisterInternalServices(rc, registry)
+	deferred, errs := CollectDeferredServices(rc)
 	assert.Empty(t, errs)
-
-	prefix, ok := registry.GetPrefix("live")
-	assert.True(t, ok)
-	assert.Equal(t, "ws", prefix)
+	require.Contains(t, deferred, "live")
+	assert.Equal(t, "ws", deferred["live"].Prefix)
 }
 
-func TestRegisterInternalServices_SSE(t *testing.T) {
+func TestCollectDeferredServices_SSE(t *testing.T) {
 	rc := &config.ResolvedConfig{
 		Connections: map[string]map[string]any{
-			"updates": {"type": "sse", "path": "/events"},
+			"connections/events.json": {
+				"endpoints": map[string]any{
+					"updates": map[string]any{"type": "sse", "path": "/events"},
+				},
+			},
 		},
 	}
 
-	registry := NewServiceRegistry()
-	errs := RegisterInternalServices(rc, registry)
+	deferred, errs := CollectDeferredServices(rc)
 	assert.Empty(t, errs)
-
-	prefix, ok := registry.GetPrefix("updates")
-	assert.True(t, ok)
-	assert.Equal(t, "sse", prefix)
+	require.Contains(t, deferred, "updates")
+	assert.Equal(t, "sse", deferred["updates"].Prefix)
 }
 
-func TestRegisterInternalServices_Wasm(t *testing.T) {
+func TestCollectDeferredServices_Wasm(t *testing.T) {
 	rc := &config.ResolvedConfig{
 		Root: map[string]any{
-			"wasm": map[string]any{
+			"wasm_runtimes": map[string]any{
 				"game-engine": map[string]any{"module": "game.wasm"},
 			},
 		},
 		Connections: map[string]map[string]any{},
 	}
 
-	registry := NewServiceRegistry()
-	errs := RegisterInternalServices(rc, registry)
+	deferred, errs := CollectDeferredServices(rc)
 	assert.Empty(t, errs)
-
-	prefix, ok := registry.GetPrefix("game-engine")
-	assert.True(t, ok)
-	assert.Equal(t, "wasm", prefix)
+	require.Contains(t, deferred, "game-engine")
+	assert.Equal(t, "wasm", deferred["game-engine"].Prefix)
 }
 
-func TestRegisterInternalServices_ConflictWithExternal(t *testing.T) {
+func TestCollectDeferredServices_UnknownConnectionType(t *testing.T) {
 	rc := &config.ResolvedConfig{
 		Connections: map[string]map[string]any{
-			"main-db": {"type": "websocket"},
+			"connections/bad.json": {
+				"endpoints": map[string]any{
+					"bad": map[string]any{"type": "unknown"},
+				},
+			},
 		},
 	}
 
-	registry := NewServiceRegistry()
-	// Pre-register an external service with same name
-	require.NoError(t, registry.Register("main-db", "inst", &stubPlugin{name: "db", prefix: "db"}))
-
-	errs := RegisterInternalServices(rc, registry)
-	require.Len(t, errs, 1)
-	assert.Contains(t, errs[0].Error(), "duplicate")
-}
-
-func TestRegisterInternalServices_UnknownConnectionType(t *testing.T) {
-	rc := &config.ResolvedConfig{
-		Connections: map[string]map[string]any{
-			"bad": {"type": "unknown"},
-		},
-	}
-
-	registry := NewServiceRegistry()
-	errs := RegisterInternalServices(rc, registry)
+	_, errs := CollectDeferredServices(rc)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "unknown type")
+}
+
+func TestCollectDeferredServices_MultipleEndpoints(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Connections: map[string]map[string]any{
+			"connections/realtime.json": {
+				"endpoints": map[string]any{
+					"chat":   map[string]any{"type": "websocket", "path": "/ws/chat"},
+					"events": map[string]any{"type": "sse", "path": "/events"},
+				},
+			},
+		},
+	}
+
+	deferred, errs := CollectDeferredServices(rc)
+	assert.Empty(t, errs)
+	assert.Len(t, deferred, 2)
+	assert.Equal(t, "ws", deferred["chat"].Prefix)
+	assert.Equal(t, "sse", deferred["events"].Prefix)
 }
