@@ -1,0 +1,55 @@
+{
+  "id": "echo-chain",
+  "nodes": {
+    "parse": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "name": "{{ input.name }}",
+          "timestamp": "{{ now() }}"
+        }
+      }
+    },
+    "enrich": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "greeting": "Hello {{ nodes.parse.name }}",
+          "upper_name": "{{ upper(nodes.parse.name) }}"
+        }
+      }
+    },
+    "check": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ nodes.parse.name != '' }}"
+      }
+    },
+    "ok_response": {
+      "type": "response.json",
+      "config": {
+        "status": "200",
+        "body": {
+          "greeting": "{{ nodes.enrich.greeting }}",
+          "upper": "{{ nodes.enrich.upper_name }}",
+          "valid": true
+        }
+      }
+    },
+    "error_response": {
+      "type": "response.json",
+      "config": {
+        "status": "400",
+        "body": {
+          "error": "name is required"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "parse", "to": "enrich" },
+    { "from": "enrich", "to": "check" },
+    { "from": "check", "output": "then", "to": "ok_response" },
+    { "from": "check", "output": "else", "to": "error_response" }
+  ]
+}

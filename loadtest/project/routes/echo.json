@@ -1,0 +1,11 @@
+{
+  "id": "echo",
+  "method": "POST",
+  "path": "/echo",
+  "trigger": {
+    "workflow": "echo-chain",
+    "input": {
+      "name": "{{ body.name }}"
+    }
+  }
+}

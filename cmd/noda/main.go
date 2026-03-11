@@ -59,6 +59,15 @@ var (
 )
 
 func main() {
+	// Configure log level from LOG_LEVEL env (debug, info, warn, error).
+	// Defaults to info if unset.
+	if lvl := os.Getenv("LOG_LEVEL"); lvl != "" {
+		var level slog.Level
+		if err := level.UnmarshalText([]byte(lvl)); err == nil {
+			slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level})))
+		}
+	}
+
 	rootCmd := &cobra.Command{
 		Use:     "noda",
 		Short:   "Noda — configuration-driven API runtime",

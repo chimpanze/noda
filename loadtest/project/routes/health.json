@@ -1,0 +1,8 @@
+{
+  "id": "health",
+  "method": "GET",
+  "path": "/health",
+  "trigger": {
+    "workflow": "health-check"
+  }
+}

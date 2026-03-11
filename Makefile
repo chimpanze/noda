@@ -1,4 +1,6 @@
-.PHONY: build build-editor build-go test test-coverage lint fmt dev clean migrate-up migrate-down
+.PHONY: build build-editor build-go test test-coverage lint fmt dev clean migrate-up migrate-down \
+	bench bench-expr bench-engine bench-config bench-plugins bench-registry bench-save bench-compare \
+	loadtest loadtest-baseline
 
 build: build-editor build-go
 
@@ -38,3 +40,48 @@ migrate-up:
 
 migrate-down:
 	@echo "not yet implemented"
+
+# Benchmarks
+BENCH_COUNT ?= 3
+BENCH_DIR ?= benchmarks
+
+bench:
+	go test ./... -bench=. -benchmem -count=$(BENCH_COUNT) -run='^$$' -timeout=10m
+
+bench-expr:
+	go test ./internal/expr/ -bench=. -benchmem -count=5 -run='^$$'
+
+bench-engine:
+	go test ./internal/engine/ -bench=. -benchmem -count=5 -run='^$$'
+
+bench-config:
+	go test ./internal/config/ -bench=. -benchmem -count=5 -run='^$$'
+
+bench-plugins:
+	go test ./plugins/core/transform/ ./plugins/core/control/ ./plugins/core/response/ -bench=. -benchmem -count=5 -run='^$$'
+
+bench-registry:
+	go test ./internal/registry/ -bench=. -benchmem -count=5 -run='^$$'
+
+bench-save:
+	@mkdir -p $(BENCH_DIR)
+	go test ./... -bench=. -benchmem -count=$(BENCH_COUNT) -run='^$$' -timeout=10m \
+		| tee $(BENCH_DIR)/bench-$$(date +%Y%m%d-%H%M%S).txt
+
+bench-compare:
+	@if [ -z "$(OLD)" ] || [ -z "$(NEW)" ]; then \
+		echo "Usage: make bench-compare OLD=path/to/old.txt NEW=path/to/new.txt"; \
+		exit 1; \
+	fi
+	benchstat $(OLD) $(NEW)
+
+# Load testing (requires k6: https://k6.io)
+LOADTEST_BASE_URL ?= http://localhost:3000
+
+loadtest:
+	k6 run --env BASE_URL=$(LOADTEST_BASE_URL) loadtest/scenarios/baseline.js
+	k6 run --env BASE_URL=$(LOADTEST_BASE_URL) loadtest/scenarios/workflow-chain.js
+	k6 run --env BASE_URL=$(LOADTEST_BASE_URL) loadtest/scenarios/concurrent.js
+
+loadtest-baseline:
+	k6 run --env BASE_URL=$(LOADTEST_BASE_URL) loadtest/scenarios/baseline.js

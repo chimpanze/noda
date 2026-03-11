@@ -1,0 +1,15 @@
+{
+  "id": "health-check",
+  "nodes": {
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": "200",
+        "body": {
+          "status": "ok"
+        }
+      }
+    }
+  },
+  "edges": []
+}
