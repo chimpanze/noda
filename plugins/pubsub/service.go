@@ -31,7 +31,7 @@ func (s *Service) Publish(ctx context.Context, channel string, payload any) erro
 // Blocks until the context is cancelled. The handler receives the deserialized payload.
 func (s *Service) Subscribe(ctx context.Context, channel string, handler func(payload any) error) error {
 	sub := s.client.Subscribe(ctx, channel)
-	defer sub.Close()
+	defer func() { _ = sub.Close() }()
 
 	ch := sub.Channel()
 	for {

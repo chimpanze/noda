@@ -22,17 +22,17 @@ func setupTestProject(t *testing.T, files map[string]string) string {
 
 func TestDiscover_FullProject(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
-		"noda.json":                    `{}`,
-		"noda.development.json":        `{}`,
-		"schemas/User.json":            `{}`,
-		"schemas/Task.json":            `{}`,
-		"routes/tasks.json":            `{}`,
-		"routes/v1/users.json":         `{}`,
-		"workflows/create-task.json":   `{}`,
-		"workers/notifications.json":   `{}`,
-		"schedules/cleanup.json":       `{}`,
-		"connections/realtime.json":     `{}`,
-		"tests/test-create-task.json":  `{}`,
+		"noda.json":                   `{}`,
+		"noda.development.json":       `{}`,
+		"schemas/User.json":           `{}`,
+		"schemas/Task.json":           `{}`,
+		"routes/tasks.json":           `{}`,
+		"routes/v1/users.json":        `{}`,
+		"workflows/create-task.json":  `{}`,
+		"workers/notifications.json":  `{}`,
+		"schedules/cleanup.json":      `{}`,
+		"connections/realtime.json":   `{}`,
+		"tests/test-create-task.json": `{}`,
 	})
 
 	d, err := Discover(dir, "development")
@@ -67,9 +67,9 @@ func TestDiscover_MinimalProject(t *testing.T) {
 func TestDiscover_NestedSubdirectories(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
 		"noda.json":                  `{}`,
-		"routes/v1/users.json":      `{}`,
+		"routes/v1/users.json":       `{}`,
 		"routes/v1/admin/roles.json": `{}`,
-		"routes/health.json":        `{}`,
+		"routes/health.json":         `{}`,
 	})
 
 	d, err := Discover(dir, "")
@@ -79,11 +79,11 @@ func TestDiscover_NestedSubdirectories(t *testing.T) {
 
 func TestDiscover_NonJSONFilesIgnored(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
-		"noda.json":          `{}`,
-		"routes/tasks.json":  `{}`,
-		"routes/README.md":   `# Routes`,
-		"routes/.gitkeep":    ``,
-		"routes/backup.bak":  `{}`,
+		"noda.json":         `{}`,
+		"routes/tasks.json": `{}`,
+		"routes/README.md":  `# Routes`,
+		"routes/.gitkeep":   ``,
+		"routes/backup.bak": `{}`,
 	})
 
 	d, err := Discover(dir, "")

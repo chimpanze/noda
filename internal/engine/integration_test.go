@@ -77,20 +77,6 @@ func (e *mockFlaky) Execute(_ context.Context, _ api.ExecutionContext, _ map[str
 	return "success", map[string]any{"recovered": true}, nil
 }
 
-// mockAccumulator stores data from input.
-type mockAccumulator struct {
-	mu   sync.Mutex
-	data []any
-}
-
-func (e *mockAccumulator) Outputs() []string { return []string{"success", "error"} }
-func (e *mockAccumulator) Execute(_ context.Context, execCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
-	e.mu.Lock()
-	e.data = append(e.data, execCtx.Input())
-	e.mu.Unlock()
-	return "success", map[string]any{"accumulated": len(e.data)}, nil
-}
-
 // --- Test Setup Helper ---
 
 func setupIntegrationTest(t *testing.T, executors map[string]api.NodeExecutor) (*registry.NodeRegistry, *registry.ServiceRegistry) {
@@ -235,10 +221,10 @@ func TestIntegration_ConditionalSplit(t *testing.T) {
 	mu := &sync.Mutex{}
 	var order []string
 	nodeReg, svcReg := setupIntegrationTest(t, map[string]api.NodeExecutor{
-		"check":   &mockConditional{},
+		"check":    &mockConditional{},
 		"branch_t": &orderTrackingExecutor{mu: mu, order: &order, nodeID: "branch_t"},
 		"branch_f": &orderTrackingExecutor{mu: mu, order: &order, nodeID: "branch_f"},
-		"merge":   &orderTrackingExecutor{mu: mu, order: &order, nodeID: "merge"},
+		"merge":    &orderTrackingExecutor{mu: mu, order: &order, nodeID: "merge"},
 	})
 
 	wf := WorkflowConfig{

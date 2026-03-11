@@ -143,8 +143,8 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 
 		// Send retry header
 		if h.config.Retry > 0 {
-			fmt.Fprintf(w, "retry: %d\n\n", h.config.Retry)
-			w.Flush()
+			_, _ = fmt.Fprintf(w, "retry: %d\n\n", h.config.Retry)
+			_ = w.Flush()
 		}
 
 		ticker := time.NewTicker(h.config.Heartbeat)
@@ -162,7 +162,7 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 				}
 
 			case <-ticker.C:
-				fmt.Fprintf(w, ": heartbeat\n\n")
+				_, _ = fmt.Fprintf(w, ": heartbeat\n\n")
 				if err := w.Flush(); err != nil {
 					return
 				}

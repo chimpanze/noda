@@ -326,7 +326,7 @@ func TestCreateNode_UniqueConstraintViolation(t *testing.T) {
 	db := newTestDB(t)
 	// Add unique constraint
 	sqlDB, _ := db.DB()
-	sqlDB.Exec("CREATE UNIQUE INDEX idx_tasks_title ON tasks(title)")
+	_, _ = sqlDB.Exec("CREATE UNIQUE INDEX idx_tasks_title ON tasks(title)")
 	db.Exec("INSERT INTO tasks (title) VALUES (?)", "Existing")
 
 	exec := &createExecutor{}

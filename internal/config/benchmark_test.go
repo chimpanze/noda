@@ -82,13 +82,13 @@ func BenchmarkMergeOverlay(b *testing.B) {
 }
 
 func BenchmarkResolveEnvVars(b *testing.B) {
-	os.Setenv("BENCH_DB_HOST", "localhost")
-	os.Setenv("BENCH_DB_PORT", "5432")
-	os.Setenv("BENCH_REDIS_URL", "redis://localhost:6379")
+	_ = os.Setenv("BENCH_DB_HOST", "localhost")
+	_ = os.Setenv("BENCH_DB_PORT", "5432")
+	_ = os.Setenv("BENCH_REDIS_URL", "redis://localhost:6379")
 	defer func() {
-		os.Unsetenv("BENCH_DB_HOST")
-		os.Unsetenv("BENCH_DB_PORT")
-		os.Unsetenv("BENCH_REDIS_URL")
+		_ = os.Unsetenv("BENCH_DB_HOST")
+		_ = os.Unsetenv("BENCH_DB_PORT")
+		_ = os.Unsetenv("BENCH_REDIS_URL")
 	}()
 
 	config := map[string]any{

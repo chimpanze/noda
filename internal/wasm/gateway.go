@@ -24,9 +24,9 @@ type gatewayConn struct {
 	ws     *websocket.Conn
 	config GatewayConfig
 
-	mu       sync.Mutex
-	stopCh   chan struct{}
-	closed   bool
+	mu     sync.Mutex
+	stopCh chan struct{}
+	closed bool
 }
 
 // NewGateway creates a new gateway manager.
@@ -148,8 +148,8 @@ func (g *Gateway) CloseConn(payload map[string]any) (any, error) {
 	gc.mu.Unlock()
 
 	msg := websocket.FormatCloseMessage(code, reason)
-	gc.ws.WriteControl(websocket.CloseMessage, msg, time.Now().Add(time.Second))
-	gc.ws.Close()
+	_ = gc.ws.WriteControl(websocket.CloseMessage, msg, time.Now().Add(time.Second))
+	_ = gc.ws.Close()
 
 	g.logger.Debug("gateway disconnected", "module", g.module.Name, "id", id)
 	return nil, nil
@@ -191,7 +191,7 @@ func (g *Gateway) CloseAll() {
 		gc.closed = true
 		close(gc.stopCh)
 		gc.mu.Unlock()
-		gc.ws.Close()
+		_ = gc.ws.Close()
 	}
 }
 
@@ -250,7 +250,7 @@ func (g *Gateway) heartbeatLoop(gc *gatewayConn) {
 			}
 			if gc.config.HeartbeatPayload != nil {
 				data, _ := g.module.Codec.Marshal(gc.config.HeartbeatPayload)
-				gc.ws.WriteMessage(websocket.TextMessage, data)
+				_ = gc.ws.WriteMessage(websocket.TextMessage, data)
 			}
 			gc.mu.Unlock()
 		}

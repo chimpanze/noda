@@ -48,8 +48,8 @@ func TestValidateAll_ValidProject(t *testing.T) {
 
 func TestValidateAll_BrokenJSON(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
-		"noda.json":        `{}`,
-		"routes/bad.json":  `{invalid json}`,
+		"noda.json":       `{}`,
+		"routes/bad.json": `{invalid json}`,
 	})
 
 	_, errs := ValidateAll(dir, "")
@@ -134,11 +134,11 @@ func TestValidateAll_MissingNodaJSON(t *testing.T) {
 
 func TestGetValidateInfo(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
-		"noda.json":                    `{}`,
-		"noda.development.json":        `{}`,
-		"routes/a.json":                `{}`,
-		"routes/b.json":                `{}`,
-		"workflows/c.json":             `{}`,
+		"noda.json":             `{}`,
+		"noda.development.json": `{}`,
+		"routes/a.json":         `{}`,
+		"routes/b.json":         `{}`,
+		"workflows/c.json":      `{}`,
 	})
 
 	info, err := GetValidateInfo(dir, "development")
@@ -147,12 +147,6 @@ func TestGetValidateInfo(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "noda.development.json"), info.OverlayFile)
 	assert.Equal(t, 2, info.FileCounts["routes"])
 	assert.Equal(t, 1, info.FileCounts["workflows"])
-}
-
-// Helper to set env var for testing
-func withEnvVar(t *testing.T, key, value string) {
-	t.Helper()
-	t.Setenv(key, value)
 }
 
 func TestValidateAll_EnvVarsResolved(t *testing.T) {

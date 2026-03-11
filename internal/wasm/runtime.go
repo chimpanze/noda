@@ -81,7 +81,7 @@ func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, was
 	// Wrap in Module
 	module, err := NewModule(cfg.Name, plugin, cfg, dispatcher, r.logger)
 	if err != nil {
-		plugin.Close(ctx)
+		_ = plugin.Close(ctx)
 		return nil, fmt.Errorf("create module: %w", err)
 	}
 
@@ -111,7 +111,7 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 			var req HostCallRequest
 			codec := &jsonCodec{}
 			if err := codec.Unmarshal(input, &req); err != nil {
-				p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
+				_, _ = p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
 				stack[0] = 0
 				return
 			}
@@ -123,7 +123,7 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 					"code":    "INTERNAL_ERROR",
 					"message": err.Error(),
 				})
-				p.WriteBytes(errMsg) // write error as output so PDK can read it
+				_, _ = p.WriteBytes(errMsg) // write error as output so PDK can read it
 				stack[0] = 0
 				return
 			}

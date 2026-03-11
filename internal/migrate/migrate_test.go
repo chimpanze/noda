@@ -53,17 +53,17 @@ func TestCreate_FileNaming(t *testing.T) {
 func setupMigrations(t *testing.T, dir string) {
 	t.Helper()
 	// Create two migration files
-	os.WriteFile(filepath.Join(dir, "20260101000000_create_tasks.up.sql"), []byte(`
+	_ = os.WriteFile(filepath.Join(dir, "20260101000000_create_tasks.up.sql"), []byte(`
 		CREATE TABLE tasks (id INTEGER PRIMARY KEY, title TEXT);
 	`), 0644)
-	os.WriteFile(filepath.Join(dir, "20260101000000_create_tasks.down.sql"), []byte(`
+	_ = os.WriteFile(filepath.Join(dir, "20260101000000_create_tasks.down.sql"), []byte(`
 		DROP TABLE tasks;
 	`), 0644)
 
-	os.WriteFile(filepath.Join(dir, "20260102000000_add_status.up.sql"), []byte(`
+	_ = os.WriteFile(filepath.Join(dir, "20260102000000_add_status.up.sql"), []byte(`
 		ALTER TABLE tasks ADD COLUMN status TEXT DEFAULT 'pending';
 	`), 0644)
-	os.WriteFile(filepath.Join(dir, "20260102000000_add_status.down.sql"), []byte(`
+	_ = os.WriteFile(filepath.Join(dir, "20260102000000_add_status.down.sql"), []byte(`
 		-- SQLite doesn't support DROP COLUMN, so recreate
 		CREATE TABLE tasks_backup AS SELECT id, title FROM tasks;
 		DROP TABLE tasks;
@@ -145,7 +145,7 @@ func TestDown_NoMigrations(t *testing.T) {
 	dir := t.TempDir()
 
 	// Ensure migrations table exists
-	ensureMigrationsTable(db)
+	_ = ensureMigrationsTable(db)
 
 	_, err := Down(db, dir)
 	require.Error(t, err)
@@ -165,7 +165,7 @@ func TestStatus_ShowsCorrectState(t *testing.T) {
 	assert.False(t, statuses[1].Applied)
 
 	// After running
-	Up(db, dir)
+	_, _ = Up(db, dir)
 	statuses, err = Status(db, dir)
 	require.NoError(t, err)
 	require.Len(t, statuses, 2)
@@ -178,9 +178,9 @@ func TestStatus_ShowsCorrectState(t *testing.T) {
 func TestFindMigrations_Sorted(t *testing.T) {
 	dir := t.TempDir()
 	// Create files out of order
-	os.WriteFile(filepath.Join(dir, "20260301000000_third.up.sql"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(dir, "20260101000000_first.up.sql"), []byte(""), 0644)
-	os.WriteFile(filepath.Join(dir, "20260201000000_second.up.sql"), []byte(""), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "20260301000000_third.up.sql"), []byte(""), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "20260101000000_first.up.sql"), []byte(""), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "20260201000000_second.up.sql"), []byte(""), 0644)
 
 	migrations, err := findMigrations(dir)
 	require.NoError(t, err)

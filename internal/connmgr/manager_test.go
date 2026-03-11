@@ -49,7 +49,7 @@ func TestUnregister_NoDelivery(t *testing.T) {
 	mgr.Unregister("c1")
 	assert.Equal(t, int64(0), mgr.Count())
 
-	mgr.Send(context.Background(), "ch1", "msg")
+	_ = mgr.Send(context.Background(), "ch1", "msg")
 	assert.False(t, called)
 }
 
@@ -102,7 +102,7 @@ func TestWildcard_NoMatch(t *testing.T) {
 		SendFn:  func(data []byte) error { called = true; return nil },
 	})
 
-	mgr.Send(context.Background(), "admin.*", "msg")
+	_ = mgr.Send(context.Background(), "admin.*", "msg")
 	assert.False(t, called)
 }
 
@@ -177,7 +177,7 @@ func TestMultipleConnectionsSameChannel(t *testing.T) {
 
 	assert.Equal(t, 3, mgr.ChannelCount("shared"))
 
-	mgr.Send(context.Background(), "shared", "msg")
+	_ = mgr.Send(context.Background(), "shared", "msg")
 	assert.Equal(t, int32(3), count.Load())
 
 	// Unregister one

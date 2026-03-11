@@ -11,10 +11,10 @@ func makeBaseRC() *RawConfig {
 	return &RawConfig{
 		Root: map[string]any{
 			"services": map[string]any{
-				"main-db":    map[string]any{"plugin": "postgres"},
-				"app-cache":  map[string]any{"plugin": "cache"},
+				"main-db":     map[string]any{"plugin": "postgres"},
+				"app-cache":   map[string]any{"plugin": "cache"},
 				"main-stream": map[string]any{"plugin": "stream"},
-				"realtime":   map[string]any{"plugin": "pubsub"},
+				"realtime":    map[string]any{"plugin": "pubsub"},
 			},
 		},
 		Schemas: map[string]map[string]any{},

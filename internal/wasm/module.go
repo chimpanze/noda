@@ -174,7 +174,7 @@ func (m *Module) Stop(ctx context.Context) error {
 	m.gateway.CloseAll()
 
 	// Close plugin
-	m.Plugin.Close(ctx)
+	_ = m.Plugin.Close(ctx)
 
 	return err
 }

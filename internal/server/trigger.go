@@ -132,9 +132,9 @@ func parseBody(c fiber.Ctx) any {
 	// Try form data
 	if strings.Contains(contentType, "form") {
 		form := make(map[string]any)
-		c.Request().PostArgs().VisitAll(func(key, value []byte) {
+		for key, value := range c.Request().PostArgs().All() {
 			form[string(key)] = string(value)
-		})
+		}
 		if len(form) > 0 {
 			return form
 		}

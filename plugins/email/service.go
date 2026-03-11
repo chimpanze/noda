@@ -105,9 +105,7 @@ func (s *Service) Send(msg *Message) (string, error) {
 		return "", fmt.Errorf("email: close data: %w", err)
 	}
 
-	if err := client.Quit(); err != nil {
-		// Non-fatal: message was already sent
-	}
+	_ = client.Quit() // Non-fatal: message was already sent
 
 	return messageID, nil
 }

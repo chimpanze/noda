@@ -94,11 +94,7 @@ func parseTestFile(filePath string, data map[string]any) (TestSuite, error) {
 			Mocks:  make(map[string]MockConfig),
 		}
 		for nodeID, mc := range tc.Mocks {
-			testCase.Mocks[nodeID] = MockConfig{
-				Output:     mc.Output,
-				OutputName: mc.OutputName,
-				Error:      mc.Error,
-			}
+			testCase.Mocks[nodeID] = MockConfig(mc)
 		}
 		suite.Cases = append(suite.Cases, testCase)
 	}

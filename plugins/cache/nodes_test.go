@@ -106,7 +106,7 @@ func TestService_Del(t *testing.T) {
 	svc, _ := newTestService(t)
 	ctx := context.Background()
 
-	svc.Set(ctx, "to-delete", "val", 0)
+	_ = svc.Set(ctx, "to-delete", "val", 0)
 	err := svc.Del(ctx, "to-delete")
 	require.NoError(t, err)
 
@@ -122,7 +122,7 @@ func TestService_Exists(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, exists)
 
-	svc.Set(ctx, "yes-key", "val", 0)
+	_ = svc.Set(ctx, "yes-key", "val", 0)
 	exists, err = svc.Exists(ctx, "yes-key")
 	require.NoError(t, err)
 	assert.True(t, exists)
@@ -132,7 +132,7 @@ func TestService_Exists(t *testing.T) {
 
 func TestGetNode_Success(t *testing.T) {
 	svc, _ := newTestService(t)
-	svc.Set(context.Background(), "mykey", "myvalue", 0)
+	_ = svc.Set(context.Background(), "mykey", "myvalue", 0)
 
 	exec := &getExecutor{}
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
@@ -248,7 +248,7 @@ func TestSetNode_MissingValue(t *testing.T) {
 
 func TestDelNode_Success(t *testing.T) {
 	svc, _ := newTestService(t)
-	svc.Set(context.Background(), "del-key", "val", 0)
+	_ = svc.Set(context.Background(), "del-key", "val", 0)
 
 	exec := &delExecutor{}
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
@@ -280,7 +280,7 @@ func TestDelNode_NonexistentKey(t *testing.T) {
 
 func TestExistsNode_Found(t *testing.T) {
 	svc, _ := newTestService(t)
-	svc.Set(context.Background(), "exist-key", "val", 0)
+	_ = svc.Set(context.Background(), "exist-key", "val", 0)
 
 	exec := &existsExecutor{}
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}

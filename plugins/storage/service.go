@@ -31,7 +31,7 @@ func (s *Service) Read(_ context.Context, path string) ([]byte, error) {
 		}
 		return nil, fmt.Errorf("storage read %q: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	data, err := io.ReadAll(f)
 	if err != nil {
@@ -53,7 +53,7 @@ func (s *Service) Write(_ context.Context, path string, data []byte) error {
 	if err != nil {
 		return fmt.Errorf("storage write %q: create: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.Write(data); err != nil {
 		return fmt.Errorf("storage write %q: write: %w", path, err)
@@ -74,7 +74,7 @@ func (s *Service) WriteStream(_ context.Context, path string, r io.Reader) (int6
 	if err != nil {
 		return 0, fmt.Errorf("storage write stream %q: create: %w", path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	n, err := io.Copy(f, r)
 	if err != nil {

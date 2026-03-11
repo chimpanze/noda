@@ -165,12 +165,6 @@ func TestEventHub_WithTraceCallback(t *testing.T) {
 
 // --- test node ---
 
-type echoDescriptor struct{}
-
-func (d *echoDescriptor) Name() string                          { return "echo" }
-func (d *echoDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
-func (d *echoDescriptor) ConfigSchema() map[string]any           { return nil }
-
 type echoExecutor struct{}
 
 func newEchoExecutor(_ map[string]any) api.NodeExecutor { return &echoExecutor{} }

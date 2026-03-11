@@ -37,7 +37,7 @@ func Evaluate(compiled *CompiledExpression, context map[string]any) (any, error)
 			return nil, fmt.Errorf("evaluation error in %q (segment %q): %w", compiled.Parsed.Raw, seg.Value, err)
 		}
 
-		b.WriteString(fmt.Sprintf("%v", result))
+		fmt.Fprintf(&b, "%v", result)
 	}
 
 	return b.String(), nil

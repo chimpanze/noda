@@ -60,7 +60,7 @@ func (p *Plugin) HealthCheck(service any) error {
 	if !ok {
 		return fmt.Errorf("email: invalid service type")
 	}
-	addr := fmt.Sprintf("%s:%d", svc.host, svc.port)
+	addr := net.JoinHostPort(svc.host, fmt.Sprintf("%d", svc.port))
 
 	var conn net.Conn
 	var err error

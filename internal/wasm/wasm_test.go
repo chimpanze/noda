@@ -232,7 +232,7 @@ func TestModule_ClientMessages(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	m.Initialize(context.Background())
+	require.NoError(t, m.Initialize(context.Background()))
 
 	// Add messages before starting tick loop
 	m.AddClientMessage(ClientMessage{
@@ -244,7 +244,7 @@ func TestModule_ClientMessages(t *testing.T) {
 
 	m.Start()
 	time.Sleep(150 * time.Millisecond)
-	m.Stop(context.Background())
+	require.NoError(t, m.Stop(context.Background()))
 
 	tickCalls := plugin.getCalls("tick")
 	require.NotEmpty(t, tickCalls)
@@ -264,21 +264,21 @@ func TestModule_Timers(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 20}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	m.Initialize(context.Background())
+	require.NoError(t, m.Initialize(context.Background()))
 
 	// Set a timer that fires after 50ms
 	m.SetTimer("save-state", 50)
 
 	m.Start()
 	time.Sleep(200 * time.Millisecond)
-	m.Stop(context.Background())
+	require.NoError(t, m.Stop(context.Background()))
 
 	// Check that timer fired in one of the ticks
 	tickCalls := plugin.getCalls("tick")
 	timerFired := false
 	for _, call := range tickCalls {
 		var input TickInput
-		json.Unmarshal(call.Data, &input)
+		_ = json.Unmarshal(call.Data, &input)
 		for _, t := range input.Timers {
 			if t == "save-state" {
 				timerFired = true
@@ -313,7 +313,7 @@ func TestModule_AsyncResponse(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 20}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	m.Initialize(context.Background())
+	require.NoError(t, m.Initialize(context.Background()))
 
 	// Add an async response
 	m.AddAsyncResult("fetch-data", &AsyncResponse{
@@ -323,14 +323,14 @@ func TestModule_AsyncResponse(t *testing.T) {
 
 	m.Start()
 	time.Sleep(150 * time.Millisecond)
-	m.Stop(context.Background())
+	require.NoError(t, m.Stop(context.Background()))
 
 	// Check that response was delivered in a tick
 	tickCalls := plugin.getCalls("tick")
 	responseDelivered := false
 	for _, call := range tickCalls {
 		var input TickInput
-		json.Unmarshal(call.Data, &input)
+		_ = json.Unmarshal(call.Data, &input)
 		if resp, ok := input.Responses["fetch-data"]; ok {
 			assert.Equal(t, "ok", resp.Status)
 			responseDelivered = true
@@ -352,9 +352,9 @@ func TestModule_Query(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	m.Initialize(context.Background())
+	require.NoError(t, m.Initialize(context.Background()))
 	m.Start()
-	defer m.Stop(context.Background())
+	defer func() { require.NoError(t, m.Stop(context.Background())) }()
 
 	// Give tick loop time to start
 	time.Sleep(50 * time.Millisecond)
@@ -377,9 +377,9 @@ func TestModule_SendCommand_WithExport(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	m.Initialize(context.Background())
+	require.NoError(t, m.Initialize(context.Background()))
 	m.Start()
-	defer m.Stop(context.Background())
+	defer func() { require.NoError(t, m.Stop(context.Background())) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -402,20 +402,20 @@ func TestModule_SendCommand_Buffered(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 20}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	m.Initialize(context.Background())
+	require.NoError(t, m.Initialize(context.Background()))
 
 	m.SendCommand(map[string]any{"action": "test"})
 
 	m.Start()
 	time.Sleep(150 * time.Millisecond)
-	m.Stop(context.Background())
+	require.NoError(t, m.Stop(context.Background()))
 
 	// Command should appear in tick's commands field
 	tickCalls := plugin.getCalls("tick")
 	commandDelivered := false
 	for _, call := range tickCalls {
 		var input TickInput
-		json.Unmarshal(call.Data, &input)
+		_ = json.Unmarshal(call.Data, &input)
 		if len(input.Commands) > 0 {
 			commandDelivered = true
 			assert.Equal(t, "workflow", input.Commands[0].Source)
@@ -439,7 +439,7 @@ func TestModule_IsServiceAllowed(t *testing.T) {
 	m, err := NewModule("test", plugin, cfg, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	assert.True(t, m.IsServiceAllowed(""))           // system always allowed
+	assert.True(t, m.IsServiceAllowed("")) // system always allowed
 	assert.True(t, m.IsServiceAllowed("app-cache"))
 	assert.True(t, m.IsServiceAllowed("game-storage"))
 	assert.True(t, m.IsServiceAllowed("game-ws"))
@@ -509,7 +509,7 @@ func TestHostDispatcher_TriggerWorkflow(t *testing.T) {
 
 	dispatcher := NewHostDispatcher(svcReg, runner, testLogger())
 	plugin := newMockPlugin()
-	NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
 
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
@@ -528,7 +528,7 @@ func TestHostDispatcher_PermissionDenied(t *testing.T) {
 	plugin := newMockPlugin()
 
 	// Module only allows "app-cache"
-	NewModule("test", plugin, ModuleConfig{
+	_, _ = NewModule("test", plugin, ModuleConfig{
 		Name:     "test",
 		TickRate: 1,
 		Services: []string{"app-cache"},
@@ -545,11 +545,11 @@ func TestHostDispatcher_PermissionDenied(t *testing.T) {
 func TestHostDispatcher_CacheService(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	cache := &mockCacheService{store: make(map[string]any)}
-	svcReg.Register("app-cache", cache, nil)
+	require.NoError(t, svcReg.Register("app-cache", cache, nil))
 
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
 	plugin := newMockPlugin()
-	NewModule("test", plugin, ModuleConfig{
+	_, _ = NewModule("test", plugin, ModuleConfig{
 		Name:     "test",
 		TickRate: 1,
 		Services: []string{"app-cache"},
@@ -586,7 +586,7 @@ func TestHostDispatcher_CacheService(t *testing.T) {
 func TestHostDispatcher_AsyncCall(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	cache := &mockCacheService{store: map[string]any{"key1": "val1"}}
-	svcReg.Register("app-cache", cache, nil)
+	require.NoError(t, svcReg.Register("app-cache", cache, nil))
 
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
 	plugin := newMockPlugin()
@@ -618,7 +618,7 @@ func TestHostDispatcher_AsyncDuplicateLabel(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
 	plugin := newMockPlugin()
-	NewModule("test", plugin, ModuleConfig{
+	_, _ = NewModule("test", plugin, ModuleConfig{
 		Name:     "test",
 		TickRate: 1,
 		Services: []string{"app-cache"},
@@ -668,9 +668,10 @@ func TestRuntime_StartAndStopAll(t *testing.T) {
 	rt := NewRuntime(svcReg, nil, testLogger())
 
 	plugin := newMockPlugin()
-	rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 20}, plugin)
+	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 20}, plugin)
+	require.NoError(t, err)
 
-	err := rt.StartAll(context.Background())
+	err = rt.StartAll(context.Background())
 	require.NoError(t, err)
 
 	time.Sleep(200 * time.Millisecond)
@@ -692,8 +693,9 @@ func TestWasmService_Query(t *testing.T) {
 	plugin.exports["query"] = true
 	plugin.responses["query"] = mockResponse{data: []byte(`{"leaderboard":[1,2,3]}`)}
 
-	rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 10}, plugin)
-	rt.StartAll(context.Background())
+	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 10}, plugin)
+	require.NoError(t, err)
+	require.NoError(t, rt.StartAll(context.Background()))
 	defer rt.StopAll(context.Background())
 
 	time.Sleep(50 * time.Millisecond)
@@ -709,9 +711,10 @@ func TestWasmService_SendCommand(t *testing.T) {
 	rt := NewRuntime(svcReg, nil, testLogger())
 
 	plugin := newMockPlugin()
-	rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 20}, plugin)
+	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 20}, plugin)
+	require.NoError(t, err)
 
-	rt.StartAll(context.Background())
+	require.NoError(t, rt.StartAll(context.Background()))
 	defer rt.StopAll(context.Background())
 
 	time.Sleep(50 * time.Millisecond)
@@ -726,7 +729,7 @@ func TestWasmService_SendCommand(t *testing.T) {
 	found := false
 	for _, call := range tickCalls {
 		var input TickInput
-		json.Unmarshal(call.Data, &input)
+		_ = json.Unmarshal(call.Data, &input)
 		if len(input.Commands) > 0 {
 			found = true
 		}

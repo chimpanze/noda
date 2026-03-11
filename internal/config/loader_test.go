@@ -28,8 +28,8 @@ func TestLoadAll_ValidFiles(t *testing.T) {
 
 func TestLoadAll_InvalidJSON(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
-		"noda.json":         `{"services": {}}`,
-		"routes/bad.json":   `{invalid json`,
+		"noda.json":       `{"services": {}}`,
+		"routes/bad.json": `{invalid json`,
 	})
 
 	d, err := Discover(dir, "")
@@ -45,9 +45,9 @@ func TestLoadAll_InvalidJSON(t *testing.T) {
 
 func TestLoadAll_MultipleBrokenFiles(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
-		"noda.json":           `{bad}`,
-		"routes/tasks.json":   `{also bad}`,
-		"routes/users.json":   `{"valid": true}`,
+		"noda.json":         `{bad}`,
+		"routes/tasks.json": `{also bad}`,
+		"routes/users.json": `{"valid": true}`,
 	})
 
 	d, err := Discover(dir, "")

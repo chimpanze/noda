@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/plugin"
+	"github.com/redis/go-redis/v9"
 )
 
 // tryAcquireLock attempts a Redis SET NX on the given key with TTL.
@@ -20,11 +21,14 @@ func tryAcquireLock(ctx context.Context, svc any, key string, ttl time.Duration)
 		ttl = 5 * time.Minute
 	}
 
-	result, err := provider.Client().SetNX(ctx, key, "1", ttl).Result()
+	result, err := provider.Client().SetArgs(ctx, key, "1", redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
+	if err == redis.Nil {
+		return false, nil
+	}
 	if err != nil {
 		return false, fmt.Errorf("lock acquire %q: %w", key, err)
 	}
-	return result, nil
+	return result == "OK", nil
 }
 
 // releaseLockKey deletes a lock key.

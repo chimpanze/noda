@@ -37,10 +37,6 @@ func (s *Server) registerConnections() error {
 			svc := connmgr.NewEndpointService(mgr, name)
 
 			// Register as a service so workflow nodes can reference it
-			prefix := epType // "websocket" → register under "ws", "sse" → "sse"
-			if prefix == "websocket" {
-				prefix = "ws"
-			}
 			s.services.Register(name, svc, nil)
 
 			// Extract channel pattern
