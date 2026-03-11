@@ -19,15 +19,25 @@
     },
     "rows": {
       "config": {
-        "params": [
-          "{{ input.user_id }}"
+        "table": "workspaces",
+        "select": ["workspaces.*"],
+        "joins": [
+          {
+            "type": "INNER",
+            "table": "workspace_members",
+            "on": "workspaces.id = workspace_members.workspace_id"
+          }
         ],
-        "query": "SELECT w.* FROM workspaces w INNER JOIN workspace_members wm ON w.id = wm.workspace_id WHERE wm.user_id = $1 ORDER BY w.created_at DESC"
+        "where_clause": {
+          "query": "workspace_members.user_id = ?",
+          "params": ["{{ input.user_id }}"]
+        },
+        "order": "workspaces.created_at DESC"
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
+      "type": "db.find"
     }
   }
 }

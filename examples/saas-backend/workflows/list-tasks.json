@@ -19,7 +19,7 @@
           "pagination": {
             "limit": "{{ input.limit }}",
             "page": "{{ input.page }}",
-            "total": "{{ nodes.total[0].cnt }}"
+            "total": "{{ nodes.total.count }}"
           }
         },
         "status": 200
@@ -28,29 +28,26 @@
     },
     "rows": {
       "config": {
-        "params": [
-          "{{ input.workspace_id }}",
-          "{{ input.limit }}",
-          "{{ (toInt(input.page) - 1) * toInt(input.limit) }}"
-        ],
-        "query": "SELECT * FROM tasks WHERE workspace_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3"
+        "table": "tasks",
+        "where": { "workspace_id": "{{ input.workspace_id }}" },
+        "order": "created_at DESC",
+        "limit": "{{ input.limit }}",
+        "offset": "{{ (toInt(input.page) - 1) * toInt(input.limit) }}"
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
+      "type": "db.find"
     },
     "total": {
       "config": {
-        "params": [
-          "{{ input.workspace_id }}"
-        ],
-        "query": "SELECT COUNT(*) as cnt FROM tasks WHERE workspace_id = $1"
+        "table": "tasks",
+        "where": { "workspace_id": "{{ input.workspace_id }}" }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
+      "type": "db.count"
     }
   }
 }

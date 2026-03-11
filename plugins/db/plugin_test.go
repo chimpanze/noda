@@ -18,7 +18,7 @@ func TestPlugin_Metadata(t *testing.T) {
 func TestPlugin_RegistersAllNodes(t *testing.T) {
 	p := &Plugin{}
 	nodes := p.Nodes()
-	require.Len(t, nodes, 5)
+	require.Len(t, nodes, 9)
 
 	names := make([]string, len(nodes))
 	for i, n := range nodes {
@@ -29,6 +29,10 @@ func TestPlugin_RegistersAllNodes(t *testing.T) {
 	assert.Contains(t, names, "create")
 	assert.Contains(t, names, "update")
 	assert.Contains(t, names, "delete")
+	assert.Contains(t, names, "find")
+	assert.Contains(t, names, "findOne")
+	assert.Contains(t, names, "count")
+	assert.Contains(t, names, "upsert")
 }
 
 func TestPlugin_NodeServiceDeps(t *testing.T) {

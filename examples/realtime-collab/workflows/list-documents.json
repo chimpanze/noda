@@ -3,11 +3,13 @@
   "name": "List Documents",
   "nodes": {
     "fetch": {
-      "type": "db.query",
+      "type": "db.find",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT id, title, content, owner_id, created_at, updated_at FROM documents WHERE owner_id = $1 ORDER BY created_at DESC",
-        "params": ["{{ input.owner_id }}"]
+        "table": "documents",
+        "select": ["id", "title", "content", "owner_id", "created_at", "updated_at"],
+        "where": { "owner_id": "{{ input.owner_id }}" },
+        "order": "created_at DESC"
       }
     },
     "respond": {

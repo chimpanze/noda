@@ -26,6 +26,10 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 		{Descriptor: &createDescriptor{}, Factory: newCreateExecutor},
 		{Descriptor: &updateDescriptor{}, Factory: newUpdateExecutor},
 		{Descriptor: &deleteDescriptor{}, Factory: newDeleteExecutor},
+		{Descriptor: &findDescriptor{}, Factory: newFindExecutor},
+		{Descriptor: &findOneDescriptor{}, Factory: newFindOneExecutor},
+		{Descriptor: &countDescriptor{}, Factory: newCountExecutor},
+		{Descriptor: &upsertDescriptor{}, Factory: newUpsertExecutor},
 	}
 }
 

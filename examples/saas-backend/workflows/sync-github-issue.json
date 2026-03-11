@@ -8,16 +8,12 @@
     {
       "from": "switch_action",
       "output": "closed",
-      "to": "find_task"
+      "to": "close_task"
     },
     {
       "from": "switch_action",
       "output": "default",
       "to": "log_unknown"
-    },
-    {
-      "from": "find_task",
-      "to": "close_task"
     }
   ],
   "id": "sync-github-issue",
@@ -25,15 +21,14 @@
   "nodes": {
     "close_task": {
       "config": {
-        "params": [
-          "{{ input.issue_id }}"
-        ],
-        "query": "UPDATE tasks SET status = 'done' WHERE github_issue_id = $1"
+        "table": "tasks",
+        "data": { "status": "done" },
+        "where": { "github_issue_id": "{{ input.issue_id }}" }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.exec"
+      "type": "db.update"
     },
     "create_task": {
       "config": {
@@ -51,18 +46,6 @@
         "database": "main-db"
       },
       "type": "db.create"
-    },
-    "find_task": {
-      "config": {
-        "params": [
-          "{{ input.issue_id }}"
-        ],
-        "query": "SELECT * FROM tasks WHERE github_issue_id = $1"
-      },
-      "services": {
-        "database": "main-db"
-      },
-      "type": "db.query"
     },
     "log_unknown": {
       "config": {

@@ -47,7 +47,7 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, fmt.Errorf("db.query: %w", err)
 	}
 
-	params, err := resolveParams(nCtx, config)
+	params, err := plugin.ResolveOptionalArray(nCtx, config, "params")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.query: %w", err)
 	}

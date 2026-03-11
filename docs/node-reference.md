@@ -1,6 +1,6 @@
 # Node Reference
 
-All 46 node types available in Noda, organized by plugin. Every node returns a named output (`success` or `error` by default) along with its result data.
+All 50 node types available in Noda, organized by plugin. Every node returns a named output (`success` or `error` by default) along with its result data.
 
 ## Expression Context
 
@@ -301,7 +301,7 @@ Builds an HTTP JSON response.
     "status": 200,
     "body": {
       "data": "{{ nodes.fetch }}",
-      "total": "{{ nodes.count[0].total }}"
+      "total": "{{ nodes.count.count }}"
     },
     "headers": {
       "X-Request-Id": "{{ trigger.trace_id }}"
@@ -750,6 +750,108 @@ Inserts a row into a table.
 }
 ```
 
+### db.find
+
+Structured SELECT returning an array of row objects.
+
+| Config Field | Type | Required | Description |
+|-------------|------|----------|-------------|
+| `table` | string (expr) | yes | Table name |
+| `select` | array | no | Column names to select (default: all) |
+| `where` | object | no | Equality conditions as key-value pairs |
+| `where_clause` | object | no | Raw WHERE with `query` (string) and `params` (array) |
+| `joins` | array | no | JOIN clauses |
+| `order` | string | no | ORDER BY clause |
+| `group` | string | no | GROUP BY clause |
+| `having` | string | no | HAVING clause |
+| `limit` | integer | no | Max rows to return |
+| `offset` | integer | no | Rows to skip |
+
+**Service Deps:** `database` (prefix: `db`, required)
+
+**Output:** `[]map[string]any` (empty array if no rows).
+
+```json
+{
+  "type": "db.find",
+  "services": { "database": "postgres" },
+  "config": {
+    "table": "tasks",
+    "select": ["id", "title", "completed"],
+    "where": {
+      "user_id": "{{ auth.user_id }}",
+      "completed": false
+    },
+    "order": "created_at DESC",
+    "limit": 20
+  }
+}
+```
+
+### db.findOne
+
+Single row SELECT returning a single row object.
+
+| Config Field | Type | Required | Description |
+|-------------|------|----------|-------------|
+| `table` | string (expr) | yes | Table name |
+| `select` | array | no | Column names to select (default: all) |
+| `where` | object | no | Equality conditions as key-value pairs |
+| `where_clause` | object | no | Raw WHERE with `query` (string) and `params` (array) |
+| `joins` | array | no | JOIN clauses |
+| `order` | string | no | ORDER BY clause |
+| `group` | string | no | GROUP BY clause |
+| `having` | string | no | HAVING clause |
+| `required` | boolean | no | If `true` (default), returns `NotFoundError` when no row matches. If `false`, returns `nil`. |
+
+**Service Deps:** `database` (prefix: `db`, required)
+
+**Output:** `map[string]any`. Forces `LIMIT 1`.
+
+```json
+{
+  "type": "db.findOne",
+  "services": { "database": "postgres" },
+  "config": {
+    "table": "tasks",
+    "where": {
+      "id": "{{ input.task_id }}",
+      "user_id": "{{ auth.user_id }}"
+    },
+    "required": true
+  }
+}
+```
+
+### db.count
+
+Counts rows matching conditions.
+
+| Config Field | Type | Required | Description |
+|-------------|------|----------|-------------|
+| `table` | string (expr) | yes | Table name |
+| `where` | object | no | Equality conditions as key-value pairs |
+| `where_clause` | object | no | Raw WHERE with `query` (string) and `params` (array) |
+| `joins` | array | no | JOIN clauses |
+
+**Service Deps:** `database` (prefix: `db`, required)
+
+**Output:** `{"count": <int64>}`
+
+```json
+{
+  "type": "db.count",
+  "services": { "database": "postgres" },
+  "config": {
+    "table": "tasks",
+    "where": {
+      "user_id": "{{ auth.user_id }}",
+      "completed": false
+    }
+  }
+}
+```
+
 ### db.update
 
 Updates rows matching a condition.
@@ -758,8 +860,9 @@ Updates rows matching a condition.
 |-------------|------|----------|-------------|
 | `table` | string (expr) | yes | Table name |
 | `data` | object | yes | Fields to update (expressions) |
-| `condition` | string (expr) | yes | WHERE clause |
-| `params` | array | no | Condition parameters |
+| `where` | object | yes | Equality conditions as key-value pairs |
+
+**Service Deps:** `database` (prefix: `db`, required)
 
 **Output:** `{rows_affected: <count>}`
 
@@ -773,8 +876,10 @@ Updates rows matching a condition.
       "completed": "{{ input.completed }}",
       "updated_at": "{{ now() }}"
     },
-    "condition": "id = $1 AND user_id = $2",
-    "params": ["{{ input.id }}", "{{ auth.user_id }}"]
+    "where": {
+      "id": "{{ input.id }}",
+      "user_id": "{{ auth.user_id }}"
+    }
   }
 }
 ```
@@ -786,10 +891,58 @@ Deletes rows matching a condition.
 | Config Field | Type | Required | Description |
 |-------------|------|----------|-------------|
 | `table` | string (expr) | yes | Table name |
-| `condition` | string (expr) | yes | WHERE clause |
-| `params` | array | no | Condition parameters |
+| `where` | object | yes | Equality conditions as key-value pairs |
+
+**Service Deps:** `database` (prefix: `db`, required)
 
 **Output:** `{rows_affected: <count>}`
+
+```json
+{
+  "type": "db.delete",
+  "services": { "database": "postgres" },
+  "config": {
+    "table": "tasks",
+    "where": {
+      "id": "{{ input.id }}",
+      "user_id": "{{ auth.user_id }}"
+    }
+  }
+}
+```
+
+### db.upsert
+
+Inserts a row or updates it on conflict.
+
+| Config Field | Type | Required | Description |
+|-------------|------|----------|-------------|
+| `table` | string (expr) | yes | Table name |
+| `data` | object | yes | Column values (expressions) |
+| `conflict` | string or array | yes | Conflict column(s) for ON CONFLICT |
+| `update` | array or object | no | Columns to update on conflict (array of names, or object of assignments). Defaults to updating all non-conflict columns. |
+
+**Service Deps:** `database` (prefix: `db`, required)
+
+**Output:** The upserted row data.
+
+```json
+{
+  "type": "db.upsert",
+  "services": { "database": "postgres" },
+  "config": {
+    "table": "user_settings",
+    "data": {
+      "user_id": "{{ auth.user_id }}",
+      "theme": "{{ input.theme }}",
+      "language": "{{ input.language }}",
+      "updated_at": "{{ now() }}"
+    },
+    "conflict": "user_id",
+    "update": ["theme", "language", "updated_at"]
+  }
+}
+```
 
 ---
 

@@ -2,17 +2,7 @@
   "edges": [
     {
       "from": "lookup",
-      "to": "check"
-    },
-    {
-      "from": "check",
-      "output": "then",
       "to": "update"
-    },
-    {
-      "from": "check",
-      "output": "else",
-      "to": "notfound"
     },
     {
       "from": "update",
@@ -26,47 +16,32 @@
   "id": "update-task",
   "name": "Update Task",
   "nodes": {
-    "check": {
-      "config": {
-        "condition": "{{ len(nodes.lookup) \u003e 0 }}"
-      },
-      "type": "control.if"
-    },
     "lookup": {
       "config": {
-        "params": [
-          "{{ input.task_id }}",
-          "{{ input.workspace_id }}"
-        ],
-        "query": "SELECT * FROM tasks WHERE id = $1 AND workspace_id = $2"
+        "table": "tasks",
+        "where": {
+          "id": "{{ input.task_id }}",
+          "workspace_id": "{{ input.workspace_id }}"
+        }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
-    },
-    "notfound": {
-      "config": {
-        "message": "Task not found",
-        "status": 404
-      },
-      "type": "response.error"
+      "type": "db.findOne"
     },
     "refetch": {
       "config": {
-        "params": [
-          "{{ input.task_id }}"
-        ],
-        "query": "SELECT * FROM tasks WHERE id = $1"
+        "table": "tasks",
+        "where": { "id": "{{ input.task_id }}" }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
+      "type": "db.findOne"
     },
     "respond": {
       "config": {
-        "body": "{{ nodes.refetch[0] }}",
+        "body": "{{ nodes.refetch }}",
         "status": 200
       },
       "type": "response.json"

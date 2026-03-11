@@ -14,8 +14,7 @@
       "services": { "database": "main-db" },
       "config": {
         "table": "documents",
-        "condition": "id = ?",
-        "params": ["{{ input.doc_id }}"],
+        "where": { "id": "{{ input.doc_id }}" },
         "data": {
           "title": "{{ input.title }}",
           "content": "{{ input.content }}"

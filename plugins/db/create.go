@@ -48,7 +48,7 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.create: %w", err)
 	}
 
-	data, err := resolveMap(nCtx, config, "data")
+	data, err := plugin.ResolveMap(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.create: %w", err)
 	}

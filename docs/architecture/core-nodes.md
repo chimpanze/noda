@@ -582,14 +582,76 @@ Output: the created record (with generated fields like `id`).
 
 ---
 
+**db.find** — Structured SELECT returning an array of maps.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `table` | expression → string | Yes | Table name |
+| `select` | static string[] | No | Columns to return. Default: all |
+| `where` | expression → object | No | Equality conditions as key-value map |
+| `where_clause` | object | No | Raw WHERE with `query` (string) and `params` (expression[]) |
+| `joins` | static object[] | No | Array of `{ "type", "table", "on", "params" }` |
+| `order` | expression → string | No | ORDER BY clause |
+| `group` | expression → string | No | GROUP BY clause |
+| `having` | expression → string | No | HAVING clause |
+| `limit` | expression → int | No | Maximum rows to return |
+| `offset` | expression → int | No | Rows to skip |
+
+Output: array of row objects.
+
+---
+
+**db.findOne** — Single row SELECT.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `table` | expression → string | Yes | Table name |
+| `select` | static string[] | No | Columns to return. Default: all |
+| `where` | expression → object | No | Equality conditions as key-value map |
+| `where_clause` | object | No | Raw WHERE with `query` (string) and `params` (expression[]) |
+| `joins` | static object[] | No | Array of `{ "type", "table", "on", "params" }` |
+| `order` | expression → string | No | ORDER BY clause |
+| `group` | expression → string | No | GROUP BY clause |
+| `having` | expression → string | No | HAVING clause |
+| `required` | static bool | No | If `true` (default), fires `error` with `NotFoundError` when no row matches |
+
+Forces `LIMIT 1`. Output: single row object.
+
+---
+
+**db.count** — Count rows.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `table` | expression → string | Yes | Table name |
+| `where` | expression → object | No | Equality conditions as key-value map |
+| `where_clause` | object | No | Raw WHERE with `query` (string) and `params` (expression[]) |
+| `joins` | static object[] | No | Array of `{ "type", "table", "on", "params" }` |
+
+Output: `{ "count": int }`.
+
+---
+
+**db.upsert** — Insert or update on conflict.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `table` | expression → string | Yes | Table name |
+| `data` | expression → object | Yes | Row data as key-value map |
+| `conflict` | static string or string[] | Yes | Conflict column(s) for ON CONFLICT |
+| `update` | static string[] or object | No | Columns to update on conflict. Default: all non-conflict columns from `data` |
+
+Output: the upserted record (with generated fields like `id`).
+
+---
+
 **db.update** — Update records.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `table` | expression → string | Yes | Table name |
 | `data` | expression → object | Yes | Fields to update |
-| `condition` | expression → string | Yes | WHERE clause |
-| `params` | expression[] | No | Condition parameters |
+| `where` | expression → object | Yes | Equality conditions as key-value map |
 
 Output: `{ "rows_affected": int }`.
 
@@ -600,8 +662,7 @@ Output: `{ "rows_affected": int }`.
 | Field | Type | Required | Description |
 |---|---|---|---|
 | `table` | expression → string | Yes | Table name |
-| `condition` | expression → string | Yes | WHERE clause |
-| `params` | expression[] | No | Condition parameters |
+| `where` | expression → object | Yes | Equality conditions as key-value map |
 
 Output: `{ "rows_affected": int }`.
 

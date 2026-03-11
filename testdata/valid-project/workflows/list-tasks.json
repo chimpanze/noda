@@ -3,7 +3,7 @@
   "name": "List Tasks",
   "nodes": {
     "query": {
-      "type": "db.query",
+      "type": "db.find",
       "services": { "database": "main-db" },
       "config": {
         "table": "tasks",
@@ -12,11 +12,10 @@
       }
     },
     "count": {
-      "type": "db.query",
+      "type": "db.count",
       "services": { "database": "read-db" },
       "config": {
-        "table": "tasks",
-        "count": true
+        "table": "tasks"
       }
     },
     "respond": {
@@ -25,7 +24,7 @@
         "status": 200,
         "body": {
           "items": "{{ nodes.query }}",
-          "total": "{{ nodes.count }}"
+          "total": "{{ nodes.count.count }}"
         }
       }
     }

@@ -3,23 +3,22 @@
   "name": "List Tasks",
   "nodes": {
     "total": {
-      "type": "db.query",
+      "type": "db.count",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT COUNT(*) as cnt FROM tasks WHERE user_id = $1",
-        "params": ["{{ input.user_id }}"]
+        "table": "tasks",
+        "where": { "user_id": "{{ input.user_id }}" }
       }
     },
     "rows": {
-      "type": "db.query",
+      "type": "db.find",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-        "params": [
-          "{{ input.user_id }}",
-          "{{ input.limit }}",
-          "{{ (input.page - 1) * input.limit }}"
-        ]
+        "table": "tasks",
+        "where": { "user_id": "{{ input.user_id }}" },
+        "order": "created_at DESC",
+        "limit": "{{ input.limit }}",
+        "offset": "{{ (input.page - 1) * input.limit }}"
       }
     },
     "respond": {
@@ -31,7 +30,7 @@
           "pagination": {
             "page": "{{ input.page }}",
             "limit": "{{ input.limit }}",
-            "total": "{{ nodes.total[0].cnt }}"
+            "total": "{{ nodes.total.count }}"
           }
         }
       }

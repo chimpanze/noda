@@ -288,10 +288,9 @@ func TestE2E_DB_UpdateTask(t *testing.T) {
 							"database": "main-db",
 						},
 						"config": map[string]any{
-							"table":     "tasks",
-							"data":      map[string]any{"title": "{{ input.title }}"},
-							"condition": "id = ?",
-							"params":    []any{"{{ input.id }}"},
+							"table": "tasks",
+							"data":  map[string]any{"title": "{{ input.title }}"},
+							"where": map[string]any{"id": "{{ input.id }}"},
 						},
 					},
 					"respond": map[string]any{
@@ -354,9 +353,8 @@ func TestE2E_DB_DeleteTask(t *testing.T) {
 							"database": "main-db",
 						},
 						"config": map[string]any{
-							"table":     "tasks",
-							"condition": "id = ?",
-							"params":    []any{"{{ input.id }}"},
+							"table": "tasks",
+							"where": map[string]any{"id": "{{ input.id }}"},
 						},
 					},
 					"respond": map[string]any{
@@ -584,7 +582,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 					"services": map[string]any{"database": "main-db"},
 					"config": map[string]any{
 						"table": "tasks", "data": map[string]any{"title": "{{ input.title }}"},
-						"condition": "id = ?", "params": []any{"{{ input.id }}"},
+						"where": map[string]any{"id": "{{ input.id }}"},
 					},
 				},
 				"respond": map[string]any{
@@ -600,7 +598,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 					"type":     "db.delete",
 					"services": map[string]any{"database": "main-db"},
 					"config": map[string]any{
-						"table": "tasks", "condition": "id = ?", "params": []any{"{{ input.id }}"},
+						"table": "tasks", "where": map[string]any{"id": "{{ input.id }}"},
 					},
 				},
 				"respond": map[string]any{

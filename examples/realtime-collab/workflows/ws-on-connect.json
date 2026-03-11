@@ -3,17 +3,19 @@
   "name": "WebSocket Connect — Join Document",
   "nodes": {
     "fetch_doc": {
-      "type": "db.query",
+      "type": "db.findOne",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT id FROM documents WHERE id = $1 LIMIT 1",
-        "params": ["{{ input.params.doc_id }}"]
+        "table": "documents",
+        "select": ["id"],
+        "where": { "id": "{{ input.params.doc_id }}" },
+        "required": false
       }
     },
     "check_exists": {
       "type": "control.if",
       "config": {
-        "condition": "{{ len(nodes.fetch_doc) > 0 }}"
+        "condition": "{{ nodes.fetch_doc != nil }}"
       }
     },
     "set_presence": {

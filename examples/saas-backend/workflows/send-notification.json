@@ -15,8 +15,8 @@
     "build_email": {
       "config": {
         "fields": {
-          "body": "You have been invited to join the workspace '{{ nodes.load_workspace[0].name }}' as a {{ input.role }}. Log in to accept your invitation.",
-          "subject": "You've been invited to {{ nodes.load_workspace[0].name }}",
+          "body": "You have been invited to join the workspace '{{ nodes.load_workspace.name }}' as a {{ input.role }}. Log in to accept your invitation.",
+          "subject": "You've been invited to {{ nodes.load_workspace.name }}",
           "to": "{{ input.email }}"
         }
       },
@@ -24,16 +24,13 @@
     },
     "load_workspace": {
       "config": {
-        "fields": {},
-        "params": [
-          "{{ input.workspace_id }}"
-        ],
-        "query": "SELECT * FROM workspaces WHERE id = $1"
+        "table": "workspaces",
+        "where": { "id": "{{ input.workspace_id }}" }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
+      "type": "db.findOne"
     },
     "send": {
       "config": {

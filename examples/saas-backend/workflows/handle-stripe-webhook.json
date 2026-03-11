@@ -54,16 +54,13 @@
     },
     "lookup_workspace": {
       "config": {
-        "cases": [],
-        "params": [
-          "{{ input.payload.data.object.customer }}"
-        ],
-        "query": "SELECT * FROM workspaces WHERE stripe_customer_id = $1"
+        "table": "workspaces",
+        "where": { "stripe_customer_id": "{{ input.payload.data.object.customer }}" }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.query"
+      "type": "db.findOne"
     },
     "respond": {
       "config": {
@@ -85,15 +82,14 @@
     },
     "update_subscription": {
       "config": {
-        "params": [
-          "{{ input.payload.data.object.customer }}"
-        ],
-        "query": "UPDATE workspaces SET subscription_status = 'active' WHERE stripe_customer_id = $1"
+        "table": "workspaces",
+        "data": { "subscription_status": "active" },
+        "where": { "stripe_customer_id": "{{ input.payload.data.object.customer }}" }
       },
       "services": {
         "database": "main-db"
       },
-      "type": "db.exec"
+      "type": "db.update"
     }
   }
 }

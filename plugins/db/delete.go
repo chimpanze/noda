@@ -21,11 +21,10 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table":     map[string]any{"type": "string"},
-			"condition": map[string]any{"type": "string"},
-			"params":    map[string]any{"type": "array"},
+			"table": map[string]any{"type": "string"},
+			"where": map[string]any{"type": "object"},
 		},
-		"required": []any{"table", "condition"},
+		"required": []any{"table", "where"},
 	}
 }
 
@@ -48,17 +47,12 @@ func (e *deleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.delete: %w", err)
 	}
 
-	condition, err := plugin.ResolveString(nCtx, config, "condition")
+	where, err := plugin.ResolveMap(nCtx, config, "where")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.delete: %w", err)
 	}
 
-	params, err := resolveParams(nCtx, config)
-	if err != nil {
-		return "", nil, fmt.Errorf("db.delete: %w", err)
-	}
-
-	tx := db.WithContext(ctx).Table(table).Where(condition, params...).Delete(nil)
+	tx := db.WithContext(ctx).Table(table).Where(where).Delete(nil)
 	if tx.Error != nil {
 		return "", nil, fmt.Errorf("db.delete: %w", tx.Error)
 	}

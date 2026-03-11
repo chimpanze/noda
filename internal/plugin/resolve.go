@@ -203,6 +203,96 @@ func ResolveRawInt(nCtx api.ExecutionContext, raw any) (int, error) {
 	return 0, fmt.Errorf("expected number, got %T", raw)
 }
 
+// ResolveMap resolves a required config key as a map expression.
+// The value can be a map (with string values resolved as expressions) or
+// a string expression that resolves to a map.
+func ResolveMap(nCtx api.ExecutionContext, config map[string]any, key string) (map[string]any, error) {
+	raw, ok := config[key]
+	if !ok {
+		return nil, fmt.Errorf("missing required field %q", key)
+	}
+	return resolveMapValue(nCtx, raw, key)
+}
+
+// ResolveOptionalMap resolves an optional config key as a map expression.
+// Returns (nil, nil) when the key is absent.
+func ResolveOptionalMap(nCtx api.ExecutionContext, config map[string]any, key string) (map[string]any, error) {
+	raw, ok := config[key]
+	if !ok {
+		return nil, nil
+	}
+	return resolveMapValue(nCtx, raw, key)
+}
+
+func resolveMapValue(nCtx api.ExecutionContext, raw any, key string) (map[string]any, error) {
+	switch v := raw.(type) {
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			if expr, ok := val.(string); ok {
+				resolved, err := nCtx.Resolve(expr)
+				if err != nil {
+					return nil, fmt.Errorf("resolve %s.%s: %w", key, k, err)
+				}
+				result[k] = resolved
+			} else {
+				result[k] = val
+			}
+		}
+		return result, nil
+	case string:
+		val, err := nCtx.Resolve(v)
+		if err != nil {
+			return nil, fmt.Errorf("resolve %q: %w", key, err)
+		}
+		m, ok := val.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("field %q resolved to %T, expected map", key, val)
+		}
+		return m, nil
+	default:
+		return nil, fmt.Errorf("field %q must be an object or expression string", key)
+	}
+}
+
+// ResolveOptionalArray resolves an optional config key as a slice of values.
+// Returns (nil, nil) when the key is absent.
+func ResolveOptionalArray(nCtx api.ExecutionContext, config map[string]any, key string) ([]any, error) {
+	raw, ok := config[key]
+	if !ok {
+		return nil, nil
+	}
+
+	switch v := raw.(type) {
+	case []any:
+		params := make([]any, len(v))
+		for i, item := range v {
+			if expr, ok := item.(string); ok {
+				val, err := nCtx.Resolve(expr)
+				if err != nil {
+					return nil, fmt.Errorf("resolve %s[%d]: %w", key, i, err)
+				}
+				params[i] = val
+			} else {
+				params[i] = item
+			}
+		}
+		return params, nil
+	case string:
+		val, err := nCtx.Resolve(v)
+		if err != nil {
+			return nil, fmt.Errorf("resolve %s: %w", key, err)
+		}
+		arr, ok := val.([]any)
+		if !ok {
+			return nil, fmt.Errorf("%s resolved to %T, expected array", key, val)
+		}
+		return arr, nil
+	default:
+		return nil, fmt.Errorf("%s must be an array or expression string", key)
+	}
+}
+
 // ResolveHeaders resolves a "headers" config field as a map of string→string.
 // Each value is resolved as an expression. Non-string resolved values are
 // formatted via fmt.Sprintf. Returns nil if the field is absent.

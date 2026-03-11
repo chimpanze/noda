@@ -21,12 +21,11 @@ func (d *updateDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table":     map[string]any{"type": "string"},
-			"data":      map[string]any{"type": "object"},
-			"condition": map[string]any{"type": "string"},
-			"params":    map[string]any{"type": "array"},
+			"table": map[string]any{"type": "string"},
+			"data":  map[string]any{"type": "object"},
+			"where": map[string]any{"type": "object"},
 		},
-		"required": []any{"table", "data", "condition"},
+		"required": []any{"table", "data", "where"},
 	}
 }
 
@@ -49,22 +48,17 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
 
-	data, err := resolveMap(nCtx, config, "data")
+	data, err := plugin.ResolveMap(nCtx, config, "data")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
 
-	condition, err := plugin.ResolveString(nCtx, config, "condition")
+	where, err := plugin.ResolveMap(nCtx, config, "where")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
 
-	params, err := resolveParams(nCtx, config)
-	if err != nil {
-		return "", nil, fmt.Errorf("db.update: %w", err)
-	}
-
-	tx := db.WithContext(ctx).Table(table).Where(condition, params...).Updates(data)
+	tx := db.WithContext(ctx).Table(table).Where(where).Updates(data)
 	if tx.Error != nil {
 		return "", nil, fmt.Errorf("db.update: %w", tx.Error)
 	}
