@@ -75,7 +75,6 @@ docs/
     03-realtime-collab.md              ← WebSocket live editing
     04-discord-bot.md                  ← Wasm module with gateway connection
     05-multiplayer-game.md             ← Wasm 20Hz game loop
-  milestones/                          ← historical task breakdowns (all complete)
 ```
 
 ## Technology Stack
