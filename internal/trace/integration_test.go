@@ -50,7 +50,7 @@ func TestOTelSpans_WorkflowExecution(t *testing.T) {
 	require.NoError(t, err)
 
 	// Force flush
-	tp.ForceFlush(context.Background())
+	_ = tp.ForceFlush(context.Background())
 
 	spans := exporter.GetSpans()
 	require.GreaterOrEqual(t, len(spans), 3, "should have workflow + 2 node spans")
@@ -109,7 +109,7 @@ func TestEventHub_WithTraceCallback(t *testing.T) {
 	var mu sync.Mutex
 	unsub := hub.Subscribe(func(data []byte) {
 		var e trace.Event
-		json.Unmarshal(data, &e)
+		_ = json.Unmarshal(data, &e)
 		mu.Lock()
 		received = append(received, e)
 		mu.Unlock()

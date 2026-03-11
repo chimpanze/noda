@@ -34,7 +34,7 @@ func TestGET_Success(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "GET", r.Method)
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"message": "hello"})
+		_ = json.NewEncoder(w).Encode(map[string]any{"message": "hello"})
 	}))
 	defer ts.Close()
 
@@ -65,7 +65,7 @@ func TestPOST_JSONBody(t *testing.T) {
 		assert.Equal(t, "bar", payload["foo"])
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"received": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"received": true})
 	}))
 	defer ts.Close()
 
@@ -159,7 +159,7 @@ func TestTimeout(t *testing.T) {
 func TestNon200_StillSuccess(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(404)
-		w.Write([]byte("not found"))
+		_, _ = w.Write([]byte("not found"))
 	}))
 	defer ts.Close()
 
@@ -241,7 +241,7 @@ func TestBaseURL(t *testing.T) {
 func TestStringResponseBody(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("hello world"))
+		_, _ = w.Write([]byte("hello world"))
 	}))
 	defer ts.Close()
 

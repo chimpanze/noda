@@ -45,7 +45,7 @@ func (m *mockSMTP) addr() string {
 }
 
 func (m *mockSMTP) close() {
-	m.listener.Close()
+	_ = m.listener.Close()
 	m.wg.Wait()
 }
 
@@ -63,10 +63,10 @@ func (m *mockSMTP) serve(t *testing.T) {
 
 func (m *mockSMTP) handleConn(t *testing.T, conn net.Conn) {
 	defer m.wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	scanner := bufio.NewScanner(conn)
-	fmt.Fprintf(conn, "220 localhost ESMTP mock\r\n")
+	_, _ = fmt.Fprintf(conn, "220 localhost ESMTP mock\r\n")
 
 	var msg receivedMessage
 	inData := false
@@ -83,7 +83,7 @@ func (m *mockSMTP) handleConn(t *testing.T, conn net.Conn) {
 				m.messages = append(m.messages, msg)
 				m.mu.Unlock()
 				msg = receivedMessage{}
-				fmt.Fprintf(conn, "250 OK\r\n")
+				_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 				continue
 			}
 			dataBuilder.WriteString(line + "\r\n")
@@ -93,24 +93,24 @@ func (m *mockSMTP) handleConn(t *testing.T, conn net.Conn) {
 		upper := strings.ToUpper(line)
 		switch {
 		case strings.HasPrefix(upper, "EHLO") || strings.HasPrefix(upper, "HELO"):
-			fmt.Fprintf(conn, "250 localhost\r\n")
+			_, _ = fmt.Fprintf(conn, "250 localhost\r\n")
 		case strings.HasPrefix(upper, "MAIL FROM:"):
 			msg.from = extractAddr(line)
-			fmt.Fprintf(conn, "250 OK\r\n")
+			_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 		case strings.HasPrefix(upper, "RCPT TO:"):
 			msg.recipients = append(msg.recipients, extractAddr(line))
-			fmt.Fprintf(conn, "250 OK\r\n")
+			_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 		case strings.HasPrefix(upper, "DATA"):
 			inData = true
 			dataBuilder.Reset()
-			fmt.Fprintf(conn, "354 Start mail input\r\n")
+			_, _ = fmt.Fprintf(conn, "354 Start mail input\r\n")
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "221 Bye\r\n")
+			_, _ = fmt.Fprintf(conn, "221 Bye\r\n")
 			return
 		case strings.HasPrefix(upper, "RSET"):
-			fmt.Fprintf(conn, "250 OK\r\n")
+			_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 		default:
-			fmt.Fprintf(conn, "500 Unrecognized command\r\n")
+			_, _ = fmt.Fprintf(conn, "500 Unrecognized command\r\n")
 		}
 	}
 }
@@ -132,7 +132,7 @@ func newTestEmailService(t *testing.T, mock *mockSMTP) *Service {
 	t.Helper()
 	host, portStr, _ := net.SplitHostPort(mock.addr())
 	port := 0
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	svc := &Service{
 		host:   host,

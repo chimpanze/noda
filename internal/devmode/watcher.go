@@ -68,7 +68,7 @@ func (w *Watcher) Start() {
 // Stop shuts down the watcher and waits for cleanup.
 func (w *Watcher) Stop() {
 	close(w.done)
-	w.watcher.Close()
+	_ = w.watcher.Close()
 	w.wg.Wait()
 }
 

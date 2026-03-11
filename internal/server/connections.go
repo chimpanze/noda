@@ -37,7 +37,7 @@ func (s *Server) registerConnections() error {
 			svc := connmgr.NewEndpointService(mgr, name)
 
 			// Register as a service so workflow nodes can reference it
-			s.services.Register(name, svc, nil)
+			_ = s.services.Register(name, svc, nil)
 
 			// Extract channel pattern
 			channelPattern := ""

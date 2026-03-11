@@ -17,8 +17,8 @@ type mockContext struct {
 	trigger api.TriggerData
 }
 
-func (m *mockContext) Input() any           { return m.input }
-func (m *mockContext) Auth() *api.AuthData   { return m.auth }
+func (m *mockContext) Input() any               { return m.input }
+func (m *mockContext) Auth() *api.AuthData      { return m.auth }
 func (m *mockContext) Trigger() api.TriggerData { return m.trigger }
 func (m *mockContext) Resolve(expr string) (any, error) {
 	// Simple: return the expression as-is (treats it as a literal)

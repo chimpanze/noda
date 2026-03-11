@@ -107,7 +107,7 @@ func TestRetry_FixedBackoff(t *testing.T) {
 	}
 
 	start := time.Now()
-	retryNode(context.Background(), node, execCtx, services, nodes, &RetryConfig{
+	_, _ = retryNode(context.Background(), node, execCtx, services, nodes, &RetryConfig{
 		Attempts: 3,
 		Backoff:  "fixed",
 		Delay:    "10ms",
@@ -130,7 +130,7 @@ func TestRetry_ExponentialBackoff(t *testing.T) {
 	}
 
 	start := time.Now()
-	retryNode(context.Background(), node, execCtx, services, nodes, &RetryConfig{
+	_, _ = retryNode(context.Background(), node, execCtx, services, nodes, &RetryConfig{
 		Attempts: 3,
 		Backoff:  "exponential",
 		Delay:    "10ms",

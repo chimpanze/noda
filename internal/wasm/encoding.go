@@ -28,12 +28,12 @@ func NewCodec(encoding string) (Codec, error) {
 
 type jsonCodec struct{}
 
-func (c *jsonCodec) Marshal(v any) ([]byte, error)        { return json.Marshal(v) }
-func (c *jsonCodec) Unmarshal(data []byte, v any) error    { return json.Unmarshal(data, v) }
-func (c *jsonCodec) Name() string                          { return "json" }
+func (c *jsonCodec) Marshal(v any) ([]byte, error)      { return json.Marshal(v) }
+func (c *jsonCodec) Unmarshal(data []byte, v any) error { return json.Unmarshal(data, v) }
+func (c *jsonCodec) Name() string                       { return "json" }
 
 type msgpackCodec struct{}
 
-func (c *msgpackCodec) Marshal(v any) ([]byte, error)     { return msgpack.Marshal(v) }
+func (c *msgpackCodec) Marshal(v any) ([]byte, error)      { return msgpack.Marshal(v) }
 func (c *msgpackCodec) Unmarshal(data []byte, v any) error { return msgpack.Unmarshal(data, v) }
 func (c *msgpackCodec) Name() string                       { return "msgpack" }

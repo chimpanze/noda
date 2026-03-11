@@ -75,7 +75,7 @@ func (p *Plugin) HealthCheck(service any) error {
 
 	client, err := smtp.NewClient(conn, svc.host)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("email: health check: %w", err)
 	}
 	return client.Close()

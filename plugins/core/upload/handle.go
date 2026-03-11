@@ -109,7 +109,7 @@ func (e *handleExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		// Read up to maxSize+1 bytes to detect oversized files
 		lr := &limitedReader{R: f, N: maxSize + 1}
 		content, readErr := io.ReadAll(lr)
-		f.Close()
+		_ = f.Close()
 		if readErr != nil {
 			return "", nil, fmt.Errorf("upload.handle: read file: %w", readErr)
 		}

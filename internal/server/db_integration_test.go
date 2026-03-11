@@ -622,7 +622,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 	assert.Equal(t, 201, resp.StatusCode)
 	body, _ := io.ReadAll(resp.Body)
 	var created map[string]any
-	json.Unmarshal(body, &created)
+	_ = json.Unmarshal(body, &created)
 	assert.Equal(t, "Test Task", created["title"])
 
 	// 2. List tasks
@@ -632,7 +632,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, _ = io.ReadAll(resp.Body)
 	var list []map[string]any
-	json.Unmarshal(body, &list)
+	_ = json.Unmarshal(body, &list)
 	assert.Len(t, list, 1)
 
 	// 3. Get single task
@@ -649,7 +649,7 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	body, _ = io.ReadAll(resp.Body)
 	var updated map[string]any
-	json.Unmarshal(body, &updated)
+	_ = json.Unmarshal(body, &updated)
 	assert.Equal(t, float64(1), updated["rows_affected"])
 
 	// 5. Delete task
@@ -664,6 +664,6 @@ func TestE2E_DB_FullCRUDWalkthrough(t *testing.T) {
 	require.NoError(t, err)
 	body, _ = io.ReadAll(resp.Body)
 	var emptyList []map[string]any
-	json.Unmarshal(body, &emptyList)
+	_ = json.Unmarshal(body, &emptyList)
 	assert.Empty(t, emptyList)
 }

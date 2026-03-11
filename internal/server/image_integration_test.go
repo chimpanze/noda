@@ -137,7 +137,7 @@ func TestE2E_UploadAndResize(t *testing.T) {
 	require.NoError(t, err)
 	_, err = part.Write(img)
 	require.NoError(t, err)
-	writer.Close()
+	_ = writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/images", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
@@ -223,7 +223,7 @@ func TestE2E_ConvertPNGtoWEBP(t *testing.T) {
 	require.NoError(t, err)
 	_, err = part.Write(img)
 	require.NoError(t, err)
-	writer.Close()
+	_ = writer.Close()
 
 	req := httptest.NewRequest("POST", "/api/convert", body)
 	req.Header.Set("Content-Type", writer.FormDataContentType())

@@ -48,8 +48,8 @@ func TestRun_TransactionTrueConfig(t *testing.T) {
 
 type mockTxExecCtx struct{}
 
-func (m *mockTxExecCtx) Input() any           { return nil }
-func (m *mockTxExecCtx) Auth() *api.AuthData   { return nil }
+func (m *mockTxExecCtx) Input() any          { return nil }
+func (m *mockTxExecCtx) Auth() *api.AuthData { return nil }
 func (m *mockTxExecCtx) Trigger() api.TriggerData {
 	return api.TriggerData{Type: "test", Timestamp: time.Now(), TraceID: "tx-test"}
 }
@@ -59,8 +59,8 @@ func (m *mockTxExecCtx) Log(_ string, _ string, _ map[string]any)               
 
 // mockTransactionalRunner implements TransactionalRunner for testing.
 type mockTransactionalRunner struct {
-	runFunc         func(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext) (string, any, error)
-	runWithSvcFunc  func(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext, overrides map[string]any) (string, any, error)
+	runFunc        func(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext) (string, any, error)
+	runWithSvcFunc func(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext, overrides map[string]any) (string, any, error)
 }
 
 func (m *mockTransactionalRunner) RunSubWorkflow(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext) (string, any, error) {

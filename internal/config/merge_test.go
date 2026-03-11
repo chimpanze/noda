@@ -39,7 +39,7 @@ func TestMergeOverlay_NestedObjectMerge(t *testing.T) {
 
 	assert.Equal(t, "prod-db.example.com", db["host"])
 	assert.Equal(t, float64(5432), db["port"]) // preserved from base
-	assert.NotNil(t, services["cache"])         // preserved from base
+	assert.NotNil(t, services["cache"])        // preserved from base
 }
 
 func TestMergeOverlay_ArrayReplacement(t *testing.T) {

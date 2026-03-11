@@ -25,7 +25,7 @@ type Event struct {
 	Type       EventType `json:"type"`
 	Timestamp  string    `json:"timestamp"`
 	TraceID    string    `json:"trace_id"`
-	WorkflowID string   `json:"workflow_id"`
+	WorkflowID string    `json:"workflow_id"`
 	NodeID     string    `json:"node_id,omitempty"`
 	NodeType   string    `json:"node_type,omitempty"`
 	Output     string    `json:"output,omitempty"`

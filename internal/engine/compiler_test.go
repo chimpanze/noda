@@ -69,10 +69,10 @@ func TestCompile_ConditionalORJoin(t *testing.T) {
 	wf := WorkflowConfig{
 		ID: "conditional",
 		Nodes: map[string]NodeConfig{
-			"check":  {Type: "control.if"},
+			"check":       {Type: "control.if"},
 			"branch_then": {Type: "mock.pass"},
 			"branch_else": {Type: "mock.pass"},
-			"merge":  {Type: "mock.pass"},
+			"merge":       {Type: "mock.pass"},
 		},
 		Edges: []EdgeConfig{
 			{From: "check", Output: "then", To: "branch_then"},

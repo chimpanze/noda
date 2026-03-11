@@ -14,13 +14,13 @@ type stubPlugin struct {
 	prefix string
 }
 
-func (p *stubPlugin) Name() string                                  { return p.name }
-func (p *stubPlugin) Prefix() string                                { return p.prefix }
-func (p *stubPlugin) Nodes() []api.NodeRegistration                 { return nil }
-func (p *stubPlugin) HasServices() bool                             { return false }
+func (p *stubPlugin) Name() string                                     { return p.name }
+func (p *stubPlugin) Prefix() string                                   { return p.prefix }
+func (p *stubPlugin) Nodes() []api.NodeRegistration                    { return nil }
+func (p *stubPlugin) HasServices() bool                                { return false }
 func (p *stubPlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
-func (p *stubPlugin) HealthCheck(service any) error                 { return nil }
-func (p *stubPlugin) Shutdown(service any) error                    { return nil }
+func (p *stubPlugin) HealthCheck(service any) error                    { return nil }
+func (p *stubPlugin) Shutdown(service any) error                       { return nil }
 
 func TestPluginRegistry_RegisterAndGet(t *testing.T) {
 	reg := NewPluginRegistry()

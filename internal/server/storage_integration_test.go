@@ -62,7 +62,7 @@ func buildMultipartBody(t *testing.T, fieldName, filename, contentType string, c
 	require.NoError(t, err)
 	_, err = part.Write(content)
 	require.NoError(t, err)
-	writer.Close()
+	_ = writer.Close()
 
 	return body, writer.FormDataContentType()
 }

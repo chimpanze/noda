@@ -55,8 +55,8 @@ func (s *unhealthyService) Ping() error { return fmt.Errorf("connection refused"
 func TestHealth_AllServicesHealthy(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	p := &mockPlugin{}
-	svcReg.Register("main-db", &healthyService{}, p)
-	svcReg.Register("app-cache", &healthyService{}, p)
+	_ = svcReg.Register("main-db", &healthyService{}, p)
+	_ = svcReg.Register("app-cache", &healthyService{}, p)
 
 	srv := setupHealthServerWithServices(t, svcReg)
 	resp, err := srv.App().Test(mustReq(http.MethodGet, "/health"))
@@ -73,8 +73,8 @@ func TestHealth_AllServicesHealthy(t *testing.T) {
 func TestHealth_OneUnhealthyService(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	p := &mockPlugin{}
-	svcReg.Register("main-db", &healthyService{}, p)
-	svcReg.Register("app-cache", &unhealthyService{}, p)
+	_ = svcReg.Register("main-db", &healthyService{}, p)
+	_ = svcReg.Register("app-cache", &unhealthyService{}, p)
 
 	srv := setupHealthServerWithServices(t, svcReg)
 	resp, err := srv.App().Test(mustReq(http.MethodGet, "/health"))
@@ -91,7 +91,7 @@ func TestHealth_OneUnhealthyService(t *testing.T) {
 func TestHealth_ServiceWithoutPing(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	p := &mockPlugin{}
-	svcReg.Register("simple-svc", "just-a-string", p)
+	_ = svcReg.Register("simple-svc", "just-a-string", p)
 
 	srv := setupHealthServerWithServices(t, svcReg)
 	resp, err := srv.App().Test(mustReq(http.MethodGet, "/health"))
@@ -139,7 +139,7 @@ func mustReq(method, url string) *http.Request {
 
 func readJSON(t *testing.T, resp *http.Response) map[string]any {
 	t.Helper()
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	data, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	var result map[string]any

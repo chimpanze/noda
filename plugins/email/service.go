@@ -26,7 +26,7 @@ func (s *Service) Send(msg *Message) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("email: connect: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Auth if credentials provided
 	if s.username != "" {
@@ -98,7 +98,7 @@ func (s *Service) Send(msg *Message) (string, error) {
 	sb.WriteString(msg.Body)
 
 	if _, err := wc.Write([]byte(sb.String())); err != nil {
-		wc.Close()
+		_ = wc.Close()
 		return "", fmt.Errorf("email: write body: %w", err)
 	}
 	if err := wc.Close(); err != nil {

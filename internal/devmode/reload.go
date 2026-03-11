@@ -69,8 +69,8 @@ func (r *Reloader) HandleChange(path string) {
 				Type:  "file:error",
 				Error: config.FormatErrors(errs),
 				Data: map[string]any{
-					"file":   path,
-					"count":  len(errs),
+					"file":  path,
+					"count": len(errs),
 				},
 			})
 		}

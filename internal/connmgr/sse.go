@@ -179,12 +179,12 @@ type sseEvent struct {
 
 func writeSSEEvent(w *bufio.Writer, evt sseEvent) {
 	if evt.ID != "" {
-		fmt.Fprintf(w, "id: %s\n", evt.ID)
+		_, _ = fmt.Fprintf(w, "id: %s\n", evt.ID)
 	}
 	if evt.Event != "" {
-		fmt.Fprintf(w, "event: %s\n", evt.Event)
+		_, _ = fmt.Fprintf(w, "event: %s\n", evt.Event)
 	}
-	fmt.Fprintf(w, "data: %s\n\n", evt.Data)
+	_, _ = fmt.Fprintf(w, "data: %s\n\n", evt.Data)
 }
 
 func buildSSEInput(conn *Conn) map[string]any {

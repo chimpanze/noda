@@ -15,8 +15,8 @@ func TestLoadDotEnv(t *testing.T) {
 	}
 
 	// Ensure vars are not set
-	os.Unsetenv("TEST_DOTENV_VAR")
-	os.Unsetenv("TEST_DOTENV_OTHER")
+	_ = os.Unsetenv("TEST_DOTENV_VAR")
+	_ = os.Unsetenv("TEST_DOTENV_OTHER")
 
 	loaded := LoadDotEnv(dir, "")
 	if len(loaded) != 1 {
@@ -31,8 +31,8 @@ func TestLoadDotEnv(t *testing.T) {
 	}
 
 	// Clean up
-	os.Unsetenv("TEST_DOTENV_VAR")
-	os.Unsetenv("TEST_DOTENV_OTHER")
+	_ = os.Unsetenv("TEST_DOTENV_VAR")
+	_ = os.Unsetenv("TEST_DOTENV_OTHER")
 }
 
 func TestLoadDotEnvDoesNotOverwrite(t *testing.T) {
@@ -42,8 +42,8 @@ func TestLoadDotEnvDoesNotOverwrite(t *testing.T) {
 	}
 
 	// Set the var before loading
-	os.Setenv("TEST_NOOVERWRITE", "from_env")
-	defer os.Unsetenv("TEST_NOOVERWRITE")
+	_ = os.Setenv("TEST_NOOVERWRITE", "from_env")
+	defer func() { _ = os.Unsetenv("TEST_NOOVERWRITE") }()
 
 	LoadDotEnv(dir, "")
 
@@ -61,8 +61,8 @@ func TestLoadDotEnvWithEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	os.Unsetenv("TEST_ENV_BASE")
-	os.Unsetenv("TEST_ENV_PROD")
+	_ = os.Unsetenv("TEST_ENV_BASE")
+	_ = os.Unsetenv("TEST_ENV_PROD")
 
 	loaded := LoadDotEnv(dir, "production")
 	if len(loaded) != 2 {
@@ -76,8 +76,8 @@ func TestLoadDotEnvWithEnvironment(t *testing.T) {
 		t.Errorf("expected TEST_ENV_PROD=prod, got %q", v)
 	}
 
-	os.Unsetenv("TEST_ENV_BASE")
-	os.Unsetenv("TEST_ENV_PROD")
+	_ = os.Unsetenv("TEST_ENV_BASE")
+	_ = os.Unsetenv("TEST_ENV_PROD")
 }
 
 func TestLoadDotEnvMissingFile(t *testing.T) {

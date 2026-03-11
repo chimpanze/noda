@@ -28,7 +28,7 @@ func TestE2E_OutboundHTTPCall(t *testing.T) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
+		_ = json.NewEncoder(w).Encode(map[string]any{
 			"user": "alice",
 			"role": "admin",
 		})
@@ -115,7 +115,7 @@ func TestE2E_HTTPPostOutbound(t *testing.T) {
 		assert.Equal(t, "test-data", payload["data"])
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{"created": true})
+		_ = json.NewEncoder(w).Encode(map[string]any{"created": true})
 	}))
 	defer externalAPI.Close()
 
@@ -284,7 +284,7 @@ func newMockSMTPServer(t *testing.T) *mockSMTPServer {
 func (m *mockSMTPServer) addr() string { return m.listener.Addr().String() }
 
 func (m *mockSMTPServer) close() {
-	m.listener.Close()
+	_ = m.listener.Close()
 	m.wg.Wait()
 }
 
@@ -302,10 +302,10 @@ func (m *mockSMTPServer) serve() {
 
 func (m *mockSMTPServer) handleConn(conn net.Conn) {
 	defer m.wg.Done()
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	scanner := bufio.NewScanner(conn)
-	fmt.Fprintf(conn, "220 localhost ESMTP mock\r\n")
+	_, _ = fmt.Fprintf(conn, "220 localhost ESMTP mock\r\n")
 
 	var msg mockSMTPMessage
 	inData := false
@@ -321,7 +321,7 @@ func (m *mockSMTPServer) handleConn(conn net.Conn) {
 				m.messages = append(m.messages, msg)
 				m.mu.Unlock()
 				msg = mockSMTPMessage{}
-				fmt.Fprintf(conn, "250 OK\r\n")
+				_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 				continue
 			}
 			dataBuilder.WriteString(line + "\r\n")
@@ -330,24 +330,24 @@ func (m *mockSMTPServer) handleConn(conn net.Conn) {
 		upper := strings.ToUpper(line)
 		switch {
 		case strings.HasPrefix(upper, "EHLO"), strings.HasPrefix(upper, "HELO"):
-			fmt.Fprintf(conn, "250 localhost\r\n")
+			_, _ = fmt.Fprintf(conn, "250 localhost\r\n")
 		case strings.HasPrefix(upper, "MAIL FROM:"):
 			msg.from = extractSMTPAddr(line)
-			fmt.Fprintf(conn, "250 OK\r\n")
+			_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 		case strings.HasPrefix(upper, "RCPT TO:"):
 			msg.recipients = append(msg.recipients, extractSMTPAddr(line))
-			fmt.Fprintf(conn, "250 OK\r\n")
+			_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 		case strings.HasPrefix(upper, "DATA"):
 			inData = true
 			dataBuilder.Reset()
-			fmt.Fprintf(conn, "354 Start mail input\r\n")
+			_, _ = fmt.Fprintf(conn, "354 Start mail input\r\n")
 		case strings.HasPrefix(upper, "QUIT"):
-			fmt.Fprintf(conn, "221 Bye\r\n")
+			_, _ = fmt.Fprintf(conn, "221 Bye\r\n")
 			return
 		case strings.HasPrefix(upper, "RSET"):
-			fmt.Fprintf(conn, "250 OK\r\n")
+			_, _ = fmt.Fprintf(conn, "250 OK\r\n")
 		default:
-			fmt.Fprintf(conn, "500 Unrecognized\r\n")
+			_, _ = fmt.Fprintf(conn, "500 Unrecognized\r\n")
 		}
 	}
 }
@@ -372,7 +372,7 @@ func TestE2E_EmailSend(t *testing.T) {
 
 	host, portStr, _ := net.SplitHostPort(mock.addr())
 	var port int
-	fmt.Sscanf(portStr, "%d", &port)
+	_, _ = fmt.Sscanf(portStr, "%d", &port)
 
 	ep := &emailplugin.Plugin{}
 	rawEmailSvc, err := ep.CreateService(map[string]any{

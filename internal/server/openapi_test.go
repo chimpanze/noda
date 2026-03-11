@@ -160,7 +160,7 @@ func TestOpenAPIEndpoint(t *testing.T) {
 				"path":   "/hello",
 				"trigger": map[string]any{
 					"workflow": "hello",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},

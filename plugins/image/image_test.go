@@ -16,8 +16,8 @@ func createTestPNG(t *testing.T) []byte {
 	t.Helper()
 	// Create a 200x200 black image using bimg
 	buf, err := bimg.NewImage(makeSolidPNG()).Process(bimg.Options{
-		Width:  200,
-		Height: 200,
+		Width:   200,
+		Height:  200,
 		Enlarge: true,
 	})
 	require.NoError(t, err)

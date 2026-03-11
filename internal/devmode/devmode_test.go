@@ -93,7 +93,7 @@ func TestWatcher_Debounce(t *testing.T) {
 
 	// Rapid writes — should only trigger once after debounce
 	for i := 0; i < 5; i++ {
-		os.WriteFile(testFile, []byte(`{"v":`+string(rune('0'+i))+`}`), 0644)
+		_ = os.WriteFile(testFile, []byte(`{"v":`+string(rune('0'+i))+`}`), 0644)
 		time.Sleep(20 * time.Millisecond)
 	}
 
@@ -150,7 +150,7 @@ func TestReloader_HandleChange_Valid(t *testing.T) {
 	var mu sync.Mutex
 	unsub := hub.Subscribe(func(data []byte) {
 		var e trace.Event
-		json.Unmarshal(data, &e)
+		_ = json.Unmarshal(data, &e)
 		mu.Lock()
 		events = append(events, e)
 		mu.Unlock()
@@ -172,7 +172,7 @@ func TestReloader_HandleChange_Invalid(t *testing.T) {
 	// Create a directory with an invalid config
 	dir := t.TempDir()
 	// Write invalid JSON
-	os.WriteFile(filepath.Join(dir, "noda.json"), []byte(`{invalid`), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "noda.json"), []byte(`{invalid`), 0644)
 
 	hub := trace.NewEventHub()
 	initial := &config.ResolvedConfig{
@@ -191,7 +191,7 @@ func TestReloader_HandleChange_Invalid(t *testing.T) {
 	var mu sync.Mutex
 	unsub := hub.Subscribe(func(data []byte) {
 		var e trace.Event
-		json.Unmarshal(data, &e)
+		_ = json.Unmarshal(data, &e)
 		mu.Lock()
 		events = append(events, e)
 		mu.Unlock()
@@ -278,7 +278,7 @@ func TestShutdownSequence_AllComponentsStopped(t *testing.T) {
 	dir := t.TempDir()
 	watcher, err := NewWatcher(func(_ string) {}, slog.Default())
 	require.NoError(t, err)
-	watcher.WatchDir(dir)
+	_ = watcher.WatchDir(dir)
 	watcher.Start()
 
 	ShutdownSequence(slog.Default(), 5*time.Second, srv, sched, nil, wasm, watcher, nil, nil, tracer)

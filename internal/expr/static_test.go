@@ -39,9 +39,9 @@ func TestValidateStaticFields_ExpressionInStaticField(t *testing.T) {
 
 func TestValidateStaticFields_MixedFields(t *testing.T) {
 	config := map[string]any{
-		"mode":   "{{ input.mode }}",
-		"cases":  "{{ input.cases }}",
-		"title":  "{{ input.title }}", // not in static fields list
+		"mode":  "{{ input.mode }}",
+		"cases": "{{ input.cases }}",
+		"title": "{{ input.title }}", // not in static fields list
 	}
 	errs := ValidateStaticFields(config, []string{"mode", "cases"})
 	assert.Len(t, errs, 2)

@@ -120,4 +120,3 @@ func findOutputLeadingTo(graph *CompiledGraph, ancestor, target string) string {
 	}
 	return ""
 }
-

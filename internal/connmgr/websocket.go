@@ -87,7 +87,7 @@ func (h *WebSocketHandler) Register(app *fiber.App, middleware ...fiber.Handler)
 
 // handleConnection is the Fiber WebSocket handler callback.
 func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 
 	connID := uuid.New().String()
 

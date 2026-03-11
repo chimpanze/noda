@@ -292,7 +292,7 @@ func TestE2E_Cache_Exists(t *testing.T) {
 	body := `{"key": "present", "value": "yes"}`
 	req = httptest.NewRequest("POST", "/api/cache", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
-	srv.App().Test(req)
+	_, _ = srv.App().Test(req)
 
 	// Check it exists now
 	req = httptest.NewRequest("GET", "/api/cache/present/exists", nil)

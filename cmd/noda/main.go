@@ -399,7 +399,7 @@ func newStartCmd() *cobra.Command {
 						}
 						// Register WasmService so wasm.send/wasm.query nodes can reference this module
 						wasmSvc := wasm.NewWasmService(wasmRuntime, name)
-						bootstrap.Services.Register(name, wasmSvc, nil)
+						_ = bootstrap.Services.Register(name, wasmSvc, nil)
 					}
 					if err := wasmRuntime.StartAll(context.Background()); err != nil {
 						fmt.Fprintf(os.Stderr, "Error starting wasm runtimes: %s\n", err)
@@ -879,10 +879,10 @@ func buildCoreNodeRegistry() *registry.NodeRegistry {
 
 func registerCorePlugins(plugins *registry.PluginRegistry) {
 	for _, p := range corePlugins() {
-		plugins.Register(p)
+		_ = plugins.Register(p)
 	}
 	for _, p := range serviceOnlyPlugins() {
-		plugins.Register(p)
+		_ = plugins.Register(p)
 	}
 }
 

@@ -332,16 +332,16 @@ func TestE2E_RealWebSocketConnection(t *testing.T) {
 	// Start the Fiber server on a random port
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
-	go srv.App().Listener(ln)
-	defer srv.App().Shutdown()
+	go func() { _ = srv.App().Listener(ln) }()
+	defer func() { _ = srv.App().Shutdown() }()
 
 	// Connect via real WebSocket
 	wsURL := "ws://" + ln.Addr().String() + "/ws/chat"
 	ws, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
 	require.NoError(t, err)
-	defer ws.Close()
+	defer func() { _ = ws.Close() }()
 
 	// The connection should be registered in the manager
 	time.Sleep(100 * time.Millisecond) // brief wait for registration
@@ -392,15 +392,15 @@ func TestE2E_RealSSEConnection(t *testing.T) {
 	// Start the server
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer ln.Close()
+	defer func() { _ = ln.Close() }()
 
-	go srv.App().Listener(ln)
-	defer srv.App().Shutdown()
+	go func() { _ = srv.App().Listener(ln) }()
+	defer func() { _ = srv.App().Shutdown() }()
 
 	// Connect via HTTP and read SSE stream
 	resp, err := http.Get("http://" + ln.Addr().String() + "/events/updates")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Type"), "text/event-stream")

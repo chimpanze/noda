@@ -31,8 +31,8 @@ func makeFileHeader(filename string, contentType string, content []byte) *multip
 	h.Set("Content-Type", contentType)
 
 	part, _ := writer.CreatePart(h)
-	part.Write(content)
-	writer.Close()
+	_, _ = part.Write(content)
+	_ = writer.Close()
 
 	boundary := writer.Boundary()
 	form, _ := multipart.NewReader(body, boundary).ReadForm(int64(len(content)) + 4096)

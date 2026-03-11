@@ -15,9 +15,9 @@ type stubDescriptor struct {
 	deps map[string]api.ServiceDep
 }
 
-func (d *stubDescriptor) Name() string                     { return d.name }
+func (d *stubDescriptor) Name() string                           { return d.name }
 func (d *stubDescriptor) ServiceDeps() map[string]api.ServiceDep { return d.deps }
-func (d *stubDescriptor) ConfigSchema() map[string]any     { return nil }
+func (d *stubDescriptor) ConfigSchema() map[string]any           { return nil }
 
 // stubExecutor is a minimal NodeExecutor for testing.
 type stubExecutor struct {

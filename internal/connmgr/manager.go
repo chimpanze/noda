@@ -15,15 +15,15 @@ type Conn struct {
 	Endpoint string
 	UserID   string
 	Metadata map[string]any
-	SendFn   func(data []byte) error              // for WebSocket
-	SSEFn    func(event, data, id string) error    // for SSE
+	SendFn   func(data []byte) error            // for WebSocket
+	SSEFn    func(event, data, id string) error // for SSE
 }
 
 // Manager tracks open connections and provides channel-based delivery.
 type Manager struct {
 	mu          sync.RWMutex
-	connections map[string]*Conn            // connID → Conn
-	channels    map[string]map[string]bool  // channel → set of connIDs
+	connections map[string]*Conn           // connID → Conn
+	channels    map[string]map[string]bool // channel → set of connIDs
 	connCount   atomic.Int64
 }
 

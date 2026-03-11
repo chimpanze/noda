@@ -68,7 +68,7 @@ func TestE2E_Casbin_PermittedAndDenied(t *testing.T) {
 				"middleware": []any{"auth.jwt", "casbin.enforce"},
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -149,7 +149,7 @@ func TestE2E_Casbin_AdminVsMember(t *testing.T) {
 				"middleware": []any{"auth.jwt", "casbin.enforce"},
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 			"delete-user": {
@@ -158,7 +158,7 @@ func TestE2E_Casbin_AdminVsMember(t *testing.T) {
 				"middleware": []any{"auth.jwt", "casbin.enforce"},
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 			"post-data": {
@@ -167,7 +167,7 @@ func TestE2E_Casbin_AdminVsMember(t *testing.T) {
 				"middleware": []any{"auth.jwt", "casbin.enforce"},
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -258,7 +258,7 @@ func TestE2E_Casbin_MultiTenant(t *testing.T) {
 				"middleware": []any{"auth.jwt", "casbin.enforce"},
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 			"workspace-settings": {
@@ -267,7 +267,7 @@ func TestE2E_Casbin_MultiTenant(t *testing.T) {
 				"middleware": []any{"auth.jwt", "casbin.enforce"},
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},
@@ -368,7 +368,7 @@ func TestE2E_Casbin_MiddlewarePreset(t *testing.T) {
 				"middleware_preset": "admin_only",
 				"trigger": map[string]any{
 					"workflow": "respond-ok",
-					"input":   map[string]any{},
+					"input":    map[string]any{},
 				},
 			},
 		},

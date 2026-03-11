@@ -38,10 +38,10 @@ func TestCompile_InterpolatedString(t *testing.T) {
 	compiled, err := c.Compile("Hello {{ input.name }}, age {{ input.age }}")
 	require.NoError(t, err)
 
-	assert.Len(t, compiled.Programs, 4) // literal, expr, literal, expr
-	assert.Nil(t, compiled.Programs[0])  // literal
+	assert.Len(t, compiled.Programs, 4)    // literal, expr, literal, expr
+	assert.Nil(t, compiled.Programs[0])    // literal
 	assert.NotNil(t, compiled.Programs[1]) // expression
-	assert.Nil(t, compiled.Programs[2])  // literal
+	assert.Nil(t, compiled.Programs[2])    // literal
 	assert.NotNil(t, compiled.Programs[3]) // expression
 }
 

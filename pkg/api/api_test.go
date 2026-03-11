@@ -15,19 +15,19 @@ import (
 
 type mockPlugin struct{}
 
-func (m *mockPlugin) Name() string                                  { return "test" }
-func (m *mockPlugin) Prefix() string                                { return "test" }
-func (m *mockPlugin) Nodes() []api.NodeRegistration                 { return nil }
-func (m *mockPlugin) HasServices() bool                             { return false }
-func (m *mockPlugin) CreateService(_ map[string]any) (any, error)   { return nil, nil }
-func (m *mockPlugin) HealthCheck(_ any) error                       { return nil }
-func (m *mockPlugin) Shutdown(_ any) error                          { return nil }
+func (m *mockPlugin) Name() string                                { return "test" }
+func (m *mockPlugin) Prefix() string                              { return "test" }
+func (m *mockPlugin) Nodes() []api.NodeRegistration               { return nil }
+func (m *mockPlugin) HasServices() bool                           { return false }
+func (m *mockPlugin) CreateService(_ map[string]any) (any, error) { return nil, nil }
+func (m *mockPlugin) HealthCheck(_ any) error                     { return nil }
+func (m *mockPlugin) Shutdown(_ any) error                        { return nil }
 
 type mockDescriptor struct{}
 
-func (m *mockDescriptor) Name() string                        { return "test.node" }
+func (m *mockDescriptor) Name() string                           { return "test.node" }
 func (m *mockDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
-func (m *mockDescriptor) ConfigSchema() map[string]any        { return nil }
+func (m *mockDescriptor) ConfigSchema() map[string]any           { return nil }
 
 type mockExecutor struct{}
 
@@ -38,31 +38,37 @@ func (m *mockExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[
 
 type mockExecutionContext struct{}
 
-func (m *mockExecutionContext) Input() any                                    { return map[string]any{"key": "value"} }
-func (m *mockExecutionContext) Auth() *api.AuthData                           { return nil }
-func (m *mockExecutionContext) Trigger() api.TriggerData                      { return api.TriggerData{Type: "http", Timestamp: time.Now(), TraceID: "abc"} }
-func (m *mockExecutionContext) Resolve(_ string) (any, error)                            { return "resolved", nil }
-func (m *mockExecutionContext) ResolveWithVars(_ string, _ map[string]any) (any, error)  { return "resolved", nil }
-func (m *mockExecutionContext) Log(_ string, _ string, _ map[string]any)                 {}
+func (m *mockExecutionContext) Input() any          { return map[string]any{"key": "value"} }
+func (m *mockExecutionContext) Auth() *api.AuthData { return nil }
+func (m *mockExecutionContext) Trigger() api.TriggerData {
+	return api.TriggerData{Type: "http", Timestamp: time.Now(), TraceID: "abc"}
+}
+func (m *mockExecutionContext) Resolve(_ string) (any, error) { return "resolved", nil }
+func (m *mockExecutionContext) ResolveWithVars(_ string, _ map[string]any) (any, error) {
+	return "resolved", nil
+}
+func (m *mockExecutionContext) Log(_ string, _ string, _ map[string]any) {}
 
 type mockStorageService struct{}
 
-func (m *mockStorageService) Read(_ context.Context, _ string) ([]byte, error)      { return nil, nil }
-func (m *mockStorageService) Write(_ context.Context, _ string, _ []byte) error     { return nil }
-func (m *mockStorageService) Delete(_ context.Context, _ string) error              { return nil }
-func (m *mockStorageService) List(_ context.Context, _ string) ([]string, error)    { return nil, nil }
+func (m *mockStorageService) Read(_ context.Context, _ string) ([]byte, error)   { return nil, nil }
+func (m *mockStorageService) Write(_ context.Context, _ string, _ []byte) error  { return nil }
+func (m *mockStorageService) Delete(_ context.Context, _ string) error           { return nil }
+func (m *mockStorageService) List(_ context.Context, _ string) ([]string, error) { return nil, nil }
 
 type mockCacheService struct{}
 
-func (m *mockCacheService) Get(_ context.Context, _ string) (any, error)            { return nil, nil }
-func (m *mockCacheService) Set(_ context.Context, _ string, _ any, _ int) error     { return nil }
-func (m *mockCacheService) Del(_ context.Context, _ string) error                   { return nil }
-func (m *mockCacheService) Exists(_ context.Context, _ string) (bool, error)        { return false, nil }
+func (m *mockCacheService) Get(_ context.Context, _ string) (any, error)        { return nil, nil }
+func (m *mockCacheService) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
+func (m *mockCacheService) Del(_ context.Context, _ string) error               { return nil }
+func (m *mockCacheService) Exists(_ context.Context, _ string) (bool, error)    { return false, nil }
 
 type mockConnectionService struct{}
 
-func (m *mockConnectionService) Send(_ context.Context, _ string, _ any) error                      { return nil }
-func (m *mockConnectionService) SendSSE(_ context.Context, _ string, _ string, _ any, _ string) error { return nil }
+func (m *mockConnectionService) Send(_ context.Context, _ string, _ any) error { return nil }
+func (m *mockConnectionService) SendSSE(_ context.Context, _ string, _ string, _ any, _ string) error {
+	return nil
+}
 
 // --- Tests ---
 

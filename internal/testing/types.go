@@ -28,9 +28,9 @@ type AuthConfig struct {
 
 // MockConfig configures a mock node executor.
 type MockConfig struct {
-	Output     any        `json:"output"`     // data to return on success
+	Output     any        `json:"output"`      // data to return on success
 	OutputName string     `json:"output_name"` // which output to fire (default: "success")
-	Error      *MockError `json:"error"`      // if set, mock fails
+	Error      *MockError `json:"error"`       // if set, mock fails
 }
 
 // MockError configures a mock error.
@@ -40,8 +40,8 @@ type MockError struct {
 
 // TestExpectation describes the expected result of a test case.
 type TestExpectation struct {
-	Status    string         `json:"status"`    // "success" or "error"
-	Output    map[string]any `json:"output"`    // dot-path → expected value
+	Status    string         `json:"status"`     // "success" or "error"
+	Output    map[string]any `json:"output"`     // dot-path → expected value
 	ErrorNode string         `json:"error_node"` // if status="error", which node should fail
 }
 

@@ -69,8 +69,8 @@ func TestWasmSend(t *testing.T) {
 	rt := wasmrt.NewRuntime(svcReg, nil, slog.Default())
 
 	plugin := newMockPlugin()
-	rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 20}, plugin)
-	rt.StartAll(context.Background())
+	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 20}, plugin)
+	_ = rt.StartAll(context.Background())
 	defer rt.StopAll(context.Background())
 
 	time.Sleep(50 * time.Millisecond)
@@ -98,7 +98,7 @@ func TestWasmSend(t *testing.T) {
 	for _, c := range plugin.calls {
 		if c.Name == "tick" {
 			var input wasmrt.TickInput
-			json.Unmarshal(c.Data, &input)
+			_ = json.Unmarshal(c.Data, &input)
 			if len(input.Commands) > 0 {
 				foundCommand = true
 			}
@@ -117,8 +117,8 @@ func TestWasmQuery(t *testing.T) {
 	plugin.responses["query"] = mockResponse{
 		data: []byte(`{"players":42}`),
 	}
-	rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plugin)
-	rt.StartAll(context.Background())
+	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plugin)
+	_ = rt.StartAll(context.Background())
 	defer rt.StopAll(context.Background())
 
 	time.Sleep(50 * time.Millisecond)
@@ -151,8 +151,8 @@ func TestWasmQuery_Timeout(t *testing.T) {
 		data: nil,
 		err:  nil,
 	}
-	rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 1}, plugin) // slow tick rate
-	rt.StartAll(context.Background())
+	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 1}, plugin) // slow tick rate
+	_ = rt.StartAll(context.Background())
 	defer rt.StopAll(context.Background())
 
 	// Don't wait for tick to start - query should timeout

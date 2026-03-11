@@ -103,7 +103,7 @@ func TestEventHub_Subscribe_Emit(t *testing.T) {
 	var mu sync.Mutex
 	unsub := hub.Subscribe(func(data []byte) {
 		var e Event
-		json.Unmarshal(data, &e)
+		_ = json.Unmarshal(data, &e)
 		mu.Lock()
 		received = append(received, e)
 		mu.Unlock()
@@ -168,7 +168,7 @@ func TestEventHub_EmitSetsTimestamp(t *testing.T) {
 
 	var received Event
 	unsub := hub.Subscribe(func(data []byte) {
-		json.Unmarshal(data, &received)
+		_ = json.Unmarshal(data, &received)
 	})
 	defer unsub()
 

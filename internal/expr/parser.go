@@ -23,10 +23,10 @@ type Segment struct {
 
 // ParsedExpression is the result of parsing a string that may contain {{ }} expressions.
 type ParsedExpression struct {
-	Raw      string    // the original input string
-	Segments []Segment // ordered literal and expression segments
-	IsLiteral bool     // true if no {{ }} found
-	IsSimple  bool     // true if entire string is one {{ }} (no surrounding text)
+	Raw       string    // the original input string
+	Segments  []Segment // ordered literal and expression segments
+	IsLiteral bool      // true if no {{ }} found
+	IsSimple  bool      // true if entire string is one {{ }} (no surrounding text)
 }
 
 // Parse extracts {{ }} delimited expressions from a string and classifies the result.
