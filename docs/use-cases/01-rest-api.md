@@ -58,11 +58,12 @@ workflows/
 
 **Nodes:**
 
-1. `transform.validate` — validate input against Task schema
-2. `db.create` — insert into tasks table with `user_id` from `{{ auth.sub }}`
-3. `response.json` — return 201 with created task
+1. `db.create` — insert into tasks table with `user_id` from `{{ auth.sub }}`
+2. `response.json` — return 201 with created task
 
-**Error path:** Validation failure → `response.error` (422). DB failure → `response.error` (500).
+Request body validation happens automatically at the route level via `body.schema` — invalid requests receive a `422` response before the workflow runs.
+
+**Error path:** Validation failure → automatic 422 (route-level). DB failure → `response.error` (500).
 
 **Features exercised:** Trigger mapping, expression resolution, auth context (`$.auth`), JSON Schema validation, database write, standardized error responses.
 
@@ -103,7 +104,7 @@ Both queries run in parallel (no dependency between them). The response node wai
 |---|---|
 | Trigger mapping | Every route maps request data to `$.input` |
 | JWT authentication | All routes use `auth.jwt` middleware, workflows access `auth.sub` |
-| JSON Schema validation | `transform.validate` checks input against shared schemas |
+| JSON Schema validation | Route-level `body.schema` validates requests automatically before the workflow runs |
 | Implicit parallelism | List endpoint runs count and fetch concurrently |
 | Flow convergence (AND-join) | Response node waits for both parallel queries |
 | Conditional branching | Get endpoint handles "not found" case |

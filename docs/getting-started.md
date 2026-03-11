@@ -356,23 +356,13 @@ Create `schemas/Task.json`:
 
 `workflows/create-task.json`:
 
+Since the route defines `body.schema`, the request body is validated automatically before the workflow runs. Invalid requests get a `422` response without reaching the workflow. No `transform.validate` node needed.
+
 ```json
 {
   "id": "create-task",
   "name": "Create Task",
   "nodes": {
-    "validate": {
-      "type": "transform.validate",
-      "config": {
-        "schema": {
-          "type": "object",
-          "properties": {
-            "title": { "type": "string", "minLength": 1 }
-          },
-          "required": ["title"]
-        }
-      }
-    },
     "insert": {
       "type": "db.create",
       "services": { "database": "postgres" },
@@ -393,7 +383,6 @@ Create `schemas/Task.json`:
     }
   },
   "edges": [
-    { "from": "validate", "to": "insert" },
     { "from": "insert", "to": "respond" }
   ]
 }

@@ -254,7 +254,7 @@ Removes fields from an object.
 
 ### transform.validate
 
-Validates data against a JSON Schema.
+Validates data against a JSON Schema. Use this for in-workflow validation of intermediate data or computed values. For request body validation, prefer defining `body.schema` on the route config — it validates automatically before the workflow runs.
 
 | Config Field | Type | Required | Description |
 |-------------|------|----------|-------------|

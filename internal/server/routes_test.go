@@ -10,6 +10,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/trace"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
@@ -36,7 +37,7 @@ func buildTestNodeRegistry() *registry.NodeRegistry {
 	return nodeReg
 }
 
-func newTestServer(t *testing.T, routes map[string]map[string]any, workflows map[string]map[string]any, root map[string]any) *Server {
+func newTestServer(t *testing.T, routes map[string]map[string]any, workflows map[string]map[string]any, root map[string]any, opts ...ServerOption) *Server {
 	t.Helper()
 	if root == nil {
 		root = map[string]any{}
@@ -47,7 +48,7 @@ func newTestServer(t *testing.T, routes map[string]map[string]any, workflows map
 		Workflows: workflows,
 		Schemas:   map[string]map[string]any{},
 	}
-	srv, err := NewServer(rc, registry.NewServiceRegistry(), buildTestNodeRegistry())
+	srv, err := NewServer(rc, registry.NewServiceRegistry(), buildTestNodeRegistry(), opts...)
 	require.NoError(t, err)
 	require.NoError(t, srv.Setup())
 	return srv
@@ -422,6 +423,213 @@ func TestRoute_ResponseRedirect(t *testing.T) {
 	assert.Equal(t, "/new", resp.Header.Get("Location"))
 }
 
+func TestRoute_BodySchemaValidation_RejectsInvalid(t *testing.T) {
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"create-item": {
+				"method": "POST",
+				"path":   "/items",
+				"body": map[string]any{
+					"schema": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"name":  map[string]any{"type": "string"},
+							"price": map[string]any{"type": "number"},
+						},
+						"required": []any{"name", "price"},
+					},
+				},
+				"trigger": map[string]any{
+					"workflow": "create-item",
+					"input": map[string]any{
+						"name":  "{{ body.name }}",
+						"price": "{{ body.price }}",
+					},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"create-item": {
+				"nodes": map[string]any{
+					"respond": map[string]any{
+						"type": "response.json",
+						"config": map[string]any{
+							"status": "201",
+							"body":   "\"created\"",
+						},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+		nil,
+	)
+
+	// Missing required field "price"
+	reqBody := `{"name": "Widget"}`
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 422, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	errData := result["error"].(map[string]any)
+	assert.Equal(t, "VALIDATION_ERROR", errData["code"])
+	assert.NotEmpty(t, errData["details"].(map[string]any)["errors"])
+}
+
+func TestRoute_BodySchemaValidation_AcceptsValid(t *testing.T) {
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"create-item": {
+				"method": "POST",
+				"path":   "/items",
+				"body": map[string]any{
+					"schema": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"name": map[string]any{"type": "string"},
+						},
+						"required": []any{"name"},
+					},
+				},
+				"trigger": map[string]any{
+					"workflow": "create-item",
+					"input": map[string]any{
+						"name": "{{ body.name }}",
+					},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"create-item": {
+				"nodes": map[string]any{
+					"build": map[string]any{
+						"type": "transform.set",
+						"config": map[string]any{
+							"fields": map[string]any{
+								"name": "{{ input.name }}",
+							},
+						},
+					},
+					"respond": map[string]any{
+						"type": "response.json",
+						"config": map[string]any{
+							"status": "201",
+							"body":   "{{ nodes.build }}",
+						},
+					},
+				},
+				"edges": []any{
+					map[string]any{"from": "build", "to": "respond"},
+				},
+			},
+		},
+		nil,
+	)
+
+	reqBody := `{"name": "Widget"}`
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 201, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "Widget", result["name"])
+}
+
+func TestRoute_BodySchemaValidation_DisabledWithValidateFalse(t *testing.T) {
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"create-item": {
+				"method": "POST",
+				"path":   "/items",
+				"body": map[string]any{
+					"schema": map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"name": map[string]any{"type": "string"},
+						},
+						"required": []any{"name"},
+					},
+					"validate": false,
+				},
+				"trigger": map[string]any{
+					"workflow": "create-item",
+					"input":    map[string]any{},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"create-item": {
+				"nodes": map[string]any{
+					"respond": map[string]any{
+						"type": "response.json",
+						"config": map[string]any{
+							"status": "200",
+							"body":   "\"ok\"",
+						},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+		nil,
+	)
+
+	// Body missing required "name" but validation is disabled
+	reqBody := `{"other": "value"}`
+	req := httptest.NewRequest("POST", "/items", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestRoute_NoBodySection_WorksAsUsual(t *testing.T) {
+	// This is essentially the same as existing tests, but explicit about no body section
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"simple": {
+				"method": "POST",
+				"path":   "/simple",
+				"trigger": map[string]any{
+					"workflow": "simple",
+					"input":    map[string]any{},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"simple": {
+				"nodes": map[string]any{
+					"respond": map[string]any{
+						"type": "response.json",
+						"config": map[string]any{
+							"status": "200",
+							"body":   "\"ok\"",
+						},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+		nil,
+	)
+
+	reqBody := `{"anything": "goes"}`
+	req := httptest.NewRequest("POST", "/simple", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
 func TestRoute_ResponseError(t *testing.T) {
 	srv := newTestServer(t,
 		map[string]map[string]any{
@@ -464,4 +672,178 @@ func TestRoute_ResponseError(t *testing.T) {
 	assert.Equal(t, "NOT_FOUND", errData["code"])
 	assert.Equal(t, "Resource not found", errData["message"])
 	assert.NotEmpty(t, errData["trace_id"])
+}
+
+// responseValidationRoute returns a route config with a response schema requiring {"id": integer, "name": string}.
+func responseValidationRoute(validate any) map[string]any {
+	route := map[string]any{
+		"method": "GET",
+		"path":   "/item",
+		"trigger": map[string]any{
+			"workflow": "get-item",
+			"input":    map[string]any{},
+		},
+		"response": map[string]any{
+			"200": map[string]any{
+				"schema": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"id":   map[string]any{"type": "integer"},
+						"name": map[string]any{"type": "string"},
+					},
+					"required": []any{"id", "name"},
+				},
+			},
+		},
+	}
+	if validate != nil {
+		route["response"].(map[string]any)["validate"] = validate
+	}
+	return route
+}
+
+// mismatchedWorkflow returns a workflow that responds with {"wrong": "data"} — missing required id/name.
+func mismatchedWorkflow() map[string]any {
+	return map[string]any{
+		"nodes": map[string]any{
+			"build": map[string]any{
+				"type": "transform.set",
+				"config": map[string]any{
+					"fields": map[string]any{"wrong": "data"},
+				},
+			},
+			"respond": map[string]any{
+				"type": "response.json",
+				"config": map[string]any{
+					"status": "200",
+					"body":   "{{ nodes.build }}",
+				},
+			},
+		},
+		"edges": []any{
+			map[string]any{"from": "build", "to": "respond"},
+		},
+	}
+}
+
+// validWorkflow returns a workflow that responds with {"id": 1, "name": "Widget"}.
+func validWorkflow() map[string]any {
+	return map[string]any{
+		"nodes": map[string]any{
+			"build": map[string]any{
+				"type": "transform.set",
+				"config": map[string]any{
+					"fields": map[string]any{"id": 1, "name": "Widget"},
+				},
+			},
+			"respond": map[string]any{
+				"type": "response.json",
+				"config": map[string]any{
+					"status": "200",
+					"body":   "{{ nodes.build }}",
+				},
+			},
+		},
+		"edges": []any{
+			map[string]any{"from": "build", "to": "respond"},
+		},
+	}
+}
+
+func TestResponseValidation_DevMode_WarnsButSendsResponse(t *testing.T) {
+	hub := trace.NewEventHub()
+	srv := newTestServer(t,
+		map[string]map[string]any{"get-item": responseValidationRoute(nil)},
+		map[string]map[string]any{"get-item": mismatchedWorkflow()},
+		nil,
+		WithTraceHub(hub),
+	)
+
+	req := httptest.NewRequest("GET", "/item", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	// Default mode in dev: warn but still send original response
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "data", result["wrong"])
+}
+
+func TestResponseValidation_Strict_Returns500(t *testing.T) {
+	srv := newTestServer(t,
+		map[string]map[string]any{"get-item": responseValidationRoute("strict")},
+		map[string]map[string]any{"get-item": mismatchedWorkflow()},
+		nil,
+	)
+
+	req := httptest.NewRequest("GET", "/item", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 500, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	errData := result["error"].(map[string]any)
+	assert.Equal(t, "RESPONSE_VALIDATION_ERROR", errData["code"])
+}
+
+func TestResponseValidation_WarnMode_Production(t *testing.T) {
+	// No traceHub (production), but validate: "warn" — still sends original response
+	srv := newTestServer(t,
+		map[string]map[string]any{"get-item": responseValidationRoute("warn")},
+		map[string]map[string]any{"get-item": mismatchedWorkflow()},
+		nil,
+	)
+
+	req := httptest.NewRequest("GET", "/item", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "data", result["wrong"])
+}
+
+func TestResponseValidation_Disabled(t *testing.T) {
+	hub := trace.NewEventHub()
+	srv := newTestServer(t,
+		map[string]map[string]any{"get-item": responseValidationRoute(false)},
+		map[string]map[string]any{"get-item": mismatchedWorkflow()},
+		nil,
+		WithTraceHub(hub),
+	)
+
+	req := httptest.NewRequest("GET", "/item", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	// Disabled — no validation even in dev mode
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "data", result["wrong"])
+}
+
+func TestResponseValidation_ValidResponse_PassesThrough(t *testing.T) {
+	srv := newTestServer(t,
+		map[string]map[string]any{"get-item": responseValidationRoute("strict")},
+		map[string]map[string]any{"get-item": validWorkflow()},
+		nil,
+	)
+
+	req := httptest.NewRequest("GET", "/item", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.Equal(t, "Widget", result["name"])
 }

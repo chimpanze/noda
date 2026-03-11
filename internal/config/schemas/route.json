@@ -33,7 +33,8 @@
       "type": "object",
       "properties": {
         "schema": { "type": "object" },
-        "content_type": { "type": "string" }
+        "content_type": { "type": "string" },
+        "validate": { "type": "boolean" }
       }
     },
     "trigger": {
@@ -51,6 +52,14 @@
     },
     "response": {
       "type": "object",
+      "properties": {
+        "validate": {
+          "oneOf": [
+            { "type": "string", "enum": ["warn", "strict"] },
+            { "type": "boolean" }
+          ]
+        }
+      },
       "additionalProperties": {
         "type": "object",
         "properties": {

@@ -72,10 +72,40 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		return fmt.Errorf("trigger.workflow %q not found in workflow cache", workflowID)
 	}
 
+	// Build body validator if route has body.schema and validation is not disabled
+	var validator *bodyValidator
+	if bodyCfg, ok := route["body"].(map[string]any); ok {
+		if schema, ok := bodyCfg["schema"].(map[string]any); ok {
+			// Validate by default unless explicitly disabled
+			validate, hasValidate := bodyCfg["validate"].(bool)
+			if !hasValidate || validate {
+				validator = newBodyValidator(schema)
+			}
+		}
+	}
+
+	// Build response validator if route has response schemas
+	var respValidator *responseValidator
+	if respCfg, ok := route["response"].(map[string]any); ok {
+		mode := ""
+		if v, ok := respCfg["validate"].(string); ok {
+			mode = v
+		} else if v, ok := respCfg["validate"].(bool); ok && !v {
+			mode = "disabled"
+		}
+		if mode != "disabled" {
+			respValidator = newResponseValidator(respCfg, mode)
+			// Don't keep a validator with no schemas
+			if len(respValidator.schemas) == 0 {
+				respValidator = nil
+			}
+		}
+	}
+
 	// Build handler with route-level middleware composed inline.
 	// This ensures middleware only applies to this specific method+path,
 	// not to all methods on the same path.
-	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig)
+	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig, validator, respValidator)
 
 	// Build handler chain: middleware first, then the route handler.
 	// Fiber v3 executes handlers in registration order, calling c.Next() to advance.
@@ -105,11 +135,93 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 	return nil
 }
 
+// validateAndWriteResponse validates the response body against a route's response schema,
+// then writes the response. In "strict" mode, a mismatch returns 500. Otherwise, the
+// original response is sent (with a warning logged for mismatches).
+func (s *Server) validateAndWriteResponse(c fiber.Ctx, resp *api.HTTPResponse, routeID, traceID string, rv *responseValidator) error {
+	if rv == nil {
+		return writeHTTPResponse(c, resp)
+	}
+
+	// Default mode ("") only validates in dev mode
+	if rv.mode == "" && s.traceHub == nil {
+		return writeHTTPResponse(c, resp)
+	}
+
+	if err := rv.ValidateResponse(resp.Status, resp.Body); err != nil {
+		s.logger.Warn("response validation failed",
+			"route", routeID,
+			"status", resp.Status,
+			"error", err,
+			"trace_id", traceID,
+		)
+
+		if s.traceHub != nil {
+			s.traceHub.Emit(trace.Event{
+				Type:    "response:validation_failed",
+				TraceID: traceID,
+				Data: map[string]any{
+					"route":  routeID,
+					"status": resp.Status,
+					"error":  err.Error(),
+				},
+			})
+		}
+
+		if rv.mode == "strict" {
+			return writeErrorResponse(c, 500, ErrorResponse{
+				Error: api.ErrorData{
+					Code:    "RESPONSE_VALIDATION_ERROR",
+					Message: "Response body does not match schema",
+					TraceID: traceID,
+				},
+			})
+		}
+	}
+
+	return writeHTTPResponse(c, resp)
+}
+
 // buildRouteHandler creates the Fiber handler that runs trigger mapping → workflow → response.
-func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any) fiber.Handler {
+func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any, validator *bodyValidator, respValidator *responseValidator) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// Generate trace ID early so it's available for all error paths
 		traceID := uuid.New().String()
+
+		// 0. Body schema validation (before trigger mapping)
+		if validator != nil {
+			body := parseBody(c)
+			if err := validator.Validate(body); err != nil {
+				if bve, ok := err.(*bodyValidationError); ok {
+					errors := make([]map[string]any, len(bve.Errors))
+					for i, e := range bve.Errors {
+						errors[i] = map[string]any{
+							"field":   e.Field,
+							"message": e.Message,
+						}
+					}
+					return writeErrorResponse(c, 422, ErrorResponse{
+						Error: api.ErrorData{
+							Code:    "VALIDATION_ERROR",
+							Message: "Request body validation failed",
+							Details: map[string]any{
+								"errors": errors,
+							},
+							TraceID: traceID,
+						},
+					})
+				}
+				// Non-validation error (e.g. schema compile failure)
+				s.logger.Error("body validation error", "route", routeID, "error", err, "trace_id", traceID)
+				return writeErrorResponse(c, 500, ErrorResponse{
+					Error: api.ErrorData{
+						Code:    "INTERNAL_ERROR",
+						Message: "Body validation configuration error",
+						TraceID: traceID,
+					},
+				})
+			}
+		}
 
 		// 1. Trigger mapping
 		triggerResult, err := MapTrigger(c, triggerConfig, s.compiler)
@@ -181,7 +293,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		select {
 		case resp := <-responseCh:
 			// Response node fired — send response immediately
-			return writeHTTPResponse(c, resp)
+			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
 
 		case wfErr := <-workflowDone:
 			// Workflow completed — check if a response was sent before returning
@@ -193,7 +305,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			// the workflow finished, and select picked this case randomly.
 			select {
 			case resp := <-responseCh:
-				return writeHTTPResponse(c, resp)
+				return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
 			default:
 			}
 			// No response node → 202 Accepted

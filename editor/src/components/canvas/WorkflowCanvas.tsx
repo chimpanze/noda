@@ -108,9 +108,10 @@ export function WorkflowCanvas() {
         type: "noda",
         position: node.position ?? { x: 50, y: index * 120 },
         data,
+        selected: selectedNodeIds.has(node.id),
       };
     });
-  }, [activeWorkflow?.nodes, outputsByType]);
+  }, [activeWorkflow?.nodes, outputsByType, selectedNodeIds]);
 
   // Convert Noda workflow edges to React Flow edges
   const edges: Edge[] = useMemo(() => {
