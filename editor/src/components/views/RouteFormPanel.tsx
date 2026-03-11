@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Trash2, Plus, X } from "lucide-react";
+import type { SchemaInfo } from "@/types";
 
 export interface RouteConfig {
   id: string;
@@ -8,7 +9,12 @@ export interface RouteConfig {
   summary?: string;
   tags?: string[];
   middleware?: string[];
-  body?: { schema?: unknown; raw?: boolean };
+  middleware_preset?: string;
+  body?: { schema?: unknown; raw?: boolean; validate?: boolean };
+  response?: {
+    validate?: string;
+    statuses?: Record<string, { description?: string; schema?: { $ref: string } }>;
+  };
   trigger?: {
     workflow: string;
     input?: Record<string, string>;
@@ -18,10 +24,14 @@ export interface RouteConfig {
 }
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
+const STATUS_CODES = ["200", "201", "204", "400", "401", "403", "404", "409", "422", "500"];
 
 interface RouteFormPanelProps {
   route: RouteConfig;
   workflows: string[];
+  middlewareNames: string[];
+  middlewarePresets: Record<string, string[]>;
+  schemas: SchemaInfo[];
   onChange: (route: RouteConfig) => void;
   onSave: () => void;
   onDelete?: () => void;
@@ -32,6 +42,9 @@ interface RouteFormPanelProps {
 export function RouteFormPanel({
   route,
   workflows,
+  middlewareNames,
+  middlewarePresets,
+  schemas,
   onChange,
   onSave,
   onDelete,
@@ -52,6 +65,16 @@ export function RouteFormPanel({
     },
     [route, onChange]
   );
+
+  const currentBodyRef =
+    route.body?.schema &&
+    typeof route.body.schema === "object" &&
+    (route.body.schema as Record<string, unknown>)["$ref"]
+      ? String((route.body.schema as Record<string, unknown>)["$ref"])
+      : "";
+
+  const responseStatuses = route.response?.statuses ?? {};
+  const responseValidate = route.response?.validate ?? "off";
 
   return (
     <div className="max-w-2xl space-y-5">
@@ -133,13 +156,61 @@ export function RouteFormPanel({
         placeholder="Add tag..."
       />
 
+      {/* Middleware Preset */}
+      <Field label="Middleware Preset">
+        <select
+          value={route.middleware_preset ?? ""}
+          onChange={(e) => update({ middleware_preset: e.target.value || undefined })}
+          className="input-field"
+        >
+          <option value="">None</option>
+          {Object.entries(middlewarePresets).map(([name, mws]) => (
+            <option key={name} value={name}>
+              {name} ({mws.join(", ")})
+            </option>
+          ))}
+        </select>
+      </Field>
+
       {/* Middleware */}
-      <TagInput
-        label="Middleware"
-        values={route.middleware ?? []}
-        onChange={(middleware) => update({ middleware: middleware.length > 0 ? middleware : undefined })}
-        placeholder="e.g. auth.jwt"
-      />
+      <Field label="Middleware">
+        <div className="flex flex-wrap gap-1.5 mb-1.5">
+          {(route.middleware ?? []).map((mw) => (
+            <span
+              key={mw}
+              className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+            >
+              {mw}
+              <button
+                type="button"
+                onClick={() =>
+                  update({ middleware: (route.middleware ?? []).filter((x) => x !== mw) })
+                }
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X size={10} />
+              </button>
+            </span>
+          ))}
+        </div>
+        <select
+          value=""
+          onChange={(e) => {
+            const val = e.target.value;
+            if (val && !(route.middleware ?? []).includes(val)) {
+              update({ middleware: [...(route.middleware ?? []), val] });
+            }
+          }}
+          className="input-field"
+        >
+          <option value="">Add middleware...</option>
+          {middlewareNames
+            .filter((n) => !(route.middleware ?? []).includes(n))
+            .map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+        </select>
+      </Field>
 
       {/* Trigger */}
       <div className="border-t border-gray-200 pt-4">
@@ -188,16 +259,9 @@ export function RouteFormPanel({
         <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
           Request Body
         </h4>
-        <Field label="Schema $ref">
-          <input
-            type="text"
-            value={
-              route.body?.schema &&
-              typeof route.body.schema === "object" &&
-              (route.body.schema as Record<string, unknown>)["$ref"]
-                ? String((route.body.schema as Record<string, unknown>)["$ref"])
-                : ""
-            }
+        <Field label="Schema">
+          <select
+            value={currentBodyRef}
             onChange={(e) => {
               const ref = e.target.value;
               if (ref) {
@@ -208,19 +272,130 @@ export function RouteFormPanel({
               }
             }}
             className="input-field font-mono"
-            placeholder="schemas/CreateTask"
-          />
+          >
+            <option value="">No schema</option>
+            {schemas.map((s) => (
+              <option key={s.path} value={s.path}>{s.path}</option>
+            ))}
+          </select>
         </Field>
+        <div className="mt-2">
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={route.body?.validate !== false}
+              onChange={(e) => {
+                const validate = e.target.checked;
+                if (validate) {
+                  // true/undefined is default — remove explicit flag
+                  const { validate: _, ...rest } = route.body ?? {};
+                  update({ body: Object.keys(rest).length > 0 ? rest : undefined });
+                } else {
+                  update({ body: { ...route.body, validate: false } });
+                }
+              }}
+              className="rounded border-gray-300"
+            />
+            Validate request body
+          </label>
+        </div>
       </div>
 
-      {/* Raw JSON preview */}
+      {/* Response Validation */}
       <div className="border-t border-gray-200 pt-4">
-        <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-          JSON Preview
+        <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+          Response Validation
         </h4>
-        <pre className="p-3 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap border border-gray-200">
-          {JSON.stringify(route, null, 2)}
-        </pre>
+
+        <Field label="Validate Mode">
+          <select
+            value={responseValidate}
+            onChange={(e) => {
+              const mode = e.target.value;
+              if (mode === "off") {
+                const { validate: _, ...rest } = route.response ?? {};
+                update({ response: Object.keys(rest).length > 0 ? rest : undefined });
+              } else {
+                update({ response: { ...route.response, validate: mode } });
+              }
+            }}
+            className="input-field"
+          >
+            <option value="off">Off</option>
+            <option value="warn">Warn</option>
+            <option value="strict">Strict</option>
+          </select>
+        </Field>
+
+        <div className="mt-3 space-y-2">
+          {Object.entries(responseStatuses).map(([code, entry]) => (
+            <div key={code} className="flex items-start gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+              <div className="shrink-0">
+                <label className="text-[10px] text-gray-400 uppercase block">Status</label>
+                <span className="text-sm font-mono font-medium text-gray-700">{code}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="text-[10px] text-gray-400 uppercase block">Description</label>
+                <input
+                  type="text"
+                  value={entry.description ?? ""}
+                  onChange={(e) => {
+                    const statuses = { ...responseStatuses };
+                    statuses[code] = { ...statuses[code], description: e.target.value || undefined };
+                    update({ response: { ...route.response, statuses } });
+                  }}
+                  className="input-field text-xs"
+                  placeholder="Description"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <label className="text-[10px] text-gray-400 uppercase block">Schema</label>
+                <select
+                  value={entry.schema?.$ref ?? ""}
+                  onChange={(e) => {
+                    const statuses = { ...responseStatuses };
+                    const ref = e.target.value;
+                    statuses[code] = {
+                      ...statuses[code],
+                      schema: ref ? { $ref: ref } : undefined,
+                    };
+                    update({ response: { ...route.response, statuses } });
+                  }}
+                  className="input-field text-xs font-mono"
+                >
+                  <option value="">No schema</option>
+                  {schemas.map((s) => (
+                    <option key={s.path} value={s.path}>{s.path}</option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const statuses = { ...responseStatuses };
+                  delete statuses[code];
+                  update({
+                    response: {
+                      ...route.response,
+                      statuses: Object.keys(statuses).length > 0 ? statuses : undefined,
+                    },
+                  });
+                }}
+                className="mt-3 px-1 text-red-400 hover:text-red-600 shrink-0"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <AddStatusButton
+          existingCodes={Object.keys(responseStatuses)}
+          onAdd={(code) => {
+            const statuses = { ...responseStatuses, [code]: {} };
+            update({ response: { ...route.response, statuses } });
+          }}
+        />
       </div>
     </div>
   );
@@ -384,6 +559,31 @@ function KeyValueEditor({
       >
         + Add field
       </button>
+    </div>
+  );
+}
+
+function AddStatusButton({
+  existingCodes,
+  onAdd,
+}: {
+  existingCodes: string[];
+  onAdd: (code: string) => void;
+}) {
+  return (
+    <div className="mt-2">
+      <select
+        value=""
+        onChange={(e) => {
+          if (e.target.value) onAdd(e.target.value);
+        }}
+        className="text-xs text-blue-500 bg-transparent border-none cursor-pointer hover:text-blue-700 p-0"
+      >
+        <option value="">+ Add Status Code</option>
+        {STATUS_CODES.filter((c) => !existingCodes.includes(c)).map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
     </div>
   );
 }

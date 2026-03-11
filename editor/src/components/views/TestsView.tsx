@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Circle, Play, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import { Circle, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
@@ -193,14 +193,6 @@ export function TestsView() {
                 {isNew ? "New Test Suite" : editSuite.id}
               </h3>
               <div className="flex items-center gap-2">
-                <button
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-500 text-sm rounded cursor-not-allowed"
-                  title="Test execution requires noda test CLI"
-                  disabled
-                >
-                  <Play size={14} />
-                  Run All
-                </button>
                 {!isNew && (
                   <button
                     onClick={handleDelete}

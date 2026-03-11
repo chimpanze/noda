@@ -117,9 +117,16 @@ export interface Execution {
   nodeData: Map<string, { output?: string; data?: unknown; error?: string; duration?: string }>;
 }
 
+export interface RouteGroupConfig {
+  middleware_preset?: string;
+  middleware?: string[];
+  tags?: string[];
+}
+
 export type ViewType =
   | "workflows"
   | "routes"
+  | "middleware"
   | "workers"
   | "schedules"
   | "connections"
@@ -127,4 +134,30 @@ export type ViewType =
   | "schemas"
   | "wasm"
   | "tests"
-  | "migrations";
+  | "settings";
+
+export interface ConfigField {
+  key: string;
+  type: "string" | "number" | "boolean" | "select" | "text";
+  required?: boolean;
+  default?: unknown;
+  options?: string[];
+  placeholder?: string;
+}
+
+export interface MiddlewareDescriptor {
+  name: string;
+  config_fields: ConfigField[];
+}
+
+export interface MiddlewareInstance {
+  type: string;
+  config: Record<string, unknown>;
+}
+
+export interface MiddlewareInfo {
+  middleware: MiddlewareDescriptor[];
+  presets: Record<string, string[]>;
+  config: Record<string, Record<string, unknown>>;
+  instances: Record<string, MiddlewareInstance>;
+}

@@ -45,6 +45,8 @@ export function ConnectionsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isNew, setIsNew] = useState(false);
+  const [middlewareNames, setMiddlewareNames] = useState<string[]>([]);
+  const [instanceNames, setInstanceNames] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     if (!files?.connections) return;
@@ -65,6 +67,11 @@ export function ConnectionsView() {
       );
       setConnFiles(fileConfigs);
       setEntries(allEntries);
+
+      const mwInfo = await api.listMiddleware();
+      const instNames = Object.keys(mwInfo.instances ?? {});
+      setInstanceNames(instNames);
+      setMiddlewareNames([...mwInfo.middleware.map((m) => m.name), ...instNames]);
     } finally {
       setLoading(false);
     }
@@ -304,13 +311,52 @@ export function ConnectionsView() {
 
             {/* Middleware */}
             <Field label="Middleware">
-              <TagInput
-                values={editEndpoint.middleware ?? []}
-                onChange={(middleware) =>
-                  update({ middleware: middleware.length > 0 ? middleware : undefined })
-                }
-                placeholder="e.g. auth.jwt"
-              />
+              <div className="flex flex-wrap gap-1.5 mb-1.5">
+                {(editEndpoint.middleware ?? []).map((mw) => (
+                  <span
+                    key={mw}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                  >
+                    {mw}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const filtered = (editEndpoint.middleware ?? []).filter((x) => x !== mw);
+                        update({ middleware: filtered.length > 0 ? filtered : undefined });
+                      }}
+                      className="text-gray-400 hover:text-gray-600"
+                    >
+                      &times;
+                    </button>
+                  </span>
+                ))}
+              </div>
+              <select
+                value=""
+                onChange={(e) => {
+                  if (!e.target.value) return;
+                  const current = editEndpoint.middleware ?? [];
+                  update({ middleware: [...current, e.target.value] });
+                }}
+                className="input-field"
+              >
+                <option value="">Add middleware...</option>
+                {middlewareNames
+                  .filter((n) => !instanceNames.includes(n))
+                  .filter((n) => !(editEndpoint.middleware ?? []).includes(n))
+                  .map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                {instanceNames.filter((n) => !(editEndpoint.middleware ?? []).includes(n)).length > 0 && (
+                  <optgroup label="Instances">
+                    {instanceNames
+                      .filter((n) => !(editEndpoint.middleware ?? []).includes(n))
+                      .map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                  </optgroup>
+                )}
+              </select>
             </Field>
 
             {/* Channels */}
@@ -437,57 +483,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-function TagInput({
-  values,
-  onChange,
-  placeholder,
-}: {
-  values: string[];
-  onChange: (values: string[]) => void;
-  placeholder?: string;
-}) {
-  const [draft, setDraft] = useState("");
-
-  const add = () => {
-    const v = draft.trim();
-    if (v && !values.includes(v)) onChange([...values, v]);
-    setDraft("");
-  };
-
-  return (
-    <>
-      <div className="flex flex-wrap gap-1.5 mb-1.5">
-        {values.map((v) => (
-          <span
-            key={v}
-            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
-          >
-            {v}
-            <button
-              type="button"
-              onClick={() => onChange(values.filter((x) => x !== v))}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              &times;
-            </button>
-          </span>
-        ))}
-      </div>
-      <div className="flex gap-1">
-        <input
-          type="text"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
-            }
-          }}
-          className="input-field flex-1"
-          placeholder={placeholder}
-        />
-      </div>
-    </>
-  );
-}

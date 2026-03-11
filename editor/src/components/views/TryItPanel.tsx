@@ -113,7 +113,7 @@ export function TryItPanel({ route }: TryItPanelProps) {
     : "";
 
   return (
-    <div className="border-t border-gray-200 mt-6 pt-4">
+    <div>
       <div className="flex items-center justify-between mb-3">
         <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
           Try It

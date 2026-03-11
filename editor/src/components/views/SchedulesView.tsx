@@ -50,19 +50,26 @@ export function SchedulesView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isNew, setIsNew] = useState(false);
+  const [serviceNames, setServiceNames] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     if (!files?.schedules) return;
     setLoading(true);
     try {
-      const results: ScheduleEntry[] = [];
-      await Promise.all(
-        files.schedules.map(async (path) => {
-          const data = (await api.readFile(path)) as ScheduleConfig;
-          results.push({ filePath: path, schedule: data });
-        })
-      );
-      setEntries(results);
+      const [, services] = await Promise.all([
+        (async () => {
+          const results: ScheduleEntry[] = [];
+          await Promise.all(
+            files.schedules!.map(async (path) => {
+              const data = (await api.readFile(path)) as ScheduleConfig;
+              results.push({ filePath: path, schedule: data });
+            })
+          );
+          setEntries(results);
+        })(),
+        api.listServices(),
+      ]);
+      setServiceNames(services.map((s) => s.name));
     } finally {
       setLoading(false);
     }
@@ -304,8 +311,7 @@ export function SchedulesView() {
               {editSchedule.lock?.enabled && (
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="Lock Service">
-                    <input
-                      type="text"
+                    <select
                       value={editSchedule.services?.lock ?? ""}
                       onChange={(e) =>
                         update({
@@ -313,8 +319,12 @@ export function SchedulesView() {
                         })
                       }
                       className="input-field"
-                      placeholder="e.g. app-cache"
-                    />
+                    >
+                      <option value="">Select service...</option>
+                      {serviceNames.map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
                   </Field>
                   <Field label="TTL">
                     <input

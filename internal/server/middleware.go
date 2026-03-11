@@ -39,15 +39,51 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 	"casbin.enforce":   newCasbinMiddleware,
 }
 
+// ParseMiddlewareName splits a middleware name into its base type and instance.
+// For "auth.jwt:v1" it returns ("auth.jwt", "v1"). For "auth.jwt" it returns ("auth.jwt", "").
+func ParseMiddlewareName(name string) (baseType, instance string) {
+	if idx := strings.Index(name, ":"); idx >= 0 {
+		return name[:idx], name[idx+1:]
+	}
+	return name, ""
+}
+
+// extractInstanceConfig looks up the config for a named middleware instance
+// from the middleware_instances section of the root config.
+func extractInstanceConfig(name string, rootConfig map[string]any) map[string]any {
+	instances, ok := rootConfig["middleware_instances"].(map[string]any)
+	if !ok {
+		return nil
+	}
+	entry, ok := instances[name].(map[string]any)
+	if !ok {
+		return nil
+	}
+	cfg, _ := entry["config"].(map[string]any)
+	return cfg
+}
+
 // BuildMiddleware creates a Fiber handler from a middleware name and root config.
+// If the name contains a ":" (e.g. "auth.jwt:v1"), it resolves the factory by
+// base type and looks up config from middleware_instances.
 func BuildMiddleware(name string, rootConfig map[string]any) (fiber.Handler, error) {
-	factory, ok := middlewareRegistry[name]
+	baseType, instance := ParseMiddlewareName(name)
+
+	factory, ok := middlewareRegistry[baseType]
 	if !ok {
 		return nil, fmt.Errorf("unknown middleware: %q", name)
 	}
 
-	// Extract middleware-specific config from root config
-	mwConfig := extractMiddlewareConfig(name, rootConfig)
+	var mwConfig map[string]any
+	if instance != "" {
+		mwConfig = extractInstanceConfig(name, rootConfig)
+		if mwConfig == nil {
+			return nil, fmt.Errorf("middleware instance %q not found in middleware_instances", name)
+		}
+	} else {
+		mwConfig = extractMiddlewareConfig(name, rootConfig)
+	}
+
 	return factory(mwConfig, rootConfig)
 }
 

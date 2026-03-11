@@ -5,6 +5,7 @@ import type {
   ServiceInfo,
   PluginInfo,
   SchemaInfo,
+  MiddlewareInfo,
   ValidationResult,
 } from "@/types";
 
@@ -131,4 +132,9 @@ export async function listPlugins(): Promise<PluginInfo[]> {
 export async function listSchemas(): Promise<SchemaInfo[]> {
   const { data } = await api.get<{ schemas: SchemaInfo[] }>("/schemas");
   return data.schemas;
+}
+
+export async function listMiddleware(): Promise<MiddlewareInfo> {
+  const { data } = await api.get<MiddlewareInfo>("/middleware");
+  return data;
 }

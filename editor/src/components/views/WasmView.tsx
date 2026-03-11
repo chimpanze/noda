@@ -29,6 +29,8 @@ export function WasmView() {
   const [isNew, setIsNew] = useState(false);
   const [configJson, setConfigJson] = useState("");
   const [configError, setConfigError] = useState<string | null>(null);
+  const [serviceNames, setServiceNames] = useState<string[]>([]);
+  const [connectionNames, setConnectionNames] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -40,17 +42,35 @@ export function WasmView() {
         return;
       }
       setRootPath(root);
-      const data = (await api.readFile(root)) as Record<string, unknown>;
+      const [data, services] = await Promise.all([
+        api.readFile(root) as Promise<Record<string, unknown>>,
+        api.listServices(),
+      ]);
       setRootConfig(data);
       const wasm = (data.wasm_runtimes ?? {}) as Record<string, WasmRuntimeConfig>;
       setRuntimes(wasm);
+      setServiceNames(services.map((s) => s.name));
+
+      // Load connection endpoint names
+      const connNames: string[] = [];
+      if (files?.connections) {
+        await Promise.all(
+          files.connections.map(async (path) => {
+            const connData = (await api.readFile(path)) as { endpoints?: Record<string, unknown> };
+            if (connData.endpoints) {
+              connNames.push(...Object.keys(connData.endpoints));
+            }
+          })
+        );
+      }
+      setConnectionNames(connNames);
     } catch {
       // root config might not exist or not have wasm_runtimes
       setRuntimes({});
     } finally {
       setLoading(false);
     }
-  }, [files?.root]);
+  }, [files?.root, files?.connections]);
 
   useEffect(() => {
     reload();
@@ -289,19 +309,21 @@ export function WasmView() {
 
             {/* Services */}
             <Field label="Service Access">
-              <StringListEditor
-                values={editRuntime.services ?? []}
+              <DropdownPicker
+                selected={editRuntime.services ?? []}
+                options={serviceNames}
                 onChange={(services) => update({ services })}
-                placeholder="e.g. app-cache"
+                placeholder="Add service..."
               />
             </Field>
 
             {/* Connections */}
             <Field label="Connection Access">
-              <StringListEditor
-                values={editRuntime.connections ?? []}
+              <DropdownPicker
+                selected={editRuntime.connections ?? []}
+                options={connectionNames}
                 onChange={(connections) => update({ connections })}
-                placeholder="e.g. dashboard-updates"
+                placeholder="Add connection..."
               />
             </Field>
 
@@ -386,6 +408,55 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       </label>
       {children}
     </div>
+  );
+}
+
+function DropdownPicker({
+  selected,
+  options,
+  onChange,
+  placeholder,
+}: {
+  selected: string[];
+  options: string[];
+  onChange: (values: string[]) => void;
+  placeholder?: string;
+}) {
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5 mb-1.5">
+        {selected.map((v) => (
+          <span
+            key={v}
+            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded font-mono"
+          >
+            {v}
+            <button
+              type="button"
+              onClick={() => onChange(selected.filter((x) => x !== v))}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              &times;
+            </button>
+          </span>
+        ))}
+      </div>
+      <select
+        value=""
+        onChange={(e) => {
+          if (!e.target.value) return;
+          onChange([...selected, e.target.value]);
+        }}
+        className="input-field"
+      >
+        <option value="">{placeholder ?? "Add..."}</option>
+        {options
+          .filter((n) => !selected.includes(n))
+          .map((n) => (
+            <option key={n} value={n}>{n}</option>
+          ))}
+      </select>
+    </>
   );
 }
 

@@ -45,9 +45,13 @@
     },
     "update_record": {
       "config": {
+        "data": {
+          "thumbnail_path": "{{ nodes.thumbnail.path }}"
+        },
         "table": "attachments",
-        "data": { "thumbnail_path": "{{ nodes.thumbnail.path }}" },
-        "where": { "id": "{{ input.attachment_id }}" }
+        "where": {
+          "id": "{{ input.attachment_id }}"
+        }
       },
       "services": {
         "database": "main-db"

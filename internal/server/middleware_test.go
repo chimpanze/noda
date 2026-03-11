@@ -12,6 +12,63 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestParseMiddlewareName(t *testing.T) {
+	tests := []struct {
+		name     string
+		wantBase string
+		wantInst string
+	}{
+		{"auth.jwt", "auth.jwt", ""},
+		{"auth.jwt:v1", "auth.jwt", "v1"},
+		{"limiter:strict", "limiter", "strict"},
+		{"recover", "recover", ""},
+		{"casbin.enforce:tenant", "casbin.enforce", "tenant"},
+	}
+	for _, tt := range tests {
+		base, inst := ParseMiddlewareName(tt.name)
+		assert.Equal(t, tt.wantBase, base, "base for %q", tt.name)
+		assert.Equal(t, tt.wantInst, inst, "instance for %q", tt.name)
+	}
+}
+
+func TestBuildMiddleware_Instance(t *testing.T) {
+	h, err := BuildMiddleware("limiter:strict", map[string]any{
+		"middleware_instances": map[string]any{
+			"limiter:strict": map[string]any{
+				"type": "limiter",
+				"config": map[string]any{
+					"max":        float64(100),
+					"expiration": "1m",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, h)
+}
+
+func TestBuildMiddleware_Instance_NotFound(t *testing.T) {
+	_, err := BuildMiddleware("limiter:missing", map[string]any{
+		"middleware_instances": map[string]any{},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "middleware instance")
+	assert.Contains(t, err.Error(), "not found")
+}
+
+func TestBuildMiddleware_Instance_UnknownType(t *testing.T) {
+	_, err := BuildMiddleware("nonexistent:foo", map[string]any{
+		"middleware_instances": map[string]any{
+			"nonexistent:foo": map[string]any{
+				"type":   "nonexistent",
+				"config": map[string]any{},
+			},
+		},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown middleware")
+}
+
 func TestBuildMiddleware_Unknown(t *testing.T) {
 	_, err := BuildMiddleware("nonexistent", nil)
 	assert.Error(t, err)

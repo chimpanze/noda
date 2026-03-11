@@ -35,6 +35,17 @@
         "items": { "type": "string" }
       }
     },
+    "middleware_instances": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "config": { "type": "object" }
+        },
+        "required": ["type", "config"]
+      }
+    },
     "route_groups": {
       "type": "object",
       "additionalProperties": {

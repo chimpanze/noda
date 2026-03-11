@@ -102,6 +102,7 @@ func (e *EditorAPI) Register(app *fiber.App) {
 	api.Get("/services", e.listServices)
 	api.Get("/plugins", e.listPlugins)
 	api.Get("/schemas", e.listSchemas)
+	api.Get("/middleware", e.listMiddleware)
 }
 
 // resolvedConfig returns the current resolved config, preferring the
@@ -588,6 +589,108 @@ func (e *EditorAPI) findUpstreamNodes(wfConfig map[string]any, targetNodeID stri
 	}
 
 	return result
+}
+
+// listMiddleware returns middleware metadata, presets, and current config.
+func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
+	type configField struct {
+		Key         string   `json:"key"`
+		Type        string   `json:"type"`
+		Required    bool     `json:"required,omitempty"`
+		Default     any      `json:"default,omitempty"`
+		Options     []string `json:"options,omitempty"`
+		Placeholder string   `json:"placeholder,omitempty"`
+	}
+	type descriptor struct {
+		Name         string        `json:"name"`
+		ConfigFields []configField `json:"config_fields"`
+	}
+
+	descriptors := []descriptor{
+		{Name: "auth.jwt", ConfigFields: []configField{
+			{Key: "secret", Type: "string", Required: true},
+			{Key: "algorithm", Type: "select", Options: []string{"HS256", "HS384", "HS512"}, Default: "HS256"},
+		}},
+		{Name: "security.cors", ConfigFields: []configField{
+			{Key: "allow_origins", Type: "string"},
+			{Key: "allow_methods", Type: "string"},
+			{Key: "allow_headers", Type: "string"},
+			{Key: "allow_credentials", Type: "boolean"},
+		}},
+		{Name: "security.headers", ConfigFields: []configField{}},
+		{Name: "security.csrf", ConfigFields: []configField{
+			{Key: "cookie_name", Type: "string"},
+			{Key: "cookie_secure", Type: "boolean"},
+			{Key: "cookie_http_only", Type: "boolean"},
+			{Key: "cookie_same_site", Type: "string"},
+			{Key: "cookie_session_only", Type: "boolean"},
+			{Key: "single_use_token", Type: "boolean"},
+		}},
+		{Name: "limiter", ConfigFields: []configField{
+			{Key: "max", Type: "number"},
+			{Key: "expiration", Type: "string", Placeholder: "1m"},
+		}},
+		{Name: "timeout", ConfigFields: []configField{
+			{Key: "duration", Type: "string", Placeholder: "30s"},
+		}},
+		{Name: "casbin.enforce", ConfigFields: []configField{
+			{Key: "model", Type: "text", Required: true},
+			{Key: "tenant_param", Type: "string"},
+		}},
+		{Name: "recover", ConfigFields: []configField{}},
+		{Name: "logger", ConfigFields: []configField{}},
+		{Name: "requestid", ConfigFields: []configField{}},
+		{Name: "compress", ConfigFields: []configField{}},
+		{Name: "etag", ConfigFields: []configField{}},
+	}
+
+	// Extract presets from resolved config
+	presets := make(map[string][]string)
+	rc := e.resolvedConfig()
+	if rc != nil {
+		if mp, ok := rc.Root["middleware_presets"].(map[string]any); ok {
+			for name, v := range mp {
+				if arr, ok := v.([]any); ok {
+					mws := make([]string, 0, len(arr))
+					for _, item := range arr {
+						if s, ok := item.(string); ok {
+							mws = append(mws, s)
+						}
+					}
+					presets[name] = mws
+				}
+			}
+		}
+	}
+
+	// Extract current config for each middleware
+	mwConfig := make(map[string]any)
+	if rc != nil {
+		for _, d := range descriptors {
+			if len(d.ConfigFields) == 0 {
+				continue
+			}
+			cfg := extractMiddlewareConfig(d.Name, rc.Root)
+			if cfg != nil {
+				mwConfig[d.Name] = cfg
+			}
+		}
+	}
+
+	// Extract middleware instances
+	instances := make(map[string]any)
+	if rc != nil {
+		if mi, ok := rc.Root["middleware_instances"].(map[string]any); ok {
+			instances = mi
+		}
+	}
+
+	return c.JSON(map[string]any{
+		"middleware": descriptors,
+		"presets":    presets,
+		"config":     mwConfig,
+		"instances":  instances,
+	})
 }
 
 // relPath returns a relative path from base, or the original if Rel fails.

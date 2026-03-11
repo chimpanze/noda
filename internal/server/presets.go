@@ -183,22 +183,30 @@ var middlewareOrderRules = map[string][]string{
 }
 
 // ValidateMiddlewareOrder checks that middleware ordering constraints are satisfied.
+// Instance names (e.g. "auth.jwt:v1") are resolved to their base type for ordering checks.
 func ValidateMiddlewareOrder(chain []string) error {
-	positions := make(map[string]int, len(chain))
+	// Track first and last positions of each base type
+	firstPos := make(map[string]int, len(chain))
+	lastPos := make(map[string]int, len(chain))
 	for i, name := range chain {
-		positions[name] = i
+		base, _ := ParseMiddlewareName(name)
+		if _, exists := firstPos[base]; !exists {
+			firstPos[base] = i
+		}
+		lastPos[base] = i
 	}
+
 	for mw, deps := range middlewareOrderRules {
-		mwPos, hasMW := positions[mw]
+		mwFirst, hasMW := firstPos[mw]
 		if !hasMW {
 			continue
 		}
 		for _, dep := range deps {
-			depPos, hasDep := positions[dep]
+			depLast, hasDep := lastPos[dep]
 			if !hasDep {
 				continue
 			}
-			if depPos > mwPos {
+			if depLast > mwFirst {
 				return fmt.Errorf("middleware %q must appear before %q in the chain", dep, mw)
 			}
 		}

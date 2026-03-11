@@ -17,6 +17,8 @@ import { WorkersView } from "@/components/views/WorkersView";
 import { SchedulesView } from "@/components/views/SchedulesView";
 import { ConnectionsView } from "@/components/views/ConnectionsView";
 import { WasmView } from "@/components/views/WasmView";
+import { MiddlewareView } from "@/components/views/MiddlewareView";
+import { ServerSettingsView } from "@/components/views/ServerSettingsView";
 import { ShortcutModal } from "@/components/panels/ShortcutModal";
 import { CommandPalette } from "@/components/panels/CommandPalette";
 import { ToastContainer } from "@/components/panels/Toast";
@@ -98,6 +100,8 @@ export default function App() {
               </>
             ) : activeView === "routes" ? (
               <RoutesView />
+            ) : activeView === "middleware" ? (
+              <MiddlewareView />
             ) : activeView === "services" ? (
               <ServicesView />
             ) : activeView === "schemas" ? (
@@ -112,12 +116,9 @@ export default function App() {
               <ConnectionsView />
             ) : activeView === "wasm" ? (
               <WasmView />
-            ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-                {activeView.charAt(0).toUpperCase() + activeView.slice(1)} view
-                — coming in future milestones.
-              </div>
-            )}
+            ) : activeView === "settings" ? (
+              <ServerSettingsView />
+            ) : null}
           </div>
 
           {/* Validation summary */}

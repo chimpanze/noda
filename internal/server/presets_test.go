@@ -119,6 +119,63 @@ func TestResolveMiddlewareChain_Deduplication(t *testing.T) {
 	assert.Len(t, handlers, 2) // recover (deduped) + requestid
 }
 
+func TestValidateMiddlewareOrder_WithInstances(t *testing.T) {
+	// auth.jwt:v1 before casbin.enforce:tenant — should pass
+	err := ValidateMiddlewareOrder([]string{"auth.jwt:v1", "casbin.enforce:tenant"})
+	assert.NoError(t, err)
+
+	// casbin.enforce:tenant before auth.jwt:v1 — should fail
+	err = ValidateMiddlewareOrder([]string{"casbin.enforce:tenant", "auth.jwt:v1"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must appear before")
+
+	// Mixed bare and instance — auth.jwt before casbin.enforce:tenant
+	err = ValidateMiddlewareOrder([]string{"auth.jwt", "casbin.enforce:tenant"})
+	assert.NoError(t, err)
+
+	// Mixed: casbin.enforce before auth.jwt:v1 — should fail
+	err = ValidateMiddlewareOrder([]string{"casbin.enforce", "auth.jwt:v1"})
+	assert.Error(t, err)
+}
+
+func TestDedupe_Instances(t *testing.T) {
+	// Different instances should NOT be deduped
+	result := dedupe([]string{"auth.jwt:v1", "auth.jwt:v2"})
+	assert.Equal(t, []string{"auth.jwt:v1", "auth.jwt:v2"}, result)
+
+	// Same instance should be deduped
+	result = dedupe([]string{"auth.jwt:v1", "recover", "auth.jwt:v1"})
+	assert.Equal(t, []string{"auth.jwt:v1", "recover"}, result)
+
+	// Bare and instance are distinct
+	result = dedupe([]string{"auth.jwt", "auth.jwt:v1"})
+	assert.Equal(t, []string{"auth.jwt", "auth.jwt:v1"}, result)
+}
+
+func TestResolveMiddlewareChain_WithInstances(t *testing.T) {
+	srv := testServerWithConfig(map[string]any{
+		"middleware_instances": map[string]any{
+			"limiter:strict": map[string]any{
+				"type": "limiter",
+				"config": map[string]any{
+					"max":        float64(10),
+					"expiration": "1m",
+				},
+			},
+		},
+	})
+
+	route := map[string]any{
+		"id":         "instance-route",
+		"path":       "/api/test",
+		"middleware": []any{"recover", "limiter:strict"},
+	}
+
+	handlers, err := srv.ResolveMiddlewareChain(route)
+	require.NoError(t, err)
+	assert.Len(t, handlers, 2)
+}
+
 func TestValidatePresets_UnknownPreset(t *testing.T) {
 	rc := &config.ResolvedConfig{
 		Root: map[string]any{

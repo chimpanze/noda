@@ -1,4 +1,10 @@
 {
+  "middleware_instances": {
+    "security.cors:base": {
+      "config": {},
+      "type": "security.cors"
+    }
+  },
   "middleware_presets": {
     "authenticated": [
       "auth.jwt"
