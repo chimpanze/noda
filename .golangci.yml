@@ -10,6 +10,9 @@ linters:
     - staticcheck
     - unused
     - misspell
+
+formatters:
+  enable:
     - gofmt
 
 version: "2"
