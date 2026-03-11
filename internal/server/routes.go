@@ -184,10 +184,17 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			return writeHTTPResponse(c, resp)
 
 		case wfErr := <-workflowDone:
-			// Workflow completed without sending a response
+			// Workflow completed — check if a response was sent before returning
 			if wfErr != nil {
 				status, errResp := MapErrorToHTTP(wfErr, traceID)
 				return writeErrorResponse(c, status, errResp)
+			}
+			// Drain responseCh: the response node may have fired just before
+			// the workflow finished, and select picked this case randomly.
+			select {
+			case resp := <-responseCh:
+				return writeHTTPResponse(c, resp)
+			default:
 			}
 			// No response node → 202 Accepted
 			return c.Status(fiber.StatusAccepted).JSON(map[string]any{
