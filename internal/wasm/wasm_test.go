@@ -1403,7 +1403,7 @@ func TestHostDispatcher_TriggerWorkflow_MissingWorkflowID(t *testing.T) {
 		Payload:   map[string]any{},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "workflow is required")
+	assert.Contains(t, err.Error(), "\"workflow\" is required")
 }
 
 // --- System ops: set_timer validation ---
@@ -1420,7 +1420,7 @@ func TestHostDispatcher_SetTimer_MissingName(t *testing.T) {
 		Payload:   map[string]any{"interval": float64(1000)},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "timer name is required")
+	assert.Contains(t, err.Error(), "\"name\" is required")
 }
 
 func TestHostDispatcher_SetTimer_InvalidInterval(t *testing.T) {
@@ -1452,7 +1452,7 @@ func TestHostDispatcher_ClearTimer_MissingName(t *testing.T) {
 		Payload:   map[string]any{},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "timer name is required")
+	assert.Contains(t, err.Error(), "\"name\" is required")
 }
 
 // --- System ops: nil payload ---
@@ -1488,15 +1488,14 @@ func TestHostDispatcher_DispatchToService_NilPayload(t *testing.T) {
 		Services: []string{"cache"},
 	}, dispatcher, testLogger())
 
-	// Call with nil payload - should not panic
-	result, err := dispatcher.Call(context.Background(), HostCallRequest{
+	// Call with nil payload - should return validation error for missing key
+	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "cache",
 		Operation: "get",
-		Payload:   nil, // nil payload, key will be ""
+		Payload:   nil, // nil payload, key is required
 	})
-	require.NoError(t, err)
-	resultMap := result.(map[string]any)
-	assert.Equal(t, "empty-key-val", resultMap["value"])
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "\"key\" is required")
 }
 
 // --- AsyncCall: missing label ---
@@ -2188,27 +2187,6 @@ func TestModule_ExecuteTick_DrainQueries(t *testing.T) {
 	assert.NotNil(t, result)
 
 	require.NoError(t, m.Stop(context.Background()))
-}
-
-// --- Contains / hasSuffix edge cases ---
-
-func TestContains(t *testing.T) {
-	assert.True(t, contains("hello world", "world"))
-	assert.True(t, contains("hello", "hello"))
-	assert.False(t, contains("hi", "hello"))
-	assert.False(t, contains("", "hello"))
-}
-
-func TestHasSuffix(t *testing.T) {
-	assert.True(t, hasSuffix("hello world", "world"))
-	assert.True(t, hasSuffix("hello", "hello"))
-	assert.False(t, hasSuffix("hi", "hello"))
-}
-
-func TestSearchString(t *testing.T) {
-	assert.True(t, searchString("hello world", "world"))
-	assert.True(t, searchString("abc", "abc"))
-	assert.False(t, searchString("abc", "abcd"))
 }
 
 // --- Module: Stop with shutdown error ---

@@ -6,7 +6,6 @@ import (
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
-	"github.com/redis/go-redis/v9"
 )
 
 // Plugin implements the Redis cache plugin.
@@ -27,25 +26,10 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 }
 
 func (p *Plugin) CreateService(config map[string]any) (any, error) {
-	url, _ := config["url"].(string)
-	if url == "" {
-		return nil, fmt.Errorf("cache: missing 'url'")
-	}
-
-	opts, err := redis.ParseURL(url)
+	client, err := plugin.NewRedisClient(config, "cache")
 	if err != nil {
-		return nil, fmt.Errorf("cache: parse url: %w", err)
+		return nil, err
 	}
-
-	// Pool settings
-	if v, ok := plugin.ToInt(config["pool_size"]); ok {
-		opts.PoolSize = v
-	}
-	if v, ok := plugin.ToInt(config["min_idle"]); ok {
-		opts.MinIdleConns = v
-	}
-
-	client := redis.NewClient(opts)
 	return &Service{client: client}, nil
 }
 

@@ -16,6 +16,13 @@ func dispatchNode(
 	services *registry.ServiceRegistry,
 	nodes *registry.NodeRegistry,
 ) (outputName string, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("node %q panicked: %v", node.ID, r)
+			outputName = ""
+		}
+	}()
+
 	// Look up executor factory
 	factory, ok := nodes.GetFactory(node.Type)
 	if !ok {

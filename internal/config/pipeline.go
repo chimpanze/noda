@@ -1,5 +1,7 @@
 package config
 
+import "log/slog"
+
 // ResolvedConfig is the fully resolved, validated configuration structure.
 type ResolvedConfig struct {
 	Environment string
@@ -41,6 +43,9 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 
 	// 4. Merge overlay into root
 	if raw.Overlay != nil {
+		for _, w := range ValidateMergePreservedKeys(raw.Root, raw.Overlay) {
+			slog.Warn("config overlay warning", "detail", w)
+		}
 		raw.Root = MergeOverlay(raw.Root, raw.Overlay)
 	}
 

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -33,6 +34,9 @@ type ExecutionContextImpl struct {
 	responseInterceptor ResponseInterceptor
 	tracer              oteltrace.Tracer
 	traceCallback       func(eventType, nodeID, nodeType, output, errMsg string, data any)
+
+	depth    int32 // atomic
+	maxDepth int32 // atomic
 }
 
 // NewExecutionContext creates a new execution context for a workflow run.
@@ -47,6 +51,7 @@ func NewExecutionContext(opts ...ExecutionContextOption) *ExecutionContextImpl {
 		logger:   slog.Default(),
 		tracer:   noop.NewTracerProvider().Tracer("noda"),
 	}
+	atomic.StoreInt32(&ctx.maxDepth, 64)
 	for _, opt := range opts {
 		opt(ctx)
 	}
@@ -231,6 +236,23 @@ func (c *ExecutionContextImpl) EvictOutput(key string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.outputs, key)
+}
+
+// CheckAndIncrementDepth checks if the recursion depth limit has been reached.
+// If not, it increments the depth counter. Returns an error if the limit is exceeded.
+func (c *ExecutionContextImpl) CheckAndIncrementDepth() error {
+	newDepth := atomic.AddInt32(&c.depth, 1)
+	max := atomic.LoadInt32(&c.maxDepth)
+	if newDepth > max {
+		atomic.AddInt32(&c.depth, -1)
+		return fmt.Errorf("maximum recursion depth (%d) exceeded", max)
+	}
+	return nil
+}
+
+// DecrementDepth decrements the recursion depth counter.
+func (c *ExecutionContextImpl) DecrementDepth() {
+	atomic.AddInt32(&c.depth, -1)
 }
 
 // buildExprContext creates the expression evaluation context map.

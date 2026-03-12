@@ -70,6 +70,9 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner api.WorkflowR
 // Register sets up the WebSocket route on the Fiber app.
 // Middleware handlers (e.g., auth) run before the WebSocket upgrade.
 func (h *WebSocketHandler) Register(app *fiber.App, middleware ...fiber.Handler) {
+	if len(middleware) == 0 {
+		h.logger.Warn("websocket endpoint registered without auth middleware", "path", h.config.Path)
+	}
 	wsHandler := websocket.New(h.handleConnection, websocket.Config{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,

@@ -91,6 +91,29 @@ func TestExecutionContext_TraceIDGenerated(t *testing.T) {
 	assert.NotEqual(t, ctx1.Trigger().TraceID, ctx2.Trigger().TraceID)
 }
 
+func TestExecutionContext_DepthTracking(t *testing.T) {
+	ctx := NewExecutionContext()
+
+	// Should allow incrementing up to max depth
+	for i := 0; i < 64; i++ {
+		require.NoError(t, ctx.CheckAndIncrementDepth(), "depth %d should succeed", i)
+	}
+
+	// Should reject at max depth
+	err := ctx.CheckAndIncrementDepth()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "maximum recursion depth")
+
+	// Decrement and try again
+	ctx.DecrementDepth()
+	require.NoError(t, ctx.CheckAndIncrementDepth())
+
+	// Clean up
+	for i := 0; i < 64; i++ {
+		ctx.DecrementDepth()
+	}
+}
+
 func TestExecutionContext_EvictOutput(t *testing.T) {
 	ctx := NewExecutionContext()
 	ctx.SetOutput("temp", "data")

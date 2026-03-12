@@ -19,6 +19,14 @@ func (e *mockPassExecutor) Execute(_ context.Context, _ api.ExecutionContext, co
 	return "success", config, nil
 }
 
+// mockPanicExecutor panics during execution.
+type mockPanicExecutor struct{}
+
+func (e *mockPanicExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *mockPanicExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
+	panic("unexpected nil pointer")
+}
+
 // mockFailExecutor always fails.
 type mockFailExecutor struct{}
 
@@ -45,6 +53,10 @@ func setupDispatchTest(t *testing.T) (*registry.NodeRegistry, *registry.PluginRe
 			{
 				Descriptor: &testDescriptor{name: "fail", deps: nil},
 				Factory:    func(map[string]any) api.NodeExecutor { return &mockFailExecutor{} },
+			},
+			{
+				Descriptor: &testDescriptor{name: "panic", deps: nil},
+				Factory:    func(map[string]any) api.NodeExecutor { return &mockPanicExecutor{} },
 			},
 		},
 	}
@@ -149,6 +161,23 @@ func TestDispatchNode_ContextCancellation(t *testing.T) {
 	// Mock executor ignores context, so it still succeeds
 	require.NoError(t, err)
 	assert.Equal(t, "success", output)
+}
+
+func TestDispatchNode_PanicRecovery(t *testing.T) {
+	nodes, _, services := setupDispatchTest(t)
+	execCtx := NewExecutionContext()
+
+	node := &CompiledNode{
+		ID:      "step1",
+		Type:    "mock.panic",
+		Outputs: []string{"success", "error"},
+	}
+
+	output, err := dispatchNode(context.Background(), node, execCtx, services, nodes)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "panicked")
+	assert.Contains(t, err.Error(), "unexpected nil pointer")
+	assert.Equal(t, "", output)
 }
 
 // test helpers for dispatch tests

@@ -7,6 +7,12 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 )
 
+// depthTracker is implemented by execution contexts that support recursion depth tracking.
+type depthTracker interface {
+	CheckAndIncrementDepth() error
+	DecrementDepth()
+}
+
 type loopDescriptor struct{}
 
 func (d *loopDescriptor) Name() string { return "loop" }
@@ -69,6 +75,14 @@ func (e *LoopExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	}
 
 	var results []any
+
+	// Check recursion depth
+	if dt, ok := nCtx.(depthTracker); ok {
+		if err := dt.CheckAndIncrementDepth(); err != nil {
+			return "", nil, fmt.Errorf("loop: %w", err)
+		}
+		defer dt.DecrementDepth()
+	}
 
 	for i, item := range items {
 		select {

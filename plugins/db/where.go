@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/chimpanze/noda/internal/plugin"
@@ -79,6 +80,9 @@ func resolveJoins(nCtx api.ExecutionContext, config map[string]any) ([]joinSpec,
 		if t, ok := m["type"].(string); ok {
 			joinType = strings.ToUpper(t)
 		}
+		if err := ValidateJoinType(joinType); err != nil {
+			return nil, fmt.Errorf("joins[%d]: %w", i, err)
+		}
 
 		tableRaw, ok := m["table"]
 		if !ok {
@@ -88,6 +92,9 @@ func resolveJoins(nCtx api.ExecutionContext, config map[string]any) ([]joinSpec,
 		if !ok {
 			return nil, fmt.Errorf("joins[%d].table must be a string", i)
 		}
+		if err := ValidateIdentifier(table); err != nil {
+			return nil, fmt.Errorf("joins[%d]: %w", i, err)
+		}
 
 		onRaw, ok := m["on"]
 		if !ok {
@@ -96,6 +103,9 @@ func resolveJoins(nCtx api.ExecutionContext, config map[string]any) ([]joinSpec,
 		on, ok := onRaw.(string)
 		if !ok {
 			return nil, fmt.Errorf("joins[%d].on must be a string", i)
+		}
+		if err := ValidateSQLFragment(on); err != nil {
+			return nil, fmt.Errorf("joins[%d]: %w", i, err)
 		}
 
 		params, err := plugin.ResolveOptionalArray(nCtx, m, "params")
@@ -134,6 +144,9 @@ func resolveSelectColumns(nCtx api.ExecutionContext, config map[string]any) ([]s
 		str, ok := resolved.(string)
 		if !ok {
 			return nil, fmt.Errorf("select[%d] resolved to %T, expected string", i, resolved)
+		}
+		if err := ValidateIdentifier(str); err != nil {
+			return nil, fmt.Errorf("select[%d]: %w", i, err)
 		}
 		cols = append(cols, str)
 	}
@@ -174,6 +187,9 @@ func applyQueryOptions(tx *gorm.DB, nCtx api.ExecutionContext, config map[string
 	if order, ok, err := plugin.ResolveOptionalString(nCtx, config, "order"); err != nil {
 		return nil, err
 	} else if ok {
+		if err := ValidateOrderClause(order); err != nil {
+			return nil, fmt.Errorf("order: %w", err)
+		}
 		tx = tx.Order(order)
 	}
 
@@ -192,13 +208,51 @@ func applyQueryOptions(tx *gorm.DB, nCtx api.ExecutionContext, config map[string
 	if group, ok, err := plugin.ResolveOptionalString(nCtx, config, "group"); err != nil {
 		return nil, err
 	} else if ok {
+		for _, col := range strings.Split(group, ",") {
+			col = strings.TrimSpace(col)
+			if err := ValidateIdentifier(col); err != nil {
+				return nil, fmt.Errorf("group: %w", err)
+			}
+		}
 		tx = tx.Group(group)
 	}
 
-	if having, ok, err := plugin.ResolveOptionalString(nCtx, config, "having"); err != nil {
-		return nil, err
-	} else if ok {
-		tx = tx.Having(having)
+	// Having: support both string (legacy) and parameterized object format
+	if havingRaw, ok := config["having"]; ok {
+		switch h := havingRaw.(type) {
+		case string:
+			resolved, err := nCtx.Resolve(h)
+			if err != nil {
+				return nil, fmt.Errorf("having: %w", err)
+			}
+			havingStr, ok := resolved.(string)
+			if !ok {
+				return nil, fmt.Errorf("having resolved to %T, expected string", resolved)
+			}
+			if err := ValidateSQLFragment(havingStr); err != nil {
+				return nil, fmt.Errorf("having: %w", err)
+			}
+			slog.Warn("string having clause is deprecated, use {\"query\": ..., \"params\": [...]} format")
+			tx = tx.Having(havingStr)
+		case map[string]any:
+			query, _ := h["query"].(string)
+			if query == "" {
+				return nil, fmt.Errorf("having: missing required field \"query\"")
+			}
+			resolved, err := nCtx.Resolve(query)
+			if err != nil {
+				return nil, fmt.Errorf("having: %w", err)
+			}
+			queryStr, ok := resolved.(string)
+			if !ok {
+				return nil, fmt.Errorf("having.query resolved to %T, expected string", resolved)
+			}
+			params, err := plugin.ResolveOptionalArray(nCtx, h, "params")
+			if err != nil {
+				return nil, fmt.Errorf("having: %w", err)
+			}
+			tx = tx.Having(queryStr, params...)
+		}
 	}
 
 	joins, err := resolveJoins(nCtx, config)

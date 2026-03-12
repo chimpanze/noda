@@ -45,6 +45,9 @@ func newCasbinMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, e
 				// Try query param as fallback
 				tenant = c.Query(tenantParam)
 			}
+			if tenant == "" {
+				return fiber.NewError(fiber.StatusForbidden, "missing required tenant parameter")
+			}
 			allowed, err = enforcer.Enforce(sub, tenant, obj, act)
 		} else {
 			allowed, err = enforcer.Enforce(sub, obj, act)

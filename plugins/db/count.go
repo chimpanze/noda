@@ -50,6 +50,10 @@ func (e *countExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, fmt.Errorf("db.count: %w", err)
 	}
 
+	if err := ValidateIdentifier(table); err != nil {
+		return "", nil, fmt.Errorf("db.count: %w", err)
+	}
+
 	tx := db.WithContext(ctx).Table(table)
 
 	tx, err = applyWhere(tx, nCtx, config)

@@ -73,12 +73,14 @@ func (p *Plugin) HealthCheck(service any) error {
 		return fmt.Errorf("email: health check: %w", err)
 	}
 
+	// smtp.NewClient takes ownership of conn; if it fails, we close conn ourselves.
 	client, err := smtp.NewClient(conn, svc.host)
 	if err != nil {
 		_ = conn.Close()
 		return fmt.Errorf("email: health check: %w", err)
 	}
-	return client.Close()
+	// Quit sends QUIT and closes the underlying connection.
+	return client.Quit()
 }
 
 func (p *Plugin) Shutdown(_ any) error {

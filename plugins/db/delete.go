@@ -48,6 +48,10 @@ func (e *deleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.delete: %w", err)
 	}
 
+	if err := ValidateIdentifier(table); err != nil {
+		return "", nil, fmt.Errorf("db.delete: %w", err)
+	}
+
 	where, err := plugin.ResolveMap(nCtx, config, "where")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.delete: %w", err)

@@ -56,6 +56,11 @@ type Module struct {
 	// Timers (protected by mu)
 	timers map[string]timerEntry
 
+	// Lifecycle context for goroutine management
+	lifecycleCtx     context.Context
+	lifecycleCancel  context.CancelFunc
+	outstandingCalls sync.WaitGroup
+
 	// Outbound gateway connections
 	gateway *Gateway
 
@@ -109,6 +114,8 @@ func NewModule(name string, plugin PluginInstance, cfg ModuleConfig, dispatcher 
 		timers:        make(map[string]timerEntry),
 		queryCh:       make(chan queryRequest, queryChannelBuffer),
 	}
+
+	m.lifecycleCtx, m.lifecycleCancel = context.WithCancel(context.Background())
 
 	dispatcher.SetModule(m)
 	m.dispatcher = dispatcher
@@ -166,15 +173,29 @@ func (m *Module) Stop(ctx context.Context) error {
 	close(m.stopCh)
 	m.mu.Unlock()
 
+	// Cancel lifecycle context to unblock pending calls
+	m.lifecycleCancel()
+
 	// Call shutdown
 	data, _ := m.Codec.Marshal(map[string]any{})
-	_, _, err := m.callWithTimeout("shutdown", data, wasmCallTimeout)
+	_, _, err := m.Plugin.Call("shutdown", data)
 
 	// Close gateway connections
 	m.gateway.CloseAll()
 
 	// Close plugin
 	_ = m.Plugin.Close(ctx)
+
+	// Wait for outstanding goroutines with timeout
+	done := make(chan struct{})
+	go func() {
+		m.outstandingCalls.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+	}
 
 	return err
 }
@@ -330,15 +351,23 @@ func (m *Module) callWithTimeout(name string, data []byte, timeout time.Duration
 		err      error
 	}
 	ch := make(chan callResult, 1)
+	m.outstandingCalls.Add(1)
 	go func() {
+		defer m.outstandingCalls.Done()
 		exitCode, output, err := m.Plugin.Call(name, data)
 		ch <- callResult{exitCode, output, err}
 	}()
+
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+
 	select {
 	case r := <-ch:
 		return r.exitCode, r.output, r.err
-	case <-time.After(timeout):
+	case <-timer.C:
 		return 0, nil, fmt.Errorf("%s call timed out after %s", name, timeout)
+	case <-m.lifecycleCtx.Done():
+		return 0, nil, fmt.Errorf("%s call cancelled: module shutting down", name)
 	}
 }
 

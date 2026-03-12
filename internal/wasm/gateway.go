@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	neturl "net/url"
 	"sync"
 	"time"
 
@@ -11,6 +12,9 @@ import (
 )
 
 // Gateway manages outbound WebSocket connections for a Wasm module.
+// Concurrency model: readLoop is the sole reader per connection, writes are
+// protected by the per-connection mutex (gatewayConn.mu), and CloseConn
+// causes readLoop to exit via the underlying connection close.
 type Gateway struct {
 	mu     sync.RWMutex
 	module *Module
@@ -40,14 +44,17 @@ func NewGateway(module *Module, logger *slog.Logger) *Gateway {
 
 // Connect establishes a new outbound WebSocket connection.
 func (g *Gateway) Connect(ctx context.Context, payload map[string]any) (any, error) {
-	id, _ := payload["id"].(string)
-	url, _ := payload["url"].(string)
-	if id == "" || url == "" {
-		return nil, fmt.Errorf("VALIDATION_ERROR: id and url are required")
+	id, err := requireString(payload, "id")
+	if err != nil {
+		return nil, err
+	}
+	wsURL, err := requireString(payload, "url")
+	if err != nil {
+		return nil, err
 	}
 
 	// Check whitelist
-	if !g.isAllowed(url) {
+	if !g.isAllowed(wsURL) {
 		return nil, fmt.Errorf("PERMISSION_DENIED: host not in allow_outbound.ws whitelist")
 	}
 
@@ -65,14 +72,14 @@ func (g *Gateway) Connect(ctx context.Context, payload map[string]any) (any, err
 		httpHeaders[k] = []string{v}
 	}
 
-	conn, _, err := dialer.DialContext(ctx, url, httpHeaders)
+	conn, _, err := dialer.DialContext(ctx, wsURL, httpHeaders)
 	if err != nil {
 		return nil, fmt.Errorf("SERVICE_UNAVAILABLE: %w", err)
 	}
 
 	gc := &gatewayConn{
 		id:     id,
-		url:    url,
+		url:    wsURL,
 		ws:     conn,
 		stopCh: make(chan struct{}),
 	}
@@ -84,13 +91,16 @@ func (g *Gateway) Connect(ctx context.Context, payload map[string]any) (any, err
 	// Start reading messages
 	go g.readLoop(gc)
 
-	g.logger.Debug("gateway connected", "module", g.module.Name, "id", id, "url", url)
+	g.logger.Debug("gateway connected", "module", g.module.Name, "id", id, "url", wsURL)
 	return map[string]any{"status": "connected"}, nil
 }
 
 // Send sends a message on an outbound WebSocket connection.
 func (g *Gateway) Send(payload map[string]any) (any, error) {
-	id, _ := payload["id"].(string)
+	id, err := requireString(payload, "id")
+	if err != nil {
+		return nil, err
+	}
 	data := payload["data"]
 
 	g.mu.RLock()
@@ -121,14 +131,14 @@ func (g *Gateway) Send(payload map[string]any) (any, error) {
 
 // CloseConn closes an outbound WebSocket connection.
 func (g *Gateway) CloseConn(payload map[string]any) (any, error) {
-	id, _ := payload["id"].(string)
+	id, err := requireString(payload, "id")
+	if err != nil {
+		return nil, err
+	}
 	code := 1000
-	reason := ""
+	reason := optionalString(payload, "reason")
 	if v, ok := payload["code"].(float64); ok {
 		code = int(v)
-	}
-	if v, ok := payload["reason"].(string); ok {
-		reason = v
 	}
 
 	g.mu.Lock()
@@ -157,7 +167,10 @@ func (g *Gateway) CloseConn(payload map[string]any) (any, error) {
 
 // Configure updates connection settings (heartbeat, reconnection).
 func (g *Gateway) Configure(payload map[string]any) (any, error) {
-	id, _ := payload["id"].(string)
+	id, err := requireString(payload, "id")
+	if err != nil {
+		return nil, err
+	}
 
 	g.mu.RLock()
 	gc, ok := g.conns[id]
@@ -267,29 +280,16 @@ func (g *Gateway) isAllowed(url string) bool {
 	return false
 }
 
-// containsHost checks if a URL contains the given host.
-func containsHost(url, host string) bool {
-	// Simple check: URL contains the host string
-	return len(url) > 0 && len(host) > 0 &&
-		(contains(url, "://"+host+"/") ||
-			contains(url, "://"+host+":") ||
-			hasSuffix(url, "://"+host) ||
-			contains(url, "://"+host+"?"))
-}
-
-func contains(s, sub string) bool {
-	return len(s) >= len(sub) && searchString(s, sub)
-}
-
-func hasSuffix(s, suffix string) bool {
-	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
-}
-
-func searchString(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
+// containsHost checks if a URL's hostname matches the allowed host.
+// allowedHost may be a bare hostname or a host:port pair.
+func containsHost(rawURL, allowedHost string) bool {
+	if rawURL == "" || allowedHost == "" {
+		return false
 	}
-	return false
+	parsed, err := neturl.Parse(rawURL)
+	if err != nil {
+		return false
+	}
+	// Compare against the full Host (includes port if present) and bare Hostname.
+	return parsed.Host == allowedHost || parsed.Hostname() == allowedHost
 }

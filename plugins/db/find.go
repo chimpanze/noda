@@ -58,6 +58,10 @@ func (e *findExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("db.find: %w", err)
 	}
 
+	if err := ValidateIdentifier(table); err != nil {
+		return "", nil, fmt.Errorf("db.find: %w", err)
+	}
+
 	tx := db.WithContext(ctx).Table(table)
 
 	tx, err = applyWhere(tx, nCtx, config)

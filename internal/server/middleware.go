@@ -151,6 +151,13 @@ func newCORSMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, err
 			corsCfg.AllowCredentials = v
 		}
 	}
+	// Reject wildcard origin with credentials — browsers ignore this combination
+	// and it may indicate a misconfiguration.
+	for _, origin := range corsCfg.AllowOrigins {
+		if origin == "*" && corsCfg.AllowCredentials {
+			return nil, fmt.Errorf("security.cors: allow_origins \"*\" with allow_credentials is insecure and rejected by browsers")
+		}
+	}
 	return cors.New(corsCfg), nil
 }
 
@@ -249,6 +256,14 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 	secret, _ := cfg["secret"].(string)
 	if secret == "" {
 		return nil, fmt.Errorf("auth.jwt: secret is required")
+	}
+
+	// Warn about potentially weak secrets
+	if !strings.Contains(secret, "{{") {
+		slog.Warn("auth.jwt: secret appears to be a literal value; consider using {{ $env(JWT_SECRET) }}")
+	}
+	if len(secret) < 32 {
+		slog.Warn("auth.jwt: secret is shorter than 32 bytes; consider using a stronger secret")
 	}
 
 	algorithm, _ := cfg["algorithm"].(string)

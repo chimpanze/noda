@@ -101,6 +101,30 @@ func TestMergeOverlay_EmptyOverlay(t *testing.T) {
 	assert.Equal(t, float64(3000), result["port"])
 }
 
+func TestValidateMergePreservedKeys_SecurityRemoved(t *testing.T) {
+	base := map[string]any{
+		"security": map[string]any{"jwt": map[string]any{"secret": "s"}},
+		"port":     float64(3000),
+	}
+	overlay := map[string]any{"security": nil}
+
+	warnings := ValidateMergePreservedKeys(base, overlay)
+	assert.Len(t, warnings, 1)
+	assert.Contains(t, warnings[0], "security")
+}
+
+func TestValidateMergePreservedKeys_NoWarningWhenNotRemoved(t *testing.T) {
+	base := map[string]any{
+		"security": map[string]any{"jwt": map[string]any{"secret": "s"}},
+	}
+	overlay := map[string]any{
+		"security": map[string]any{"jwt": map[string]any{"secret": "new"}},
+	}
+
+	warnings := ValidateMergePreservedKeys(base, overlay)
+	assert.Empty(t, warnings)
+}
+
 func TestMergeOverlay_DoesNotMutateInputs(t *testing.T) {
 	base := map[string]any{"port": float64(3000)}
 	overlay := map[string]any{"port": float64(8080)}

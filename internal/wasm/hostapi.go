@@ -9,6 +9,30 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 )
 
+// requireString extracts a required string value from a payload map.
+// Returns an error if the key is missing or not a string.
+func requireString(payload map[string]any, key string) (string, error) {
+	val, ok := payload[key]
+	if !ok {
+		return "", fmt.Errorf("VALIDATION_ERROR: %q is required", key)
+	}
+	s, ok := val.(string)
+	if !ok {
+		return "", fmt.Errorf("VALIDATION_ERROR: %q must be a string", key)
+	}
+	if s == "" {
+		return "", fmt.Errorf("VALIDATION_ERROR: %q must not be empty", key)
+	}
+	return s, nil
+}
+
+// optionalString extracts an optional string value from a payload map.
+// Returns empty string if the key is missing or not a string.
+func optionalString(payload map[string]any, key string) string {
+	val, _ := payload[key].(string)
+	return val
+}
+
 // HostDispatcher handles noda_call and noda_call_async from Wasm modules.
 type HostDispatcher struct {
 	services *registry.ServiceRegistry
@@ -78,7 +102,7 @@ func (d *HostDispatcher) CallAsync(ctx context.Context, req HostCallRequest) err
 	// Launch async operation
 	label := req.Label
 	go func() {
-		result, err := d.Call(context.Background(), HostCallRequest{
+		result, err := d.Call(d.module.lifecycleCtx, HostCallRequest{
 			Service:   req.Service,
 			Operation: req.Operation,
 			Payload:   req.Payload,
@@ -114,8 +138,8 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 
 	switch req.Operation {
 	case "log":
-		level, _ := payload["level"].(string)
-		message, _ := payload["message"].(string)
+		level := optionalString(payload, "level")
+		message := optionalString(payload, "message")
 		fields, _ := payload["fields"].(map[string]any)
 		attrs := []any{"module", d.module.Name}
 		for k, v := range fields {
@@ -134,20 +158,20 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		return nil, nil
 
 	case "trigger_workflow":
-		workflowID, _ := payload["workflow"].(string)
-		if workflowID == "" {
-			return nil, fmt.Errorf("VALIDATION_ERROR: workflow is required")
+		workflowID, err := requireString(payload, "workflow")
+		if err != nil {
+			return nil, err
 		}
 		input, _ := payload["input"].(map[string]any)
 		if d.runner != nil {
-			go func() { _ = d.runner(context.Background(), workflowID, input) }()
+			go func() { _ = d.runner(d.module.lifecycleCtx, workflowID, input) }()
 		}
 		return map[string]any{"status": "triggered"}, nil
 
 	case "set_timer":
-		name, _ := payload["name"].(string)
-		if name == "" {
-			return nil, fmt.Errorf("VALIDATION_ERROR: timer name is required")
+		name, err := requireString(payload, "name")
+		if err != nil {
+			return nil, err
 		}
 		intervalMs := int64(0)
 		if v, ok := payload["interval"].(float64); ok {
@@ -160,9 +184,9 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		return nil, nil
 
 	case "clear_timer":
-		name, _ := payload["name"].(string)
-		if name == "" {
-			return nil, fmt.Errorf("VALIDATION_ERROR: timer name is required")
+		name, err := requireString(payload, "name")
+		if err != nil {
+			return nil, err
 		}
 		d.module.ClearTimer(name)
 		return nil, nil
@@ -210,14 +234,20 @@ func (d *HostDispatcher) dispatchToService(ctx context.Context, svc any, req Hos
 func (d *HostDispatcher) dispatchCache(ctx context.Context, svc api.CacheService, op string, payload map[string]any) (any, error) {
 	switch op {
 	case "get":
-		key, _ := payload["key"].(string)
+		key, err := requireString(payload, "key")
+		if err != nil {
+			return nil, err
+		}
 		val, err := svc.Get(ctx, key)
 		if err != nil {
 			return nil, err
 		}
 		return map[string]any{"value": val}, nil
 	case "set":
-		key, _ := payload["key"].(string)
+		key, err := requireString(payload, "key")
+		if err != nil {
+			return nil, err
+		}
 		value := payload["value"]
 		ttl := 0
 		if v, ok := payload["ttl"].(float64); ok {
@@ -225,10 +255,16 @@ func (d *HostDispatcher) dispatchCache(ctx context.Context, svc api.CacheService
 		}
 		return nil, svc.Set(ctx, key, value, ttl)
 	case "del":
-		key, _ := payload["key"].(string)
+		key, err := requireString(payload, "key")
+		if err != nil {
+			return nil, err
+		}
 		return nil, svc.Del(ctx, key)
 	case "exists":
-		key, _ := payload["key"].(string)
+		key, err := requireString(payload, "key")
+		if err != nil {
+			return nil, err
+		}
 		exists, err := svc.Exists(ctx, key)
 		if err != nil {
 			return nil, err
@@ -242,21 +278,30 @@ func (d *HostDispatcher) dispatchCache(ctx context.Context, svc api.CacheService
 func (d *HostDispatcher) dispatchStorage(ctx context.Context, svc api.StorageService, op string, payload map[string]any) (any, error) {
 	switch op {
 	case "read":
-		path, _ := payload["path"].(string)
+		path, err := requireString(payload, "path")
+		if err != nil {
+			return nil, err
+		}
 		data, err := svc.Read(ctx, path)
 		if err != nil {
 			return nil, err
 		}
 		return map[string]any{"data": string(data)}, nil
 	case "write":
-		path, _ := payload["path"].(string)
-		data, _ := payload["data"].(string)
+		path, err := requireString(payload, "path")
+		if err != nil {
+			return nil, err
+		}
+		data := optionalString(payload, "data")
 		return nil, svc.Write(ctx, path, []byte(data))
 	case "delete":
-		path, _ := payload["path"].(string)
+		path, err := requireString(payload, "path")
+		if err != nil {
+			return nil, err
+		}
 		return nil, svc.Delete(ctx, path)
 	case "list":
-		prefix, _ := payload["prefix"].(string)
+		prefix := optionalString(payload, "prefix")
 		paths, err := svc.List(ctx, prefix)
 		if err != nil {
 			return nil, err
@@ -270,14 +315,20 @@ func (d *HostDispatcher) dispatchStorage(ctx context.Context, svc api.StorageSer
 func (d *HostDispatcher) dispatchConnection(ctx context.Context, svc api.ConnectionService, op string, payload map[string]any) (any, error) {
 	switch op {
 	case "send":
-		channel, _ := payload["channel"].(string)
+		channel, err := requireString(payload, "channel")
+		if err != nil {
+			return nil, err
+		}
 		data := payload["data"]
 		return nil, svc.Send(ctx, channel, data)
 	case "send_sse":
-		channel, _ := payload["channel"].(string)
-		event, _ := payload["event"].(string)
+		channel, err := requireString(payload, "channel")
+		if err != nil {
+			return nil, err
+		}
+		event := optionalString(payload, "event")
 		data := payload["data"]
-		id, _ := payload["id"].(string)
+		id := optionalString(payload, "id")
 		return nil, svc.SendSSE(ctx, channel, event, data, id)
 	default:
 		return nil, fmt.Errorf("VALIDATION_ERROR: unknown connection operation %q", op)
@@ -287,7 +338,10 @@ func (d *HostDispatcher) dispatchConnection(ctx context.Context, svc api.Connect
 func (d *HostDispatcher) dispatchStream(ctx context.Context, svc api.StreamService, op string, payload map[string]any) (any, error) {
 	switch op {
 	case "emit", "publish":
-		topic, _ := payload["topic"].(string)
+		topic, err := requireString(payload, "topic")
+		if err != nil {
+			return nil, err
+		}
 		data := payload["payload"]
 		msgID, err := svc.Publish(ctx, topic, data)
 		if err != nil {
@@ -302,7 +356,10 @@ func (d *HostDispatcher) dispatchStream(ctx context.Context, svc api.StreamServi
 func (d *HostDispatcher) dispatchPubSub(ctx context.Context, svc api.PubSubService, op string, payload map[string]any) (any, error) {
 	switch op {
 	case "emit", "publish":
-		channel, _ := payload["channel"].(string)
+		channel, err := requireString(payload, "channel")
+		if err != nil {
+			return nil, err
+		}
 		data := payload["payload"]
 		return nil, svc.Publish(ctx, channel, data)
 	default:

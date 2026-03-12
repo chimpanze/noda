@@ -3,6 +3,7 @@ package response
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -42,6 +43,18 @@ func (e *redirectExecutor) Execute(_ context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("response.redirect: url: %w", err)
 	}
 	urlStr := fmt.Sprintf("%v", urlVal)
+
+	// Reject header injection attempts
+	if strings.ContainsAny(urlStr, "\r\n") {
+		return "", nil, fmt.Errorf("response.redirect: url contains invalid characters")
+	}
+	// Reject open redirect via protocol-relative URLs or other schemes
+	if strings.HasPrefix(urlStr, "//") {
+		return "", nil, fmt.Errorf("response.redirect: url must start with /, http://, or https://")
+	}
+	if !strings.HasPrefix(urlStr, "/") && !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {
+		return "", nil, fmt.Errorf("response.redirect: url must start with /, http://, or https://")
+	}
 
 	// Status: static integer, default 302
 	status := 302

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
-	"github.com/redis/go-redis/v9"
 )
 
 // Plugin implements the Redis Streams plugin.
@@ -19,17 +19,10 @@ func (p *Plugin) HasServices() bool { return true }
 func (p *Plugin) Nodes() []api.NodeRegistration { return nil }
 
 func (p *Plugin) CreateService(config map[string]any) (any, error) {
-	url, _ := config["url"].(string)
-	if url == "" {
-		return nil, fmt.Errorf("stream: missing 'url'")
-	}
-
-	opts, err := redis.ParseURL(url)
+	client, err := plugin.NewRedisClient(config, "stream")
 	if err != nil {
-		return nil, fmt.Errorf("stream: parse url: %w", err)
+		return nil, err
 	}
-
-	client := redis.NewClient(opts)
 	return &Service{client: client}, nil
 }
 

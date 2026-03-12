@@ -53,6 +53,10 @@ func (e *findOneExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		return "", nil, fmt.Errorf("db.findOne: %w", err)
 	}
 
+	if err := ValidateIdentifier(table); err != nil {
+		return "", nil, fmt.Errorf("db.findOne: %w", err)
+	}
+
 	// Default required to true
 	required := true
 	if v, ok := config["required"]; ok {

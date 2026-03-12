@@ -1,5 +1,23 @@
 package config
 
+// securityKeys are config keys whose removal by an overlay should produce a warning.
+var securityKeys = []string{"security", "middleware"}
+
+// ValidateMergePreservedKeys warns if security-critical sections present in
+// the base were removed (set to null) by the overlay.
+func ValidateMergePreservedKeys(base, overlay map[string]any) []string {
+	var warnings []string
+	for _, key := range securityKeys {
+		if _, baseHas := base[key]; !baseHas {
+			continue
+		}
+		if v, overlayHas := overlay[key]; overlayHas && v == nil {
+			warnings = append(warnings, key+" section removed by overlay")
+		}
+	}
+	return warnings
+}
+
 // MergeOverlay deep-merges the overlay into the base config.
 // Scalars: overlay replaces base. Objects: merged recursively.
 // Arrays: overlay replaces entirely. Null in overlay: removes the key.

@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -54,6 +55,8 @@ func (e *execExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	if err != nil {
 		return "", nil, fmt.Errorf("db.exec: %w", err)
 	}
+
+	slog.Warn("executing raw SQL statement", "query_prefix", query[:min(len(query), 50)])
 
 	tx := db.WithContext(ctx).Exec(query, params...)
 	if tx.Error != nil {

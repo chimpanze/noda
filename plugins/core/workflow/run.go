@@ -8,6 +8,12 @@ import (
 	"gorm.io/gorm"
 )
 
+// depthTracker is implemented by execution contexts that support recursion depth tracking.
+type depthTracker interface {
+	CheckAndIncrementDepth() error
+	DecrementDepth()
+}
+
 type runDescriptor struct{}
 
 func (d *runDescriptor) Name() string { return "run" }
@@ -88,6 +94,14 @@ func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 			}
 		}
 		input = resolved
+	}
+
+	// Check recursion depth
+	if dt, ok := nCtx.(depthTracker); ok {
+		if err := dt.CheckAndIncrementDepth(); err != nil {
+			return "", nil, fmt.Errorf("workflow.run: %w", err)
+		}
+		defer dt.DecrementDepth()
 	}
 
 	// Check if transaction mode is enabled
