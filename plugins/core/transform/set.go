@@ -9,13 +9,16 @@ import (
 
 type setDescriptor struct{}
 
-func (d *setDescriptor) Name() string                           { return "set" }
+func (d *setDescriptor) Name() string { return "set" }
+func (d *setDescriptor) Description() string {
+	return "Creates a new object with resolved field expressions"
+}
 func (d *setDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *setDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"fields": map[string]any{"type": "object"},
+			"fields": map[string]any{"type": "object", "description": "Key-value map of field names to expressions"},
 		},
 		"required": []any{"fields"},
 	}

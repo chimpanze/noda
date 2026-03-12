@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { ExternalLink, Plus, ChevronRight, ChevronDown, Copy, Shield } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
@@ -375,7 +376,9 @@ export function RoutesView() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Routes" subtitle="HTTP route definitions — map URL patterns to workflows" />
+      <div className="flex-1 flex min-h-0">
       {/* Route list */}
       <div className="w-96 border-r border-gray-200 overflow-y-auto">
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -544,6 +547,7 @@ export function RoutesView() {
             Select a route to edit or click "New" to create one.
           </div>
         )}
+      </div>
       </div>
     </div>
   );

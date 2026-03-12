@@ -10,13 +10,14 @@ import (
 type switchDescriptor struct{}
 
 func (d *switchDescriptor) Name() string                           { return "switch" }
+func (d *switchDescriptor) Description() string                    { return "Multi-way branching with case matching" }
 func (d *switchDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *switchDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"expression": map[string]any{"type": "string"},
-			"cases":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"expression": map[string]any{"type": "string", "description": "Expression to evaluate for matching"},
+			"cases":      map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Case values to match against the expression"},
 		},
 		"required": []any{"expression", "cases"},
 	}

@@ -11,6 +11,9 @@ import (
 type runDescriptor struct{}
 
 func (d *runDescriptor) Name() string { return "run" }
+func (d *runDescriptor) Description() string {
+	return "Executes a sub-workflow with optional transaction wrapping"
+}
 func (d *runDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: false},
@@ -20,9 +23,9 @@ func (d *runDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"workflow":    map[string]any{"type": "string"},
-			"input":       map[string]any{"type": "object"},
-			"transaction": map[string]any{"type": "boolean"},
+			"workflow":    map[string]any{"type": "string", "description": "Sub-workflow ID to execute"},
+			"input":       map[string]any{"type": "object", "description": "Input data mapping"},
+			"transaction": map[string]any{"type": "boolean", "description": "Wrap execution in a database transaction"},
 		},
 		"required": []any{"workflow"},
 	}

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { CheckCircle, XCircle, HelpCircle, RefreshCw, Plus, Trash2 } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/components/panels/Toast";
@@ -12,6 +13,7 @@ export function ServicesView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Services" subtitle="Plugin service instances and health status" />
       {/* Tab bar */}
       <div className="border-b border-gray-200 px-6 flex gap-4">
         {(["registered", "defined"] as const).map((t) => (
@@ -97,6 +99,9 @@ function RegisteredTab() {
               <div className="text-xs text-gray-400 mt-0.5">
                 {p.prefix}.* · {p.node_count} nodes
               </div>
+              {p.description && (
+                <div className="text-xs text-gray-400 mt-1">{p.description}</div>
+              )}
             </div>
           ))}
         </div>
@@ -362,7 +367,7 @@ function DefinedTab() {
                 <option value="">Select plugin...</option>
                 {servicePlugins.map((p) => (
                   <option key={p.prefix} value={p.prefix}>
-                    {p.prefix} ({p.name})
+                    {p.prefix} ({p.name}){p.description ? ` — ${p.description}` : ""}
                   </option>
                 ))}
               </select>

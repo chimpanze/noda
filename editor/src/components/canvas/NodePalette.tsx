@@ -29,7 +29,8 @@ export function NodePalette() {
         const matching = nodes.filter(
           (n) =>
             n.type.toLowerCase().includes(lower) ||
-            n.name.toLowerCase().includes(lower)
+            n.name.toLowerCase().includes(lower) ||
+            (n.description?.toLowerCase().includes(lower) ?? false)
         );
         return [prefix, matching] as [string, typeof nodeTypes];
       })
@@ -92,6 +93,7 @@ export function NodePalette() {
                     key={nt.type}
                     draggable
                     onDragStart={(e) => onDragStart(e, nt.type)}
+                    title={nt.description}
                     className="flex items-center gap-1.5 px-4 py-1 cursor-grab active:cursor-grabbing hover:bg-blue-50 text-xs text-gray-700"
                   >
                     <GripVertical size={10} className="text-gray-300 shrink-0" />

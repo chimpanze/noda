@@ -10,7 +10,8 @@ import (
 
 type existsDescriptor struct{}
 
-func (d *existsDescriptor) Name() string { return "exists" }
+func (d *existsDescriptor) Name() string        { return "exists" }
+func (d *existsDescriptor) Description() string { return "Checks if a key exists in the cache" }
 func (d *existsDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"cache": {Prefix: "cache", Required: true},
@@ -20,7 +21,7 @@ func (d *existsDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"key": map[string]any{"type": "string"},
+			"key": map[string]any{"type": "string", "description": "Cache key to check"},
 		},
 		"required": []any{"key"},
 	}

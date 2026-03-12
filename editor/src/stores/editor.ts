@@ -11,6 +11,7 @@ import type {
 import * as api from "@/api/client";
 import * as history from "@/stores/history";
 import { showToast } from "@/components/panels/Toast";
+import { autoLayout } from "@/components/canvas/autoLayout";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -198,7 +199,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   loadWorkflow: async (path) => {
     const raw = (await api.readFile(path)) as Record<string, unknown>;
-    const data = normalizeWorkflow(raw);
+    let data = normalizeWorkflow(raw);
+
+    // Auto-layout on first load when no nodes have saved positions
+    const needsLayout = data.nodes.length > 0 && data.nodes.every((n) => !n.position);
+    if (needsLayout) {
+      data = await autoLayout(data);
+    }
+
     set({
       activeWorkflowPath: path,
       activeWorkflow: data,
@@ -424,11 +432,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveWorkflow: async () => {
     const { activeWorkflowPath, activeWorkflow, _rawWorkflow } = get();
     if (!activeWorkflowPath || !activeWorkflow) return;
+    const payload = denormalizeWorkflow(activeWorkflow, _rawWorkflow ?? {});
+    // Skip save if only positions changed (positions are not persisted)
+    if (JSON.stringify(payload) === JSON.stringify(_rawWorkflow)) {
+      set({ saveStatus: "idle" });
+      return;
+    }
     set({ saveStatus: "saving" });
     try {
-      const payload = denormalizeWorkflow(activeWorkflow, _rawWorkflow ?? {});
       await api.writeFile(activeWorkflowPath, payload);
-      set({ saveStatus: "saved" });
+      set({ saveStatus: "saved", _rawWorkflow: payload });
       get().markClean(activeWorkflowPath);
       setTimeout(() => {
         if (get().saveStatus === "saved") set({ saveStatus: "idle" });

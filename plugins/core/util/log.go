@@ -10,14 +10,15 @@ import (
 type logDescriptor struct{}
 
 func (d *logDescriptor) Name() string                           { return "log" }
+func (d *logDescriptor) Description() string                    { return "Logs a structured message" }
 func (d *logDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *logDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"level":   map[string]any{"type": "string", "enum": []any{"debug", "info", "warn", "error"}},
-			"message": map[string]any{"type": "string"},
-			"fields":  map[string]any{"type": "object"},
+			"level":   map[string]any{"type": "string", "enum": []any{"debug", "info", "warn", "error"}, "description": "Log level: debug, info, warn, error"},
+			"message": map[string]any{"type": "string", "description": "Log message expression"},
+			"fields":  map[string]any{"type": "object", "description": "Additional structured fields"},
 		},
 		"required": []any{"level", "message"},
 	}

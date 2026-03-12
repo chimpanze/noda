@@ -14,6 +14,7 @@ import { StringArrayField } from "@/components/widgets/StringArrayField";
 import { KeyValueMapField } from "@/components/widgets/KeyValueMapField";
 import { FlexibleValueField } from "@/components/widgets/FlexibleValueField";
 import { StyledObjectFieldTemplate } from "@/components/widgets/StyledObjectFieldTemplate";
+import { StyledFieldTemplate } from "@/components/widgets/StyledFieldTemplate";
 
 // Custom widget registry for RJSF
 const widgets = {
@@ -130,10 +131,13 @@ export function NodeConfigPanel() {
     <div className="flex flex-col h-full overflow-hidden">
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-200 shrink-0">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-1">
           <div className="text-xs font-mono text-gray-400">{node.type}</div>
           <SaveIndicator status={saveStatus} />
         </div>
+        {descriptor?.description && (
+          <p className="text-xs text-gray-400 mb-2">{descriptor.description}</p>
+        )}
         <div className="space-y-1.5">
           <div>
             <label className="text-xs text-gray-500">ID</label>
@@ -193,7 +197,7 @@ export function NodeConfigPanel() {
               onChange={onConfigChange}
               widgets={widgets}
               fields={fields}
-              templates={{ ObjectFieldTemplate: StyledObjectFieldTemplate }}
+              templates={{ ObjectFieldTemplate: StyledObjectFieldTemplate, FieldTemplate: StyledFieldTemplate }}
               liveValidate
               showErrorList={false}
             >

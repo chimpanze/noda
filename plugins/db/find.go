@@ -12,6 +12,9 @@ import (
 type findDescriptor struct{}
 
 func (d *findDescriptor) Name() string { return "find" }
+func (d *findDescriptor) Description() string {
+	return "Structured SELECT returning an array of row objects"
+}
 func (d *findDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,16 +24,16 @@ func (d *findDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table":        map[string]any{"type": "string"},
-			"select":       map[string]any{"type": "array"},
-			"where":        map[string]any{"type": "object"},
-			"where_clause": map[string]any{"type": "object"},
-			"joins":        map[string]any{"type": "array"},
-			"order":        map[string]any{"type": "string"},
-			"group":        map[string]any{"type": "string"},
-			"having":       map[string]any{"type": "string"},
-			"limit":        map[string]any{"type": "integer"},
-			"offset":       map[string]any{"type": "integer"},
+			"table":        map[string]any{"type": "string", "description": "Table name"},
+			"select":       map[string]any{"type": "array", "description": "Column names to select (default: all)"},
+			"where":        map[string]any{"type": "object", "description": "Equality conditions as key-value pairs"},
+			"where_clause": map[string]any{"type": "object", "description": "Raw WHERE with query and params"},
+			"joins":        map[string]any{"type": "array", "description": "JOIN clauses"},
+			"order":        map[string]any{"type": "string", "description": "ORDER BY clause"},
+			"group":        map[string]any{"type": "string", "description": "GROUP BY clause"},
+			"having":       map[string]any{"type": "string", "description": "HAVING clause"},
+			"limit":        map[string]any{"type": "integer", "description": "Maximum rows to return"},
+			"offset":       map[string]any{"type": "integer", "description": "Rows to skip"},
 		},
 		"required": []any{"table"},
 	}

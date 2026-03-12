@@ -16,6 +16,7 @@ type stubDescriptor struct {
 }
 
 func (d *stubDescriptor) Name() string                           { return d.name }
+func (d *stubDescriptor) Description() string                    { return "" }
 func (d *stubDescriptor) ServiceDeps() map[string]api.ServiceDep { return d.deps }
 func (d *stubDescriptor) ConfigSchema() map[string]any           { return nil }
 

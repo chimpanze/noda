@@ -9,16 +9,20 @@ import (
 
 type mergeDescriptor struct{}
 
-func (d *mergeDescriptor) Name() string                           { return "merge" }
+func (d *mergeDescriptor) Name() string { return "merge" }
+func (d *mergeDescriptor) Description() string {
+	return "Merges multiple arrays using different strategies"
+}
 func (d *mergeDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *mergeDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"mode":   map[string]any{"type": "string", "enum": []any{"append", "match", "position"}},
-			"inputs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"mode":   map[string]any{"type": "string", "enum": []any{"append", "match", "position"}, "description": "Merge strategy: append, match, or position"},
+			"inputs": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Expressions resolving to arrays to merge"},
 			"match": map[string]any{
-				"type": "object",
+				"description": "Match configuration for match mode",
+				"type":        "object",
 				"properties": map[string]any{
 					"type":   map[string]any{"type": "string", "enum": []any{"inner", "outer", "enrich"}},
 					"fields": map[string]any{"type": "object"},

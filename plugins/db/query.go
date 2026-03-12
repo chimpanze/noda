@@ -12,6 +12,9 @@ import (
 type queryDescriptor struct{}
 
 func (d *queryDescriptor) Name() string { return "query" }
+func (d *queryDescriptor) Description() string {
+	return "Executes a SELECT query and returns result rows"
+}
 func (d *queryDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,8 +24,8 @@ func (d *queryDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"query":  map[string]any{"type": "string"},
-			"params": map[string]any{"type": "array"},
+			"query":  map[string]any{"type": "string", "description": "SQL SELECT statement"},
+			"params": map[string]any{"type": "array", "description": "Positional query parameters ($1, $2, ...)"},
 		},
 		"required": []any{"query"},
 	}

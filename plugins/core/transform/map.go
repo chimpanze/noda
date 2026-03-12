@@ -10,14 +10,17 @@ import (
 
 type mapDescriptor struct{}
 
-func (d *mapDescriptor) Name() string                           { return "map" }
+func (d *mapDescriptor) Name() string { return "map" }
+func (d *mapDescriptor) Description() string {
+	return "Transforms each item in an array using an expression"
+}
 func (d *mapDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *mapDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"collection": map[string]any{"type": "string"},
-			"expression": map[string]any{"type": "string"},
+			"collection": map[string]any{"type": "string", "description": "Expression resolving to an array"},
+			"expression": map[string]any{"type": "string", "description": "Expression applied to each item ($item, $index available)"},
 		},
 		"required": []any{"collection", "expression"},
 	}

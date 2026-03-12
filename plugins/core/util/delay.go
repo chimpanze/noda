@@ -11,12 +11,13 @@ import (
 type delayDescriptor struct{}
 
 func (d *delayDescriptor) Name() string                           { return "delay" }
+func (d *delayDescriptor) Description() string                    { return "Pauses execution for a specified duration" }
 func (d *delayDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *delayDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"timeout": map[string]any{"type": "string"},
+			"timeout": map[string]any{"type": "string", "description": "Duration to pause: 5s, 100ms, 1m"},
 		},
 		"required": []any{"timeout"},
 	}

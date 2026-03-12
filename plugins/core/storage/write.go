@@ -10,7 +10,8 @@ import (
 
 type writeDescriptor struct{}
 
-func (d *writeDescriptor) Name() string { return "write" }
+func (d *writeDescriptor) Name() string        { return "write" }
+func (d *writeDescriptor) Description() string { return "Writes data to storage" }
 func (d *writeDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return storageDeps
 }
@@ -18,9 +19,9 @@ func (d *writeDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"path":         map[string]any{"type": "string"},
-			"data":         map[string]any{},
-			"content_type": map[string]any{"type": "string"},
+			"path":         map[string]any{"type": "string", "description": "File path to write"},
+			"data":         map[string]any{"description": "Data to write"},
+			"content_type": map[string]any{"type": "string", "description": "MIME type of the data"},
 		},
 		"required": []any{"path", "data"},
 	}

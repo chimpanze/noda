@@ -13,7 +13,8 @@ import (
 
 type upsertDescriptor struct{}
 
-func (d *upsertDescriptor) Name() string { return "upsert" }
+func (d *upsertDescriptor) Name() string        { return "upsert" }
+func (d *upsertDescriptor) Description() string { return "Inserts a row or updates it on conflict" }
 func (d *upsertDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -23,10 +24,10 @@ func (d *upsertDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table":    map[string]any{"type": "string"},
-			"data":     map[string]any{"type": "object"},
-			"conflict": map[string]any{},
-			"update":   map[string]any{},
+			"table":    map[string]any{"type": "string", "description": "Table name"},
+			"data":     map[string]any{"type": "object", "description": "Column values as key-value pairs"},
+			"conflict": map[string]any{"description": "Conflict column(s) for ON CONFLICT"},
+			"update":   map[string]any{"description": "Columns to update on conflict"},
 		},
 		"required": []any{"table", "data", "conflict"},
 	}

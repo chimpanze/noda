@@ -11,7 +11,8 @@ import (
 
 type updateDescriptor struct{}
 
-func (d *updateDescriptor) Name() string { return "update" }
+func (d *updateDescriptor) Name() string        { return "update" }
+func (d *updateDescriptor) Description() string { return "Updates rows matching a condition" }
 func (d *updateDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,9 +22,9 @@ func (d *updateDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table": map[string]any{"type": "string"},
-			"data":  map[string]any{"type": "object"},
-			"where": map[string]any{"type": "object"},
+			"table": map[string]any{"type": "string", "description": "Table name"},
+			"data":  map[string]any{"type": "object", "description": "Fields to update"},
+			"where": map[string]any{"type": "object", "description": "Equality conditions for row matching"},
 		},
 		"required": []any{"table", "data", "where"},
 	}

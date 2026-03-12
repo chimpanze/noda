@@ -17,16 +17,17 @@ import (
 type requestDescriptor struct{}
 
 func (d *requestDescriptor) Name() string                           { return "request" }
+func (d *requestDescriptor) Description() string                    { return "Makes an outbound HTTP request" }
 func (d *requestDescriptor) ServiceDeps() map[string]api.ServiceDep { return httpServiceDeps }
 func (d *requestDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"method":  map[string]any{"type": "string"},
-			"url":     map[string]any{"type": "string"},
-			"headers": map[string]any{"type": "object"},
-			"body":    map[string]any{},
-			"timeout": map[string]any{"type": "string"},
+			"method":  map[string]any{"type": "string", "description": "HTTP method (GET, POST, PUT, etc.)"},
+			"url":     map[string]any{"type": "string", "description": "Request URL"},
+			"headers": map[string]any{"type": "object", "description": "Request headers"},
+			"body":    map[string]any{"description": "Request body"},
+			"timeout": map[string]any{"type": "string", "description": "Per-request timeout override"},
 		},
 		"required": []any{"method", "url"},
 	}

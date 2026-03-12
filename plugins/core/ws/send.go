@@ -14,14 +14,17 @@ var wsServiceDeps = map[string]api.ServiceDep{
 
 type sendDescriptor struct{}
 
-func (d *sendDescriptor) Name() string                           { return "send" }
+func (d *sendDescriptor) Name() string { return "send" }
+func (d *sendDescriptor) Description() string {
+	return "Sends data to WebSocket connections on a channel"
+}
 func (d *sendDescriptor) ServiceDeps() map[string]api.ServiceDep { return wsServiceDeps }
 func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"channel": map[string]any{"type": "string"},
-			"data":    map[string]any{},
+			"channel": map[string]any{"type": "string", "description": "WebSocket channel name"},
+			"data":    map[string]any{"description": "Data to send to connected clients"},
 		},
 		"required": []any{"channel", "data"},
 	}

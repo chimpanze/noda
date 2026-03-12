@@ -10,7 +10,8 @@ import (
 
 type listDescriptor struct{}
 
-func (d *listDescriptor) Name() string { return "list" }
+func (d *listDescriptor) Name() string        { return "list" }
+func (d *listDescriptor) Description() string { return "Lists files under a prefix" }
 func (d *listDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return storageDeps
 }
@@ -18,7 +19,7 @@ func (d *listDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"prefix": map[string]any{"type": "string"},
+			"prefix": map[string]any{"type": "string", "description": "Path prefix to list files under"},
 		},
 		"required": []any{"prefix"},
 	}

@@ -12,15 +12,16 @@ import (
 type convertDescriptor struct{}
 
 func (d *convertDescriptor) Name() string                           { return "convert" }
+func (d *convertDescriptor) Description() string                    { return "Converts an image to a different format" }
 func (d *convertDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *convertDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"input":   map[string]any{"type": "string"},
-			"output":  map[string]any{"type": "string"},
-			"format":  map[string]any{"type": "string"},
-			"quality": map[string]any{"type": "number"},
+			"input":   map[string]any{"type": "string", "description": "Source image path"},
+			"output":  map[string]any{"type": "string", "description": "Output image path"},
+			"format":  map[string]any{"type": "string", "description": "Target format: jpeg, png, webp, gif"},
+			"quality": map[string]any{"type": "number", "description": "JPEG quality (1-100)"},
 		},
 		"required": []any{"input", "output", "format"},
 	}

@@ -11,7 +11,8 @@ import (
 
 type countDescriptor struct{}
 
-func (d *countDescriptor) Name() string { return "count" }
+func (d *countDescriptor) Name() string        { return "count" }
+func (d *countDescriptor) Description() string { return "Counts rows matching conditions" }
 func (d *countDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,10 +22,10 @@ func (d *countDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table":        map[string]any{"type": "string"},
-			"where":        map[string]any{"type": "object"},
-			"where_clause": map[string]any{"type": "object"},
-			"joins":        map[string]any{"type": "array"},
+			"table":        map[string]any{"type": "string", "description": "Table name"},
+			"where":        map[string]any{"type": "object", "description": "Equality conditions as key-value pairs"},
+			"where_clause": map[string]any{"type": "object", "description": "Raw WHERE with query and params"},
+			"joins":        map[string]any{"type": "array", "description": "JOIN clauses"},
 		},
 		"required": []any{"table"},
 	}

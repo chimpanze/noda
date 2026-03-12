@@ -11,16 +11,19 @@ import (
 
 type thumbnailDescriptor struct{}
 
-func (d *thumbnailDescriptor) Name() string                           { return "thumbnail" }
+func (d *thumbnailDescriptor) Name() string { return "thumbnail" }
+func (d *thumbnailDescriptor) Description() string {
+	return "Smart crop and resize to exact dimensions"
+}
 func (d *thumbnailDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *thumbnailDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"input":  map[string]any{"type": "string"},
-			"output": map[string]any{"type": "string"},
-			"width":  map[string]any{"type": "number"},
-			"height": map[string]any{"type": "number"},
+			"input":  map[string]any{"type": "string", "description": "Source image path"},
+			"output": map[string]any{"type": "string", "description": "Output image path"},
+			"width":  map[string]any{"type": "number", "description": "Thumbnail width in pixels"},
+			"height": map[string]any{"type": "number", "description": "Thumbnail height in pixels"},
 		},
 		"required": []any{"input", "output", "width", "height"},
 	}

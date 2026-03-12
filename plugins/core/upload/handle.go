@@ -15,6 +15,9 @@ import (
 type handleDescriptor struct{}
 
 func (d *handleDescriptor) Name() string { return "handle" }
+func (d *handleDescriptor) Description() string {
+	return "Handles multipart file uploads with validation"
+}
 
 func (d *handleDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
@@ -26,11 +29,11 @@ func (d *handleDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"max_size":      map[string]any{"type": "number"},
-			"allowed_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-			"max_files":     map[string]any{"type": "number"},
-			"path":          map[string]any{"type": "string"},
-			"field":         map[string]any{"type": "string"},
+			"max_size":      map[string]any{"type": "number", "description": "Maximum file size in bytes"},
+			"allowed_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Allowed MIME type patterns (supports wildcards)"},
+			"max_files":     map[string]any{"type": "number", "description": "Maximum number of files to accept"},
+			"path":          map[string]any{"type": "string", "description": "Storage destination path"},
+			"field":         map[string]any{"type": "string", "description": "Form field name (default: file)"},
 		},
 		"required": []any{"max_size", "allowed_types", "path"},
 	}

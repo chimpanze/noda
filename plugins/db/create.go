@@ -12,7 +12,8 @@ import (
 
 type createDescriptor struct{}
 
-func (d *createDescriptor) Name() string { return "create" }
+func (d *createDescriptor) Name() string        { return "create" }
+func (d *createDescriptor) Description() string { return "Inserts a row into a table" }
 func (d *createDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -22,8 +23,8 @@ func (d *createDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table": map[string]any{"type": "string"},
-			"data":  map[string]any{"type": "object"},
+			"table": map[string]any{"type": "string", "description": "Table name"},
+			"data":  map[string]any{"type": "object", "description": "Column values as key-value pairs"},
 		},
 		"required": []any{"table", "data"},
 	}

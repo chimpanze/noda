@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, X, Eye, EyeOff } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/components/panels/Toast";
@@ -332,7 +333,9 @@ export function MiddlewareView() {
     : null;
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Middleware" subtitle="Presets, global configuration, and named instances" />
+      <div className="flex-1 flex min-h-0">
       {/* Left sidebar */}
       <div className="w-72 border-r border-gray-200 overflow-y-auto">
         {/* Presets section */}
@@ -380,6 +383,9 @@ export function MiddlewareView() {
               }`}
             >
               <div className="text-sm font-medium text-gray-800">{d.name}</div>
+              {d.description && (
+                <div className="text-xs text-gray-400">{d.description}</div>
+              )}
               <div className="text-xs text-gray-400">
                 {d.config_fields.length} field{d.config_fields.length !== 1 ? "s" : ""}
                 {mwConfig[d.name] ? " \u00b7 configured" : ""}
@@ -508,7 +514,12 @@ export function MiddlewareView() {
         ) : showConfigEditor && selectedDescriptor ? (
           <div className="max-w-2xl space-y-5">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">{selectedMw}</h3>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">{selectedMw}</h3>
+                {selectedDescriptor?.description && (
+                  <p className="text-xs text-gray-400 mt-0.5">{selectedDescriptor.description}</p>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 {selectedMw && mwConfig[selectedMw] && (
                   <button
@@ -669,6 +680,7 @@ export function MiddlewareView() {
             Select a preset, middleware, or instance to configure.
           </div>
         )}
+      </div>
       </div>
     </div>
   );

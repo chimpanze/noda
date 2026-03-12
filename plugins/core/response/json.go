@@ -11,15 +11,16 @@ import (
 type jsonDescriptor struct{}
 
 func (d *jsonDescriptor) Name() string                           { return "json" }
+func (d *jsonDescriptor) Description() string                    { return "Builds an HTTP JSON response" }
 func (d *jsonDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *jsonDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"status":  map[string]any{"type": "string"},
-			"body":    map[string]any{"title": "body"},
-			"headers": map[string]any{"type": "object"},
-			"cookies": map[string]any{"type": "string"},
+			"status":  map[string]any{"type": "string", "description": "HTTP status code"},
+			"body":    map[string]any{"title": "body", "description": "Response body"},
+			"headers": map[string]any{"type": "object", "description": "Response headers"},
+			"cookies": map[string]any{"type": "string", "description": "Expression resolving to cookies array"},
 		},
 		"required": []any{"status", "body"},
 	}

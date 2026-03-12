@@ -10,15 +10,16 @@ import (
 type postDescriptor struct{}
 
 func (d *postDescriptor) Name() string                           { return "post" }
+func (d *postDescriptor) Description() string                    { return "Shorthand for POST requests" }
 func (d *postDescriptor) ServiceDeps() map[string]api.ServiceDep { return httpServiceDeps }
 func (d *postDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"url":     map[string]any{"type": "string"},
-			"headers": map[string]any{"type": "object"},
-			"body":    map[string]any{},
-			"timeout": map[string]any{"type": "string"},
+			"url":     map[string]any{"type": "string", "description": "Request URL"},
+			"headers": map[string]any{"type": "object", "description": "Request headers"},
+			"body":    map[string]any{"description": "Request body"},
+			"timeout": map[string]any{"type": "string", "description": "Request timeout"},
 		},
 		"required": []any{"url", "body"},
 	}

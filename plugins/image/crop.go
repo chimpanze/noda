@@ -12,16 +12,17 @@ import (
 type cropDescriptor struct{}
 
 func (d *cropDescriptor) Name() string                           { return "crop" }
+func (d *cropDescriptor) Description() string                    { return "Crops an image to specified dimensions" }
 func (d *cropDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *cropDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"input":   map[string]any{"type": "string"},
-			"output":  map[string]any{"type": "string"},
-			"width":   map[string]any{"type": "number"},
-			"height":  map[string]any{"type": "number"},
-			"gravity": map[string]any{"type": "string"},
+			"input":   map[string]any{"type": "string", "description": "Source image path"},
+			"output":  map[string]any{"type": "string", "description": "Output image path"},
+			"width":   map[string]any{"type": "number", "description": "Crop width in pixels"},
+			"height":  map[string]any{"type": "number", "description": "Crop height in pixels"},
+			"gravity": map[string]any{"type": "string", "description": "Crop position: center, top-left, top-right, bottom-left, bottom-right"},
 		},
 		"required": []any{"input", "output", "width", "height"},
 	}

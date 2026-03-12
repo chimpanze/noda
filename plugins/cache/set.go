@@ -10,7 +10,8 @@ import (
 
 type setDescriptor struct{}
 
-func (d *setDescriptor) Name() string { return "set" }
+func (d *setDescriptor) Name() string        { return "set" }
+func (d *setDescriptor) Description() string { return "Sets a value in the cache" }
 func (d *setDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"cache": {Prefix: "cache", Required: true},
@@ -20,9 +21,9 @@ func (d *setDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"key":   map[string]any{"type": "string"},
-			"value": map[string]any{},
-			"ttl":   map[string]any{"type": "integer"},
+			"key":   map[string]any{"type": "string", "description": "Cache key"},
+			"value": map[string]any{"description": "Value to store"},
+			"ttl":   map[string]any{"type": "integer", "description": "Time-to-live in seconds (0 = no expiry)"},
 		},
 		"required": []any{"key", "value"},
 	}

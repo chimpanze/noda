@@ -10,13 +10,14 @@ import (
 type redirectDescriptor struct{}
 
 func (d *redirectDescriptor) Name() string                           { return "redirect" }
+func (d *redirectDescriptor) Description() string                    { return "Builds an HTTP redirect response" }
 func (d *redirectDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *redirectDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"url":    map[string]any{"type": "string"},
-			"status": map[string]any{"type": "integer"},
+			"url":    map[string]any{"type": "string", "description": "Redirect target URL"},
+			"status": map[string]any{"type": "integer", "description": "HTTP status code (default: 302)"},
 		},
 		"required": []any{"url"},
 	}

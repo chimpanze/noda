@@ -11,6 +11,7 @@ type ServiceDep struct {
 // NodeDescriptor describes a node's metadata and requirements.
 type NodeDescriptor interface {
 	Name() string
+	Description() string
 	ServiceDeps() map[string]ServiceDep
 	ConfigSchema() map[string]any // JSON Schema as a Go map
 }

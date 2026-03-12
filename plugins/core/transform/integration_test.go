@@ -22,6 +22,7 @@ func (e *mockPassExecutor) Execute(_ context.Context, _ api.ExecutionContext, co
 type mockDescriptor struct{ name string }
 
 func (d *mockDescriptor) Name() string                           { return d.name }
+func (d *mockDescriptor) Description() string                    { return "" }
 func (d *mockDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *mockDescriptor) ConfigSchema() map[string]any           { return nil }
 

@@ -9,14 +9,17 @@ import (
 
 type outputDescriptor struct{}
 
-func (d *outputDescriptor) Name() string                           { return "output" }
+func (d *outputDescriptor) Name() string { return "output" }
+func (d *outputDescriptor) Description() string {
+	return "Terminal node that declares a named output for the workflow"
+}
 func (d *outputDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *outputDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"name": map[string]any{"type": "string"},
-			"data": map[string]any{},
+			"name": map[string]any{"type": "string", "description": "Output name for this workflow exit point"},
+			"data": map[string]any{"description": "Output data expression"},
 		},
 		"required": []any{"name"},
 	}

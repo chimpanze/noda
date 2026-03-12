@@ -22,3 +22,62 @@ body {
 .input-field {
   @apply w-full px-3 py-1.5 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent;
 }
+
+/* Documentation prose styling */
+.docs-prose {
+  @apply text-sm text-gray-700 leading-relaxed;
+}
+.docs-prose h1 {
+  @apply text-2xl font-bold text-gray-900 mt-0 mb-4;
+}
+.docs-prose h2 {
+  @apply text-xl font-semibold text-gray-900 mt-8 mb-3 pb-2 border-b border-gray-200;
+}
+.docs-prose h3 {
+  @apply text-base font-semibold text-gray-900 mt-6 mb-2;
+}
+.docs-prose h4 {
+  @apply text-sm font-semibold text-gray-900 mt-4 mb-1;
+}
+.docs-prose p {
+  @apply my-3;
+}
+.docs-prose a {
+  @apply text-blue-600 underline;
+}
+.docs-prose strong {
+  @apply font-semibold text-gray-900;
+}
+.docs-prose ul {
+  @apply my-3 pl-6 list-disc;
+}
+.docs-prose ol {
+  @apply my-3 pl-6 list-decimal;
+}
+.docs-prose li {
+  @apply my-1;
+}
+.docs-prose code {
+  @apply text-xs bg-gray-100 text-gray-800 px-1 py-0.5 rounded font-mono;
+}
+.docs-prose pre {
+  @apply my-4 p-4 bg-gray-50 border border-gray-200 rounded-lg overflow-x-auto;
+}
+.docs-prose pre code {
+  @apply bg-transparent p-0 text-xs leading-relaxed;
+}
+.docs-prose blockquote {
+  @apply my-4 pl-4 border-l-4 border-gray-200 text-gray-500 italic;
+}
+.docs-prose table {
+  @apply my-4 w-full text-left border-collapse;
+}
+.docs-prose th {
+  @apply px-3 py-2 text-xs font-semibold text-gray-500 uppercase border-b-2 border-gray-200;
+}
+.docs-prose td {
+  @apply px-3 py-2 border-b border-gray-100;
+}
+.docs-prose hr {
+  @apply my-8 border-gray-200;
+}

@@ -16,13 +16,14 @@ var queryServiceDeps = map[string]api.ServiceDep{
 type queryDescriptor struct{}
 
 func (d *queryDescriptor) Name() string                           { return "query" }
+func (d *queryDescriptor) Description() string                    { return "Sends a synchronous query to a Wasm module" }
 func (d *queryDescriptor) ServiceDeps() map[string]api.ServiceDep { return queryServiceDeps }
 func (d *queryDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"data":    map[string]any{},
-			"timeout": map[string]any{"type": "string"},
+			"data":    map[string]any{"description": "Query data to send to the Wasm module"},
+			"timeout": map[string]any{"type": "string", "description": "Query timeout duration (default: 5s)"},
 		},
 		"required": []any{"data"},
 	}

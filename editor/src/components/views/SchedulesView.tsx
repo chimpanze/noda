@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, ExternalLink, Clock } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/components/panels/Toast";
@@ -183,7 +184,9 @@ export function SchedulesView() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Schedules" subtitle="Cron-based scheduled workflow execution" />
+      <div className="flex-1 flex min-h-0">
       {/* Schedule list */}
       <div className="w-80 border-r border-gray-200 overflow-y-auto">
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -406,6 +409,7 @@ export function SchedulesView() {
             Select a schedule to edit or click "New" to create one.
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -11,15 +11,16 @@ import (
 type errorDescriptor struct{}
 
 func (d *errorDescriptor) Name() string                           { return "error" }
+func (d *errorDescriptor) Description() string                    { return "Builds a standardized error response" }
 func (d *errorDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *errorDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"status":  map[string]any{"type": "string"},
-			"code":    map[string]any{"type": "string"},
-			"message": map[string]any{"type": "string"},
-			"details": map[string]any{"type": "string"},
+			"status":  map[string]any{"type": "string", "description": "HTTP status code (default: 500)"},
+			"code":    map[string]any{"type": "string", "description": "Error code identifier"},
+			"message": map[string]any{"type": "string", "description": "Human-readable error message"},
+			"details": map[string]any{"type": "string", "description": "Additional error details"},
 		},
 		"required": []any{"status", "code", "message"},
 	}

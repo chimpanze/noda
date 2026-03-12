@@ -10,6 +10,7 @@ import {
   Cpu,
   TestTube,
   Settings,
+  BookOpen,
 } from "lucide-react";
 import { useEditorStore } from "@/stores/editor";
 import type { ViewType } from "@/types";
@@ -59,6 +60,7 @@ const navGroups: NavGroup[] = [
     label: "Dev",
     items: [
       { view: "tests", label: "Tests", icon: <TestTube size={18} /> },
+      { view: "docs", label: "Docs", icon: <BookOpen size={18} /> },
     ],
   },
   {

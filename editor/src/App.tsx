@@ -19,6 +19,7 @@ import { ConnectionsView } from "@/components/views/ConnectionsView";
 import { WasmView } from "@/components/views/WasmView";
 import { MiddlewareView } from "@/components/views/MiddlewareView";
 import { ServerSettingsView } from "@/components/views/ServerSettingsView";
+import { DocsView } from "@/components/views/DocsView";
 import { ShortcutModal } from "@/components/panels/ShortcutModal";
 import { CommandPalette } from "@/components/panels/CommandPalette";
 import { ToastContainer } from "@/components/panels/Toast";
@@ -118,6 +119,8 @@ export default function App() {
               <WasmView />
             ) : activeView === "settings" ? (
               <ServerSettingsView />
+            ) : activeView === "docs" ? (
+              <DocsView />
             ) : null}
           </div>
 

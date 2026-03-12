@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { X } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/components/panels/Toast";
@@ -102,12 +103,17 @@ export function ServerSettingsView() {
 
   if (loading) {
     return (
-      <div className="p-6 text-sm text-gray-400">Loading settings...</div>
+      <div className="flex-1 flex flex-col min-h-0">
+        <ViewHeader title="Settings" subtitle="Server configuration and environment" />
+        <div className="p-6 text-sm text-gray-400">Loading settings...</div>
+      </div>
     );
   }
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Settings" subtitle="Server configuration and environment" />
+      <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="text-lg font-semibold text-gray-900">
@@ -253,6 +259,7 @@ export function ServerSettingsView() {
               ))}
           </select>
         </div>
+      </div>
       </div>
     </div>
   );

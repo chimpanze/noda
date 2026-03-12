@@ -10,7 +10,8 @@ import (
 
 type getDescriptor struct{}
 
-func (d *getDescriptor) Name() string { return "get" }
+func (d *getDescriptor) Name() string        { return "get" }
+func (d *getDescriptor) Description() string { return "Retrieves a value from the cache" }
 func (d *getDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"cache": {Prefix: "cache", Required: true},
@@ -20,7 +21,7 @@ func (d *getDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"key": map[string]any{"type": "string"},
+			"key": map[string]any{"type": "string", "description": "Cache key to retrieve"},
 		},
 		"required": []any{"key"},
 	}

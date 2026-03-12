@@ -10,13 +10,14 @@ import (
 type deleteDescriptor struct{}
 
 func (d *deleteDescriptor) Name() string                           { return "delete" }
+func (d *deleteDescriptor) Description() string                    { return "Removes fields from an object" }
 func (d *deleteDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *deleteDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"data":   map[string]any{"type": "string"},
-			"fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+			"data":   map[string]any{"type": "string", "description": "Expression resolving to an object"},
+			"fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Field names to remove"},
 		},
 		"required": []any{"data", "fields"},
 	}

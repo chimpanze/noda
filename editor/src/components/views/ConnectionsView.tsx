@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, ExternalLink, Wifi, Radio } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/components/panels/Toast";
@@ -200,7 +201,9 @@ export function ConnectionsView() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Connections" subtitle="WebSocket and SSE real-time connection endpoints" />
+      <div className="flex-1 flex min-h-0">
       {/* Endpoint list */}
       <div className="w-80 border-r border-gray-200 overflow-y-auto">
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -467,6 +470,7 @@ export function ConnectionsView() {
             Select an endpoint to edit or click "New" to create one.
           </div>
         )}
+      </div>
       </div>
     </div>
   );

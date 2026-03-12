@@ -26,6 +26,7 @@ func (m *mockPlugin) Shutdown(_ any) error                        { return nil }
 type mockDescriptor struct{}
 
 func (m *mockDescriptor) Name() string                           { return "test.node" }
+func (m *mockDescriptor) Description() string                    { return "" }
 func (m *mockDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (m *mockDescriptor) ConfigSchema() map[string]any           { return nil }
 

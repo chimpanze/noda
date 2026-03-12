@@ -11,7 +11,8 @@ import (
 
 type deleteDescriptor struct{}
 
-func (d *deleteDescriptor) Name() string { return "delete" }
+func (d *deleteDescriptor) Name() string        { return "delete" }
+func (d *deleteDescriptor) Description() string { return "Deletes rows matching a condition" }
 func (d *deleteDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,8 +22,8 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table": map[string]any{"type": "string"},
-			"where": map[string]any{"type": "object"},
+			"table": map[string]any{"type": "string", "description": "Table name"},
+			"where": map[string]any{"type": "object", "description": "Equality conditions for row matching"},
 		},
 		"required": []any{"table", "where"},
 	}

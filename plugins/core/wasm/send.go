@@ -15,13 +15,16 @@ var sendServiceDeps = map[string]api.ServiceDep{
 
 type sendDescriptor struct{}
 
-func (d *sendDescriptor) Name() string                           { return "send" }
+func (d *sendDescriptor) Name() string { return "send" }
+func (d *sendDescriptor) Description() string {
+	return "Sends a fire-and-forget command to a Wasm module"
+}
 func (d *sendDescriptor) ServiceDeps() map[string]api.ServiceDep { return sendServiceDeps }
 func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"data": map[string]any{},
+			"data": map[string]any{"description": "Command data to send to the Wasm module"},
 		},
 		"required": []any{"data"},
 	}

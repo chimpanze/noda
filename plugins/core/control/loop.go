@@ -9,15 +9,18 @@ import (
 
 type loopDescriptor struct{}
 
-func (d *loopDescriptor) Name() string                           { return "loop" }
+func (d *loopDescriptor) Name() string { return "loop" }
+func (d *loopDescriptor) Description() string {
+	return "Iterates a sub-workflow over each item in a collection"
+}
 func (d *loopDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *loopDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"collection": map[string]any{"type": "string"},
-			"workflow":   map[string]any{"type": "string"},
-			"input":      map[string]any{"type": "object"},
+			"collection": map[string]any{"type": "string", "description": "Expression resolving to an array"},
+			"workflow":   map[string]any{"type": "string", "description": "Sub-workflow ID to execute per item"},
+			"input":      map[string]any{"type": "object", "description": "Input template — $item and $index available"},
 		},
 		"required": []any{"collection", "workflow"},
 	}

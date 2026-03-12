@@ -10,7 +10,8 @@ import (
 
 type deleteDescriptor struct{}
 
-func (d *deleteDescriptor) Name() string { return "delete" }
+func (d *deleteDescriptor) Name() string        { return "delete" }
+func (d *deleteDescriptor) Description() string { return "Deletes a file from storage" }
 func (d *deleteDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return storageDeps
 }
@@ -18,7 +19,7 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"path": map[string]any{"type": "string"},
+			"path": map[string]any{"type": "string", "description": "File path to delete"},
 		},
 		"required": []any{"path"},
 	}

@@ -11,7 +11,8 @@ import (
 
 type readDescriptor struct{}
 
-func (d *readDescriptor) Name() string { return "read" }
+func (d *readDescriptor) Name() string        { return "read" }
+func (d *readDescriptor) Description() string { return "Reads a file from storage" }
 func (d *readDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return storageDeps
 }
@@ -19,7 +20,7 @@ func (d *readDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"path": map[string]any{"type": "string"},
+			"path": map[string]any{"type": "string", "description": "File path to read"},
 		},
 		"required": []any{"path"},
 	}

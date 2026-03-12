@@ -11,19 +11,20 @@ import (
 type sendDescriptor struct{}
 
 func (d *sendDescriptor) Name() string                           { return "send" }
+func (d *sendDescriptor) Description() string                    { return "Sends an email via SMTP" }
 func (d *sendDescriptor) ServiceDeps() map[string]api.ServiceDep { return emailServiceDeps }
 func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"to":           map[string]any{"type": "string"},
-			"subject":      map[string]any{"type": "string"},
-			"body":         map[string]any{"type": "string"},
-			"from":         map[string]any{"type": "string"},
-			"cc":           map[string]any{"type": "string"},
-			"bcc":          map[string]any{"type": "string"},
-			"reply_to":     map[string]any{"type": "string"},
-			"content_type": map[string]any{"type": "string"},
+			"to":           map[string]any{"type": "string", "description": "Recipient email address(es)"},
+			"subject":      map[string]any{"type": "string", "description": "Email subject line"},
+			"body":         map[string]any{"type": "string", "description": "Email body content"},
+			"from":         map[string]any{"type": "string", "description": "Sender address (overrides service default)"},
+			"cc":           map[string]any{"type": "string", "description": "CC recipients"},
+			"bcc":          map[string]any{"type": "string", "description": "BCC recipients"},
+			"reply_to":     map[string]any{"type": "string", "description": "Reply-To address"},
+			"content_type": map[string]any{"type": "string", "description": "Content type: html or text"},
 		},
 		"required": []any{"to", "subject", "body"},
 	}

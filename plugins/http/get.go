@@ -10,14 +10,15 @@ import (
 type getDescriptor struct{}
 
 func (d *getDescriptor) Name() string                           { return "get" }
+func (d *getDescriptor) Description() string                    { return "Shorthand for GET requests" }
 func (d *getDescriptor) ServiceDeps() map[string]api.ServiceDep { return httpServiceDeps }
 func (d *getDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"url":     map[string]any{"type": "string"},
-			"headers": map[string]any{"type": "object"},
-			"timeout": map[string]any{"type": "string"},
+			"url":     map[string]any{"type": "string", "description": "Request URL"},
+			"headers": map[string]any{"type": "object", "description": "Request headers"},
+			"timeout": map[string]any{"type": "string", "description": "Request timeout"},
 		},
 		"required": []any{"url"},
 	}

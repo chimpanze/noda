@@ -15,13 +15,14 @@ import (
 type validateDescriptor struct{}
 
 func (d *validateDescriptor) Name() string                           { return "validate" }
+func (d *validateDescriptor) Description() string                    { return "Validates data against a JSON Schema" }
 func (d *validateDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *validateDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"data":   map[string]any{"type": "string"},
-			"schema": map[string]any{"type": "object"},
+			"data":   map[string]any{"type": "string", "description": "Data to validate (default: input)"},
+			"schema": map[string]any{"type": "object", "description": "JSON Schema definition to validate against"},
 		},
 		"required": []any{"schema"},
 	}

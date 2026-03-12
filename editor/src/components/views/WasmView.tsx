@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, Cpu } from "lucide-react";
+import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
@@ -190,7 +191,9 @@ export function WasmView() {
   }
 
   return (
-    <div className="flex-1 flex min-h-0">
+    <div className="flex-1 flex flex-col min-h-0">
+      <ViewHeader title="Wasm" subtitle="WebAssembly module configuration and management" />
+      <div className="flex-1 flex min-h-0">
       {/* Runtime list */}
       <div className="w-72 border-r border-gray-200 overflow-y-auto">
         <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
@@ -395,6 +398,7 @@ export function WasmView() {
             Select a Wasm runtime to edit or click "New" to create one.
           </div>
         )}
+      </div>
       </div>
     </div>
   );

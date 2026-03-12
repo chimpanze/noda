@@ -12,16 +12,17 @@ import (
 type watermarkDescriptor struct{}
 
 func (d *watermarkDescriptor) Name() string                           { return "watermark" }
+func (d *watermarkDescriptor) Description() string                    { return "Applies a watermark overlay to an image" }
 func (d *watermarkDescriptor) ServiceDeps() map[string]api.ServiceDep { return imageServiceDeps }
 func (d *watermarkDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"input":     map[string]any{"type": "string"},
-			"output":    map[string]any{"type": "string"},
-			"watermark": map[string]any{"type": "string"},
-			"opacity":   map[string]any{"type": "number"},
-			"position":  map[string]any{"type": "string"},
+			"input":     map[string]any{"type": "string", "description": "Source image path"},
+			"output":    map[string]any{"type": "string", "description": "Output image path"},
+			"watermark": map[string]any{"type": "string", "description": "Watermark image path"},
+			"opacity":   map[string]any{"type": "number", "description": "Opacity from 0 to 1"},
+			"position":  map[string]any{"type": "string", "description": "Position: center, top-left, top-right, bottom-left, bottom-right"},
 		},
 		"required": []any{"input", "output", "watermark"},
 	}

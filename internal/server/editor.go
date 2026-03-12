@@ -305,9 +305,10 @@ func (e *EditorAPI) listNodes(c fiber.Ctx) error {
 		outputs, _ := e.nodes.OutputsForType(t)
 
 		entry := map[string]any{
-			"type":    t,
-			"name":    desc.Name(),
-			"outputs": outputs,
+			"type":        t,
+			"name":        desc.Name(),
+			"description": desc.Description(),
+			"outputs":     outputs,
 		}
 
 		if deps := desc.ServiceDeps(); len(deps) > 0 {
@@ -397,18 +398,34 @@ func (e *EditorAPI) listServices(c fiber.Ctx) error {
 	return c.JSON(map[string]any{"services": services})
 }
 
+// pluginDescriptions maps plugin prefixes to human-readable descriptions.
+var pluginDescriptions = map[string]string{
+	"db":      "PostgreSQL database — CRUD, raw queries, transactions",
+	"cache":   "Redis key-value cache — get, set, delete, exists",
+	"stream":  "Redis Streams — durable event streaming",
+	"pubsub":  "Redis Pub/Sub — real-time message broadcasting",
+	"storage": "File storage — read, write, list, delete",
+	"image":   "Image processing — resize, crop, watermark, convert, thumbnail",
+	"http":    "Outbound HTTP client — GET, POST, and custom requests",
+	"email":   "Email sending via SMTP",
+}
+
 // listPlugins returns all loaded plugins with their prefixes and node counts.
 func (e *EditorAPI) listPlugins(c fiber.Ctx) error {
 	all := e.plugins.All()
 	plugins := make([]map[string]any, 0, len(all))
 
 	for _, p := range all {
-		plugins = append(plugins, map[string]any{
+		entry := map[string]any{
 			"name":         p.Name(),
 			"prefix":       p.Prefix(),
 			"has_services": p.HasServices(),
 			"node_count":   len(p.Nodes()),
-		})
+		}
+		if desc, ok := pluginDescriptions[p.Prefix()]; ok {
+			entry["description"] = desc
+		}
+		plugins = append(plugins, entry)
 	}
 
 	sort.Slice(plugins, func(i, j int) bool {
@@ -596,6 +613,7 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 	type configField struct {
 		Key         string   `json:"key"`
 		Type        string   `json:"type"`
+		Description string   `json:"description,omitempty"`
 		Required    bool     `json:"required,omitempty"`
 		Default     any      `json:"default,omitempty"`
 		Options     []string `json:"options,omitempty"`
@@ -603,45 +621,46 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 	}
 	type descriptor struct {
 		Name         string        `json:"name"`
+		Description  string        `json:"description,omitempty"`
 		ConfigFields []configField `json:"config_fields"`
 	}
 
 	descriptors := []descriptor{
-		{Name: "auth.jwt", ConfigFields: []configField{
-			{Key: "secret", Type: "string", Required: true},
-			{Key: "algorithm", Type: "select", Options: []string{"HS256", "HS384", "HS512"}, Default: "HS256"},
+		{Name: "auth.jwt", Description: "JWT authentication using Bearer tokens", ConfigFields: []configField{
+			{Key: "secret", Type: "string", Description: "JWT signing secret or key", Required: true},
+			{Key: "algorithm", Type: "select", Description: "Signing algorithm", Options: []string{"HS256", "HS384", "HS512"}, Default: "HS256"},
 		}},
-		{Name: "security.cors", ConfigFields: []configField{
-			{Key: "allow_origins", Type: "string"},
-			{Key: "allow_methods", Type: "string"},
-			{Key: "allow_headers", Type: "string"},
-			{Key: "allow_credentials", Type: "boolean"},
+		{Name: "security.cors", Description: "Cross-Origin Resource Sharing headers", ConfigFields: []configField{
+			{Key: "allow_origins", Type: "string", Description: "Allowed origins (comma-separated or *)"},
+			{Key: "allow_methods", Type: "string", Description: "Allowed HTTP methods"},
+			{Key: "allow_headers", Type: "string", Description: "Allowed request headers"},
+			{Key: "allow_credentials", Type: "boolean", Description: "Allow credentials (cookies, auth headers)"},
 		}},
-		{Name: "security.headers", ConfigFields: []configField{}},
-		{Name: "security.csrf", ConfigFields: []configField{
-			{Key: "cookie_name", Type: "string"},
-			{Key: "cookie_secure", Type: "boolean"},
-			{Key: "cookie_http_only", Type: "boolean"},
-			{Key: "cookie_same_site", Type: "string"},
-			{Key: "cookie_session_only", Type: "boolean"},
-			{Key: "single_use_token", Type: "boolean"},
+		{Name: "security.headers", Description: "Secure HTTP response headers (X-Frame-Options, CSP, etc.)", ConfigFields: []configField{}},
+		{Name: "security.csrf", Description: "Cross-Site Request Forgery protection", ConfigFields: []configField{
+			{Key: "cookie_name", Type: "string", Description: "Name of the CSRF cookie"},
+			{Key: "cookie_secure", Type: "boolean", Description: "Set Secure flag on cookie"},
+			{Key: "cookie_http_only", Type: "boolean", Description: "Set HttpOnly flag on cookie"},
+			{Key: "cookie_same_site", Type: "string", Description: "SameSite attribute (Strict, Lax, None)"},
+			{Key: "cookie_session_only", Type: "boolean", Description: "Cookie expires when browser closes"},
+			{Key: "single_use_token", Type: "boolean", Description: "Generate a new token after each request"},
 		}},
-		{Name: "limiter", ConfigFields: []configField{
-			{Key: "max", Type: "number"},
-			{Key: "expiration", Type: "string", Placeholder: "1m"},
+		{Name: "limiter", Description: "Rate limiting per IP address", ConfigFields: []configField{
+			{Key: "max", Type: "number", Description: "Maximum requests per window"},
+			{Key: "expiration", Type: "string", Description: "Time window duration", Placeholder: "1m"},
 		}},
-		{Name: "timeout", ConfigFields: []configField{
-			{Key: "duration", Type: "string", Placeholder: "30s"},
+		{Name: "timeout", Description: "Request timeout enforcement", ConfigFields: []configField{
+			{Key: "duration", Type: "string", Description: "Maximum request duration", Placeholder: "30s"},
 		}},
-		{Name: "casbin.enforce", ConfigFields: []configField{
-			{Key: "model", Type: "text", Required: true},
-			{Key: "tenant_param", Type: "string"},
+		{Name: "casbin.enforce", Description: "Role-based access control using Casbin policies", ConfigFields: []configField{
+			{Key: "model", Type: "text", Description: "Casbin model definition (PERM format)", Required: true},
+			{Key: "tenant_param", Type: "string", Description: "URL parameter for tenant isolation"},
 		}},
-		{Name: "recover", ConfigFields: []configField{}},
-		{Name: "logger", ConfigFields: []configField{}},
-		{Name: "requestid", ConfigFields: []configField{}},
-		{Name: "compress", ConfigFields: []configField{}},
-		{Name: "etag", ConfigFields: []configField{}},
+		{Name: "recover", Description: "Panic recovery — catches panics and returns 500", ConfigFields: []configField{}},
+		{Name: "logger", Description: "Request logging with method, path, status, and latency", ConfigFields: []configField{}},
+		{Name: "requestid", Description: "Generates a unique X-Request-ID for each request", ConfigFields: []configField{}},
+		{Name: "compress", Description: "Response compression (gzip, deflate, brotli)", ConfigFields: []configField{}},
+		{Name: "etag", Description: "ETag-based response caching", ConfigFields: []configField{}},
 	}
 
 	// Extract presets from resolved config

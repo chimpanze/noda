@@ -10,12 +10,13 @@ import (
 type ifDescriptor struct{}
 
 func (d *ifDescriptor) Name() string                           { return "if" }
+func (d *ifDescriptor) Description() string                    { return "Conditional branching based on an expression" }
 func (d *ifDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *ifDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"condition": map[string]any{"type": "string"},
+			"condition": map[string]any{"type": "string", "description": "Expression to evaluate — must resolve to a truthy/falsy value"},
 		},
 		"required": []any{"condition"},
 	}

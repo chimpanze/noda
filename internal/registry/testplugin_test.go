@@ -59,7 +59,8 @@ func (p *testKVPlugin) Nodes() []api.NodeRegistration {
 // kv.get descriptor and executor
 type kvGetDescriptor struct{}
 
-func (d *kvGetDescriptor) Name() string { return "get" }
+func (d *kvGetDescriptor) Name() string        { return "get" }
+func (d *kvGetDescriptor) Description() string { return "" }
 func (d *kvGetDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"store": {Prefix: "kv", Required: true},
@@ -86,7 +87,8 @@ func (e *kvGetExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, cf
 // kv.set descriptor and executor
 type kvSetDescriptor struct{}
 
-func (d *kvSetDescriptor) Name() string { return "set" }
+func (d *kvSetDescriptor) Name() string        { return "set" }
+func (d *kvSetDescriptor) Description() string { return "" }
 func (d *kvSetDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"store": {Prefix: "kv", Required: true},

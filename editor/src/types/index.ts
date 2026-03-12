@@ -15,6 +15,7 @@ export interface FileList {
 export interface NodeDescriptor {
   type: string;
   name: string;
+  description?: string;
   outputs: string[];
   has_schema?: boolean;
   service_deps?: Record<string, { prefix: string; required: boolean }>;
@@ -30,6 +31,7 @@ export interface ServiceInfo {
 export interface PluginInfo {
   name: string;
   prefix: string;
+  description?: string;
   has_services: boolean;
   node_count: number;
 }
@@ -134,11 +136,13 @@ export type ViewType =
   | "schemas"
   | "wasm"
   | "tests"
-  | "settings";
+  | "settings"
+  | "docs";
 
 export interface ConfigField {
   key: string;
   type: "string" | "number" | "boolean" | "select" | "text";
+  description?: string;
   required?: boolean;
   default?: unknown;
   options?: string[];
@@ -147,6 +151,7 @@ export interface ConfigField {
 
 export interface MiddlewareDescriptor {
   name: string;
+  description?: string;
   config_fields: ConfigField[];
 }
 

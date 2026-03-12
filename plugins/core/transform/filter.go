@@ -11,13 +11,14 @@ import (
 type filterDescriptor struct{}
 
 func (d *filterDescriptor) Name() string                           { return "filter" }
+func (d *filterDescriptor) Description() string                    { return "Filters an array by a predicate expression" }
 func (d *filterDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *filterDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"collection": map[string]any{"type": "string"},
-			"expression": map[string]any{"type": "string"},
+			"collection": map[string]any{"type": "string", "description": "Expression resolving to an array"},
+			"expression": map[string]any{"type": "string", "description": "Predicate expression — keeps items where truthy"},
 		},
 		"required": []any{"collection", "expression"},
 	}

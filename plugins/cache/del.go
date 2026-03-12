@@ -10,7 +10,8 @@ import (
 
 type delDescriptor struct{}
 
-func (d *delDescriptor) Name() string { return "del" }
+func (d *delDescriptor) Name() string        { return "del" }
+func (d *delDescriptor) Description() string { return "Deletes a key from the cache" }
 func (d *delDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"cache": {Prefix: "cache", Required: true},
@@ -20,7 +21,7 @@ func (d *delDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"key": map[string]any{"type": "string"},
+			"key": map[string]any{"type": "string", "description": "Cache key to delete"},
 		},
 		"required": []any{"key"},
 	}

@@ -2,9 +2,10 @@ import path from 'path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import docsPlugin from './vite-plugin-docs'
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), docsPlugin()],
   base: '/editor/',
   resolve: {
     alias: {

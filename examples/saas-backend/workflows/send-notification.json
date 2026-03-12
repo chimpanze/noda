@@ -24,8 +24,13 @@
     },
     "load_workspace": {
       "config": {
+        "fields": {},
+        "joins": [],
+        "required": false,
         "table": "workspaces",
-        "where": { "id": "{{ input.workspace_id }}" }
+        "where": {
+          "id": "{{ input.workspace_id }}"
+        }
       },
       "services": {
         "database": "main-db"

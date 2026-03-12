@@ -11,7 +11,8 @@ import (
 
 type findOneDescriptor struct{}
 
-func (d *findOneDescriptor) Name() string { return "findOne" }
+func (d *findOneDescriptor) Name() string        { return "findOne" }
+func (d *findOneDescriptor) Description() string { return "Single row SELECT returning one row object" }
 func (d *findOneDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,13 +22,13 @@ func (d *findOneDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"table":        map[string]any{"type": "string"},
-			"select":       map[string]any{"type": "array"},
-			"where":        map[string]any{"type": "object"},
-			"where_clause": map[string]any{"type": "object"},
-			"joins":        map[string]any{"type": "array"},
-			"order":        map[string]any{"type": "string"},
-			"required":     map[string]any{"type": "boolean"},
+			"table":        map[string]any{"type": "string", "description": "Table name"},
+			"select":       map[string]any{"type": "array", "description": "Column names to select (default: all)"},
+			"where":        map[string]any{"type": "object", "description": "Equality conditions as key-value pairs"},
+			"where_clause": map[string]any{"type": "object", "description": "Raw WHERE with query and params"},
+			"joins":        map[string]any{"type": "array", "description": "JOIN clauses"},
+			"order":        map[string]any{"type": "string", "description": "ORDER BY clause"},
+			"required":     map[string]any{"type": "boolean", "description": "Return NotFoundError when no row matches (default: true)"},
 		},
 		"required": []any{"table"},
 	}

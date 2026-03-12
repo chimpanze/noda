@@ -11,15 +11,17 @@ import (
 type timestampDescriptor struct{}
 
 func (d *timestampDescriptor) Name() string                           { return "timestamp" }
+func (d *timestampDescriptor) Description() string                    { return "Returns the current UTC timestamp" }
 func (d *timestampDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *timestampDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
 			"format": map[string]any{
-				"type":    "string",
-				"enum":    []any{"iso8601", "unix", "unix_ms"},
-				"default": "iso8601",
+				"type":        "string",
+				"enum":        []any{"iso8601", "unix", "unix_ms"},
+				"default":     "iso8601",
+				"description": "Output format: iso8601, unix, or unix_ms",
 			},
 		},
 	}

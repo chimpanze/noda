@@ -10,6 +10,7 @@ import (
 type uuidDescriptor struct{}
 
 func (d *uuidDescriptor) Name() string                           { return "uuid" }
+func (d *uuidDescriptor) Description() string                    { return "Generates a UUID v4" }
 func (d *uuidDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *uuidDescriptor) ConfigSchema() map[string]any           { return nil }
 

@@ -11,6 +11,9 @@ import (
 type emitDescriptor struct{}
 
 func (d *emitDescriptor) Name() string { return "emit" }
+func (d *emitDescriptor) Description() string {
+	return "Publishes an event to a stream or pub/sub channel"
+}
 func (d *emitDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"stream": {Prefix: "stream", Required: false},
@@ -21,9 +24,9 @@ func (d *emitDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"mode":    map[string]any{"type": "string", "enum": []any{"stream", "pubsub"}},
-			"topic":   map[string]any{"type": "string"},
-			"payload": map[string]any{},
+			"mode":    map[string]any{"type": "string", "enum": []any{"stream", "pubsub"}, "description": "Delivery mode: stream or pubsub"},
+			"topic":   map[string]any{"type": "string", "description": "Topic or stream name"},
+			"payload": map[string]any{"description": "Event payload data"},
 		},
 		"required": []any{"mode", "topic", "payload"},
 	}

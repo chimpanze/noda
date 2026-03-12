@@ -15,15 +15,16 @@ var sseServiceDeps = map[string]api.ServiceDep{
 type sendDescriptor struct{}
 
 func (d *sendDescriptor) Name() string                           { return "send" }
+func (d *sendDescriptor) Description() string                    { return "Sends a Server-Sent Event to a channel" }
 func (d *sendDescriptor) ServiceDeps() map[string]api.ServiceDep { return sseServiceDeps }
 func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"channel": map[string]any{"type": "string"},
-			"data":    map[string]any{},
-			"event":   map[string]any{"type": "string"},
-			"id":      map[string]any{"type": "string"},
+			"channel": map[string]any{"type": "string", "description": "SSE channel name"},
+			"data":    map[string]any{"description": "Event data to send"},
+			"event":   map[string]any{"type": "string", "description": "Event type name"},
+			"id":      map[string]any{"type": "string", "description": "Event ID"},
 		},
 		"required": []any{"channel", "data"},
 	}

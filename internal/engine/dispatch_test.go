@@ -172,5 +172,6 @@ type testDescriptor struct {
 }
 
 func (d *testDescriptor) Name() string                           { return d.name }
+func (d *testDescriptor) Description() string                    { return "" }
 func (d *testDescriptor) ServiceDeps() map[string]api.ServiceDep { return d.deps }
 func (d *testDescriptor) ConfigSchema() map[string]any           { return nil }

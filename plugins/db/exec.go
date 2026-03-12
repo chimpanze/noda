@@ -12,6 +12,9 @@ import (
 type execDescriptor struct{}
 
 func (d *execDescriptor) Name() string { return "exec" }
+func (d *execDescriptor) Description() string {
+	return "Executes an INSERT, UPDATE, or DELETE statement"
+}
 func (d *execDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
 		"database": {Prefix: "db", Required: true},
@@ -21,8 +24,8 @@ func (d *execDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"query":  map[string]any{"type": "string"},
-			"params": map[string]any{"type": "array"},
+			"query":  map[string]any{"type": "string", "description": "SQL statement (INSERT, UPDATE, DELETE)"},
+			"params": map[string]any{"type": "array", "description": "Positional query parameters"},
 		},
 		"required": []any{"query"},
 	}
