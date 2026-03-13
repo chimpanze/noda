@@ -56,6 +56,8 @@ export interface ValidationResult {
 
 // Workflow config types (matching Noda JSON format)
 export interface WorkflowConfig {
+  description?: string;
+  version?: string;
   nodes: WorkflowNode[];
   edges: WorkflowEdge[];
 }

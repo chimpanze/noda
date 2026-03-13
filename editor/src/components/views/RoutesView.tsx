@@ -231,6 +231,7 @@ export function RoutesView() {
       if (!clean.tags?.length) delete clean.tags;
       if (!clean.middleware?.length) delete clean.middleware;
       if (!clean.middleware_preset) delete clean.middleware_preset;
+      if (!clean.response_timeout) delete clean.response_timeout;
       if (!clean.params?.schema) delete clean.params;
       if (!clean.query?.schema) delete clean.query;
       if (!clean.body || (!clean.body.schema && !clean.body.raw && clean.body.validate !== false && !clean.body.content_type))

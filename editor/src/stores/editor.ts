@@ -50,6 +50,7 @@ interface EditorState {
   removeEdge: (from: string, output: string, to: string) => void;
   updateEdgeRetry: (index: number, retry: WorkflowEdge["retry"]) => void;
   setWorkflow: (wf: WorkflowConfig) => void;
+  updateWorkflowMeta: (patch: { description?: string; version?: string }) => void;
 
   // History
   undo: () => void;
@@ -129,7 +130,12 @@ function normalizeWorkflow(raw: Record<string, unknown>): WorkflowConfig {
     edges = [];
   }
 
-  return { nodes, edges };
+  return {
+    description: raw.description as string | undefined,
+    version: raw.version as string | undefined,
+    nodes,
+    edges,
+  };
 }
 
 /**
@@ -160,7 +166,12 @@ function denormalizeWorkflow(
   });
 
   // Preserve top-level fields from the original file (id, name, etc.)
-  return { ...original, nodes: nodesMap, edges };
+  const result: Record<string, unknown> = { ...original, nodes: nodesMap, edges };
+  if (wf.description) result.description = wf.description;
+  else delete result.description;
+  if (wf.version) result.version = wf.version;
+  else delete result.version;
+  return result;
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -367,6 +378,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeWorkflowPath) return;
     if (activeWorkflow) history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     set({ activeWorkflow: wf });
+    get()._debounceSave();
+  },
+
+  updateWorkflowMeta: (patch) => {
+    const { activeWorkflow, activeWorkflowPath } = get();
+    if (!activeWorkflow || !activeWorkflowPath) return;
+    history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    set({ activeWorkflow: { ...activeWorkflow, ...patch } });
     get()._debounceSave();
   },
 

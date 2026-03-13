@@ -17,6 +17,7 @@
       "type": "array",
       "items": { "type": "string" }
     },
+    "middleware_preset": { "type": "string" },
     "params": {
       "type": "object",
       "properties": {

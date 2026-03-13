@@ -19,6 +19,7 @@
       "required": ["topic", "group"]
     },
     "concurrency": { "type": "integer" },
+    "timeout": { "type": "string" },
     "middleware": {
       "type": "array",
       "items": { "type": "string" }

@@ -783,7 +783,7 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 
 	rc, errs := config.ValidateAll(configDir, envFlag)
 	if len(errs) > 0 {
-		return nil, "", nil, fmt.Errorf("config validation failed")
+		return nil, "", nil, fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 	}
 
 	// Create the database service from config

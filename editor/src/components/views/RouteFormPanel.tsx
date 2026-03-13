@@ -19,6 +19,7 @@ export interface RouteConfig {
     validate?: string;
     statuses?: Record<string, { description?: string; schema?: { $ref: string } }>;
   };
+  response_timeout?: string;
   trigger?: {
     workflow: string;
     input?: Record<string, string>;
@@ -153,6 +154,17 @@ export function RouteFormPanel({
           onChange={(e) => update({ summary: e.target.value || undefined })}
           className="input-field"
           placeholder="Brief description of this route"
+        />
+      </Field>
+
+      {/* Response Timeout */}
+      <Field label="Response Timeout">
+        <input
+          type="text"
+          value={route.response_timeout ?? ""}
+          onChange={(e) => update({ response_timeout: e.target.value || undefined })}
+          className="input-field"
+          placeholder="e.g. 30s"
         />
       </Field>
 

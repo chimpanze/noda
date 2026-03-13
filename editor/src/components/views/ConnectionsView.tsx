@@ -10,6 +10,7 @@ interface EndpointConfig {
   type: "websocket" | "sse";
   path: string;
   middleware?: string[];
+  middleware_preset?: string;
   channels?: {
     pattern?: string;
     max_per_channel?: number;
@@ -53,6 +54,7 @@ export function ConnectionsView() {
   const [middlewareNames, setMiddlewareNames] = useState<string[]>([]);
   const [instanceNames, setInstanceNames] = useState<string[]>([]);
   const [serviceNames, setServiceNames] = useState<string[]>([]);
+  const [presetNames, setPresetNames] = useState<Record<string, string[]>>({});
 
   const reload = useCallback(async () => {
     if (!files?.connections) return;
@@ -81,6 +83,7 @@ export function ConnectionsView() {
       const instNames = Object.keys(mwInfo.instances ?? {});
       setInstanceNames(instNames);
       setMiddlewareNames([...mwInfo.middleware.map((m) => m.name), ...instNames]);
+      setPresetNames(mwInfo.presets);
       setServiceNames(services.map((s) => s.name));
     } finally {
       setLoading(false);
@@ -117,6 +120,7 @@ export function ConnectionsView() {
     try {
       const clean = structuredClone(editEndpoint);
       if (!clean.middleware?.length) delete clean.middleware;
+      if (!clean.middleware_preset) delete clean.middleware_preset;
       if (clean.channels && !clean.channels.pattern) delete clean.channels;
       if (!clean.ping_interval) delete clean.ping_interval;
       if (!clean.max_message_size) delete clean.max_message_size;
@@ -356,6 +360,20 @@ export function ConnectionsView() {
                 />
               </Field>
             </div>
+
+            {/* Middleware Preset */}
+            <Field label="Middleware Preset">
+              <select
+                value={editEndpoint.middleware_preset ?? ""}
+                onChange={(e) => update({ middleware_preset: e.target.value || undefined })}
+                className="input-field"
+              >
+                <option value="">None</option>
+                {Object.entries(presetNames).map(([name, mws]) => (
+                  <option key={name} value={name}>{name} ({mws.join(", ")})</option>
+                ))}
+              </select>
+            </Field>
 
             {/* Middleware */}
             <Field label="Middleware">

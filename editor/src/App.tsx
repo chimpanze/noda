@@ -8,6 +8,7 @@ import { WorkflowTabs } from "@/components/layout/WorkflowTabs";
 import { NodePalette } from "@/components/canvas/NodePalette";
 import { NodeConfigPanel } from "@/components/panels/NodeConfigPanel";
 import { EdgeConfigPanel } from "@/components/panels/EdgeConfigPanel";
+import { WorkflowPropertiesPanel } from "@/components/panels/WorkflowPropertiesPanel";
 import { TracePanel } from "@/components/panels/TracePanel";
 import { RoutesView } from "@/components/views/RoutesView";
 import { ServicesView } from "@/components/views/ServicesView";
@@ -96,10 +97,16 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Right panel - node/edge config */}
-                {(selectedNodeId || selectedEdgeIndex !== null) && (
-                  <div className="w-80 border-l border-gray-200 bg-white overflow-hidden">
-                    {selectedNodeId ? <NodeConfigPanel /> : <EdgeConfigPanel />}
+                {/* Right panel - node/edge config or workflow properties */}
+                {activeWorkflow && (
+                  <div className="w-80 border-l border-gray-200 bg-white overflow-hidden overflow-y-auto">
+                    {selectedNodeId ? (
+                      <NodeConfigPanel />
+                    ) : selectedEdgeIndex !== null ? (
+                      <EdgeConfigPanel />
+                    ) : (
+                      <WorkflowPropertiesPanel />
+                    )}
                   </div>
                 )}
               </>

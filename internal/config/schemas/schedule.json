@@ -5,6 +5,7 @@
     "id": { "type": "string" },
     "cron": { "type": "string" },
     "timezone": { "type": "string" },
+    "timeout": { "type": "string" },
     "description": { "type": "string" },
     "services": {
       "type": "object",

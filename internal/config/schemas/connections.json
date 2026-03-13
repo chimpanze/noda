@@ -17,6 +17,7 @@
           "type": { "type": "string", "enum": ["websocket", "sse"] },
           "path": { "type": "string" },
           "middleware": { "type": "array", "items": { "type": "string" } },
+          "middleware_preset": { "type": "string" },
           "channels": {
             "type": "object",
             "properties": {

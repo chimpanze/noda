@@ -241,7 +241,14 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 			"error", err.Error(),
 		)
 		// Ack the message to prevent infinite retry of bad mappings
-		client.XAck(ctx, w.Topic, w.Group, msg.ID)
+		if err := client.XAck(ctx, w.Topic, w.Group, msg.ID).Err(); err != nil {
+			r.logger.Error("worker ack failed after bad mapping",
+				"worker_id", w.ID,
+				"message_id", msg.ID,
+				"trace_id", traceID,
+				"error", err.Error(),
+			)
+		}
 		return
 	}
 
@@ -415,7 +422,14 @@ func (r *Runtime) moveToDeadLetter(ctx context.Context, client *redis.Client, w 
 	}
 
 	// Ack original message
-	client.XAck(ctx, w.Topic, w.Group, msg.ID)
+	if err := client.XAck(ctx, w.Topic, w.Group, msg.ID).Err(); err != nil {
+		r.logger.Error("worker ack failed after dead letter",
+			"worker_id", w.ID,
+			"message_id", msg.ID,
+			"trace_id", traceID,
+			"error", err.Error(),
+		)
+	}
 
 	r.logger.Warn("worker message dead lettered",
 		"worker_id", w.ID,

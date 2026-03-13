@@ -12,6 +12,7 @@ interface ScheduleConfig {
   description?: string;
   cron: string;
   timezone?: string;
+  timeout?: string;
   services?: Record<string, string>;
   lock?: { enabled?: boolean; ttl?: string };
   trigger?: {
@@ -120,6 +121,7 @@ export function SchedulesView() {
     try {
       const clean = structuredClone(editSchedule);
       if (!clean.description) delete clean.description;
+      if (!clean.timeout) delete clean.timeout;
       if (!clean.timezone) delete clean.timezone;
       if (clean.services && !Object.values(clean.services).some(Boolean))
         delete clean.services;
@@ -309,6 +311,17 @@ export function SchedulesView() {
               value={editSchedule.timezone ?? "UTC"}
               onChange={(tz) => update({ timezone: tz })}
             />
+
+            {/* Timeout */}
+            <Field label="Timeout">
+              <input
+                type="text"
+                value={editSchedule.timeout ?? ""}
+                onChange={(e) => update({ timeout: e.target.value || undefined })}
+                className="input-field"
+                placeholder="e.g. 30s"
+              />
+            </Field>
 
             {/* Lock */}
             <div className="border-t border-gray-200 pt-4">
