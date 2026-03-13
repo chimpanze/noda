@@ -4,7 +4,7 @@
 editor/node_modules
 editorfs/dist
 testdata
-docs
+docs/_internal
 dist
 tmp
 *.md
