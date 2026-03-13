@@ -253,7 +253,9 @@ func TestGenerateMigration_Integration(t *testing.T) {
 	dir := t.TempDir()
 	modelsDir := filepath.Join(dir, "models")
 	migrationsDir := filepath.Join(dir, "migrations")
-	os.MkdirAll(modelsDir, 0o755)
+	if err := os.MkdirAll(modelsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	model := ModelDef{
 		Table: "users",
@@ -265,7 +267,9 @@ func TestGenerateMigration_Integration(t *testing.T) {
 	}
 
 	data, _ := json.MarshalIndent(model, "", "  ")
-	os.WriteFile(filepath.Join(modelsDir, "users.json"), data, 0o644)
+	if err := os.WriteFile(filepath.Join(modelsDir, "users.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	up, down, err := GenerateMigration(modelsDir, migrationsDir)
 	if err != nil {

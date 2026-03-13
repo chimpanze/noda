@@ -28,7 +28,7 @@ export function pushSnapshot(path: string, workflow: WorkflowConfig) {
 /** Undo: returns the previous workflow state, or null if nothing to undo. */
 export function undo(
   path: string,
-  current: WorkflowConfig
+  current: WorkflowConfig,
 ): WorkflowConfig | null {
   const h = getHistory(path);
   if (h.past.length === 0) return null;
@@ -39,7 +39,7 @@ export function undo(
 /** Redo: returns the next workflow state, or null if nothing to redo. */
 export function redo(
   path: string,
-  current: WorkflowConfig
+  current: WorkflowConfig,
 ): WorkflowConfig | null {
   const h = getHistory(path);
   if (h.future.length === 0) return null;

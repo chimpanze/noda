@@ -17,7 +17,9 @@ interface TryItResponse {
 }
 
 export function TryItPanel({ route }: TryItPanelProps) {
-  const [headers, setHeaders] = useState<string>('{\n  "Content-Type": "application/json"\n}');
+  const [headers, setHeaders] = useState<string>(
+    '{\n  "Content-Type": "application/json"\n}',
+  );
   const [body, setBody] = useState<string>("{}");
   const [response, setResponse] = useState<TryItResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -98,7 +100,9 @@ export function TryItPanel({ route }: TryItPanelProps) {
         traceId,
       });
     } catch (err) {
-      setError(`Request failed: ${err instanceof Error ? err.message : String(err)}`);
+      setError(
+        `Request failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -123,7 +127,11 @@ export function TryItPanel({ route }: TryItPanelProps) {
           disabled={loading}
           className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-green-500 rounded hover:bg-green-600 disabled:opacity-50"
         >
-          {loading ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+          {loading ? (
+            <Loader2 size={14} className="animate-spin" />
+          ) : (
+            <Play size={14} />
+          )}
           Send
         </button>
       </div>

@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
-import { Copy, Trash2, Clipboard, LayoutGrid, Plus, RotateCcw } from "lucide-react";
+import {
+  Copy,
+  Trash2,
+  Clipboard,
+  LayoutGrid,
+  Plus,
+  RotateCcw,
+} from "lucide-react";
 
 export type ContextMenuType = "node" | "edge" | "pane";
 
@@ -61,35 +68,88 @@ export function CanvasContextMenu({
     };
   }, [onClose]);
 
-  const items: { label: string; icon: React.ReactNode; onClick: () => void; danger?: boolean }[] = [];
+  const items: {
+    label: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    danger?: boolean;
+  }[] = [];
 
   if (menu.type === "node") {
     items.push(
-      { label: "Copy", icon: <Copy size={14} />, onClick: () => { onCopyNode?.(); onClose(); } },
-      { label: "Duplicate", icon: <Clipboard size={14} />, onClick: () => { onDuplicateNode?.(); onClose(); } },
-      { label: "Delete", icon: <Trash2 size={14} />, onClick: () => { onDeleteNode?.(); onClose(); }, danger: true },
+      {
+        label: "Copy",
+        icon: <Copy size={14} />,
+        onClick: () => {
+          onCopyNode?.();
+          onClose();
+        },
+      },
+      {
+        label: "Duplicate",
+        icon: <Clipboard size={14} />,
+        onClick: () => {
+          onDuplicateNode?.();
+          onClose();
+        },
+      },
+      {
+        label: "Delete",
+        icon: <Trash2 size={14} />,
+        onClick: () => {
+          onDeleteNode?.();
+          onClose();
+        },
+        danger: true,
+      },
     );
   } else if (menu.type === "edge") {
     items.push(
       {
         label: hasRetry ? "Remove Retry" : "Add Retry",
         icon: <RotateCcw size={14} />,
-        onClick: () => { onToggleRetry?.(); onClose(); },
+        onClick: () => {
+          onToggleRetry?.();
+          onClose();
+        },
       },
-      { label: "Delete Edge", icon: <Trash2 size={14} />, onClick: () => { onDeleteEdge?.(); onClose(); }, danger: true },
+      {
+        label: "Delete Edge",
+        icon: <Trash2 size={14} />,
+        onClick: () => {
+          onDeleteEdge?.();
+          onClose();
+        },
+        danger: true,
+      },
     );
   } else {
-    items.push(
-      { label: "Add Node", icon: <Plus size={14} />, onClick: () => { onAddNode?.(); onClose(); } },
-    );
+    items.push({
+      label: "Add Node",
+      icon: <Plus size={14} />,
+      onClick: () => {
+        onAddNode?.();
+        onClose();
+      },
+    });
     if (canPaste) {
-      items.push(
-        { label: "Paste", icon: <Clipboard size={14} />, onClick: () => { onPaste?.(); onClose(); } },
-      );
+      items.push({
+        label: "Paste",
+        icon: <Clipboard size={14} />,
+        onClick: () => {
+          onPaste?.();
+          onClose();
+        },
+      });
     }
-    items.push(
-      { label: "Auto Layout", icon: <LayoutGrid size={14} />, onClick: () => { onAutoLayout?.(); onClose(); } },
-    );
+    items.push({
+      label: "Auto Layout",
+      icon: <LayoutGrid size={14} />,
+      onClick: () => {
+        onAutoLayout?.();
+        onClose();
+      },
+    });
   }
 
   return (

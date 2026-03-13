@@ -1,7 +1,14 @@
 import { useState, useCallback } from "react";
 import { Trash2, Plus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
 
-const PROPERTY_TYPES = ["string", "number", "integer", "boolean", "object", "array"];
+const PROPERTY_TYPES = [
+  "string",
+  "number",
+  "integer",
+  "boolean",
+  "object",
+  "array",
+];
 
 interface SchemaDefinition {
   type?: string;
@@ -22,14 +29,17 @@ interface SchemaPropertyEditorProps {
   onChange: (content: Record<string, SchemaDefinition>) => void;
 }
 
-export function SchemaPropertyEditor({ content, onChange }: SchemaPropertyEditorProps) {
+export function SchemaPropertyEditor({
+  content,
+  onChange,
+}: SchemaPropertyEditorProps) {
   const schemaNames = Object.keys(content);
 
   const updateSchema = useCallback(
     (name: string, schema: SchemaDefinition) => {
       onChange({ ...content, [name]: schema });
     },
-    [content, onChange]
+    [content, onChange],
   );
 
   const removeSchema = useCallback(
@@ -38,7 +48,7 @@ export function SchemaPropertyEditor({ content, onChange }: SchemaPropertyEditor
       delete next[name];
       onChange(next);
     },
-    [content, onChange]
+    [content, onChange],
   );
 
   const renameSchema = useCallback(
@@ -51,7 +61,7 @@ export function SchemaPropertyEditor({ content, onChange }: SchemaPropertyEditor
       }
       onChange(result);
     },
-    [content, onChange]
+    [content, onChange],
   );
 
   const addSchema = useCallback(() => {
@@ -186,7 +196,9 @@ function SchemaSection({
             autoFocus
           />
         ) : (
-          <span className="text-sm font-medium font-mono text-gray-800">{name}</span>
+          <span className="text-sm font-medium font-mono text-gray-800">
+            {name}
+          </span>
         )}
         <div className="flex-1" />
         <button
@@ -285,7 +297,8 @@ function PropertyRow({
     }
   };
 
-  const enumStr = prop.type === "string" && prop.enum ? prop.enum.join(", ") : "";
+  const enumStr =
+    prop.type === "string" && prop.enum ? prop.enum.join(", ") : "";
 
   return (
     <tr className="border-t border-gray-100">
@@ -354,12 +367,16 @@ function PropertyRow({
             onChange={(e) => {
               const val = e.target.value;
               if (!val.trim()) {
-                const { enum: _, ...rest } = prop;
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { enum: _enum, ...rest } = prop;
                 onUpdate(rest);
               } else {
                 onUpdate({
                   ...prop,
-                  enum: val.split(",").map((s) => s.trim()).filter(Boolean),
+                  enum: val
+                    .split(",")
+                    .map((s) => s.trim())
+                    .filter(Boolean),
                 });
               }
             }}

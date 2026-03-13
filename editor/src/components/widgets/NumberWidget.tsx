@@ -5,7 +5,7 @@ import Editor from "@monaco-editor/react";
 export function NumberWidget(props: WidgetProps) {
   const { value, onChange, label, required, readonly, schema } = props;
   const [exprMode, setExprMode] = useState(
-    typeof value === "string" && value.includes("{{")
+    typeof value === "string" && value.includes("{{"),
   );
 
   const step = schema.type === "integer" ? "1" : "any";
@@ -16,11 +16,12 @@ export function NumberWidget(props: WidgetProps) {
       if (raw === "") {
         onChange(undefined);
       } else {
-        const num = schema.type === "integer" ? parseInt(raw, 10) : parseFloat(raw);
+        const num =
+          schema.type === "integer" ? parseInt(raw, 10) : parseFloat(raw);
         if (!isNaN(num)) onChange(num);
       }
     },
-    [onChange, schema.type]
+    [onChange, schema.type],
   );
 
   return (

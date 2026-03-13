@@ -38,7 +38,7 @@ export function FlexibleValueField(props: FieldProps) {
         onChange(v, path);
       }
     },
-    [mode, onChange, path]
+    [mode, onChange, path],
   );
 
   const switchMode = useCallback(
@@ -55,7 +55,7 @@ export function FlexibleValueField(props: FieldProps) {
       }
       setMode(newMode);
     },
-    [mode, formData, onChange, path]
+    [mode, formData, onChange, path],
   );
 
   return (

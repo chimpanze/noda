@@ -9,47 +9,97 @@ export function describeCron(expr: string): string {
   const [minute, hour, dom, month, dow] = parts;
 
   // Every minute
-  if (minute === "*" && hour === "*" && dom === "*" && month === "*" && dow === "*") {
+  if (
+    minute === "*" &&
+    hour === "*" &&
+    dom === "*" &&
+    month === "*" &&
+    dow === "*"
+  ) {
     return "Every minute";
   }
 
   // Every N minutes
-  if (minute.startsWith("*/") && hour === "*" && dom === "*" && month === "*" && dow === "*") {
+  if (
+    minute.startsWith("*/") &&
+    hour === "*" &&
+    dom === "*" &&
+    month === "*" &&
+    dow === "*"
+  ) {
     const n = minute.slice(2);
     return `Every ${n} minute${n === "1" ? "" : "s"}`;
   }
 
   // Every N hours
-  if (minute === "0" && hour.startsWith("*/") && dom === "*" && month === "*" && dow === "*") {
+  if (
+    minute === "0" &&
+    hour.startsWith("*/") &&
+    dom === "*" &&
+    month === "*" &&
+    dow === "*"
+  ) {
     const n = hour.slice(2);
     return `Every ${n} hour${n === "1" ? "" : "s"}`;
   }
 
   // Specific time daily
-  if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dom === "*" && month === "*" && dow === "*") {
+  if (
+    /^\d+$/.test(minute) &&
+    /^\d+$/.test(hour) &&
+    dom === "*" &&
+    month === "*" &&
+    dow === "*"
+  ) {
     return `Daily at ${pad(hour)}:${pad(minute)}`;
   }
 
   // Specific time on certain days of week
-  if (/^\d+$/.test(minute) && /^\d+$/.test(hour) && dom === "*" && month === "*" && dow !== "*") {
+  if (
+    /^\d+$/.test(minute) &&
+    /^\d+$/.test(hour) &&
+    dom === "*" &&
+    month === "*" &&
+    dow !== "*"
+  ) {
     const days = parseDow(dow);
     return `${days} at ${pad(hour)}:${pad(minute)}`;
   }
 
   // Top of every hour
-  if (minute === "0" && hour === "*" && dom === "*" && month === "*" && dow === "*") {
+  if (
+    minute === "0" &&
+    hour === "*" &&
+    dom === "*" &&
+    month === "*" &&
+    dow === "*"
+  ) {
     return "Every hour";
   }
 
   // At specific minute every hour
-  if (/^\d+$/.test(minute) && hour === "*" && dom === "*" && month === "*" && dow === "*") {
+  if (
+    /^\d+$/.test(minute) &&
+    hour === "*" &&
+    dom === "*" &&
+    month === "*" &&
+    dow === "*"
+  ) {
     return `Every hour at :${pad(minute)}`;
   }
 
   return expr;
 }
 
-const DOW_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const DOW_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+];
 
 function parseDow(dow: string): string {
   const nums = dow.split(",").map((s) => {

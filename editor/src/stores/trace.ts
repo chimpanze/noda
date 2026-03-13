@@ -23,7 +23,12 @@ interface TraceState {
   getExecution: (traceId: string) => Execution | undefined;
   getActiveExecution: () => Execution | undefined;
   getNodeState: (traceId: string, nodeId: string) => NodeExecState;
-  getNodeData: (traceId: string, nodeId: string) => { output?: string; data?: unknown; error?: string; duration?: string } | undefined;
+  getNodeData: (
+    traceId: string,
+    nodeId: string,
+  ) =>
+    | { output?: string; data?: unknown; error?: string; duration?: string }
+    | undefined;
 
   // Edge animation: set of "from:output" keys that are currently active
   activeEdgeKeys: Set<string>;
@@ -105,16 +110,24 @@ export const useTraceStore = create<TraceState>((set, get) => ({
       }
 
       // Auto-activate latest execution
-      return { executions, activeTraceId: exec.traceId, activeEdgeKeys: newActiveEdgeKeys };
+      return {
+        executions,
+        activeTraceId: exec.traceId,
+        activeEdgeKeys: newActiveEdgeKeys,
+      };
     }),
 
-  clearExecutions: () => set({ executions: [], activeTraceId: null, activeEdgeKeys: new Set() }),
+  clearExecutions: () =>
+    set({ executions: [], activeTraceId: null, activeEdgeKeys: new Set() }),
 
-  getExecution: (traceId) => get().executions.find((e) => e.traceId === traceId),
+  getExecution: (traceId) =>
+    get().executions.find((e) => e.traceId === traceId),
 
   getActiveExecution: () => {
     const { executions, activeTraceId } = get();
-    return activeTraceId ? executions.find((e) => e.traceId === activeTraceId) : undefined;
+    return activeTraceId
+      ? executions.find((e) => e.traceId === activeTraceId)
+      : undefined;
   },
 
   getNodeState: (traceId, nodeId) => {

@@ -11,7 +11,12 @@ export function TableSelectWidget({ value, onChange }: Props) {
 
   useEffect(() => {
     api.listModels().then((models) => {
-      setTables(models.map((m) => m.model.table).filter(Boolean).sort());
+      setTables(
+        models
+          .map((m) => m.model.table)
+          .filter(Boolean)
+          .sort(),
+      );
     });
   }, []);
 
@@ -23,7 +28,9 @@ export function TableSelectWidget({ value, onChange }: Props) {
     >
       <option value="">Select table...</option>
       {tables.map((t) => (
-        <option key={t} value={t}>{t}</option>
+        <option key={t} value={t}>
+          {t}
+        </option>
       ))}
     </select>
   );

@@ -11,18 +11,25 @@ interface DocEntry {
   sortOrder?: number;
 }
 
-function walkDocs(dir: string, group: string, base: string, sortOrder: number): DocEntry[] {
+function walkDocs(
+  dir: string,
+  group: string,
+  base: string,
+  sortOrder: number,
+): DocEntry[] {
   const entries: DocEntry[] = [];
   for (const name of fs.readdirSync(dir).sort()) {
     // Skip directories and files starting with underscore
-    if (name.startsWith("_") && fs.statSync(path.join(dir, name)).isDirectory()) continue;
+    if (name.startsWith("_") && fs.statSync(path.join(dir, name)).isDirectory())
+      continue;
 
     const full = path.join(dir, name);
     const stat = fs.statSync(full);
     if (stat.isDirectory()) {
       // Strip numeric prefix for display: "01-getting-started" → "Getting started"
       const displayName = name.replace(/^\d+-/, "").replace(/-/g, " ");
-      const subGroup = displayName.charAt(0).toUpperCase() + displayName.slice(1);
+      const subGroup =
+        displayName.charAt(0).toUpperCase() + displayName.slice(1);
       // Extract sort order from numeric prefix
       const dirOrder = parseInt(name.match(/^(\d+)/)?.[1] ?? "99", 10);
       entries.push(...walkDocs(full, subGroup, base, dirOrder));

@@ -9,7 +9,10 @@ interface VarPickerButtonProps {
 
 const varRefPattern = /\{\{\s*\$var\(\s*'([^']+)'\s*\)\s*\}\}/;
 
-export function VarPickerButton({ onSelect, currentValue }: VarPickerButtonProps) {
+export function VarPickerButton({
+  onSelect,
+  currentValue,
+}: VarPickerButtonProps) {
   const vars = useEditorStore((s) => s.vars);
   const [open, setOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -18,7 +21,10 @@ export function VarPickerButton({ onSelect, currentValue }: VarPickerButtonProps
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(e.target as Node)
+      ) {
         setOpen(false);
       }
     };
@@ -62,7 +68,9 @@ export function VarPickerButton({ onSelect, currentValue }: VarPickerButtonProps
               className="w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 flex items-center justify-between"
             >
               <span className="font-mono text-gray-800 truncate">{v.name}</span>
-              <span className="text-xs text-gray-400 truncate ml-2">{v.value}</span>
+              <span className="text-xs text-gray-400 truncate ml-2">
+                {v.value}
+              </span>
             </button>
           ))}
         </div>

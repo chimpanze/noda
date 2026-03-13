@@ -32,7 +32,7 @@ export function NodePalette() {
           (n) =>
             n.type.toLowerCase().includes(lower) ||
             n.name.toLowerCase().includes(lower) ||
-            (n.description?.toLowerCase().includes(lower) ?? false)
+            (n.description?.toLowerCase().includes(lower) ?? false),
         );
         return [prefix, matching] as [string, typeof nodeTypes];
       })
@@ -53,7 +53,7 @@ export function NodePalette() {
       event.dataTransfer.setData("application/noda-node-type", nodeType);
       event.dataTransfer.effectAllowed = "move";
     },
-    []
+    [],
   );
 
   return (
@@ -85,7 +85,9 @@ export function NodePalette() {
                 onClick={() => toggleGroup(prefix)}
                 className="w-full flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
               >
-                <span className={`w-2 h-2 rounded-full ${style.bg} ${style.border} border`} />
+                <span
+                  className={`w-2 h-2 rounded-full ${style.bg} ${style.border} border`}
+                />
                 <span className="flex-1 text-left capitalize">{prefix}</span>
                 <span className="text-gray-400">{isCollapsed ? "+" : "−"}</span>
               </button>
@@ -98,7 +100,10 @@ export function NodePalette() {
                     title={nt.description}
                     className="group flex items-center gap-1.5 px-4 py-1 cursor-grab active:cursor-grabbing hover:bg-blue-50 text-xs text-gray-700"
                   >
-                    <GripVertical size={10} className="text-gray-300 shrink-0" />
+                    <GripVertical
+                      size={10}
+                      className="text-gray-300 shrink-0"
+                    />
                     <span className="truncate flex-1">{nt.type}</span>
                     {nodeDocIndex[nt.type] && (
                       <button

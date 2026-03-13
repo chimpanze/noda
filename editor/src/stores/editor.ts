@@ -11,7 +11,7 @@ import type {
 } from "@/types";
 import * as api from "@/api/client";
 import * as history from "@/stores/history";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 import { autoLayout } from "@/components/canvas/autoLayout";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
@@ -40,17 +40,26 @@ interface EditorState {
 
   // Workflow mutations
   updateNodeConfig: (nodeId: string, config: Record<string, unknown>) => void;
-  updateNodeServices: (nodeId: string, services: Record<string, string>) => void;
+  updateNodeServices: (
+    nodeId: string,
+    services: Record<string, string>,
+  ) => void;
   renameNode: (oldId: string, newId: string) => void;
   updateNodeAlias: (nodeId: string, alias: string | undefined) => void;
   addNode: (node: WorkflowNode) => void;
   removeNode: (nodeId: string) => void;
-  updateNodePosition: (nodeId: string, position: { x: number; y: number }) => void;
+  updateNodePosition: (
+    nodeId: string,
+    position: { x: number; y: number },
+  ) => void;
   addEdge: (edge: WorkflowEdge) => void;
   removeEdge: (from: string, output: string, to: string) => void;
   updateEdgeRetry: (index: number, retry: WorkflowEdge["retry"]) => void;
   setWorkflow: (wf: WorkflowConfig) => void;
-  updateWorkflowMeta: (patch: { description?: string; version?: string }) => void;
+  updateWorkflowMeta: (patch: {
+    description?: string;
+    version?: string;
+  }) => void;
 
   // History
   undo: () => void;
@@ -107,16 +116,16 @@ function normalizeWorkflow(raw: Record<string, unknown>): WorkflowConfig {
     nodes = rawNodes as WorkflowNode[];
   } else if (rawNodes && typeof rawNodes === "object") {
     // Convert { nodeId: { type, config, ... } } → [{ id, type, config, ... }]
-    nodes = Object.entries(rawNodes as Record<string, Record<string, unknown>>).map(
-      ([id, node]) => ({
-        id,
-        type: node.type as string,
-        config: node.config as Record<string, unknown> | undefined,
-        as: node.as as string | undefined,
-        services: node.services as Record<string, string> | undefined,
-        position: node.position as { x: number; y: number } | undefined,
-      })
-    );
+    nodes = Object.entries(
+      rawNodes as Record<string, Record<string, unknown>>,
+    ).map(([id, node]) => ({
+      id,
+      type: node.type as string,
+      config: node.config as Record<string, unknown> | undefined,
+      as: node.as as string | undefined,
+      services: node.services as Record<string, string> | undefined,
+      position: node.position as { x: number; y: number } | undefined,
+    }));
   } else {
     nodes = [];
   }
@@ -149,7 +158,7 @@ function normalizeWorkflow(raw: Record<string, unknown>): WorkflowConfig {
  */
 function denormalizeWorkflow(
   wf: WorkflowConfig,
-  original: Record<string, unknown>
+  original: Record<string, unknown>,
 ): Record<string, unknown> {
   const nodesMap: Record<string, Record<string, unknown>> = {};
   for (const node of wf.nodes) {
@@ -171,7 +180,11 @@ function denormalizeWorkflow(
   });
 
   // Preserve top-level fields from the original file (id, name, etc.)
-  const result: Record<string, unknown> = { ...original, nodes: nodesMap, edges };
+  const result: Record<string, unknown> = {
+    ...original,
+    nodes: nodesMap,
+    edges,
+  };
   if (wf.description) result.description = wf.description;
   else delete result.description;
   if (wf.version) result.version = wf.version;
@@ -209,7 +222,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   openTabs: [],
   setActiveWorkflow: (path) => {
     if (path === null) {
-      set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null });
+      set({
+        activeWorkflowPath: null,
+        activeWorkflow: null,
+        _rawWorkflow: null,
+        selectedNodeId: null,
+        selectedNodeIds: new Set(),
+        selectedEdgeIndex: null,
+      });
     } else {
       // Add to tabs if not already open
       const tabs = get().openTabs;
@@ -228,7 +248,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (newTabs.length > 0) {
         get().loadWorkflow(newTabs[newTabs.length - 1]);
       } else {
-        set({ activeWorkflowPath: null, activeWorkflow: null, _rawWorkflow: null, selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null });
+        set({
+          activeWorkflowPath: null,
+          activeWorkflow: null,
+          _rawWorkflow: null,
+          selectedNodeId: null,
+          selectedNodeIds: new Set(),
+          selectedEdgeIndex: null,
+        });
       }
     }
   },
@@ -237,7 +264,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     let data = normalizeWorkflow(raw);
 
     // Auto-layout on first load when no nodes have saved positions
-    const needsLayout = data.nodes.length > 0 && data.nodes.every((n) => !n.position);
+    const needsLayout =
+      data.nodes.length > 0 && data.nodes.every((n) => !n.position);
     if (needsLayout) {
       data = await autoLayout(data);
     }
@@ -258,7 +286,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeWorkflow || !activeWorkflowPath) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const nodes = activeWorkflow.nodes.map((n) =>
-      n.id === nodeId ? { ...n, config } : n
+      n.id === nodeId ? { ...n, config } : n,
     );
     set({ activeWorkflow: { ...activeWorkflow, nodes } });
     get()._debounceSave();
@@ -266,12 +294,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   renameNode: (oldId, newId) => {
     const { activeWorkflow, activeWorkflowPath } = get();
-    if (!activeWorkflow || !activeWorkflowPath || !newId || oldId === newId) return;
+    if (!activeWorkflow || !activeWorkflowPath || !newId || oldId === newId)
+      return;
     // Check for duplicate
     if (activeWorkflow.nodes.some((n) => n.id === newId)) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const nodes = activeWorkflow.nodes.map((n) =>
-      n.id === oldId ? { ...n, id: newId } : n
+      n.id === oldId ? { ...n, id: newId } : n,
     );
     const edges = activeWorkflow.edges.map((e) => ({
       ...e,
@@ -290,7 +319,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeWorkflow || !activeWorkflowPath) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const nodes = activeWorkflow.nodes.map((n) =>
-      n.id === nodeId ? { ...n, as: alias } : n
+      n.id === nodeId ? { ...n, as: alias } : n,
     );
     set({ activeWorkflow: { ...activeWorkflow, nodes } });
     get()._debounceSave();
@@ -301,7 +330,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeWorkflow || !activeWorkflowPath) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const nodes = activeWorkflow.nodes.map((n) =>
-      n.id === nodeId ? { ...n, services } : n
+      n.id === nodeId ? { ...n, services } : n,
     );
     set({ activeWorkflow: { ...activeWorkflow, nodes } });
     get()._debounceSave();
@@ -322,7 +351,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const nodes = activeWorkflow.nodes.filter((n) => n.id !== nodeId);
     const edges = activeWorkflow.edges.filter(
-      (e) => e.from !== nodeId && e.to !== nodeId
+      (e) => e.from !== nodeId && e.to !== nodeId,
     );
     const newSelectedIds = new Set(get().selectedNodeIds);
     newSelectedIds.delete(nodeId);
@@ -338,7 +367,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((state) => {
       if (!state.activeWorkflow) return state;
       const nodes = state.activeWorkflow.nodes.map((n) =>
-        n.id === nodeId ? { ...n, position } : n
+        n.id === nodeId ? { ...n, position } : n,
       );
       return { activeWorkflow: { ...state.activeWorkflow, nodes } };
     }),
@@ -347,7 +376,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { activeWorkflow, activeWorkflowPath } = get();
     if (!activeWorkflow || !activeWorkflowPath) return;
     const exists = activeWorkflow.edges.some(
-      (e) => e.from === edge.from && e.output === edge.output && e.to === edge.to
+      (e) =>
+        e.from === edge.from && e.output === edge.output && e.to === edge.to,
     );
     if (exists) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
@@ -361,7 +391,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeWorkflow || !activeWorkflowPath) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const edges = activeWorkflow.edges.filter(
-      (e) => !(e.from === from && e.output === output && e.to === to)
+      (e) => !(e.from === from && e.output === output && e.to === to),
     );
     set({ activeWorkflow: { ...activeWorkflow, edges } });
     get()._debounceSave();
@@ -372,7 +402,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!activeWorkflow || !activeWorkflowPath) return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     const edges = activeWorkflow.edges.map((e, i) =>
-      i === index ? { ...e, retry } : e
+      i === index ? { ...e, retry } : e,
     );
     set({ activeWorkflow: { ...activeWorkflow, edges } });
     get()._debounceSave();
@@ -381,7 +411,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setWorkflow: (wf) => {
     const { activeWorkflow, activeWorkflowPath } = get();
     if (!activeWorkflowPath) return;
-    if (activeWorkflow) history.pushSnapshot(activeWorkflowPath, activeWorkflow);
+    if (activeWorkflow)
+      history.pushSnapshot(activeWorkflowPath, activeWorkflow);
     set({ activeWorkflow: wf });
     get()._debounceSave();
   },
@@ -419,29 +450,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   selectedNodeId: null,
   selectedNodeIds: new Set(),
   selectedEdgeIndex: null,
-  selectNode: (id) => set({
-    selectedNodeId: id,
-    selectedNodeIds: id ? new Set([id]) : new Set(),
-    selectedEdgeIndex: null,
-  }),
+  selectNode: (id) =>
+    set({
+      selectedNodeId: id,
+      selectedNodeIds: id ? new Set([id]) : new Set(),
+      selectedEdgeIndex: null,
+    }),
   setSelectedNodeIds: (ids) => {
     // When multiple nodes are selected, show config panel for the first one
     const arr = Array.from(ids);
     set({
       selectedNodeIds: ids,
-      selectedNodeId: arr.length === 1 ? arr[0] : (arr.length > 0 ? arr[0] : null),
+      selectedNodeId:
+        arr.length === 1 ? arr[0] : arr.length > 0 ? arr[0] : null,
       selectedEdgeIndex: null,
     });
   },
-  selectEdge: (index) => set({ selectedEdgeIndex: index, selectedNodeId: null, selectedNodeIds: new Set() }),
-  deselectAll: () => set({ selectedNodeId: null, selectedNodeIds: new Set(), selectedEdgeIndex: null }),
+  selectEdge: (index) =>
+    set({
+      selectedEdgeIndex: index,
+      selectedNodeId: null,
+      selectedNodeIds: new Set(),
+    }),
+  deselectAll: () =>
+    set({
+      selectedNodeId: null,
+      selectedNodeIds: new Set(),
+      selectedEdgeIndex: null,
+    }),
   removeSelectedNodes: () => {
     const { activeWorkflow, activeWorkflowPath, selectedNodeIds } = get();
-    if (!activeWorkflow || !activeWorkflowPath || selectedNodeIds.size === 0) return;
+    if (!activeWorkflow || !activeWorkflowPath || selectedNodeIds.size === 0)
+      return;
     history.pushSnapshot(activeWorkflowPath, activeWorkflow);
-    const nodes = activeWorkflow.nodes.filter((n) => !selectedNodeIds.has(n.id));
+    const nodes = activeWorkflow.nodes.filter(
+      (n) => !selectedNodeIds.has(n.id),
+    );
     const edges = activeWorkflow.edges.filter(
-      (e) => !selectedNodeIds.has(e.from) && !selectedNodeIds.has(e.to)
+      (e) => !selectedNodeIds.has(e.from) && !selectedNodeIds.has(e.to),
     );
     set({
       activeWorkflow: { ...activeWorkflow, nodes, edges },

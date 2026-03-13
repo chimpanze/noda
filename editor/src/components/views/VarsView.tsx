@@ -3,7 +3,7 @@ import { Plus, Trash2 } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 import type { VarInfo } from "@/types";
 
 interface VarsData {
@@ -35,15 +35,12 @@ export function VarsView() {
     setAllVars(vars);
   }, [vars]);
 
-  const selectVar = useCallback(
-    (v: VarInfo) => {
-      setSelectedName(v.name);
-      setEditName(v.name);
-      setEditValue(v.value);
-      setIsNew(false);
-    },
-    []
-  );
+  const selectVar = useCallback((v: VarInfo) => {
+    setSelectedName(v.name);
+    setEditName(v.name);
+    setEditValue(v.value);
+    setIsNew(false);
+  }, []);
 
   const startNew = useCallback(() => {
     setSelectedName(null);
@@ -105,13 +102,13 @@ export function VarsView() {
   }, [selectedName, files?.vars, reload]);
 
   const selectedVar = allVars.find((v) => v.name === selectedName);
-  const usages = isNew ? [] : selectedVar?.usages ?? [];
+  const usages = isNew ? [] : (selectedVar?.usages ?? []);
 
   const filtered = filter
     ? allVars.filter(
         (v) =>
           v.name.toLowerCase().includes(filter.toLowerCase()) ||
-          v.value.toLowerCase().includes(filter.toLowerCase())
+          v.value.toLowerCase().includes(filter.toLowerCase()),
       )
     : allVars;
 
@@ -204,7 +201,11 @@ export function VarsView() {
                 <input
                   type="text"
                   value={editName}
-                  onChange={(e) => setEditName(e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"))}
+                  onChange={(e) =>
+                    setEditName(
+                      e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"),
+                    )
+                  }
                   className="input-field font-mono"
                   placeholder="e.g. MAIN_DB"
                 />
@@ -228,8 +229,13 @@ export function VarsView() {
                   <button
                     type="button"
                     onClick={() => {
-                      navigator.clipboard.writeText(`{{ $var('${editName}') }}`);
-                      showToast({ type: "success", message: "Copied to clipboard" });
+                      navigator.clipboard.writeText(
+                        `{{ $var('${editName}') }}`,
+                      );
+                      showToast({
+                        type: "success",
+                        message: "Copied to clipboard",
+                      });
                     }}
                     className="text-xs text-blue-500 hover:text-blue-700"
                   >
@@ -241,7 +247,8 @@ export function VarsView() {
               {usages.length > 0 && (
                 <div className="border-t border-gray-200 pt-4">
                   <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-                    Used In ({usages.length} file{usages.length !== 1 ? "s" : ""})
+                    Used In ({usages.length} file
+                    {usages.length !== 1 ? "s" : ""})
                   </h4>
                   <ul className="space-y-1">
                     {usages.map((u) => (

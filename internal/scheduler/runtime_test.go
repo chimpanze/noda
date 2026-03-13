@@ -119,7 +119,7 @@ func TestRuntime_JobFires(t *testing.T) {
 
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	// Wait for at least 1 job run
 	require.Eventually(t, func() bool {
@@ -155,7 +155,7 @@ func TestRuntime_TriggerMetadata(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -198,7 +198,7 @@ func TestRuntime_InputMapping(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -221,7 +221,7 @@ func TestRuntime_JobFailureLogged(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -250,7 +250,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		rt.Stop(context.Background())
+		_ = rt.Stop(context.Background())
 		close(done)
 	}()
 
@@ -273,7 +273,7 @@ func TestRuntime_NextRun(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	next, ok := rt.NextRun("next-job")
 	assert.True(t, ok)
@@ -324,7 +324,7 @@ func TestDistributedLock_Acquire(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -363,7 +363,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 	rt1 := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt1.Start()
 	require.NoError(t, err)
-	defer rt1.Stop(context.Background())
+	defer func() { _ = rt1.Stop(context.Background()) }()
 
 	// Wait for first to acquire and execute
 	require.Eventually(t, func() bool {
@@ -489,7 +489,7 @@ func TestRuntime_MultipleJobs(t *testing.T) {
 	rt := NewRuntime(schedules, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop(context.Background())
+	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
 		history := rt.History()

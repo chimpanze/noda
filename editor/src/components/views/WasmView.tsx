@@ -4,7 +4,7 @@ import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 
 interface WasmRuntimeConfig {
   module: string;
@@ -19,12 +19,16 @@ interface WasmRuntimeConfig {
 export function WasmView() {
   const files = useEditorStore((s) => s.files);
 
-  const [runtimes, setRuntimes] = useState<Record<string, WasmRuntimeConfig>>({});
+  const [runtimes, setRuntimes] = useState<Record<string, WasmRuntimeConfig>>(
+    {},
+  );
   const [rootConfig, setRootConfig] = useState<Record<string, unknown>>({});
   const [rootPath, setRootPath] = useState<string>("");
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
-  const [editRuntime, setEditRuntime] = useState<WasmRuntimeConfig | null>(null);
+  const [editRuntime, setEditRuntime] = useState<WasmRuntimeConfig | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isNew, setIsNew] = useState(false);
@@ -48,7 +52,10 @@ export function WasmView() {
         api.listServices(),
       ]);
       setRootConfig(data);
-      const wasm = (data.wasm_runtimes ?? {}) as Record<string, WasmRuntimeConfig>;
+      const wasm = (data.wasm_runtimes ?? {}) as Record<
+        string,
+        WasmRuntimeConfig
+      >;
       setRuntimes(wasm);
       setServiceNames(services.map((s) => s.name));
 
@@ -57,11 +64,13 @@ export function WasmView() {
       if (files?.connections) {
         await Promise.all(
           files.connections.map(async (path) => {
-            const connData = (await api.readFile(path)) as { endpoints?: Record<string, unknown> };
+            const connData = (await api.readFile(path)) as {
+              endpoints?: Record<string, unknown>;
+            };
             if (connData.endpoints) {
               connNames.push(...Object.keys(connData.endpoints));
             }
-          })
+          }),
         );
       }
       setConnectionNames(connNames);
@@ -89,7 +98,7 @@ export function WasmView() {
       setConfigError(null);
       setIsNew(false);
     },
-    [runtimes]
+    [runtimes],
   );
 
   const startNew = useCallback(() => {
@@ -132,7 +141,8 @@ export function WasmView() {
       )
         delete clean.allow_outbound;
       else {
-        if (!clean.allow_outbound?.http?.length) delete clean.allow_outbound!.http;
+        if (!clean.allow_outbound?.http?.length)
+          delete clean.allow_outbound!.http;
         if (!clean.allow_outbound?.ws?.length) delete clean.allow_outbound!.ws;
       }
       clean.config = customConfig;
@@ -140,7 +150,10 @@ export function WasmView() {
 
       // Update root config
       const updated = structuredClone(rootConfig);
-      const wasmMap = (updated.wasm_runtimes ?? {}) as Record<string, WasmRuntimeConfig>;
+      const wasmMap = (updated.wasm_runtimes ?? {}) as Record<
+        string,
+        WasmRuntimeConfig
+      >;
 
       // If renaming, remove old
       if (!isNew && selectedName && selectedName !== editName) {
@@ -150,7 +163,10 @@ export function WasmView() {
       updated.wasm_runtimes = wasmMap;
 
       await api.writeFile(rootPath, updated);
-      showToast({ type: "success", message: `Wasm runtime "${editName}" saved` });
+      showToast({
+        type: "success",
+        message: `Wasm runtime "${editName}" saved`,
+      });
       setIsNew(false);
       await reload();
       setSelectedName(editName);
@@ -159,16 +175,29 @@ export function WasmView() {
     } finally {
       setSaving(false);
     }
-  }, [editRuntime, editName, rootPath, rootConfig, configJson, isNew, selectedName, reload]);
+  }, [
+    editRuntime,
+    editName,
+    rootPath,
+    rootConfig,
+    configJson,
+    isNew,
+    selectedName,
+    reload,
+  ]);
 
   const handleDelete = useCallback(async () => {
     if (!selectedName || !rootPath) return;
     if (!confirm(`Delete Wasm runtime "${selectedName}"?`)) return;
     try {
       const updated = structuredClone(rootConfig);
-      const wasmMap = (updated.wasm_runtimes ?? {}) as Record<string, WasmRuntimeConfig>;
+      const wasmMap = (updated.wasm_runtimes ?? {}) as Record<
+        string,
+        WasmRuntimeConfig
+      >;
       delete wasmMap[selectedName];
-      updated.wasm_runtimes = Object.keys(wasmMap).length > 0 ? wasmMap : undefined;
+      updated.wasm_runtimes =
+        Object.keys(wasmMap).length > 0 ? wasmMap : undefined;
       await api.writeFile(rootPath, updated);
       showToast({ type: "success", message: `Wasm runtime deleted` });
       setSelectedName(null);
@@ -183,228 +212,249 @@ export function WasmView() {
     (patch: Partial<WasmRuntimeConfig>) => {
       if (editRuntime) setEditRuntime({ ...editRuntime, ...patch });
     },
-    [editRuntime]
+    [editRuntime],
   );
 
   if (loading) {
-    return <div className="p-6 text-sm text-gray-400">Loading Wasm runtimes...</div>;
+    return (
+      <div className="p-6 text-sm text-gray-400">Loading Wasm runtimes...</div>
+    );
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Wasm" subtitle="WebAssembly module configuration and management" />
+      <ViewHeader
+        title="Wasm"
+        subtitle="WebAssembly module configuration and management"
+      />
       <div className="flex-1 flex min-h-0">
-      {/* Runtime list */}
-      <div className="w-72 border-r border-gray-200 overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Wasm Runtimes ({entries.length})
-          </h2>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Plus size={14} />
-            New
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {entries.map(([name, rt]) => (
+        {/* Runtime list */}
+        <div className="w-72 border-r border-gray-200 overflow-y-auto">
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Wasm Runtimes ({entries.length})
+            </h2>
             <button
-              key={name}
-              onClick={() => selectRuntime(name)}
-              className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                selectedName === name && !isNew ? "bg-blue-50" : ""
-              }`}
+              onClick={startNew}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
             >
-              <div className="flex items-center gap-2">
-                <Cpu size={12} className="text-emerald-500 shrink-0" />
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-800 truncate">{name}</div>
-                  <div className="text-xs text-gray-400 truncate">
-                    {rt.tick_rate}Hz &middot; {rt.encoding ?? "json"}
+              <Plus size={14} />
+              New
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {entries.map(([name, rt]) => (
+              <button
+                key={name}
+                onClick={() => selectRuntime(name)}
+                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
+                  selectedName === name && !isNew ? "bg-blue-50" : ""
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Cpu size={12} className="text-emerald-500 shrink-0" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-800 truncate">
+                      {name}
+                    </div>
+                    <div className="text-xs text-gray-400 truncate">
+                      {rt.tick_rate}Hz &middot; {rt.encoding ?? "json"}
+                    </div>
                   </div>
                 </div>
+              </button>
+            ))}
+            {entries.length === 0 && (
+              <div className="p-4 text-sm text-gray-400">
+                No Wasm runtimes configured.
               </div>
-            </button>
-          ))}
-          {entries.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">No Wasm runtimes configured.</div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
 
-      {/* Runtime editor */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {editRuntime ? (
-          <div className="max-w-2xl space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {isNew ? "New Wasm Runtime" : editName}
-              </h3>
-              <div className="flex items-center gap-2">
-                {!isNew && (
+        {/* Runtime editor */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {editRuntime ? (
+            <div className="max-w-2xl space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isNew ? "New Wasm Runtime" : editName}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {!isNew && (
+                    <button
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                    >
+                      <Trash2 size={14} className="inline mr-1" />
+                      Delete
+                    </button>
+                  )}
                   <button
-                    onClick={handleDelete}
-                    className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                    onClick={handleSave}
+                    disabled={saving || !editName || !editRuntime.module}
+                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
                   >
-                    <Trash2 size={14} className="inline mr-1" />
-                    Delete
+                    {saving ? "Saving..." : "Save"}
                   </button>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !editName || !editRuntime.module}
-                  className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
+                </div>
               </div>
-            </div>
 
-            {/* Name */}
-            <Field label="Name">
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="input-field font-mono"
-                placeholder="e.g. game-server"
-              />
-            </Field>
-
-            {/* Module */}
-            <Field label="Module Path">
-              <input
-                type="text"
-                value={editRuntime.module}
-                onChange={(e) => update({ module: e.target.value })}
-                className="input-field font-mono"
-                placeholder="wasm/my_module.wasm"
-              />
-            </Field>
-
-            {/* Tick Rate + Encoding */}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Tick Rate (Hz)">
+              {/* Name */}
+              <Field label="Name">
                 <input
-                  type="number"
-                  min={1}
-                  max={120}
-                  value={editRuntime.tick_rate}
-                  onChange={(e) => update({ tick_rate: parseInt(e.target.value, 10) || 10 })}
-                  className="input-field"
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="input-field font-mono"
+                  placeholder="e.g. game-server"
                 />
               </Field>
-              <Field label="Encoding">
-                <select
-                  value={editRuntime.encoding ?? "json"}
-                  onChange={(e) =>
-                    update({ encoding: e.target.value as "json" | "msgpack" })
-                  }
-                  className="input-field"
-                >
-                  <option value="json">JSON</option>
-                  <option value="msgpack">MessagePack</option>
-                </select>
-              </Field>
-            </div>
 
-            {/* Services */}
-            <Field label="Service Access">
-              <DropdownPicker
-                selected={editRuntime.services ?? []}
-                options={serviceNames}
-                onChange={(services) => update({ services })}
-                placeholder="Add service..."
-              />
-            </Field>
-
-            {/* Connections */}
-            <Field label="Connection Access">
-              <DropdownPicker
-                selected={editRuntime.connections ?? []}
-                options={connectionNames}
-                onChange={(connections) => update({ connections })}
-                placeholder="Add connection..."
-              />
-            </Field>
-
-            {/* Outbound */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Outbound Whitelist
-              </h4>
-              <Field label="HTTP Hosts">
-                <StringListEditor
-                  values={editRuntime.allow_outbound?.http ?? []}
-                  onChange={(http) =>
-                    update({ allow_outbound: { ...editRuntime.allow_outbound, http } })
-                  }
-                  placeholder="e.g. api.example.com"
+              {/* Module */}
+              <Field label="Module Path">
+                <input
+                  type="text"
+                  value={editRuntime.module}
+                  onChange={(e) => update({ module: e.target.value })}
+                  className="input-field font-mono"
+                  placeholder="wasm/my_module.wasm"
                 />
               </Field>
-              <div className="mt-3">
-                <Field label="WebSocket Hosts">
-                  <StringListEditor
-                    values={editRuntime.allow_outbound?.ws ?? []}
-                    onChange={(ws) =>
-                      update({ allow_outbound: { ...editRuntime.allow_outbound, ws } })
+
+              {/* Tick Rate + Encoding */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Tick Rate (Hz)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={120}
+                    value={editRuntime.tick_rate}
+                    onChange={(e) =>
+                      update({ tick_rate: parseInt(e.target.value, 10) || 10 })
                     }
-                    placeholder="e.g. gateway.discord.gg"
+                    className="input-field"
                   />
                 </Field>
-              </div>
-            </div>
-
-            {/* Custom Config (JSON) */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-                Custom Config
-                {configError && (
-                  <span className="ml-2 text-red-500 normal-case font-normal">
-                    Invalid JSON
-                  </span>
-                )}
-              </h4>
-              <div className="border border-gray-300 rounded overflow-hidden">
-                <Editor
-                  height="120px"
-                  language="json"
-                  value={configJson}
-                  onChange={(v) => {
-                    const val = v ?? "";
-                    setConfigJson(val);
-                    try {
-                      JSON.parse(val);
-                      setConfigError(null);
-                    } catch (e) {
-                      setConfigError((e as Error).message);
+                <Field label="Encoding">
+                  <select
+                    value={editRuntime.encoding ?? "json"}
+                    onChange={(e) =>
+                      update({ encoding: e.target.value as "json" | "msgpack" })
                     }
-                  }}
-                  options={{
-                    minimap: { enabled: false },
-                    fontSize: 13,
-                    scrollBeyondLastLine: false,
-                    wordWrap: "on",
-                    lineNumbers: "on",
-                  }}
+                    className="input-field"
+                  >
+                    <option value="json">JSON</option>
+                    <option value="msgpack">MessagePack</option>
+                  </select>
+                </Field>
+              </div>
+
+              {/* Services */}
+              <Field label="Service Access">
+                <DropdownPicker
+                  selected={editRuntime.services ?? []}
+                  options={serviceNames}
+                  onChange={(services) => update({ services })}
+                  placeholder="Add service..."
                 />
+              </Field>
+
+              {/* Connections */}
+              <Field label="Connection Access">
+                <DropdownPicker
+                  selected={editRuntime.connections ?? []}
+                  options={connectionNames}
+                  onChange={(connections) => update({ connections })}
+                  placeholder="Add connection..."
+                />
+              </Field>
+
+              {/* Outbound */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                  Outbound Whitelist
+                </h4>
+                <Field label="HTTP Hosts">
+                  <StringListEditor
+                    values={editRuntime.allow_outbound?.http ?? []}
+                    onChange={(http) =>
+                      update({
+                        allow_outbound: { ...editRuntime.allow_outbound, http },
+                      })
+                    }
+                    placeholder="e.g. api.example.com"
+                  />
+                </Field>
+                <div className="mt-3">
+                  <Field label="WebSocket Hosts">
+                    <StringListEditor
+                      values={editRuntime.allow_outbound?.ws ?? []}
+                      onChange={(ws) =>
+                        update({
+                          allow_outbound: { ...editRuntime.allow_outbound, ws },
+                        })
+                      }
+                      placeholder="e.g. gateway.discord.gg"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Custom Config (JSON) */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  Custom Config
+                  {configError && (
+                    <span className="ml-2 text-red-500 normal-case font-normal">
+                      Invalid JSON
+                    </span>
+                  )}
+                </h4>
+                <div className="border border-gray-300 rounded overflow-hidden">
+                  <Editor
+                    height="120px"
+                    language="json"
+                    value={configJson}
+                    onChange={(v) => {
+                      const val = v ?? "";
+                      setConfigJson(val);
+                      try {
+                        JSON.parse(val);
+                        setConfigError(null);
+                      } catch (e) {
+                        setConfigError((e as Error).message);
+                      }
+                    }}
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      scrollBeyondLastLine: false,
+                      wordWrap: "on",
+                      lineNumbers: "on",
+                    }}
+                  />
+                </div>
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="text-sm text-gray-400">
-            Select a Wasm runtime to edit or click "New" to create one.
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="text-sm text-gray-400">
+              Select a Wasm runtime to edit or click "New" to create one.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
@@ -457,7 +507,9 @@ function DropdownPicker({
         {options
           .filter((n) => !selected.includes(n))
           .map((n) => (
-            <option key={n} value={n}>{n}</option>
+            <option key={n} value={n}>
+              {n}
+            </option>
           ))}
       </select>
     </>

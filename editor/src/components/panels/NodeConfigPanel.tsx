@@ -61,32 +61,39 @@ export function NodeConfigPanel() {
   const descriptor = nodeTypes.find((nt) => nt.type === node?.type);
 
   // Fetch schema when node type changes
+  const nodeType = node?.type;
   useEffect(() => {
-    if (!node?.type) {
-      setSchema(null);
-      return;
-    }
+    if (!nodeType) return;
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- synchronous loading indicator before async fetch
     setLoading(true);
-    api.getNodeSchema(node.type).then((s) => {
-      if (!cancelled) {
-        setSchema(Object.keys(s).length > 0 ? (s as RJSFSchema) : null);
-        setLoading(false);
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        setSchema(null);
-        setLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
-  }, [node?.type]);
+    api
+      .getNodeSchema(nodeType)
+      .then((s) => {
+        if (!cancelled) {
+          setSchema(Object.keys(s).length > 0 ? (s as RJSFSchema) : null);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSchema(null);
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+      setSchema(null);
+    };
+  }, [nodeType]);
 
   // Update expression autocomplete context when node selection changes
   const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
   useEffect(() => {
     if (!activeWorkflowPath || !selectedNodeId) return;
-    const wfName = activeWorkflowPath.replace(/^workflows\//, "").replace(/\.json$/, "");
+    const wfName = activeWorkflowPath
+      .replace(/^workflows\//, "")
+      .replace(/\.json$/, "");
     updateExpressionContext(wfName, selectedNodeId);
   }, [activeWorkflowPath, selectedNodeId]);
 
@@ -96,7 +103,7 @@ export function NodeConfigPanel() {
         updateNodeConfig(selectedNodeId, data.formData);
       }
     },
-    [selectedNodeId, updateNodeConfig]
+    [selectedNodeId, updateNodeConfig],
   );
 
   const onServicesChange = useCallback(
@@ -106,7 +113,7 @@ export function NodeConfigPanel() {
       if (!value) delete services[slot];
       updateNodeServices(selectedNodeId, services);
     },
-    [selectedNodeId, node, updateNodeServices]
+    [selectedNodeId, node, updateNodeServices],
   );
 
   if (!selectedNodeId || !node) {
@@ -142,10 +149,8 @@ export function NodeConfigPanel() {
         uiSchema[key] = { "ui:field": "cookieArray" };
       } else if (
         p.type === "array" &&
-        (
-          (p.items && (p.items as Record<string, unknown>)?.type === "string") ||
-          key === "select"
-        )
+        ((p.items && (p.items as Record<string, unknown>)?.type === "string") ||
+          key === "select")
       ) {
         uiSchema[key] = { "ui:field": "stringArray" };
       } else if (p.type === "array") {
@@ -196,7 +201,9 @@ export function NodeConfigPanel() {
             <input
               type="text"
               value={node.as ?? ""}
-              onChange={(e) => updateNodeAlias(node.id, e.target.value || undefined)}
+              onChange={(e) =>
+                updateNodeAlias(node.id, e.target.value || undefined)
+              }
               className="w-full px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
               placeholder="Optional alias"
             />
@@ -206,23 +213,24 @@ export function NodeConfigPanel() {
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* Service slots */}
-        {descriptor?.service_deps && Object.keys(descriptor.service_deps).length > 0 && (
-          <div>
-            <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-              Services
-            </h4>
-            {Object.entries(descriptor.service_deps).map(([slot, dep]) => (
-              <ServiceSlotWidget
-                key={slot}
-                slot={slot}
-                prefix={dep.prefix}
-                required={dep.required}
-                value={node.services?.[slot] ?? ""}
-                onChange={(value) => onServicesChange(slot, value)}
-              />
-            ))}
-          </div>
-        )}
+        {descriptor?.service_deps &&
+          Object.keys(descriptor.service_deps).length > 0 && (
+            <div>
+              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                Services
+              </h4>
+              {Object.entries(descriptor.service_deps).map(([slot, dep]) => (
+                <ServiceSlotWidget
+                  key={slot}
+                  slot={slot}
+                  prefix={dep.prefix}
+                  required={dep.required}
+                  value={node.services?.[slot] ?? ""}
+                  onChange={(value) => onServicesChange(slot, value)}
+                />
+              ))}
+            </div>
+          )}
 
         {/* Config form */}
         {loading ? (
@@ -240,7 +248,10 @@ export function NodeConfigPanel() {
               onChange={onConfigChange}
               widgets={widgets}
               fields={fields}
-              templates={{ ObjectFieldTemplate: StyledObjectFieldTemplate, FieldTemplate: StyledFieldTemplate }}
+              templates={{
+                ObjectFieldTemplate: StyledObjectFieldTemplate,
+                FieldTemplate: StyledFieldTemplate,
+              }}
               liveValidate
               showErrorList={false}
             >
@@ -261,9 +272,14 @@ export function NodeConfigPanel() {
           </h4>
           <pre className="p-3 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap border border-gray-200">
             {JSON.stringify(
-              { id: node.id, type: node.type, config: node.config, services: node.services },
+              {
+                id: node.id,
+                type: node.type,
+                config: node.config,
+                services: node.services,
+              },
               null,
-              2
+              2,
             )}
           </pre>
         </div>

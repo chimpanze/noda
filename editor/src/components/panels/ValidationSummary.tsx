@@ -10,7 +10,10 @@ export function ValidationSummary() {
   // Group errors by path (which may contain node IDs like "nodes[0].config")
   const grouped = new Map<string, typeof errors>();
   for (const err of errors) {
-    const key = err.path.match(/nodes\[\d+\]/)?.[0] ?? err.path.split(".")[0] ?? "general";
+    const key =
+      err.path.match(/nodes\[\d+\]/)?.[0] ??
+      err.path.split(".")[0] ??
+      "general";
     if (!grouped.has(key)) grouped.set(key, []);
     grouped.get(key)!.push(err);
   }
@@ -34,7 +37,8 @@ export function ValidationSummary() {
                 // Try to extract node ID from path like "nodes[0]"
                 const match = err.path.match(/nodes\[(\d+)\]/);
                 if (match) {
-                  const activeWorkflow = useEditorStore.getState().activeWorkflow;
+                  const activeWorkflow =
+                    useEditorStore.getState().activeWorkflow;
                   const idx = parseInt(match[1], 10);
                   const node = activeWorkflow?.nodes[idx];
                   if (node) selectNode(node.id);

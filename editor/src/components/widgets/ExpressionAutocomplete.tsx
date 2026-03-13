@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 
@@ -30,7 +30,10 @@ export function ExpressionAutocomplete({
   const [showDropdown, setShowDropdown] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
-  const [validationStatus, setValidationStatus] = useState<"valid" | "invalid" | "idle">("idle");
+  const [cursorPos, setCursorPos] = useState(0);
+  const [validationStatus, setValidationStatus] = useState<
+    "valid" | "invalid" | "idle"
+  >("idle");
   const inputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -81,11 +84,12 @@ export function ExpressionAutocomplete({
     } catch {
       // Silently fail
     }
-  }, [workflow, node]);
+  }, [workflow, node, vars]);
 
   // Validate expression on change (debounced)
   useEffect(() => {
     if (!value || !value.includes("{{")) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- reset validation on value change
       setValidationStatus("idle");
       return;
     }
@@ -112,32 +116,6 @@ export function ExpressionAutocomplete({
     };
   }, [value]);
 
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === " " && e.ctrlKey) {
-        e.preventDefault();
-        fetchSuggestions().then(() => setShowDropdown(true));
-        return;
-      }
-
-      if (!showDropdown) return;
-
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        setSelectedIdx((prev) => Math.min(prev + 1, suggestions.length - 1));
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        setSelectedIdx((prev) => Math.max(prev - 1, 0));
-      } else if (e.key === "Enter" && showDropdown && suggestions.length > 0) {
-        e.preventDefault();
-        insertSuggestion(suggestions[selectedIdx]);
-      } else if (e.key === "Escape") {
-        setShowDropdown(false);
-      }
-    },
-    [showDropdown, suggestions, selectedIdx, fetchSuggestions]
-  );
-
   const insertSuggestion = useCallback(
     (suggestion: Suggestion) => {
       const input = inputRef.current;
@@ -161,7 +139,39 @@ export function ExpressionAutocomplete({
 
       setShowDropdown(false);
     },
-    [value, onChange]
+    [value, onChange],
+  );
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === " " && e.ctrlKey) {
+        e.preventDefault();
+        fetchSuggestions().then(() => setShowDropdown(true));
+        return;
+      }
+
+      if (!showDropdown) return;
+
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setSelectedIdx((prev) => Math.min(prev + 1, suggestions.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setSelectedIdx((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === "Enter" && showDropdown && suggestions.length > 0) {
+        e.preventDefault();
+        insertSuggestion(suggestions[selectedIdx]);
+      } else if (e.key === "Escape") {
+        setShowDropdown(false);
+      }
+    },
+    [
+      showDropdown,
+      suggestions,
+      selectedIdx,
+      fetchSuggestions,
+      insertSuggestion,
+    ],
   );
 
   const handleInput = useCallback(
@@ -169,32 +179,37 @@ export function ExpressionAutocomplete({
       const newValue = e.target.value;
       onChange(newValue);
 
+      // Track cursor position for suggestion filtering
+      const pos = e.target.selectionStart ?? newValue.length;
+      setCursorPos(pos);
+
       // Auto-show suggestions when {{ is typed
-      const cursorPos = e.target.selectionStart ?? newValue.length;
-      const before = newValue.slice(0, cursorPos);
+      const before = newValue.slice(0, pos);
       if (before.endsWith("{{") || before.endsWith("{{ ")) {
         fetchSuggestions().then(() => setShowDropdown(true));
       }
     },
-    [onChange, fetchSuggestions]
+    [onChange, fetchSuggestions],
   );
 
   // Filter suggestions based on current input
-  const filteredSuggestions = (() => {
+  const filteredSuggestions = useMemo(() => {
     if (!showDropdown) return [];
-    const cursorPos = inputRef.current?.selectionStart ?? value.length;
     const before = value.slice(0, cursorPos);
     const openIdx = before.lastIndexOf("{{");
     if (openIdx < 0) return suggestions;
 
-    const partial = before.slice(openIdx + 2).trim().toLowerCase();
+    const partial = before
+      .slice(openIdx + 2)
+      .trim()
+      .toLowerCase();
     if (!partial) return suggestions;
     return suggestions.filter(
       (s) =>
         s.label.toLowerCase().includes(partial) ||
-        s.description.toLowerCase().includes(partial)
+        s.description.toLowerCase().includes(partial),
     );
-  })();
+  }, [showDropdown, value, cursorPos, suggestions]);
 
   return (
     <div className="relative">
@@ -216,7 +231,11 @@ export function ExpressionAutocomplete({
             className={`w-2 h-2 rounded-full shrink-0 ${
               validationStatus === "valid" ? "bg-green-500" : "bg-red-500"
             }`}
-            title={validationStatus === "valid" ? "Expression valid" : "Expression invalid"}
+            title={
+              validationStatus === "valid"
+                ? "Expression valid"
+                : "Expression invalid"
+            }
           />
         )}
       </div>
@@ -233,14 +252,18 @@ export function ExpressionAutocomplete({
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => insertSuggestion(s)}
               className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
-                i === selectedIdx ? "bg-blue-50 text-blue-800" : "hover:bg-gray-50"
+                i === selectedIdx
+                  ? "bg-blue-50 text-blue-800"
+                  : "hover:bg-gray-50"
               }`}
             >
               <span className="px-1 py-0.5 text-[10px] font-mono bg-gray-100 rounded text-gray-500 shrink-0">
                 {s.type}
               </span>
               <span className="font-mono text-gray-800">{s.label}</span>
-              <span className="text-xs text-gray-400 truncate ml-auto">{s.description}</span>
+              <span className="text-xs text-gray-400 truncate ml-auto">
+                {s.description}
+              </span>
             </button>
           ))}
         </div>

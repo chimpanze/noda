@@ -5,7 +5,7 @@ import Editor from "@monaco-editor/react";
 export function EnumSelectWidget(props: WidgetProps) {
   const { value, onChange, label, required, readonly, options } = props;
   const [exprMode, setExprMode] = useState(
-    typeof value === "string" && value.includes("{{")
+    typeof value === "string" && value.includes("{{"),
   );
 
   const enumOptions = (options.enumOptions ?? []) as Array<{
@@ -17,7 +17,7 @@ export function EnumSelectWidget(props: WidgetProps) {
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       onChange(e.target.value);
     },
-    [onChange]
+    [onChange],
   );
 
   return (

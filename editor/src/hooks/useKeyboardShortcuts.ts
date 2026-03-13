@@ -16,7 +16,10 @@ export function useKeyboardShortcuts() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const closeShortcuts = useCallback(() => setShowShortcuts(false), []);
   const [showCommandPalette, setShowCommandPalette] = useState(false);
-  const closeCommandPalette = useCallback(() => setShowCommandPalette(false), []);
+  const closeCommandPalette = useCallback(
+    () => setShowCommandPalette(false),
+    [],
+  );
 
   useEffect(() => {
     function handler(e: KeyboardEvent) {
@@ -90,8 +93,12 @@ export function useKeyboardShortcuts() {
         e.preventDefault();
         const state = useEditorStore.getState();
         if (!state.activeWorkflow) return;
-        const ids = state.selectedNodeIds.size > 0 ? state.selectedNodeIds
-          : state.selectedNodeId ? new Set([state.selectedNodeId]) : null;
+        const ids =
+          state.selectedNodeIds.size > 0
+            ? state.selectedNodeIds
+            : state.selectedNodeId
+              ? new Set([state.selectedNodeId])
+              : null;
         if (!ids || ids.size === 0) return;
         copyNodes(state.activeWorkflow.nodes, state.activeWorkflow.edges, ids);
         return;
@@ -153,5 +160,10 @@ export function useKeyboardShortcuts() {
     return () => document.removeEventListener("keydown", handler);
   }, [undo, redo, saveWorkflow, deselectAll]);
 
-  return { showShortcuts, closeShortcuts, showCommandPalette, closeCommandPalette };
+  return {
+    showShortcuts,
+    closeShortcuts,
+    showCommandPalette,
+    closeCommandPalette,
+  };
 }

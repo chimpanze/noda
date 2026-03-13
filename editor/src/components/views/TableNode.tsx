@@ -24,13 +24,20 @@ function TableNodeComponent({ data }: NodeProps) {
 
   return (
     <div className="bg-white border-2 border-gray-300 rounded-lg shadow-sm min-w-[180px] overflow-hidden">
-      <Handle type="target" position={Position.Left} className="!bg-blue-400 !w-2 !h-2" />
+      <Handle
+        type="target"
+        position={Position.Left}
+        className="!bg-blue-400 !w-2 !h-2"
+      />
       <div className="bg-blue-500 text-white px-3 py-1.5 text-sm font-semibold">
         {d.label}
       </div>
       <div className="divide-y divide-gray-100">
         {columns.map(([name, col]) => (
-          <div key={name} className="flex items-center gap-1.5 px-3 py-1 text-xs">
+          <div
+            key={name}
+            className="flex items-center gap-1.5 px-3 py-1 text-xs"
+          >
             {col.primary_key ? (
               <Key size={10} className="text-yellow-500 shrink-0" />
             ) : fkCols.has(name) ? (
@@ -43,7 +50,11 @@ function TableNodeComponent({ data }: NodeProps) {
           </div>
         ))}
       </div>
-      <Handle type="source" position={Position.Right} className="!bg-blue-400 !w-2 !h-2" />
+      <Handle
+        type="source"
+        position={Position.Right}
+        className="!bg-blue-400 !w-2 !h-2"
+      />
     </div>
   );
 }

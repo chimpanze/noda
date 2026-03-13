@@ -24,15 +24,13 @@ const STATUS_CODES = [
 export function StatusCodeWidget(props: WidgetProps) {
   const { value, onChange, label, required, readonly } = props;
   const strValue = value != null ? String(value) : "";
-  const [exprMode, setExprMode] = useState(
-    strValue.includes("{{")
-  );
+  const [exprMode, setExprMode] = useState(strValue.includes("{{"));
 
   const handleSelectChange = useCallback(
     (e: React.ChangeEvent<HTMLSelectElement>) => {
       onChange(e.target.value);
     },
-    [onChange]
+    [onChange],
   );
 
   return (

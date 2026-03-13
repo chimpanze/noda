@@ -14,7 +14,10 @@ function getWsUrl(): string {
 export function connectTrace() {
   const store = useTraceStore.getState();
 
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+  if (
+    ws &&
+    (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+  ) {
     return;
   }
 

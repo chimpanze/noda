@@ -11,7 +11,7 @@ import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocompl
 export function ExpressionWidget(props: WidgetProps) {
   const { value, onChange, label, required, readonly } = props;
   const [useMonaco, setUseMonaco] = useState(
-    typeof value === "string" && value.includes("{{")
+    typeof value === "string" && value.includes("{{"),
   );
   const [validationError, setValidationError] = useState<string | null>(null);
   const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -22,9 +22,12 @@ export function ExpressionWidget(props: WidgetProps) {
     ?.replace(/^workflows\//, "")
     .replace(/\.json$/, "");
 
-  const handleMonacoMount = useCallback((_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
-    registerExpressionLanguage(monaco);
-  }, []);
+  const handleMonacoMount = useCallback(
+    (_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
+      registerExpressionLanguage(monaco);
+    },
+    [],
+  );
 
   // Debounced expression validation
   const validateExpression = useCallback((val: string) => {
@@ -36,7 +39,9 @@ export function ExpressionWidget(props: WidgetProps) {
     validateTimer.current = setTimeout(async () => {
       try {
         const result = await api.validateExpression(val);
-        setValidationError(result.valid ? null : (result.error ?? "Invalid expression"));
+        setValidationError(
+          result.valid ? null : (result.error ?? "Invalid expression"),
+        );
       } catch {
         // API not available — skip validation
         setValidationError(null);
@@ -57,7 +62,7 @@ export function ExpressionWidget(props: WidgetProps) {
       onChange(v);
       validateExpression(v);
     },
-    [onChange, validateExpression]
+    [onChange, validateExpression],
   );
 
   return (
@@ -76,7 +81,9 @@ export function ExpressionWidget(props: WidgetProps) {
         </button>
       </div>
       {useMonaco ? (
-        <div className={`border rounded overflow-hidden ${validationError ? "border-red-400" : "border-gray-300"}`}>
+        <div
+          className={`border rounded overflow-hidden ${validationError ? "border-red-400" : "border-gray-300"}`}
+        >
           <Editor
             height="60px"
             language="plaintext"
@@ -121,7 +128,10 @@ export function ExpressionWidget(props: WidgetProps) {
         />
       )}
       {validationError && (
-        <p className="mt-0.5 text-xs text-red-500 truncate" title={validationError}>
+        <p
+          className="mt-0.5 text-xs text-red-500 truncate"
+          title={validationError}
+        >
           {validationError}
         </p>
       )}
@@ -141,9 +151,12 @@ export function ExpressionEditor({
   height?: string;
   readOnly?: boolean;
 }) {
-  const handleMount = useCallback((_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
-    registerExpressionLanguage(monaco);
-  }, []);
+  const handleMount = useCallback(
+    (_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
+      registerExpressionLanguage(monaco);
+    },
+    [],
+  );
 
   return (
     <div className="border border-gray-300 rounded overflow-hidden">

@@ -1,9 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
-import { CheckCircle, XCircle, HelpCircle, RefreshCw, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import {
+  CheckCircle,
+  XCircle,
+  HelpCircle,
+  RefreshCw,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 import type { ServiceInfo, PluginInfo } from "@/types";
 
 type Tab = "registered" | "defined";
@@ -13,7 +20,10 @@ export function ServicesView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Services" subtitle="Plugin service instances and health status" />
+      <ViewHeader
+        title="Services"
+        subtitle="Plugin service instances and health status"
+      />
       {/* Tab bar */}
       <div className="border-b border-gray-200 px-6 flex gap-4">
         {(["registered", "defined"] as const).map((t) => (
@@ -46,7 +56,10 @@ function RegisteredTab() {
 
   const loadData = useCallback(async () => {
     try {
-      const [svc, plg] = await Promise.all([api.listServices(), api.listPlugins()]);
+      const [svc, plg] = await Promise.all([
+        api.listServices(),
+        api.listPlugins(),
+      ]);
       setServices(svc);
       setPlugins(plg);
     } finally {
@@ -81,7 +94,9 @@ function RegisteredTab() {
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-3xl">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Registered Services</h2>
+          <h2 className="text-lg font-semibold text-gray-900">
+            Registered Services
+          </h2>
           <button
             onClick={refresh}
             disabled={refreshing}
@@ -94,13 +109,18 @@ function RegisteredTab() {
 
         <div className="mb-6 grid grid-cols-3 gap-3">
           {plugins.map((p) => (
-            <div key={p.prefix} className="border border-gray-200 rounded-lg p-3">
+            <div
+              key={p.prefix}
+              className="border border-gray-200 rounded-lg p-3"
+            >
               <div className="text-sm font-medium text-gray-800">{p.name}</div>
               <div className="text-xs text-gray-400 mt-0.5">
                 {p.prefix}.* · {p.node_count} nodes
               </div>
               {p.description && (
-                <div className="text-xs text-gray-400 mt-1">{p.description}</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {p.description}
+                </div>
               )}
             </div>
           ))}
@@ -113,10 +133,15 @@ function RegisteredTab() {
             </h3>
             <div className="border border-gray-200 rounded-lg divide-y divide-gray-100">
               {svcs.map((svc) => (
-                <div key={svc.name} className="px-4 py-3 flex items-center gap-3">
+                <div
+                  key={svc.name}
+                  className="px-4 py-3 flex items-center gap-3"
+                >
                   <HealthIcon health={svc.health} />
                   <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium text-gray-800">{svc.name}</div>
+                    <div className="text-sm font-medium text-gray-800">
+                      {svc.name}
+                    </div>
                     <div className="text-xs text-gray-400">{svc.prefix}</div>
                   </div>
                   <span
@@ -131,7 +156,10 @@ function RegisteredTab() {
                     {svc.health}
                   </span>
                   {svc.error && (
-                    <span className="text-xs text-red-500 truncate max-w-48" title={svc.error}>
+                    <span
+                      className="text-xs text-red-500 truncate max-w-48"
+                      title={svc.error}
+                    >
                       {svc.error}
                     </span>
                   )}
@@ -172,7 +200,9 @@ function DefinedTab() {
   // Editor state
   const [editName, setEditName] = useState("");
   const [editPlugin, setEditPlugin] = useState("");
-  const [editConfigRows, setEditConfigRows] = useState<{ key: string; value: string }[]>([]);
+  const [editConfigRows, setEditConfigRows] = useState<
+    { key: string; value: string }[]
+  >([]);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -195,7 +225,10 @@ function DefinedTab() {
     reload();
   }, [reload]);
 
-  const services = (rootConfig.services ?? {}) as Record<string, DefinedService>;
+  const services = useMemo(
+    () => (rootConfig.services ?? {}) as Record<string, DefinedService>,
+    [rootConfig.services],
+  );
   const serviceNames = Object.keys(services);
   const servicePlugins = plugins.filter((p) => p.has_services);
 
@@ -210,10 +243,10 @@ function DefinedTab() {
         Object.entries(svc?.config ?? {}).map(([k, v]) => ({
           key: k,
           value: String(v),
-        }))
+        })),
       );
     },
-    [services]
+    [services],
   );
 
   const startNew = useCallback(() => {
@@ -257,7 +290,16 @@ function DefinedTab() {
     } finally {
       setSaving(false);
     }
-  }, [editName, editPlugin, editConfigRows, rootPath, rootConfig, isNew, selectedName, reload]);
+  }, [
+    editName,
+    editPlugin,
+    editConfigRows,
+    rootPath,
+    rootConfig,
+    isNew,
+    selectedName,
+    reload,
+  ]);
 
   const deleteService = useCallback(async () => {
     if (!selectedName || !rootPath) return;
@@ -311,11 +353,15 @@ function DefinedTab() {
               }`}
             >
               <div className="text-sm font-medium text-gray-800">{name}</div>
-              <div className="text-xs text-gray-400">plugin: {services[name].plugin}</div>
+              <div className="text-xs text-gray-400">
+                plugin: {services[name].plugin}
+              </div>
             </button>
           ))}
           {serviceNames.length === 0 && (
-            <div className="p-4 text-xs text-gray-400">No services defined.</div>
+            <div className="p-4 text-xs text-gray-400">
+              No services defined.
+            </div>
           )}
         </div>
       </div>
@@ -367,7 +413,8 @@ function DefinedTab() {
                 <option value="">Select plugin...</option>
                 {servicePlugins.map((p) => (
                   <option key={p.prefix} value={p.prefix}>
-                    {p.prefix} ({p.name}){p.description ? ` — ${p.description}` : ""}
+                    {p.prefix} ({p.name})
+                    {p.description ? ` — ${p.description}` : ""}
                   </option>
                 ))}
               </select>
@@ -400,7 +447,11 @@ function DefinedTab() {
                       placeholder="value"
                     />
                     <button
-                      onClick={() => setEditConfigRows(editConfigRows.filter((_, j) => j !== i))}
+                      onClick={() =>
+                        setEditConfigRows(
+                          editConfigRows.filter((_, j) => j !== i),
+                        )
+                      }
                       className="text-gray-400 hover:text-red-500 shrink-0"
                     >
                       <Trash2 size={14} />
@@ -408,7 +459,12 @@ function DefinedTab() {
                   </div>
                 ))}
                 <button
-                  onClick={() => setEditConfigRows([...editConfigRows, { key: "", value: "" }])}
+                  onClick={() =>
+                    setEditConfigRows([
+                      ...editConfigRows,
+                      { key: "", value: "" },
+                    ])
+                  }
                   className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
                 >
                   <Plus size={12} />
@@ -429,7 +485,13 @@ function DefinedTab() {
 
 /* ─── Shared components ─── */
 
-function FieldLabel({ label, children }: { label: string; children: React.ReactNode }) {
+function FieldLabel({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-gray-400 uppercase block mb-1">

@@ -1,9 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { FieldProps } from "@rjsf/utils";
 
 export function StringArrayField(props: FieldProps) {
   const { formData, onChange, schema, name, fieldPathId } = props;
-  const items: string[] = Array.isArray(formData) ? formData : [];
+  const items: string[] = useMemo(
+    () => (Array.isArray(formData) ? formData : []),
+    [formData],
+  );
   const title = schema.title ?? name;
   const path = fieldPathId.path;
 
@@ -13,14 +16,17 @@ export function StringArrayField(props: FieldProps) {
       next[index] = value;
       onChange(next, path);
     },
-    [items, onChange, path]
+    [items, onChange, path],
   );
 
   const removeItem = useCallback(
     (index: number) => {
-      onChange(items.filter((_, i) => i !== index), path);
+      onChange(
+        items.filter((_, i) => i !== index),
+        path,
+      );
     },
-    [items, onChange, path]
+    [items, onChange, path],
   );
 
   const addItem = useCallback(() => {

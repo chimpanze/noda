@@ -26,10 +26,7 @@ export async function readFile(path: string): Promise<unknown> {
   return data;
 }
 
-export async function writeFile(
-  path: string,
-  content: unknown
-): Promise<void> {
+export async function writeFile(path: string, content: unknown): Promise<void> {
   await api.put(`/files/${encodeURIComponent(path)}`, content);
 }
 
@@ -40,7 +37,7 @@ export async function deleteFile(path: string): Promise<void> {
 // Validation
 export async function validateFile(
   path: string,
-  content?: unknown
+  content?: unknown,
 ): Promise<ValidationResult> {
   const { data } = await api.post<ValidationResult>("/validate", {
     path,
@@ -61,21 +58,21 @@ export async function listNodes(): Promise<NodeDescriptor[]> {
 }
 
 export async function getNodeSchema(
-  type: string
+  type: string,
 ): Promise<Record<string, unknown>> {
   const { data } = await api.get<Record<string, unknown>>(
-    `/nodes/${encodeURIComponent(type)}/schema`
+    `/nodes/${encodeURIComponent(type)}/schema`,
   );
   return data;
 }
 
 export async function computeNodeOutputs(
   type: string,
-  config?: Record<string, unknown>
+  config?: Record<string, unknown>,
 ): Promise<string[]> {
   const { data } = await api.post<{ outputs: string[] }>(
     `/nodes/${encodeURIComponent(type)}/outputs`,
-    config ?? {}
+    config ?? {},
   );
   return data.outputs;
 }
@@ -99,23 +96,23 @@ export interface ExpressionContext {
 }
 
 export async function validateExpression(
-  expression: string
+  expression: string,
 ): Promise<ExpressionValidation> {
   const { data } = await api.post<ExpressionValidation>(
     "/expressions/validate",
-    { expression }
+    { expression },
   );
   return data;
 }
 
 export async function getExpressionContext(
   workflow: string,
-  node?: string
+  node?: string,
 ): Promise<ExpressionContext> {
   const params = new URLSearchParams({ workflow });
   if (node) params.set("node", node);
   const { data } = await api.get<ExpressionContext>(
-    `/expressions/context?${params}`
+    `/expressions/context?${params}`,
   );
   return data;
 }
@@ -156,11 +153,11 @@ export interface MigrationPreview {
 }
 
 export async function generateMigration(
-  confirm: boolean = false
+  confirm: boolean = false,
 ): Promise<MigrationPreview> {
   const { data } = await api.post<MigrationPreview>(
     "/models/generate-migration",
-    { confirm }
+    { confirm },
   );
   return data;
 }
@@ -180,10 +177,7 @@ export async function generateCRUD(opts: {
   scope_column?: string;
   scope_param?: string;
 }): Promise<CRUDPreview> {
-  const { data } = await api.post<CRUDPreview>(
-    "/models/generate-crud",
-    opts
-  );
+  const { data } = await api.post<CRUDPreview>("/models/generate-crud", opts);
   return data;
 }
 
@@ -230,9 +224,7 @@ export interface TestRunResult {
   };
 }
 
-export async function runTests(
-  suitePath: string
-): Promise<TestRunResult[]> {
+export async function runTests(suitePath: string): Promise<TestRunResult[]> {
   const { data } = await api.post<TestRunResult[]>("/tests/run", {
     path: suitePath,
   });

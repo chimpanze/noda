@@ -1,20 +1,6 @@
 import { useEffect, useState } from "react";
 import { X, AlertCircle, CheckCircle } from "lucide-react";
-
-export interface ToastMessage {
-  id: string;
-  type: "error" | "success" | "info";
-  message: string;
-  action?: { label: string; onClick: () => void };
-}
-
-let toastId = 0;
-const listeners: Set<(msg: ToastMessage) => void> = new Set();
-
-export function showToast(msg: Omit<ToastMessage, "id">) {
-  const toast: ToastMessage = { ...msg, id: String(++toastId) };
-  listeners.forEach((fn) => fn(toast));
-}
+import { listeners, type ToastMessage } from "@/utils/toast";
 
 export function ToastContainer() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -27,7 +13,9 @@ export function ToastContainer() {
       }, 5000);
     };
     listeners.add(handler);
-    return () => { listeners.delete(handler); };
+    return () => {
+      listeners.delete(handler);
+    };
   }, []);
 
   const dismiss = (id: string) => {
@@ -65,7 +53,10 @@ export function ToastContainer() {
               </button>
             )}
           </div>
-          <button onClick={() => dismiss(toast.id)} className="shrink-0 opacity-60 hover:opacity-100">
+          <button
+            onClick={() => dismiss(toast.id)}
+            className="shrink-0 opacity-60 hover:opacity-100"
+          >
             <X size={14} />
           </button>
         </div>

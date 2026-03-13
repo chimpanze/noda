@@ -8,17 +8,21 @@ import type { NodaEdgeData } from "./NodaEdge";
  */
 export function serializeWorkflow(
   nodes: Node[],
-  edges: Edge[]
+  edges: Edge[],
 ): WorkflowConfig {
   const workflowNodes: WorkflowNode[] = nodes.map((node) => {
     const data = node.data as unknown as NodaNodeData;
     const wn: WorkflowNode = {
       id: node.id,
       type: data.nodeType,
-      position: { x: Math.round(node.position.x), y: Math.round(node.position.y) },
+      position: {
+        x: Math.round(node.position.x),
+        y: Math.round(node.position.y),
+      },
     };
     if (data.alias) wn.as = data.alias;
-    if (data.config && Object.keys(data.config).length > 0) wn.config = data.config;
+    if (data.config && Object.keys(data.config).length > 0)
+      wn.config = data.config;
     return wn;
   });
 
@@ -41,7 +45,7 @@ export function serializeWorkflow(
  */
 export function deserializeWorkflow(
   workflow: WorkflowConfig,
-  outputsByType: Map<string, string[]>
+  outputsByType: Map<string, string[]>,
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = workflow.nodes.map((node, index) => {
     const outputs = outputsByType.get(node.type) ?? ["success", "error"];

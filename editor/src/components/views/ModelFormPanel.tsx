@@ -3,11 +3,23 @@ import { Plus, Trash2, GripVertical } from "lucide-react";
 import type { ModelDefinition, ColumnDef, RelationDef } from "@/types";
 
 const COLUMN_TYPES = [
-  "uuid", "text", "varchar", "integer", "bigint", "boolean",
-  "decimal", "timestamp", "jsonb", "serial",
+  "uuid",
+  "text",
+  "varchar",
+  "integer",
+  "bigint",
+  "boolean",
+  "decimal",
+  "timestamp",
+  "jsonb",
+  "serial",
 ];
 
-const RELATION_TYPES: RelationDef["type"][] = ["belongsTo", "hasMany", "manyToMany"];
+const RELATION_TYPES: RelationDef["type"][] = [
+  "belongsTo",
+  "hasMany",
+  "manyToMany",
+];
 
 interface Props {
   model: ModelDefinition;
@@ -30,7 +42,10 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
   useEffect(() => {
     if (!enumPopoverCol) return;
     const handleClick = (e: MouseEvent) => {
-      if (enumPopoverRef.current && !enumPopoverRef.current.contains(e.target as Node)) {
+      if (
+        enumPopoverRef.current &&
+        !enumPopoverRef.current.contains(e.target as Node)
+      ) {
         setEnumPopoverCol(null);
         setEnumInput("");
       }
@@ -59,7 +74,7 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         },
       });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const renameColumn = useCallback(
@@ -77,7 +92,7 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         for (const [relName, rel] of Object.entries(model.relations)) {
           if (rel.foreign_key === oldName) {
             const doUpdate = confirm(
-              `Column '${oldName}' is used as a foreign key in relation '${relName}'. Update the relation to use '${newName}'?`
+              `Column '${oldName}' is used as a foreign key in relation '${relName}'. Update the relation to use '${newName}'?`,
             );
             if (doUpdate) {
               newRelations = {
@@ -90,21 +105,25 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
       }
       onChange({ ...model, columns: newColumns, relations: newRelations });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const removeColumn = useCallback(
     (name: string) => {
-      const { [name]: _, ...rest } = model.columns;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [name]: _removed, ...rest } = model.columns;
       onChange({ ...model, columns: rest });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const addColumn = useCallback(() => {
     const name = newColName.trim();
     if (!name || model.columns[name]) return;
-    const maxOrder = Math.max(0, ...Object.values(model.columns).map((c) => c.order ?? 0));
+    const maxOrder = Math.max(
+      0,
+      ...Object.values(model.columns).map((c) => c.order ?? 0),
+    );
     onChange({
       ...model,
       columns: {
@@ -121,19 +140,27 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         ...model,
         relations: {
           ...model.relations,
-          [name]: { ...(model.relations?.[name] ?? { type: "belongsTo", table: "", foreign_key: "" }), ...updates },
+          [name]: {
+            ...(model.relations?.[name] ?? {
+              type: "belongsTo",
+              table: "",
+              foreign_key: "",
+            }),
+            ...updates,
+          },
         },
       });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const removeRelation = useCallback(
     (name: string) => {
-      const { [name]: _, ...rest } = model.relations ?? {};
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [name]: _removed, ...rest } = model.relations ?? {};
       onChange({ ...model, relations: rest });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const addRelation = useCallback(() => {
@@ -150,11 +177,17 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
   }, [model, newRelName, onChange]);
 
   const addIndex = useCallback(() => {
-    const cols = newIndexCols.split(",").map((c) => c.trim()).filter(Boolean);
+    const cols = newIndexCols
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
     if (cols.length === 0) return;
     onChange({
       ...model,
-      indexes: [...(model.indexes ?? []), { columns: cols, unique: newIndexUnique || undefined }],
+      indexes: [
+        ...(model.indexes ?? []),
+        { columns: cols, unique: newIndexUnique || undefined },
+      ],
     });
     setNewIndexCols("");
     setNewIndexUnique(false);
@@ -166,7 +199,7 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
       indexes.splice(idx, 1);
       onChange({ ...model, indexes });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const updateIndex = useCallback(
@@ -175,7 +208,7 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
       indexes[idx] = { ...indexes[idx], unique: unique || undefined };
       onChange({ ...model, indexes });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const addEnumValue = useCallback(
@@ -187,7 +220,7 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
       if (existing.includes(trimmed)) return;
       updateColumn(colName, { enum: [...existing, trimmed] });
     },
-    [model, updateColumn]
+    [model, updateColumn],
   );
 
   const removeEnumValue = useCallback(
@@ -196,7 +229,7 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
       const updated = (col.enum ?? []).filter((v) => v !== value);
       updateColumn(colName, { enum: updated.length > 0 ? updated : undefined });
     },
-    [model, updateColumn]
+    [model, updateColumn],
   );
 
   const reorderColumns = useCallback(
@@ -213,18 +246,20 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         },
       });
     },
-    [model, onChange]
+    [model, onChange],
   );
 
   const columnEntries = Object.entries(model.columns).sort(
-    ([, a], [, b]) => (a.order ?? 0) - (b.order ?? 0)
+    ([, a], [, b]) => (a.order ?? 0) - (b.order ?? 0),
   );
 
   return (
     <div className="p-4 space-y-6 overflow-y-auto">
       {/* Table name */}
       <div>
-        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Table Name</label>
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+          Table Name
+        </label>
         <input
           type="text"
           value={model.table}
@@ -241,16 +276,16 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         <div className="border border-gray-200 rounded overflow-visible">
           <table className="w-full text-sm table-fixed">
             <colgroup>
-              <col className="w-7" />        {/* drag handle */}
-              <col style={{ width: "22%" }} />  {/* Name */}
-              <col className="w-24" />        {/* Type */}
-              <col className="w-8" />         {/* PK */}
-              <col className="w-8" />         {/* NN */}
-              <col className="w-16" />        {/* Length */}
-              <col className="w-20" />        {/* P / S */}
-              <col className="w-12" />        {/* Enum */}
-              <col />                         {/* Default — fills remaining */}
-              <col className="w-8" />         {/* delete */}
+              <col className="w-7" /> {/* drag handle */}
+              <col style={{ width: "22%" }} /> {/* Name */}
+              <col className="w-24" /> {/* Type */}
+              <col className="w-8" /> {/* PK */}
+              <col className="w-8" /> {/* NN */}
+              <col className="w-16" /> {/* Length */}
+              <col className="w-20" /> {/* P / S */}
+              <col className="w-12" /> {/* Enum */}
+              <col /> {/* Default — fills remaining */}
+              <col className="w-8" /> {/* delete */}
             </colgroup>
             <thead>
               <tr className="bg-gray-50 text-left text-xs text-gray-500">
@@ -285,7 +320,8 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (dragCol && dragCol !== name) reorderColumns(dragCol, name);
+                    if (dragCol && dragCol !== name)
+                      reorderColumns(dragCol, name);
                     setDragCol(null);
                     setDragOverCol(null);
                   }}
@@ -304,11 +340,13 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                       defaultValue={name}
                       onBlur={(e) => {
                         const newName = e.target.value.trim();
-                        if (newName && newName !== name) renameColumn(name, newName);
+                        if (newName && newName !== name)
+                          renameColumn(name, newName);
                         else e.target.value = name;
                       }}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        if (e.key === "Enter")
+                          (e.target as HTMLInputElement).blur();
                       }}
                       className="text-xs border border-gray-200 rounded px-1 py-0.5 w-full font-mono"
                     />
@@ -316,11 +354,15 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                   <td className="px-2 py-1">
                     <select
                       value={col.type}
-                      onChange={(e) => updateColumn(name, { type: e.target.value })}
+                      onChange={(e) =>
+                        updateColumn(name, { type: e.target.value })
+                      }
                       className="text-xs border border-gray-200 rounded px-1 py-0.5 w-full"
                     >
                       {COLUMN_TYPES.map((t) => (
-                        <option key={t} value={t}>{t}</option>
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
                       ))}
                     </select>
                   </td>
@@ -328,7 +370,11 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                     <input
                       type="checkbox"
                       checked={col.primary_key ?? false}
-                      onChange={(e) => updateColumn(name, { primary_key: e.target.checked || undefined })}
+                      onChange={(e) =>
+                        updateColumn(name, {
+                          primary_key: e.target.checked || undefined,
+                        })
+                      }
                       className="rounded"
                     />
                   </td>
@@ -336,7 +382,11 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                     <input
                       type="checkbox"
                       checked={col.not_null ?? false}
-                      onChange={(e) => updateColumn(name, { not_null: e.target.checked || undefined })}
+                      onChange={(e) =>
+                        updateColumn(name, {
+                          not_null: e.target.checked || undefined,
+                        })
+                      }
                       className="rounded"
                     />
                   </td>
@@ -345,7 +395,13 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                       <input
                         type="number"
                         value={col.max_length ?? ""}
-                        onChange={(e) => updateColumn(name, { max_length: e.target.value ? Number(e.target.value) : undefined })}
+                        onChange={(e) =>
+                          updateColumn(name, {
+                            max_length: e.target.value
+                              ? Number(e.target.value)
+                              : undefined,
+                          })
+                        }
                         className="text-xs border border-gray-200 rounded px-1 py-0.5 w-full"
                         placeholder="255"
                       />
@@ -357,14 +413,26 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                         <input
                           type="number"
                           value={col.precision ?? ""}
-                          onChange={(e) => updateColumn(name, { precision: e.target.value ? Number(e.target.value) : undefined })}
+                          onChange={(e) =>
+                            updateColumn(name, {
+                              precision: e.target.value
+                                ? Number(e.target.value)
+                                : undefined,
+                            })
+                          }
                           className="text-xs border border-gray-200 rounded px-1 py-0.5 w-1/2"
                           placeholder="P"
                         />
                         <input
                           type="number"
                           value={col.scale ?? ""}
-                          onChange={(e) => updateColumn(name, { scale: e.target.value ? Number(e.target.value) : undefined })}
+                          onChange={(e) =>
+                            updateColumn(name, {
+                              scale: e.target.value
+                                ? Number(e.target.value)
+                                : undefined,
+                            })
+                          }
                           className="text-xs border border-gray-200 rounded px-1 py-0.5 w-1/2"
                           placeholder="S"
                         />
@@ -372,11 +440,13 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                     ) : null}
                   </td>
                   <td className="px-1 py-1 relative">
-                    {(col.type === "text" || col.type === "varchar") ? (
+                    {col.type === "text" || col.type === "varchar" ? (
                       <>
                         <button
                           onClick={() => {
-                            setEnumPopoverCol(enumPopoverCol === name ? null : name);
+                            setEnumPopoverCol(
+                              enumPopoverCol === name ? null : name,
+                            );
                             setEnumInput("");
                           }}
                           className="text-xs px-1.5 py-0.5 bg-gray-100 hover:bg-gray-200 rounded text-gray-600 font-mono"
@@ -429,7 +499,11 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                     <input
                       type="text"
                       value={col.default ?? ""}
-                      onChange={(e) => updateColumn(name, { default: e.target.value || undefined })}
+                      onChange={(e) =>
+                        updateColumn(name, {
+                          default: e.target.value || undefined,
+                        })
+                      }
                       className="text-xs border border-gray-200 rounded px-1 py-0.5 w-full font-mono"
                       placeholder="none"
                     />
@@ -472,7 +546,9 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
           <input
             type="checkbox"
             checked={model.timestamps ?? false}
-            onChange={(e) => onChange({ ...model, timestamps: e.target.checked })}
+            onChange={(e) =>
+              onChange({ ...model, timestamps: e.target.checked })
+            }
             className="rounded"
           />
           Timestamps (created_at, updated_at)
@@ -481,7 +557,9 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
           <input
             type="checkbox"
             checked={model.soft_delete ?? false}
-            onChange={(e) => onChange({ ...model, soft_delete: e.target.checked })}
+            onChange={(e) =>
+              onChange({ ...model, soft_delete: e.target.checked })
+            }
             className="rounded"
           />
           Soft Delete (deleted_at)
@@ -495,39 +573,60 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         </h4>
         <div className="space-y-2">
           {Object.entries(model.relations ?? {}).map(([name, rel]) => (
-            <div key={name} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
-              <span className="text-sm font-mono text-gray-700 w-28 shrink-0">{name}</span>
+            <div
+              key={name}
+              className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+            >
+              <span className="text-sm font-mono text-gray-700 w-28 shrink-0">
+                {name}
+              </span>
               <select
                 value={rel.type}
-                onChange={(e) => updateRelation(name, { type: e.target.value as RelationDef["type"] })}
+                onChange={(e) =>
+                  updateRelation(name, {
+                    type: e.target.value as RelationDef["type"],
+                  })
+                }
                 className="text-xs border border-gray-200 rounded px-1 py-0.5"
               >
                 {RELATION_TYPES.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
               <span className="text-xs text-gray-400">to</span>
               <select
                 value={rel.table}
-                onChange={(e) => updateRelation(name, { table: e.target.value })}
+                onChange={(e) =>
+                  updateRelation(name, { table: e.target.value })
+                }
                 className="text-xs border border-gray-200 rounded px-1 py-0.5"
               >
                 <option value="">Select table...</option>
                 {allTables.map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
               <input
                 type="text"
                 value={rel.foreign_key}
-                onChange={(e) => updateRelation(name, { foreign_key: e.target.value })}
+                onChange={(e) =>
+                  updateRelation(name, { foreign_key: e.target.value })
+                }
                 className="text-xs border border-gray-200 rounded px-1 py-0.5 font-mono w-28"
                 placeholder="foreign_key"
               />
               {rel.type === "belongsTo" && (
                 <select
                   value={rel.on_delete ?? ""}
-                  onChange={(e) => updateRelation(name, { on_delete: e.target.value || undefined })}
+                  onChange={(e) =>
+                    updateRelation(name, {
+                      on_delete: e.target.value || undefined,
+                    })
+                  }
                   className="text-xs border border-gray-200 rounded px-1 py-0.5"
                 >
                   <option value="">ON DELETE...</option>
@@ -536,7 +635,10 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                   <option value="RESTRICT">RESTRICT</option>
                 </select>
               )}
-              <button onClick={() => removeRelation(name)} className="ml-auto text-gray-300 hover:text-red-500">
+              <button
+                onClick={() => removeRelation(name)}
+                className="ml-auto text-gray-300 hover:text-red-500"
+              >
                 <Trash2 size={14} />
               </button>
             </div>
@@ -568,7 +670,10 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
         </h4>
         <div className="space-y-1">
           {(model.indexes ?? []).map((idx, i) => (
-            <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+            <div
+              key={i}
+              className="flex items-center gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+            >
               <span className="text-xs font-mono text-gray-700">
                 [{idx.columns.join(", ")}]
               </span>
@@ -582,9 +687,14 @@ export function ModelFormPanel({ model, allTables, onChange }: Props) {
                 Unique
               </label>
               {idx.unique && (
-                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">UNIQUE</span>
+                <span className="text-[10px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded">
+                  UNIQUE
+                </span>
               )}
-              <button onClick={() => removeIndex(i)} className="ml-auto text-gray-300 hover:text-red-500">
+              <button
+                onClick={() => removeIndex(i)}
+                className="ml-auto text-gray-300 hover:text-red-500"
+              >
                 <Trash2 size={14} />
               </button>
             </div>

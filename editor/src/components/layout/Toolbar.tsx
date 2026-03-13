@@ -1,8 +1,21 @@
 import { useRef, useState } from "react";
-import { Undo2, Redo2, LayoutDashboard, Save, ShieldCheck, Download, Upload, FolderDown } from "lucide-react";
+import {
+  Undo2,
+  Redo2,
+  LayoutDashboard,
+  Save,
+  ShieldCheck,
+  Download,
+  Upload,
+  FolderDown,
+} from "lucide-react";
 import { useEditorStore } from "@/stores/editor";
 import { autoLayout } from "@/components/canvas/autoLayout";
-import { exportWorkflow, importWorkflow, exportAllAsZip } from "@/utils/importExport";
+import {
+  exportWorkflow,
+  importWorkflow,
+  exportAllAsZip,
+} from "@/utils/importExport";
 import * as api from "@/api/client";
 
 export function Toolbar() {
@@ -64,8 +77,16 @@ export function Toolbar() {
 
   return (
     <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-200 bg-gray-50 shrink-0">
-      <ToolButton icon={<Undo2 size={16} />} title="Undo (Ctrl+Z)" onClick={undo} />
-      <ToolButton icon={<Redo2 size={16} />} title="Redo (Ctrl+Shift+Z)" onClick={redo} />
+      <ToolButton
+        icon={<Undo2 size={16} />}
+        title="Undo (Ctrl+Z)"
+        onClick={undo}
+      />
+      <ToolButton
+        icon={<Redo2 size={16} />}
+        title="Redo (Ctrl+Shift+Z)"
+        onClick={redo}
+      />
       <div className="w-px h-5 bg-gray-300 mx-1" />
       <ToolButton
         icon={<LayoutDashboard size={16} />}
@@ -104,7 +125,13 @@ export function Toolbar() {
         onClick={onExportAll}
         disabled={!files}
       />
-      <input ref={fileInputRef} type="file" accept=".json" onChange={onImport} className="hidden" />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        onChange={onImport}
+        className="hidden"
+      />
 
       <div className="flex-1" />
 
@@ -126,7 +153,11 @@ export function Toolbar() {
                 : "text-red-500"
           }`}
         >
-          {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : "Error"}
+          {saveStatus === "saving"
+            ? "Saving..."
+            : saveStatus === "saved"
+              ? "Saved"
+              : "Error"}
         </span>
       )}
 
@@ -143,7 +174,11 @@ export function Toolbar() {
 
       {/* Import error */}
       {importError && (
-        <span className="text-xs text-red-500 mr-2 cursor-pointer" onClick={() => setImportError(null)} title="Click to dismiss">
+        <span
+          className="text-xs text-red-500 mr-2 cursor-pointer"
+          onClick={() => setImportError(null)}
+          title="Click to dismiss"
+        >
           Import: {importError}
         </span>
       )}
@@ -151,7 +186,8 @@ export function Toolbar() {
       {/* Validation status */}
       {validationErrors.length > 0 ? (
         <span className="text-xs text-red-600 bg-red-50 px-2 py-0.5 rounded">
-          {validationErrors.length} error{validationErrors.length !== 1 ? "s" : ""}
+          {validationErrors.length} error
+          {validationErrors.length !== 1 ? "s" : ""}
         </span>
       ) : (
         activeWorkflow && (

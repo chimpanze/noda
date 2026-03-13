@@ -8,7 +8,7 @@ const NODE_HEIGHT = 100;
  * ELK is dynamically imported to avoid loading the large library upfront.
  */
 export async function autoLayout(
-  workflow: WorkflowConfig
+  workflow: WorkflowConfig,
 ): Promise<WorkflowConfig> {
   if (workflow.nodes.length === 0) return workflow;
 

@@ -31,7 +31,7 @@ export function NodaNode({ data, selected, id }: NodeProps) {
 
   // Validation errors
   const nodeErrors = validationErrors.filter(
-    (e) => e.path?.includes(id) || e.message?.includes(id)
+    (e) => e.path?.includes(id) || e.message?.includes(id),
   );
   const hasValidationError = nodeErrors.length > 0;
 
@@ -90,7 +90,10 @@ export function NodaNode({ data, selected, id }: NodeProps) {
       {/* Output ports */}
       <div className="px-3 py-1.5 space-y-1">
         {outputs.map((output, index) => (
-          <div key={output} className="flex items-center justify-end gap-1.5 relative">
+          <div
+            key={output}
+            className="flex items-center justify-end gap-1.5 relative"
+          >
             <span className="text-xs text-gray-500">{output}</span>
             <Handle
               type="source"
@@ -125,7 +128,17 @@ export function NodaNode({ data, selected, id }: NodeProps) {
 }
 
 function summarizeConfig(config: Record<string, unknown>): string {
-  for (const key of ["query", "sql", "condition", "expression", "url", "template", "key", "channel", "topic"]) {
+  for (const key of [
+    "query",
+    "sql",
+    "condition",
+    "expression",
+    "url",
+    "template",
+    "key",
+    "channel",
+    "topic",
+  ]) {
     if (key in config && typeof config[key] === "string") {
       const val = config[key] as string;
       return val.length > 40 ? val.slice(0, 37) + "..." : val;

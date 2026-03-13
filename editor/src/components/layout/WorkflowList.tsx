@@ -9,9 +9,7 @@ export function WorkflowList() {
   const workflows = files?.workflows ?? [];
 
   if (workflows.length === 0) {
-    return (
-      <div className="p-4 text-sm text-gray-500">No workflows found.</div>
-    );
+    return <div className="p-4 text-sm text-gray-500">No workflows found.</div>;
   }
 
   return (
@@ -33,7 +31,12 @@ export function WorkflowList() {
             }`}
           >
             <span className="truncate">{name}</span>
-            {isDirty && <span className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0" title="Unsaved changes" />}
+            {isDirty && (
+              <span
+                className="w-1.5 h-1.5 rounded-full bg-orange-400 shrink-0"
+                title="Unsaved changes"
+              />
+            )}
           </button>
         );
       })}

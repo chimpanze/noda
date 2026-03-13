@@ -15,12 +15,15 @@ export function SchemaRefField(props: FieldProps) {
   const [schemas, setSchemas] = useState<SchemaInfo[]>([]);
   const [mode, setMode] = useState<Mode>(() => detectMode(formData));
   const [inlineText, setInlineText] = useState(() =>
-    formData && !formData["$ref"] ? JSON.stringify(formData, null, 2) : ""
+    formData && !formData["$ref"] ? JSON.stringify(formData, null, 2) : "",
   );
   const [jsonError, setJsonError] = useState<string | null>(null);
 
   useEffect(() => {
-    api.listSchemas().then(setSchemas).catch(() => {});
+    api
+      .listSchemas()
+      .then(setSchemas)
+      .catch(() => {});
   }, []);
 
   // Sync mode when formData changes externally
@@ -41,7 +44,7 @@ export function SchemaRefField(props: FieldProps) {
         onChange(undefined, path);
       }
     },
-    [onChange, path]
+    [onChange, path],
   );
 
   const handleInlineChange = useCallback(
@@ -61,7 +64,7 @@ export function SchemaRefField(props: FieldProps) {
         setJsonError((e as Error).message);
       }
     },
-    [onChange, path]
+    [onChange, path],
   );
 
   const switchMode = useCallback(
@@ -84,7 +87,7 @@ export function SchemaRefField(props: FieldProps) {
         }
       }
     },
-    [currentRef, formData, onChange, path]
+    [currentRef, formData, onChange, path],
   );
 
   return (
@@ -169,7 +172,10 @@ function detectMode(formData: unknown): Mode {
     return "ref";
   }
   // Default to ref mode for empty/new fields
-  if (!formData || Object.keys(formData as Record<string, unknown>).length === 0) {
+  if (
+    !formData ||
+    Object.keys(formData as Record<string, unknown>).length === 0
+  ) {
     return "ref";
   }
   return "inline";

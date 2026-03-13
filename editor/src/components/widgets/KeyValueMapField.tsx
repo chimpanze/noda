@@ -1,12 +1,15 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { FieldProps } from "@rjsf/utils";
 
 export function KeyValueMapField(props: FieldProps) {
   const { formData, onChange, schema, name, fieldPathId } = props;
-  const data: Record<string, string> =
-    formData && typeof formData === "object" && !Array.isArray(formData)
-      ? (formData as Record<string, string>)
-      : {};
+  const data: Record<string, string> = useMemo(
+    () =>
+      formData && typeof formData === "object" && !Array.isArray(formData)
+        ? (formData as Record<string, string>)
+        : {},
+    [formData],
+  );
   const entries = Object.entries(data);
   const title = schema.title ?? name;
   const path = fieldPathId.path;
@@ -19,14 +22,14 @@ export function KeyValueMapField(props: FieldProps) {
       }
       onChange(next, path);
     },
-    [entries, onChange, path]
+    [entries, onChange, path],
   );
 
   const updateValue = useCallback(
     (key: string, value: string) => {
       onChange({ ...data, [key]: value }, path);
     },
-    [data, onChange, path]
+    [data, onChange, path],
   );
 
   const removeEntry = useCallback(
@@ -35,7 +38,7 @@ export function KeyValueMapField(props: FieldProps) {
       delete next[key];
       onChange(next, path);
     },
-    [data, onChange, path]
+    [data, onChange, path],
   );
 
   const addEntry = useCallback(() => {

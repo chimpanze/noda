@@ -94,7 +94,7 @@ export function RouteGroupFormPanel({
                   onChange({
                     ...group,
                     middleware: (group.middleware ?? []).filter(
-                      (x) => x !== mw
+                      (x) => x !== mw,
                     ),
                   })
                 }

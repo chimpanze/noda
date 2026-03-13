@@ -1,42 +1,42 @@
-import path from 'path'
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-import docsPlugin from './vite-plugin-docs'
+import path from "path";
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import docsPlugin from "./vite-plugin-docs";
 
 export default defineConfig({
   plugins: [react(), tailwindcss(), docsPlugin()],
-  base: '/editor/',
+  base: "/editor/",
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, 'src'),
+      "@": path.resolve(__dirname, "src"),
     },
   },
   server: {
     port: 5173,
     proxy: {
-      '/_noda': {
-        target: 'http://localhost:3000',
+      "/_noda": {
+        target: "http://localhost:3000",
         changeOrigin: true,
       },
-      '/ws/trace': {
-        target: 'ws://localhost:3000',
+      "/ws/trace": {
+        target: "ws://localhost:3000",
         ws: true,
       },
     },
   },
   build: {
-    outDir: 'dist',
+    outDir: "dist",
     emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks: {
-          'vendor-react': ['react', 'react-dom'],
-          'vendor-reactflow': ['@xyflow/react'],
-          'vendor-monaco': ['@monaco-editor/react'],
-          'vendor-rjsf': ['@rjsf/core', '@rjsf/utils', '@rjsf/validator-ajv8'],
+          "vendor-react": ["react", "react-dom"],
+          "vendor-reactflow": ["@xyflow/react"],
+          "vendor-monaco": ["@monaco-editor/react"],
+          "vendor-rjsf": ["@rjsf/core", "@rjsf/utils", "@rjsf/validator-ajv8"],
         },
       },
     },
   },
-})
+});

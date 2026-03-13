@@ -7,7 +7,7 @@ import { ERDiagramTab } from "./ERDiagramTab";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 import type { ModelInfo, ModelDefinition } from "@/types";
 
 type EditorTab = "editor" | "diagram" | "json";
@@ -15,7 +15,12 @@ type EditorTab = "editor" | "diagram" | "json";
 const EMPTY_MODEL: ModelDefinition = {
   table: "",
   columns: {
-    id: { type: "uuid", primary_key: true, default: "gen_random_uuid()", order: 0 },
+    id: {
+      type: "uuid",
+      primary_key: true,
+      default: "gen_random_uuid()",
+      order: 0,
+    },
   },
   relations: {},
   indexes: [],
@@ -38,13 +43,26 @@ export function ModelsView() {
 
   // CRUD generation dialog state
   const [showCRUD, setShowCRUD] = useState(false);
-  const [crudOps, setCrudOps] = useState<string[]>(["create", "list", "get", "update", "delete"]);
-  const [crudArtifacts, setCrudArtifacts] = useState<string[]>(["routes", "workflows", "schemas"]);
+  const [crudOps, setCrudOps] = useState<string[]>([
+    "create",
+    "list",
+    "get",
+    "update",
+    "delete",
+  ]);
+  const [crudArtifacts, setCrudArtifacts] = useState<string[]>([
+    "routes",
+    "workflows",
+    "schemas",
+  ]);
   const [crudService, setCrudService] = useState("db");
   const [crudBasePath, setCrudBasePath] = useState("");
   const [crudScopeCol, setCrudScopeCol] = useState("");
   const [crudScopeParam, setCrudScopeParam] = useState("");
-  const [crudPreview, setCrudPreview] = useState<Record<string, unknown> | null>(null);
+  const [crudPreview, setCrudPreview] = useState<Record<
+    string,
+    unknown
+  > | null>(null);
 
   // Migration dialog state
   const [showMigration, setShowMigration] = useState(false);
@@ -68,13 +86,19 @@ export function ModelsView() {
   const dirty = editorValue !== originalValue;
 
   const allTables = useMemo(
-    () => models.map((m) => m.model.table).filter(Boolean).sort(),
-    [models]
+    () =>
+      models
+        .map((m) => m.model.table)
+        .filter(Boolean)
+        .sort(),
+    [models],
   );
 
   const selectModel = useCallback((m: ModelInfo) => {
     // Assign order to columns that lack it (preserves iteration order from JSON load)
-    const needsOrder = Object.values(m.model.columns).some((c) => c.order == null);
+    const needsOrder = Object.values(m.model.columns).some(
+      (c) => c.order == null,
+    );
     if (needsOrder) {
       let i = 0;
       for (const col of Object.values(m.model.columns)) {
@@ -165,65 +189,87 @@ export function ModelsView() {
     }
   }, [newName, loadFiles, reload]);
 
-  const handleGenerateMigration = useCallback(async (confirm = false) => {
-    try {
-      const result = await api.generateMigration(confirm);
-      if (result.status === "no_changes") {
-        showToast({ type: "info", message: "No model changes to migrate" });
+  const handleGenerateMigration = useCallback(
+    async (confirm = false) => {
+      try {
+        const result = await api.generateMigration(confirm);
+        if (result.status === "no_changes") {
+          showToast({ type: "info", message: "No model changes to migrate" });
+          setShowMigration(false);
+          return;
+        }
+        if (result.status === "preview") {
+          setMigrationUp(result.up);
+          setMigrationDown(result.down);
+          setShowMigration(true);
+          return;
+        }
+        // confirmed & created
+        showToast({
+          type: "success",
+          message: `Migration created: ${result.up_path}`,
+        });
         setShowMigration(false);
-        return;
+        await loadFiles();
+      } catch (err) {
+        showToast({ type: "error", message: `Migration failed: ${err}` });
       }
-      if (result.status === "preview") {
-        setMigrationUp(result.up);
-        setMigrationDown(result.down);
-        setShowMigration(true);
-        return;
-      }
-      // confirmed & created
-      showToast({ type: "success", message: `Migration created: ${result.up_path}` });
-      setShowMigration(false);
-      await loadFiles();
-    } catch (err) {
-      showToast({ type: "error", message: `Migration failed: ${err}` });
-    }
-  }, [loadFiles]);
+    },
+    [loadFiles],
+  );
 
-  const handleGenerateCRUD = useCallback(async (confirm = false) => {
-    if (!selected) return;
-    try {
-      const result = await api.generateCRUD({
-        model: selected.path,
-        confirm,
-        service: crudService,
-        base_path: crudBasePath || undefined,
-        operations: crudOps,
-        artifacts: crudArtifacts,
-        scope_column: crudScopeCol || undefined,
-        scope_param: crudScopeParam || undefined,
-      });
-      if (result.status === "preview") {
-        setCrudPreview(result.files);
-        return;
+  const handleGenerateCRUD = useCallback(
+    async (confirm = false) => {
+      if (!selected) return;
+      try {
+        const result = await api.generateCRUD({
+          model: selected.path,
+          confirm,
+          service: crudService,
+          base_path: crudBasePath || undefined,
+          operations: crudOps,
+          artifacts: crudArtifacts,
+          scope_column: crudScopeCol || undefined,
+          scope_param: crudScopeParam || undefined,
+        });
+        if (result.status === "preview") {
+          setCrudPreview(result.files);
+          return;
+        }
+        showToast({
+          type: "success",
+          message: `CRUD files created (${Object.keys(result.files).length} files)`,
+        });
+        setShowCRUD(false);
+        setCrudPreview(null);
+        await loadFiles();
+        await reload();
+      } catch (err) {
+        showToast({ type: "error", message: `CRUD generation failed: ${err}` });
       }
-      showToast({ type: "success", message: `CRUD files created (${Object.keys(result.files).length} files)` });
-      setShowCRUD(false);
-      setCrudPreview(null);
-      await loadFiles();
-      await reload();
-    } catch (err) {
-      showToast({ type: "error", message: `CRUD generation failed: ${err}` });
-    }
-  }, [selected, crudService, crudBasePath, crudOps, crudArtifacts, crudScopeCol, crudScopeParam, loadFiles, reload]);
+    },
+    [
+      selected,
+      crudService,
+      crudBasePath,
+      crudOps,
+      crudArtifacts,
+      crudScopeCol,
+      crudScopeParam,
+      loadFiles,
+      reload,
+    ],
+  );
 
   const toggleCrudOp = (op: string) => {
     setCrudOps((prev) =>
-      prev.includes(op) ? prev.filter((o) => o !== op) : [...prev, op]
+      prev.includes(op) ? prev.filter((o) => o !== op) : [...prev, op],
     );
   };
 
   const toggleCrudArtifact = (a: string) => {
     setCrudArtifacts((prev) =>
-      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]
+      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a],
     );
   };
 
@@ -233,7 +279,10 @@ export function ModelsView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Models" subtitle="Database table definitions, ER diagram, and CRUD generation" />
+      <ViewHeader
+        title="Models"
+        subtitle="Database table definitions, ER diagram, and CRUD generation"
+      />
       <div className="flex-1 flex min-h-0">
         {/* Model list sidebar */}
         <div className="w-56 border-r border-gray-200 overflow-y-auto">
@@ -273,7 +322,10 @@ export function ModelsView() {
                   Create
                 </button>
                 <button
-                  onClick={() => { setCreating(false); setNewName(""); }}
+                  onClick={() => {
+                    setCreating(false);
+                    setNewName("");
+                  }}
                   className="text-xs text-gray-500 hover:text-gray-700"
                 >
                   Cancel
@@ -294,7 +346,9 @@ export function ModelsView() {
                 <div className="flex items-center gap-2">
                   <Database size={14} className="text-gray-400 shrink-0" />
                   <div>
-                    <div className="text-sm font-medium text-gray-800">{m.model.table}</div>
+                    <div className="text-sm font-medium text-gray-800">
+                      {m.model.table}
+                    </div>
                     <div className="text-xs text-gray-400">
                       {Object.keys(m.model.columns).length} columns
                     </div>
@@ -303,7 +357,9 @@ export function ModelsView() {
               </button>
             ))}
             {models.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">No models defined.</div>
+              <div className="p-4 text-sm text-gray-400">
+                No models defined.
+              </div>
             )}
           </div>
 
@@ -327,26 +383,41 @@ export function ModelsView() {
               <div className="px-4 py-2 border-b border-gray-200 flex items-center justify-between bg-gray-50 shrink-0">
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-0.5 bg-gray-100 rounded p-0.5">
-                    {(["editor", "diagram", "json"] as EditorTab[]).map((tab) => (
-                      <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={`px-2 py-0.5 text-xs rounded capitalize ${
-                          activeTab === tab
-                            ? "bg-white text-gray-800 shadow-sm font-medium"
-                            : "text-gray-500 hover:text-gray-700"
-                        }`}
-                      >
-                        {tab === "editor" ? "Table Editor" : tab === "diagram" ? "ER Diagram" : "JSON"}
-                      </button>
-                    ))}
+                    {(["editor", "diagram", "json"] as EditorTab[]).map(
+                      (tab) => (
+                        <button
+                          key={tab}
+                          onClick={() => setActiveTab(tab)}
+                          className={`px-2 py-0.5 text-xs rounded capitalize ${
+                            activeTab === tab
+                              ? "bg-white text-gray-800 shadow-sm font-medium"
+                              : "text-gray-500 hover:text-gray-700"
+                          }`}
+                        >
+                          {tab === "editor"
+                            ? "Table Editor"
+                            : tab === "diagram"
+                              ? "ER Diagram"
+                              : "JSON"}
+                        </button>
+                      ),
+                    )}
                   </div>
-                  <span className="text-sm font-medium text-gray-700">{selected.path}</span>
-                  {dirty && <span className="text-xs text-yellow-600 font-medium">(unsaved)</span>}
+                  <span className="text-sm font-medium text-gray-700">
+                    {selected.path}
+                  </span>
+                  {dirty && (
+                    <span className="text-xs text-yellow-600 font-medium">
+                      (unsaved)
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => { setShowCRUD(true); setCrudPreview(null); }}
+                    onClick={() => {
+                      setShowCRUD(true);
+                      setCrudPreview(null);
+                    }}
                     className="flex items-center gap-1 px-2 py-1 text-xs text-indigo-600 border border-indigo-300 rounded hover:bg-indigo-50"
                   >
                     <Wand2 size={12} /> Generate CRUD
@@ -416,18 +487,29 @@ export function ModelsView() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[80vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Migration Preview</h3>
-              <button onClick={() => setShowMigration(false)} className="text-gray-400 hover:text-gray-600">x</button>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Migration Preview
+              </h3>
+              <button
+                onClick={() => setShowMigration(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                x
+              </button>
             </div>
             <div className="flex-1 overflow-auto p-6 space-y-4">
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Up Migration</h4>
+                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">
+                  Up Migration
+                </h4>
                 <pre className="p-3 bg-gray-50 rounded text-xs text-gray-700 overflow-x-auto border border-gray-200 whitespace-pre-wrap">
                   {migrationUp}
                 </pre>
               </div>
               <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">Down Migration</h4>
+                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">
+                  Down Migration
+                </h4>
                 <pre className="p-3 bg-gray-50 rounded text-xs text-gray-700 overflow-x-auto border border-gray-200 whitespace-pre-wrap">
                   {migrationDown}
                 </pre>
@@ -456,36 +538,58 @@ export function ModelsView() {
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[80vh] flex flex-col">
             <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">Generate CRUD for {parsedModel?.table}</h3>
-              <button onClick={() => { setShowCRUD(false); setCrudPreview(null); }} className="text-gray-400 hover:text-gray-600">x</button>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Generate CRUD for {parsedModel?.table}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowCRUD(false);
+                  setCrudPreview(null);
+                }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                x
+              </button>
             </div>
             <div className="flex-1 overflow-auto p-6 space-y-4">
               {!crudPreview ? (
                 <>
                   {/* Operations */}
                   <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Operations</h4>
+                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
+                      Operations
+                    </h4>
                     <div className="flex gap-3 flex-wrap">
-                      {["create", "list", "get", "update", "delete"].map((op) => (
-                        <label key={op} className="flex items-center gap-1.5 text-sm text-gray-700">
-                          <input
-                            type="checkbox"
-                            checked={crudOps.includes(op)}
-                            onChange={() => toggleCrudOp(op)}
-                            className="rounded"
-                          />
-                          {op}
-                        </label>
-                      ))}
+                      {["create", "list", "get", "update", "delete"].map(
+                        (op) => (
+                          <label
+                            key={op}
+                            className="flex items-center gap-1.5 text-sm text-gray-700"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={crudOps.includes(op)}
+                              onChange={() => toggleCrudOp(op)}
+                              className="rounded"
+                            />
+                            {op}
+                          </label>
+                        ),
+                      )}
                     </div>
                   </div>
 
                   {/* Artifacts */}
                   <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">Artifacts</h4>
+                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
+                      Artifacts
+                    </h4>
                     <div className="flex gap-3 flex-wrap">
                       {["routes", "workflows", "schemas"].map((a) => (
-                        <label key={a} className="flex items-center gap-1.5 text-sm text-gray-700">
+                        <label
+                          key={a}
+                          className="flex items-center gap-1.5 text-sm text-gray-700"
+                        >
                           <input
                             type="checkbox"
                             checked={crudArtifacts.includes(a)}
@@ -520,7 +624,9 @@ export function ModelsView() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500">Scope Column (optional)</label>
+                      <label className="text-xs text-gray-500">
+                        Scope Column (optional)
+                      </label>
                       <input
                         type="text"
                         value={crudScopeCol}
@@ -530,7 +636,9 @@ export function ModelsView() {
                       />
                     </div>
                     <div>
-                      <label className="text-xs text-gray-500">Scope Param (optional)</label>
+                      <label className="text-xs text-gray-500">
+                        Scope Param (optional)
+                      </label>
                       <input
                         type="text"
                         value={crudScopeParam}
@@ -544,10 +652,14 @@ export function ModelsView() {
               ) : (
                 /* Preview */
                 <div className="space-y-3">
-                  <h4 className="text-xs font-medium text-gray-500 uppercase">Files to create ({Object.keys(crudPreview).length})</h4>
+                  <h4 className="text-xs font-medium text-gray-500 uppercase">
+                    Files to create ({Object.keys(crudPreview).length})
+                  </h4>
                   {Object.entries(crudPreview).map(([path, content]) => (
                     <div key={path}>
-                      <div className="text-xs font-mono text-blue-600 mb-1">{path}</div>
+                      <div className="text-xs font-mono text-blue-600 mb-1">
+                        {path}
+                      </div>
                       <pre className="p-2 bg-gray-50 rounded text-xs text-gray-700 overflow-x-auto border border-gray-200 max-h-32 whitespace-pre-wrap">
                         {JSON.stringify(content, null, 2)}
                       </pre>
@@ -558,7 +670,10 @@ export function ModelsView() {
             </div>
             <div className="px-6 py-3 border-t border-gray-200 flex justify-end gap-2">
               <button
-                onClick={() => { setShowCRUD(false); setCrudPreview(null); }}
+                onClick={() => {
+                  setShowCRUD(false);
+                  setCrudPreview(null);
+                }}
                 className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
               >
                 Cancel

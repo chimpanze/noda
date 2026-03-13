@@ -11,14 +11,14 @@ let pasteCounter = 0;
 export function copyNodes(
   allNodes: WorkflowNode[],
   allEdges: WorkflowEdge[],
-  selectedIds: Set<string>
+  selectedIds: Set<string>,
 ) {
   if (selectedIds.size === 0) return;
 
   const nodes = allNodes.filter((n) => selectedIds.has(n.id));
   // Only include edges where both endpoints are in the selection
   const edges = allEdges.filter(
-    (e) => selectedIds.has(e.from) && selectedIds.has(e.to)
+    (e) => selectedIds.has(e.from) && selectedIds.has(e.to),
   );
 
   clipboard = { nodes: structuredClone(nodes), edges: structuredClone(edges) };

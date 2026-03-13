@@ -4,7 +4,11 @@ test.describe("Editor", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
     // Wait for the app to load
-    await expect(page.locator("[data-testid='sidebar']").or(page.locator("text=Workflows"))).toBeVisible({
+    await expect(
+      page
+        .locator("[data-testid='sidebar']")
+        .or(page.locator("text=Workflows")),
+    ).toBeVisible({
       timeout: 10000,
     });
   });
@@ -52,7 +56,9 @@ test.describe("Editor", () => {
     await expect(page.locator("text=Keyboard Shortcuts")).not.toBeVisible();
   });
 
-  test("export buttons are disabled when no workflow is loaded", async ({ page }) => {
+  test("export buttons are disabled when no workflow is loaded", async ({
+    page,
+  }) => {
     const exportBtn = page.locator("button[title='Export workflow JSON']");
     await expect(exportBtn).toBeDisabled();
 

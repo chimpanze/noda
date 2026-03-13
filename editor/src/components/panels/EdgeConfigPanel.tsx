@@ -9,13 +9,14 @@ export function EdgeConfigPanel() {
   const removeEdge = useEditorStore((s) => s.removeEdge);
   const deselectAll = useEditorStore((s) => s.deselectAll);
 
-  if (selectedEdgeIndex === null || !activeWorkflow) return null;
-  const edge = activeWorkflow.edges[selectedEdgeIndex];
-  if (!edge) return null;
-
-  const hasRetry = !!edge.retry;
+  const edge =
+    selectedEdgeIndex !== null
+      ? activeWorkflow?.edges[selectedEdgeIndex]
+      : undefined;
+  const hasRetry = !!edge?.retry;
 
   const toggleRetry = useCallback(() => {
+    if (selectedEdgeIndex === null) return;
     if (hasRetry) {
       updateEdgeRetry(selectedEdgeIndex, undefined);
     } else {
@@ -25,18 +26,21 @@ export function EdgeConfigPanel() {
 
   const updateRetryField = useCallback(
     (field: keyof RetryConfig, value: string | number | undefined) => {
-      if (!edge.retry) return;
+      if (selectedEdgeIndex === null || !edge?.retry) return;
       const next = { ...edge.retry, [field]: value };
       if (value === undefined || value === "") delete next[field];
       updateEdgeRetry(selectedEdgeIndex, next);
     },
-    [edge.retry, selectedEdgeIndex, updateEdgeRetry]
+    [edge, selectedEdgeIndex, updateEdgeRetry],
   );
 
   const handleDelete = useCallback(() => {
+    if (!edge) return;
     removeEdge(edge.from, edge.output, edge.to);
     deselectAll();
   }, [edge, removeEdge, deselectAll]);
+
+  if (selectedEdgeIndex === null || !activeWorkflow || !edge) return null;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -87,7 +91,10 @@ export function EdgeConfigPanel() {
                   step={1}
                   value={edge.retry.attempts}
                   onChange={(e) =>
-                    updateRetryField("attempts", parseInt(e.target.value, 10) || 1)
+                    updateRetryField(
+                      "attempts",
+                      parseInt(e.target.value, 10) || 1,
+                    )
                   }
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                 />
@@ -111,10 +118,7 @@ export function EdgeConfigPanel() {
                 <select
                   value={edge.retry.backoff ?? ""}
                   onChange={(e) =>
-                    updateRetryField(
-                      "backoff",
-                      e.target.value || undefined
-                    )
+                    updateRetryField("backoff", e.target.value || undefined)
                   }
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
                 >

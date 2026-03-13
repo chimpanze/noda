@@ -45,16 +45,19 @@ export function DocsView() {
   }, []);
 
   const [activePath, setActivePath] = useState(() => {
-    const gs = docs.find((d) => d.title === "Quick Start" || d.path.includes("quick-start"));
+    const gs = docs.find(
+      (d) => d.title === "Quick Start" || d.path.includes("quick-start"),
+    );
     return gs?.path ?? docs[0]?.path ?? "";
   });
 
   // Consume pendingDocPath from store
   useEffect(() => {
-    if (pendingDocPath) {
-      setActivePath(pendingDocPath);
-      clearPendingDocPath();
-    }
+    if (!pendingDocPath) return;
+    const path = pendingDocPath;
+    clearPendingDocPath();
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- consuming external store value
+    setActivePath(path);
   }, [pendingDocPath, clearPendingDocPath]);
 
   const activeDoc = docs.find((d) => d.path === activePath);
@@ -208,7 +211,10 @@ export function DocsView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Documentation" subtitle="Guides, references, and architecture docs" />
+      <ViewHeader
+        title="Documentation"
+        subtitle="Guides, references, and architecture docs"
+      />
       <div className="flex-1 flex min-h-0">
         {/* Doc list sidebar */}
         <div className="w-64 border-r border-gray-200 overflow-y-auto py-2 shrink-0">
@@ -231,7 +237,9 @@ export function DocsView() {
               </Markdown>
             </div>
           ) : (
-            <div className="text-sm text-gray-400">Select a document to view.</div>
+            <div className="text-sm text-gray-400">
+              Select a document to view.
+            </div>
           )}
         </div>
 

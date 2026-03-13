@@ -116,27 +116,82 @@ export function registerExpressionLanguage(monaco: typeof Monaco) {
       // If user typed "input." or "nodes.", suggest dot access
       if (exprText.endsWith("input.")) {
         suggestions.push(
-          { label: "body", kind: monaco.languages.CompletionItemKind.Field, insertText: "body", range },
-          { label: "params", kind: monaco.languages.CompletionItemKind.Field, insertText: "params", range },
-          { label: "query", kind: monaco.languages.CompletionItemKind.Field, insertText: "query", range },
-          { label: "headers", kind: monaco.languages.CompletionItemKind.Field, insertText: "headers", range },
+          {
+            label: "body",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "body",
+            range,
+          },
+          {
+            label: "params",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "params",
+            range,
+          },
+          {
+            label: "query",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "query",
+            range,
+          },
+          {
+            label: "headers",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "headers",
+            range,
+          },
         );
       }
 
       if (exprText.endsWith("trigger.")) {
         suggestions.push(
-          { label: "method", kind: monaco.languages.CompletionItemKind.Field, insertText: "method", range },
-          { label: "path", kind: monaco.languages.CompletionItemKind.Field, insertText: "path", range },
-          { label: "trace_id", kind: monaco.languages.CompletionItemKind.Field, insertText: "trace_id", range },
-          { label: "route_id", kind: monaco.languages.CompletionItemKind.Field, insertText: "route_id", range },
+          {
+            label: "method",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "method",
+            range,
+          },
+          {
+            label: "path",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "path",
+            range,
+          },
+          {
+            label: "trace_id",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "trace_id",
+            range,
+          },
+          {
+            label: "route_id",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "route_id",
+            range,
+          },
         );
       }
 
       if (exprText.endsWith("auth.")) {
         suggestions.push(
-          { label: "user_id", kind: monaco.languages.CompletionItemKind.Field, insertText: "user_id", range },
-          { label: "roles", kind: monaco.languages.CompletionItemKind.Field, insertText: "roles", range },
-          { label: "claims", kind: monaco.languages.CompletionItemKind.Field, insertText: "claims", range },
+          {
+            label: "user_id",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "user_id",
+            range,
+          },
+          {
+            label: "roles",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "roles",
+            range,
+          },
+          {
+            label: "claims",
+            kind: monaco.languages.CompletionItemKind.Field,
+            insertText: "claims",
+            range,
+          },
         );
       }
 
@@ -149,18 +204,18 @@ export function registerExpressionLanguage(monaco: typeof Monaco) {
 let cachedContext: api.ExpressionContext | null = null;
 let cacheKey = "";
 
-export function updateExpressionContext(
-  workflow: string,
-  node: string
-) {
+export function updateExpressionContext(workflow: string, node: string) {
   const key = `${workflow}:${node}`;
   if (key === cacheKey) return;
   cacheKey = key;
-  api.getExpressionContext(workflow, node).then((ctx) => {
-    cachedContext = ctx;
-  }).catch(() => {
-    // Silently fail — autocomplete just won't have context
-  });
+  api
+    .getExpressionContext(workflow, node)
+    .then((ctx) => {
+      cachedContext = ctx;
+    })
+    .catch(() => {
+      // Silently fail — autocomplete just won't have context
+    });
 }
 
 export function getCachedContext(): api.ExpressionContext | null {

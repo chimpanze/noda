@@ -3,9 +3,7 @@ import type { WorkflowConfig, WorkflowNode } from "@/types";
 /**
  * Convert nodes from Noda's map format to array format if needed.
  */
-function normalizeNodes(
-  raw: unknown
-): WorkflowNode[] {
+function normalizeNodes(raw: unknown): WorkflowNode[] {
   if (Array.isArray(raw)) return raw as WorkflowNode[];
   if (raw && typeof raw === "object") {
     return Object.entries(raw as Record<string, Record<string, unknown>>).map(
@@ -16,7 +14,7 @@ function normalizeNodes(
         as: node.as as string | undefined,
         services: node.services as Record<string, string> | undefined,
         position: node.position as { x: number; y: number } | undefined,
-      })
+      }),
     );
   }
   return [];
@@ -29,7 +27,8 @@ export function exportWorkflow(workflow: WorkflowConfig, filename: string) {
   // Strip editor-only position data for clean export
   const clean: WorkflowConfig = {
     ...workflow,
-    nodes: workflow.nodes.map(({ position: _, ...rest }) => rest),
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    nodes: workflow.nodes.map(({ position: _position, ...rest }) => rest),
   };
   const json = JSON.stringify(clean, null, 2);
   downloadFile(json, filename, "application/json");
@@ -48,7 +47,7 @@ export function importWorkflow(file: File): Promise<WorkflowConfig> {
         if (!data || typeof data !== "object") {
           throw new Error("File does not contain a valid JSON object");
         }
-        if (!data.nodes || (typeof data.nodes !== "object")) {
+        if (!data.nodes || typeof data.nodes !== "object") {
           throw new Error("Missing or invalid 'nodes' field");
         }
         if (!Array.isArray(data.edges)) {
@@ -100,7 +99,9 @@ export async function exportAllAsZip(
   );
 
   const zipped = zipSync(entries);
-  const blob = new Blob([zipped.buffer as ArrayBuffer], { type: "application/zip" });
+  const blob = new Blob([zipped.buffer as ArrayBuffer], {
+    type: "application/zip",
+  });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;

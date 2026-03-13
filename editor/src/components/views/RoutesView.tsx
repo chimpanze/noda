@@ -1,5 +1,14 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { ExternalLink, Plus, ChevronRight, ChevronDown, Copy, Shield, Download, FileJson } from "lucide-react";
+import {
+  ExternalLink,
+  Plus,
+  ChevronRight,
+  ChevronDown,
+  Copy,
+  Shield,
+  Download,
+  FileJson,
+} from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
@@ -7,7 +16,7 @@ import { useEditorStore } from "@/stores/editor";
 import { RouteFormPanel, type RouteConfig } from "./RouteFormPanel";
 import { RouteGroupFormPanel } from "./RouteGroupFormPanel";
 import { TryItPanel } from "./TryItPanel";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 import type { SchemaInfo, RouteGroupConfig } from "@/types";
 
 const methodColors: Record<string, string> = {
@@ -36,7 +45,12 @@ interface TreeNode {
 }
 
 function buildTree(entries: RouteFileEntry[]): TreeNode {
-  const root: TreeNode = { segment: "", fullPath: "", children: new Map(), routes: [] };
+  const root: TreeNode = {
+    segment: "",
+    fullPath: "",
+    children: new Map(),
+    routes: [],
+  };
 
   for (const entry of entries) {
     const parts = entry.route.path.split("/").filter(Boolean);
@@ -73,7 +87,9 @@ function collapseTree(node: TreeNode): TreeNode {
   if (node.children.size === 1 && node.routes.length === 0) {
     const [, child] = [...node.children.entries()][0];
     return {
-      segment: node.segment ? node.segment + "/" + child.segment : child.segment,
+      segment: node.segment
+        ? node.segment + "/" + child.segment
+        : child.segment,
       fullPath: child.fullPath,
       children: child.children,
       routes: child.routes,
@@ -99,7 +115,9 @@ export function RoutesView() {
 
   // Middleware + schema data
   const [middlewareNames, setMiddlewareNames] = useState<string[]>([]);
-  const [middlewarePresets, setMiddlewarePresets] = useState<Record<string, string[]>>({});
+  const [middlewarePresets, setMiddlewarePresets] = useState<
+    Record<string, string[]>
+  >({});
   const [schemas, setSchemas] = useState<SchemaInfo[]>([]);
 
   // Root config (for route groups)
@@ -153,7 +171,7 @@ export function RoutesView() {
               for (const route of routes) {
                 result.push({ filePath: path, route });
               }
-            })
+            }),
           );
           return result;
         })(),
@@ -165,7 +183,10 @@ export function RoutesView() {
       ]);
       setRouteEntries(entries);
       const instanceNames = Object.keys(mwInfo.instances ?? {});
-      setMiddlewareNames([...mwInfo.middleware.map((m) => m.name), ...instanceNames]);
+      setMiddlewareNames([
+        ...mwInfo.middleware.map((m) => m.name),
+        ...instanceNames,
+      ]);
       setMiddlewarePresets(mwInfo.presets);
       setSchemas(schemaList);
       setRootConfig(rootData);
@@ -181,7 +202,7 @@ export function RoutesView() {
 
   const routeGroups = useMemo(
     () => (rootConfig?.route_groups ?? {}) as Record<string, RouteGroupConfig>,
-    [rootConfig]
+    [rootConfig],
   );
 
   const selectGroup = useCallback(
@@ -190,9 +211,11 @@ export function RoutesView() {
       setSelectedIndex(null);
       setEditRoute(null);
       setIsNew(false);
-      setEditGroup(routeGroups[fullPath] ? structuredClone(routeGroups[fullPath]) : {});
+      setEditGroup(
+        routeGroups[fullPath] ? structuredClone(routeGroups[fullPath]) : {},
+      );
     },
-    [routeGroups]
+    [routeGroups],
   );
 
   const selectRoute = useCallback(
@@ -204,7 +227,7 @@ export function RoutesView() {
       setSelectedGroup(null);
       setEditGroup(null);
     },
-    [routeEntries]
+    [routeEntries],
   );
 
   const startNew = useCallback(() => {
@@ -234,7 +257,13 @@ export function RoutesView() {
       if (!clean.response_timeout) delete clean.response_timeout;
       if (!clean.params?.schema) delete clean.params;
       if (!clean.query?.schema) delete clean.query;
-      if (!clean.body || (!clean.body.schema && !clean.body.raw && clean.body.validate !== false && !clean.body.content_type))
+      if (
+        !clean.body ||
+        (!clean.body.schema &&
+          !clean.body.raw &&
+          clean.body.validate !== false &&
+          !clean.body.content_type)
+      )
         delete clean.body;
       else {
         if (clean.body.validate === true || clean.body.validate === undefined)
@@ -242,9 +271,13 @@ export function RoutesView() {
         if (!clean.body.content_type) delete clean.body.content_type;
       }
       if (clean.trigger) {
-        if (!clean.trigger.workflow) delete (clean as Record<string, unknown>).trigger;
+        if (!clean.trigger.workflow)
+          delete (clean as Record<string, unknown>).trigger;
         else {
-          if (!clean.trigger.input || Object.keys(clean.trigger.input).length === 0)
+          if (
+            !clean.trigger.input ||
+            Object.keys(clean.trigger.input).length === 0
+          )
             delete clean.trigger.input;
           if (!clean.trigger.files?.length) delete clean.trigger.files;
           if (!clean.trigger.raw_body) delete clean.trigger.raw_body;
@@ -294,10 +327,16 @@ export function RoutesView() {
   const handleDelete = useCallback(async () => {
     if (selectedIndex === null) return;
     const entry = routeEntries[selectedIndex];
-    if (!confirm(`Delete route "${entry.route.id}"? This will delete the file.`)) return;
+    if (
+      !confirm(`Delete route "${entry.route.id}"? This will delete the file.`)
+    )
+      return;
     try {
       await api.deleteFile(entry.filePath);
-      showToast({ type: "success", message: `Route "${entry.route.id}" deleted` });
+      showToast({
+        type: "success",
+        message: `Route "${entry.route.id}" deleted`,
+      });
       setSelectedIndex(null);
       setEditRoute(null);
       await loadFiles();
@@ -312,7 +351,10 @@ export function RoutesView() {
     setSavingGroup(true);
     try {
       const updated = structuredClone(rootConfig);
-      const groups = (updated.route_groups ?? {}) as Record<string, RouteGroupConfig>;
+      const groups = (updated.route_groups ?? {}) as Record<
+        string,
+        RouteGroupConfig
+      >;
 
       // Clean empty fields
       const clean = { ...editGroup };
@@ -342,7 +384,10 @@ export function RoutesView() {
     if (!confirm(`Delete group "${selectedGroup}"?`)) return;
     try {
       const updated = structuredClone(rootConfig);
-      const groups = (updated.route_groups ?? {}) as Record<string, RouteGroupConfig>;
+      const groups = (updated.route_groups ?? {}) as Record<
+        string,
+        RouteGroupConfig
+      >;
       delete groups[selectedGroup];
       if (Object.keys(groups).length > 0) {
         updated.route_groups = groups;
@@ -368,7 +413,7 @@ export function RoutesView() {
         setActiveWorkflow(match);
       }
     },
-    [files?.workflows, setActiveView, setActiveWorkflow]
+    [files?.workflows, setActiveView, setActiveWorkflow],
   );
 
   const toggleExpand = useCallback((path: string) => {
@@ -386,264 +431,284 @@ export function RoutesView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Routes" subtitle="HTTP route definitions — map URL patterns to workflows" />
+      <ViewHeader
+        title="Routes"
+        subtitle="HTTP route definitions — map URL patterns to workflows"
+      />
       <div className="flex-1 flex min-h-0">
-      {/* Route list */}
-      <div className="w-96 border-r border-gray-200 overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Routes ({routeEntries.length})
-          </h2>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={async () => {
-                setSelectedIndex(null);
-                setEditRoute(null);
-                setSelectedGroup(null);
-                setEditGroup(null);
-                setActiveTab("openapi");
-                setOpenApiLoading(true);
-                try {
-                  const spec = await api.getOpenAPISpec();
-                  setOpenApiSpec(JSON.stringify(spec, null, 2));
-                } catch (err) {
-                  showToast({ type: "error", message: `Failed to load OpenAPI spec: ${err}` });
-                } finally {
-                  setOpenApiLoading(false);
-                }
-              }}
-              className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${
-                activeTab === "openapi"
-                  ? "text-blue-700 bg-blue-50"
-                  : "text-gray-500 hover:bg-gray-100"
-              }`}
-              title="OpenAPI Spec"
-            >
-              <FileJson size={14} />
-              OpenAPI
-            </button>
-            <button
-              onClick={startNew}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-            >
-              <Plus size={14} />
-              New
-            </button>
-          </div>
-        </div>
-        <div>
-          {tree.children.size > 0 ? (
-            [...tree.children.values()].map((child) => (
-              <TreeNodeView
-                key={child.fullPath}
-                node={child}
-                depth={0}
-                expanded={expanded}
-                toggleExpand={toggleExpand}
-                selectedIndex={selectedIndex}
-                isNew={isNew}
-                routeEntries={routeEntries}
-                selectRoute={selectRoute}
-                goToWorkflow={goToWorkflow}
-                methodColors={methodColors}
-                routeGroups={routeGroups}
-                selectedGroup={selectedGroup}
-                onSelectGroup={selectGroup}
-              />
-            ))
-          ) : (
-            // Flat list fallback for routes at root
-            tree.routes.map((entry) => {
-              const idx = routeEntries.indexOf(entry);
-              return (
-                <RouteItem
-                  key={`${entry.filePath}-${entry.route.id}`}
-                  entry={entry}
-                  index={idx}
-                  selected={selectedIndex === idx && !isNew}
-                  onSelect={selectRoute}
-                  goToWorkflow={goToWorkflow}
-                  methodColors={methodColors}
-                />
-              );
-            })
-          )}
-          {routeEntries.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">
-              No routes configured. Click "New" to create one.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Route editor / Group editor / OpenAPI */}
-      <div className="flex-1 flex flex-col min-h-0">
-        {activeTab === "openapi" ? (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-4xl space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">OpenAPI Specification</h3>
-                {openApiSpec && (
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(openApiSpec);
-                        showToast({ type: "success", message: "Copied to clipboard" });
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-                    >
-                      <Copy size={12} />
-                      Copy
-                    </button>
-                    <button
-                      onClick={() => {
-                        const blob = new Blob([openApiSpec], { type: "application/json" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = "openapi.json";
-                        a.click();
-                        URL.revokeObjectURL(url);
-                      }}
-                      className="flex items-center gap-1 px-2 py-1 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
-                    >
-                      <Download size={12} />
-                      Download
-                    </button>
-                  </div>
-                )}
-              </div>
-              {openApiLoading ? (
-                <div className="text-sm text-gray-400">Generating OpenAPI spec...</div>
-              ) : openApiSpec ? (
-                <div className="border border-gray-200 rounded overflow-hidden">
-                  <Editor
-                    height="600px"
-                    language="json"
-                    value={openApiSpec}
-                    options={{
-                      minimap: { enabled: false },
-                      fontSize: 13,
-                      scrollBeyondLastLine: false,
-                      lineNumbers: "on",
-                      readOnly: true,
-                      wordWrap: "on",
-                    }}
-                  />
-                </div>
-              ) : (
-                <div className="text-sm text-gray-400">Failed to load OpenAPI spec.</div>
-              )}
+        {/* Route list */}
+        <div className="w-96 border-r border-gray-200 overflow-y-auto">
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Routes ({routeEntries.length})
+            </h2>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={async () => {
+                  setSelectedIndex(null);
+                  setEditRoute(null);
+                  setSelectedGroup(null);
+                  setEditGroup(null);
+                  setActiveTab("openapi");
+                  setOpenApiLoading(true);
+                  try {
+                    const spec = await api.getOpenAPISpec();
+                    setOpenApiSpec(JSON.stringify(spec, null, 2));
+                  } catch (err) {
+                    showToast({
+                      type: "error",
+                      message: `Failed to load OpenAPI spec: ${err}`,
+                    });
+                  } finally {
+                    setOpenApiLoading(false);
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${
+                  activeTab === "openapi"
+                    ? "text-blue-700 bg-blue-50"
+                    : "text-gray-500 hover:bg-gray-100"
+                }`}
+                title="OpenAPI Spec"
+              >
+                <FileJson size={14} />
+                OpenAPI
+              </button>
+              <button
+                onClick={startNew}
+                className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
+              >
+                <Plus size={14} />
+                New
+              </button>
             </div>
           </div>
-        ) : selectedGroup !== null && editGroup ? (
-          <div className="flex-1 overflow-y-auto p-6">
-            <RouteGroupFormPanel
-              prefix={selectedGroup}
-              group={editGroup}
-              middlewareNames={middlewareNames}
-              middlewarePresets={middlewarePresets}
-              onChange={setEditGroup}
-              onSave={saveGroup}
-              onDelete={routeGroups[selectedGroup] ? deleteGroup : undefined}
-              saving={savingGroup}
-              isNew={!routeGroups[selectedGroup]}
-            />
-          </div>
-        ) : editRoute ? (
-          <>
-            {/* Tab bar */}
-            <div className="flex items-center border-b border-gray-200 bg-gray-50 shrink-0">
-              {(["editor", "tryit", "json"] as TabType[]).map((tab) => {
-                const labels: Record<string, string> = {
-                  editor: "Editor",
-                  tryit: "Try It",
-                  json: "JSON",
-                };
-                // Disable Try It for new routes
-                const disabled = tab === "tryit" && isNew;
-                return (
-                  <button
-                    key={tab}
-                    onClick={() => !disabled && setActiveTab(tab)}
-                    disabled={disabled}
-                    className={`px-4 py-2 text-sm transition-colors ${
-                      activeTab === tab
-                        ? "bg-white text-blue-700 font-medium border-b-2 border-b-blue-500"
-                        : disabled
-                          ? "text-gray-300 cursor-not-allowed"
-                          : "text-gray-600 hover:bg-gray-100"
-                    }`}
-                  >
-                    {labels[tab]}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Tab content */}
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="max-w-3xl">
-                {activeTab === "editor" && (
-                  <RouteFormPanel
-                    route={editRoute}
-                    workflows={files?.workflows ?? []}
-                    middlewareNames={middlewareNames}
-                    middlewarePresets={middlewarePresets}
-                    schemas={schemas}
-                    onChange={setEditRoute}
-                    onSave={handleSave}
-                    onDelete={!isNew ? handleDelete : undefined}
-                    saving={saving}
+          <div>
+            {tree.children.size > 0
+              ? [...tree.children.values()].map((child) => (
+                  <TreeNodeView
+                    key={child.fullPath}
+                    node={child}
+                    depth={0}
+                    expanded={expanded}
+                    toggleExpand={toggleExpand}
+                    selectedIndex={selectedIndex}
                     isNew={isNew}
+                    routeEntries={routeEntries}
+                    selectRoute={selectRoute}
+                    goToWorkflow={goToWorkflow}
+                    methodColors={methodColors}
+                    routeGroups={routeGroups}
+                    selectedGroup={selectedGroup}
+                    onSelectGroup={selectGroup}
                   />
-                )}
-                {activeTab === "tryit" && !isNew && (
-                  <TryItPanel route={editRoute} />
-                )}
-                {activeTab === "json" && (
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                        JSON Preview
-                      </h4>
+                ))
+              : // Flat list fallback for routes at root
+                tree.routes.map((entry) => {
+                  const idx = routeEntries.indexOf(entry);
+                  return (
+                    <RouteItem
+                      key={`${entry.filePath}-${entry.route.id}`}
+                      entry={entry}
+                      index={idx}
+                      selected={selectedIndex === idx && !isNew}
+                      onSelect={selectRoute}
+                      goToWorkflow={goToWorkflow}
+                      methodColors={methodColors}
+                    />
+                  );
+                })}
+            {routeEntries.length === 0 && (
+              <div className="p-4 text-sm text-gray-400">
+                No routes configured. Click "New" to create one.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Route editor / Group editor / OpenAPI */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {activeTab === "openapi" ? (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-4xl space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">
+                    OpenAPI Specification
+                  </h3>
+                  {openApiSpec && (
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => {
-                          navigator.clipboard.writeText(JSON.stringify(editRoute, null, 2));
-                          showToast({ type: "success", message: "Copied to clipboard" });
+                          navigator.clipboard.writeText(openApiSpec);
+                          showToast({
+                            type: "success",
+                            message: "Copied to clipboard",
+                          });
                         }}
                         className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
                       >
                         <Copy size={12} />
                         Copy
                       </button>
-                    </div>
-                    <div className="border border-gray-200 rounded overflow-hidden">
-                      <Editor
-                        height="500px"
-                        language="json"
-                        value={JSON.stringify(editRoute, null, 2)}
-                        options={{
-                          minimap: { enabled: false },
-                          fontSize: 13,
-                          scrollBeyondLastLine: false,
-                          lineNumbers: "on",
-                          readOnly: true,
-                          wordWrap: "on",
+                      <button
+                        onClick={() => {
+                          const blob = new Blob([openApiSpec], {
+                            type: "application/json",
+                          });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = "openapi.json";
+                          a.click();
+                          URL.revokeObjectURL(url);
                         }}
-                      />
+                        className="flex items-center gap-1 px-2 py-1 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
+                      >
+                        <Download size={12} />
+                        Download
+                      </button>
                     </div>
+                  )}
+                </div>
+                {openApiLoading ? (
+                  <div className="text-sm text-gray-400">
+                    Generating OpenAPI spec...
+                  </div>
+                ) : openApiSpec ? (
+                  <div className="border border-gray-200 rounded overflow-hidden">
+                    <Editor
+                      height="600px"
+                      language="json"
+                      value={openApiSpec}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        scrollBeyondLastLine: false,
+                        lineNumbers: "on",
+                        readOnly: true,
+                        wordWrap: "on",
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-400">
+                    Failed to load OpenAPI spec.
                   </div>
                 )}
               </div>
             </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
-            Select a route to edit or click "New" to create one.
-          </div>
-        )}
-      </div>
+          ) : selectedGroup !== null && editGroup ? (
+            <div className="flex-1 overflow-y-auto p-6">
+              <RouteGroupFormPanel
+                prefix={selectedGroup}
+                group={editGroup}
+                middlewareNames={middlewareNames}
+                middlewarePresets={middlewarePresets}
+                onChange={setEditGroup}
+                onSave={saveGroup}
+                onDelete={routeGroups[selectedGroup] ? deleteGroup : undefined}
+                saving={savingGroup}
+                isNew={!routeGroups[selectedGroup]}
+              />
+            </div>
+          ) : editRoute ? (
+            <>
+              {/* Tab bar */}
+              <div className="flex items-center border-b border-gray-200 bg-gray-50 shrink-0">
+                {(["editor", "tryit", "json"] as TabType[]).map((tab) => {
+                  const labels: Record<string, string> = {
+                    editor: "Editor",
+                    tryit: "Try It",
+                    json: "JSON",
+                  };
+                  // Disable Try It for new routes
+                  const disabled = tab === "tryit" && isNew;
+                  return (
+                    <button
+                      key={tab}
+                      onClick={() => !disabled && setActiveTab(tab)}
+                      disabled={disabled}
+                      className={`px-4 py-2 text-sm transition-colors ${
+                        activeTab === tab
+                          ? "bg-white text-blue-700 font-medium border-b-2 border-b-blue-500"
+                          : disabled
+                            ? "text-gray-300 cursor-not-allowed"
+                            : "text-gray-600 hover:bg-gray-100"
+                      }`}
+                    >
+                      {labels[tab]}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Tab content */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="max-w-3xl">
+                  {activeTab === "editor" && (
+                    <RouteFormPanel
+                      route={editRoute}
+                      workflows={files?.workflows ?? []}
+                      middlewareNames={middlewareNames}
+                      middlewarePresets={middlewarePresets}
+                      schemas={schemas}
+                      onChange={setEditRoute}
+                      onSave={handleSave}
+                      onDelete={!isNew ? handleDelete : undefined}
+                      saving={saving}
+                      isNew={isNew}
+                    />
+                  )}
+                  {activeTab === "tryit" && !isNew && (
+                    <TryItPanel route={editRoute} />
+                  )}
+                  {activeTab === "json" && (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                          JSON Preview
+                        </h4>
+                        <button
+                          onClick={() => {
+                            navigator.clipboard.writeText(
+                              JSON.stringify(editRoute, null, 2),
+                            );
+                            showToast({
+                              type: "success",
+                              message: "Copied to clipboard",
+                            });
+                          }}
+                          className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                        >
+                          <Copy size={12} />
+                          Copy
+                        </button>
+                      </div>
+                      <div className="border border-gray-200 rounded overflow-hidden">
+                        <Editor
+                          height="500px"
+                          language="json"
+                          value={JSON.stringify(editRoute, null, 2)}
+                          options={{
+                            minimap: { enabled: false },
+                            fontSize: 13,
+                            scrollBeyondLastLine: false,
+                            lineNumbers: "on",
+                            readOnly: true,
+                            wordWrap: "on",
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
+              Select a route to edit or click "New" to create one.
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -719,7 +784,11 @@ function TreeNodeView({
           className="shrink-0"
         >
           {hasChildren ? (
-            isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />
+            isExpanded ? (
+              <ChevronDown size={12} />
+            ) : (
+              <ChevronRight size={12} />
+            )
           ) : null}
         </button>
         <button
@@ -728,9 +797,7 @@ function TreeNodeView({
         >
           <span className="font-mono text-gray-600">/{node.segment}</span>
           {hasGroup && <Shield size={12} className="text-blue-500 shrink-0" />}
-          <span className="text-gray-400 ml-1">
-            ({countRoutes(node)})
-          </span>
+          <span className="text-gray-400 ml-1">({countRoutes(node)})</span>
         </button>
       </div>
 

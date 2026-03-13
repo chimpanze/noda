@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { FieldProps } from "@rjsf/utils";
 import { ExpressionAutocomplete } from "./ExpressionAutocomplete";
 import { useEditorStore } from "@/stores/editor";
@@ -18,7 +18,10 @@ interface CookieEntry {
 
 export function CookieArrayField(props: FieldProps) {
   const { formData, onChange, schema, name, fieldPathId } = props;
-  const items: CookieEntry[] = Array.isArray(formData) ? formData : [];
+  const items: CookieEntry[] = useMemo(
+    () => (Array.isArray(formData) ? formData : []),
+    [formData],
+  );
   const title = schema.title ?? name;
   const path = fieldPathId.path;
 
@@ -31,25 +34,31 @@ export function CookieArrayField(props: FieldProps) {
   const updateItem = useCallback(
     (index: number, patch: Partial<CookieEntry>) => {
       const next = items.map((item, i) =>
-        i === index ? { ...item, ...patch } : item
+        i === index ? { ...item, ...patch } : item,
       );
       onChange(next, path);
     },
-    [items, onChange, path]
+    [items, onChange, path],
   );
 
   const removeItem = useCallback(
     (index: number) => {
       onChange(
         items.filter((_, i) => i !== index),
-        path
+        path,
       );
     },
-    [items, onChange, path]
+    [items, onChange, path],
   );
 
   const addItem = useCallback(() => {
-    onChange([...items, { name: "", value: "", path: "/", secure: false, http_only: false }], path);
+    onChange(
+      [
+        ...items,
+        { name: "", value: "", path: "/", secure: false, http_only: false },
+      ],
+      path,
+    );
   }, [items, onChange, path]);
 
   return (
@@ -148,7 +157,9 @@ export function CookieArrayField(props: FieldProps) {
                   value={item.max_age ?? ""}
                   onChange={(e) =>
                     updateItem(i, {
-                      max_age: e.target.value ? Number(e.target.value) : undefined,
+                      max_age: e.target.value
+                        ? Number(e.target.value)
+                        : undefined,
                     })
                   }
                   className="w-full px-2 py-1.5 text-sm font-mono border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
@@ -190,7 +201,9 @@ export function CookieArrayField(props: FieldProps) {
                 <input
                   type="checkbox"
                   checked={item.http_only ?? false}
-                  onChange={(e) => updateItem(i, { http_only: e.target.checked })}
+                  onChange={(e) =>
+                    updateItem(i, { http_only: e.target.checked })
+                  }
                   className="rounded border-gray-300 text-blue-500 focus:ring-blue-400"
                 />
                 HttpOnly

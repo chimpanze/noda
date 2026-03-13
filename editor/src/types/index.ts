@@ -120,7 +120,10 @@ export interface Execution {
   duration?: string;
   events: TraceEvent[];
   nodeStates: Map<string, NodeExecState>;
-  nodeData: Map<string, { output?: string; data?: unknown; error?: string; duration?: string }>;
+  nodeData: Map<
+    string,
+    { output?: string; data?: unknown; error?: string; duration?: string }
+  >;
 }
 
 export interface RouteGroupConfig {

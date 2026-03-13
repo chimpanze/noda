@@ -63,7 +63,12 @@ export default function App() {
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirtyFiles]);
 
-  const { showShortcuts, closeShortcuts, showCommandPalette, closeCommandPalette } = useKeyboardShortcuts();
+  const {
+    showShortcuts,
+    closeShortcuts,
+    showCommandPalette,
+    closeCommandPalette,
+  } = useKeyboardShortcuts();
   useValidation();
 
   return (

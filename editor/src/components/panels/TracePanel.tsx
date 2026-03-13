@@ -1,5 +1,12 @@
 import { useState } from "react";
-import { Circle, CheckCircle, XCircle, Loader2, Wifi, WifiOff } from "lucide-react";
+import {
+  Circle,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Wifi,
+  WifiOff,
+} from "lucide-react";
 import { useTraceStore } from "@/stores/trace";
 import { useEditorStore } from "@/stores/editor";
 import type { Execution } from "@/types";
@@ -71,7 +78,10 @@ export function TracePanel() {
         <div className="flex items-center gap-2">
           <ConnectionIndicator status={connectionStatus} />
           {executions.length > 0 && (
-            <button onClick={clearExecutions} className="text-xs text-gray-400 hover:text-gray-600">
+            <button
+              onClick={clearExecutions}
+              className="text-xs text-gray-400 hover:text-gray-600"
+            >
               Clear
             </button>
           )}
@@ -103,20 +113,29 @@ export function TracePanel() {
 function ConnectionIndicator({ status }: { status: string }) {
   if (status === "connected") {
     return (
-      <span className="flex items-center gap-1 text-xs text-green-600" title="Connected to trace WebSocket">
+      <span
+        className="flex items-center gap-1 text-xs text-green-600"
+        title="Connected to trace WebSocket"
+      >
         <Wifi size={12} />
       </span>
     );
   }
   if (status === "connecting") {
     return (
-      <span className="flex items-center gap-1 text-xs text-yellow-500" title="Connecting...">
+      <span
+        className="flex items-center gap-1 text-xs text-yellow-500"
+        title="Connecting..."
+      >
         <Loader2 size={12} className="animate-spin" />
       </span>
     );
   }
   return (
-    <span className="flex items-center gap-1 text-xs text-gray-400" title="Disconnected">
+    <span
+      className="flex items-center gap-1 text-xs text-gray-400"
+      title="Disconnected"
+    >
       <WifiOff size={12} />
     </span>
   );
@@ -227,10 +246,22 @@ function NodeDetailView({
               onClick={() => onSelectNode(nodeId)}
             >
               <div className="flex items-center gap-2">
-                <StatusIcon status={state === "completed" ? "completed" : state === "failed" ? "failed" : "running"} />
-                <span className="text-xs font-medium text-gray-800">{nodeId}</span>
+                <StatusIcon
+                  status={
+                    state === "completed"
+                      ? "completed"
+                      : state === "failed"
+                        ? "failed"
+                        : "running"
+                  }
+                />
+                <span className="text-xs font-medium text-gray-800">
+                  {nodeId}
+                </span>
                 {data?.duration && (
-                  <span className="text-xs text-gray-400 ml-auto">{data.duration}</span>
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {data.duration}
+                  </span>
                 )}
               </div>
               {data?.output && (
@@ -256,7 +287,9 @@ function NodeDetailView({
         })}
         {filteredNodes.length === 0 && (
           <div className="p-3 text-xs text-gray-400">
-            {showErrorsOnly ? "No errors in this execution." : "No node data yet."}
+            {showErrorsOnly
+              ? "No errors in this execution."
+              : "No node data yet."}
           </div>
         )}
       </div>
@@ -271,7 +304,9 @@ function StatusIcon({ status }: { status: string }) {
     case "failed":
       return <XCircle size={14} className="text-red-500 shrink-0" />;
     case "running":
-      return <Loader2 size={14} className="text-blue-500 animate-spin shrink-0" />;
+      return (
+        <Loader2 size={14} className="text-blue-500 animate-spin shrink-0" />
+      );
     default:
       return <Circle size={14} className="text-gray-300 shrink-0" />;
   }
@@ -280,7 +315,11 @@ function StatusIcon({ status }: { status: string }) {
 function formatTime(timestamp: string): string {
   try {
     const d = new Date(timestamp);
-    return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    return d.toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   } catch {
     return "";
   }

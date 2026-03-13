@@ -14,10 +14,18 @@ export interface RouteConfig {
   middleware_preset?: string;
   params?: { schema?: unknown };
   query?: { schema?: unknown };
-  body?: { schema?: unknown; raw?: boolean; validate?: boolean; content_type?: string };
+  body?: {
+    schema?: unknown;
+    raw?: boolean;
+    validate?: boolean;
+    content_type?: string;
+  };
   response?: {
     validate?: string;
-    statuses?: Record<string, { description?: string; schema?: { $ref: string } }>;
+    statuses?: Record<
+      string,
+      { description?: string; schema?: { $ref: string } }
+    >;
   };
   response_timeout?: string;
   trigger?: {
@@ -30,7 +38,18 @@ export interface RouteConfig {
 }
 
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"];
-const STATUS_CODES = ["200", "201", "204", "400", "401", "403", "404", "409", "422", "500"];
+const STATUS_CODES = [
+  "200",
+  "201",
+  "204",
+  "400",
+  "401",
+  "403",
+  "404",
+  "409",
+  "422",
+  "500",
+];
 
 interface RouteFormPanelProps {
   route: RouteConfig;
@@ -59,17 +78,21 @@ export function RouteFormPanel({
 }: RouteFormPanelProps) {
   const update = useCallback(
     (patch: Partial<RouteConfig>) => onChange({ ...route, ...patch }),
-    [route, onChange]
+    [route, onChange],
   );
 
   const updateTrigger = useCallback(
     (patch: Partial<NonNullable<RouteConfig["trigger"]>>) => {
       onChange({
         ...route,
-        trigger: { ...route.trigger, workflow: route.trigger?.workflow ?? "", ...patch },
+        trigger: {
+          ...route.trigger,
+          workflow: route.trigger?.workflow ?? "",
+          ...patch,
+        },
       });
     },
-    [route, onChange]
+    [route, onChange],
   );
 
   const schemaRef = (obj?: { schema?: unknown }) => {
@@ -131,7 +154,9 @@ export function RouteFormPanel({
             className="input-field"
           >
             {METHODS.map((m) => (
-              <option key={m} value={m}>{m}</option>
+              <option key={m} value={m}>
+                {m}
+              </option>
             ))}
           </select>
         </Field>
@@ -162,7 +187,9 @@ export function RouteFormPanel({
         <input
           type="text"
           value={route.response_timeout ?? ""}
-          onChange={(e) => update({ response_timeout: e.target.value || undefined })}
+          onChange={(e) =>
+            update({ response_timeout: e.target.value || undefined })
+          }
           className="input-field"
           placeholder="e.g. 30s"
         />
@@ -204,7 +231,9 @@ export function RouteFormPanel({
       <TagInput
         label="Tags"
         values={route.tags ?? []}
-        onChange={(tags) => update({ tags: tags.length > 0 ? tags : undefined })}
+        onChange={(tags) =>
+          update({ tags: tags.length > 0 ? tags : undefined })
+        }
         placeholder="Add tag..."
       />
 
@@ -212,7 +241,9 @@ export function RouteFormPanel({
       <Field label="Middleware Preset">
         <select
           value={route.middleware_preset ?? ""}
-          onChange={(e) => update({ middleware_preset: e.target.value || undefined })}
+          onChange={(e) =>
+            update({ middleware_preset: e.target.value || undefined })
+          }
           className="input-field"
         >
           <option value="">None</option>
@@ -236,7 +267,11 @@ export function RouteFormPanel({
               <button
                 type="button"
                 onClick={() =>
-                  update({ middleware: (route.middleware ?? []).filter((x) => x !== mw) })
+                  update({
+                    middleware: (route.middleware ?? []).filter(
+                      (x) => x !== mw,
+                    ),
+                  })
                 }
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -259,7 +294,9 @@ export function RouteFormPanel({
           {middlewareNames
             .filter((n) => !(route.middleware ?? []).includes(n))
             .map((n) => (
-              <option key={n} value={n}>{n}</option>
+              <option key={n} value={n}>
+                {n}
+              </option>
             ))}
         </select>
       </Field>
@@ -290,7 +327,9 @@ export function RouteFormPanel({
           label="Input Mapping"
           entries={route.trigger?.input ?? {}}
           onChange={(input) =>
-            updateTrigger({ input: Object.keys(input).length > 0 ? input : undefined })
+            updateTrigger({
+              input: Object.keys(input).length > 0 ? input : undefined,
+            })
           }
           valuePlaceholder="{{ body.field }}"
           workflow={route.trigger?.workflow}
@@ -312,7 +351,9 @@ export function RouteFormPanel({
             <input
               type="checkbox"
               checked={route.trigger?.raw_body ?? false}
-              onChange={(e) => updateTrigger({ raw_body: e.target.checked || undefined })}
+              onChange={(e) =>
+                updateTrigger({ raw_body: e.target.checked || undefined })
+              }
               className="rounded border-gray-300"
             />
             Pass raw body
@@ -334,8 +375,11 @@ export function RouteFormPanel({
                 update({ body: { ...route.body, content_type: ct } });
               } else {
                 if (route.body) {
-                  const { content_type: _, ...rest } = route.body;
-                  update({ body: Object.keys(rest).length > 0 ? rest : undefined });
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { content_type: _ct, ...rest } = route.body;
+                  update({
+                    body: Object.keys(rest).length > 0 ? rest : undefined,
+                  });
                 }
               }
             }}
@@ -344,7 +388,9 @@ export function RouteFormPanel({
             <option value="">Default (application/json)</option>
             <option value="application/json">application/json</option>
             <option value="multipart/form-data">multipart/form-data</option>
-            <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+            <option value="application/x-www-form-urlencoded">
+              application/x-www-form-urlencoded
+            </option>
             <option value="text/plain">text/plain</option>
           </select>
         </Field>
@@ -356,8 +402,11 @@ export function RouteFormPanel({
               if (ref) {
                 update({ body: { ...route.body, schema: { $ref: ref } } });
               } else {
-                const { schema: _, ...rest } = route.body ?? {};
-                update({ body: Object.keys(rest).length > 0 ? rest : undefined });
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { schema: _schema, ...rest } = route.body ?? {};
+                update({
+                  body: Object.keys(rest).length > 0 ? rest : undefined,
+                });
               }
             }}
             className="input-field font-mono"
@@ -372,8 +421,11 @@ export function RouteFormPanel({
                 const validate = e.target.checked;
                 if (validate) {
                   // true/undefined is default — remove explicit flag
-                  const { validate: _, ...rest } = route.body ?? {};
-                  update({ body: Object.keys(rest).length > 0 ? rest : undefined });
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { validate: _validate, ...rest } = route.body ?? {};
+                  update({
+                    body: Object.keys(rest).length > 0 ? rest : undefined,
+                  });
                 } else {
                   update({ body: { ...route.body, validate: false } });
                 }
@@ -397,8 +449,11 @@ export function RouteFormPanel({
             onChange={(e) => {
               const mode = e.target.value;
               if (mode === "off") {
-                const { validate: _, ...rest } = route.response ?? {};
-                update({ response: Object.keys(rest).length > 0 ? rest : undefined });
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { validate: _validate, ...rest } = route.response ?? {};
+                update({
+                  response: Object.keys(rest).length > 0 ? rest : undefined,
+                });
               } else {
                 update({ response: { ...route.response, validate: mode } });
               }
@@ -413,19 +468,31 @@ export function RouteFormPanel({
 
         <div className="mt-3 space-y-2">
           {Object.entries(responseStatuses).map(([code, entry]) => (
-            <div key={code} className="flex items-start gap-2 p-2 bg-gray-50 rounded border border-gray-200">
+            <div
+              key={code}
+              className="flex items-start gap-2 p-2 bg-gray-50 rounded border border-gray-200"
+            >
               <div className="shrink-0">
-                <label className="text-[10px] text-gray-400 uppercase block">Status</label>
-                <span className="text-sm font-mono font-medium text-gray-700">{code}</span>
+                <label className="text-[10px] text-gray-400 uppercase block">
+                  Status
+                </label>
+                <span className="text-sm font-mono font-medium text-gray-700">
+                  {code}
+                </span>
               </div>
               <div className="flex-1 min-w-0">
-                <label className="text-[10px] text-gray-400 uppercase block">Description</label>
+                <label className="text-[10px] text-gray-400 uppercase block">
+                  Description
+                </label>
                 <input
                   type="text"
                   value={entry.description ?? ""}
                   onChange={(e) => {
                     const statuses = { ...responseStatuses };
-                    statuses[code] = { ...statuses[code], description: e.target.value || undefined };
+                    statuses[code] = {
+                      ...statuses[code],
+                      description: e.target.value || undefined,
+                    };
                     update({ response: { ...route.response, statuses } });
                   }}
                   className="input-field text-xs"
@@ -433,7 +500,9 @@ export function RouteFormPanel({
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <label className="text-[10px] text-gray-400 uppercase block">Schema</label>
+                <label className="text-[10px] text-gray-400 uppercase block">
+                  Schema
+                </label>
                 <SchemaSelect
                   schemas={schemas}
                   value={entry.schema?.$ref ?? ""}
@@ -456,7 +525,8 @@ export function RouteFormPanel({
                   update({
                     response: {
                       ...route.response,
-                      statuses: Object.keys(statuses).length > 0 ? statuses : undefined,
+                      statuses:
+                        Object.keys(statuses).length > 0 ? statuses : undefined,
                     },
                   });
                 }}
@@ -482,7 +552,13 @@ export function RouteFormPanel({
 
 // --- Shared sub-components ---
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
@@ -674,7 +750,9 @@ function AddStatusButton({
       >
         <option value="">+ Add Status Code</option>
         {STATUS_CODES.filter((c) => !existingCodes.includes(c)).map((c) => (
-          <option key={c} value={c}>{c}</option>
+          <option key={c} value={c}>
+            {c}
+          </option>
         ))}
       </select>
     </div>

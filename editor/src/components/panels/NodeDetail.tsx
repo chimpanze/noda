@@ -14,9 +14,7 @@ export function NodeDetail() {
 
   const node = activeWorkflow.nodes.find((n) => n.id === selectedNodeId);
   if (!node) {
-    return (
-      <div className="p-4 text-sm text-gray-400">Node not found.</div>
-    );
+    return <div className="p-4 text-sm text-gray-400">Node not found.</div>;
   }
 
   return (

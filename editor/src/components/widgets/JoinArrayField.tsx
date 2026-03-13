@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import type { FieldProps } from "@rjsf/utils";
 import { ExpressionAutocomplete } from "./ExpressionAutocomplete";
 import { useEditorStore } from "@/stores/editor";
@@ -13,7 +13,10 @@ interface JoinEntry {
 
 export function JoinArrayField(props: FieldProps) {
   const { formData, onChange, schema, name, fieldPathId } = props;
-  const items: JoinEntry[] = Array.isArray(formData) ? formData : [];
+  const items: JoinEntry[] = useMemo(
+    () => (Array.isArray(formData) ? formData : []),
+    [formData],
+  );
   const title = schema.title ?? name;
   const path = fieldPathId.path;
 
@@ -26,21 +29,21 @@ export function JoinArrayField(props: FieldProps) {
   const updateItem = useCallback(
     (index: number, patch: Partial<JoinEntry>) => {
       const next = items.map((item, i) =>
-        i === index ? { ...item, ...patch } : item
+        i === index ? { ...item, ...patch } : item,
       );
       onChange(next, path);
     },
-    [items, onChange, path]
+    [items, onChange, path],
   );
 
   const removeItem = useCallback(
     (index: number) => {
       onChange(
         items.filter((_, i) => i !== index),
-        path
+        path,
       );
     },
-    [items, onChange, path]
+    [items, onChange, path],
   );
 
   const addItem = useCallback(() => {

@@ -31,7 +31,7 @@ const rfEdgeTypes = { noda: NodaEdge };
 function computeNodeOutputs(
   nodeType: string,
   config: Record<string, unknown> | undefined,
-  staticOutputs: Map<string, string[]>
+  staticOutputs: Map<string, string[]>,
 ): string[] {
   // control.switch: outputs are derived from cases config
   if (nodeType === "control.switch" && config?.cases) {
@@ -78,7 +78,9 @@ export function WorkflowCanvas() {
   const { screenToFlowPosition } = useReactFlow();
 
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
-  const [quickAdd, setQuickAdd] = useState<{ x: number; y: number } | null>(null);
+  const [quickAdd, setQuickAdd] = useState<{ x: number; y: number } | null>(
+    null,
+  );
 
   // Build a lookup: nodeType → static outputs (fallback)
   const outputsByType = useMemo(() => {
@@ -111,7 +113,7 @@ export function WorkflowCanvas() {
         selected: selectedNodeIds.has(node.id),
       };
     });
-  }, [activeWorkflow?.nodes, outputsByType, selectedNodeIds]);
+  }, [activeWorkflow, outputsByType, selectedNodeIds]);
 
   // Convert Noda workflow edges to React Flow edges
   const edges: Edge[] = useMemo(() => {
@@ -132,19 +134,17 @@ export function WorkflowCanvas() {
         data,
         style: {
           stroke:
-            edge.output === "error"
-              ? "#ef4444"
-              : getOutputColor(edge.output),
+            edge.output === "error" ? "#ef4444" : getOutputColor(edge.output),
         },
       };
     });
-  }, [activeWorkflow?.edges]);
+  }, [activeWorkflow]);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
       selectNode(node.id);
     },
-    [selectNode]
+    [selectNode],
   );
 
   const onEdgeClick = useCallback(
@@ -152,7 +152,7 @@ export function WorkflowCanvas() {
       const index = parseInt(edge.id.replace("e-", ""), 10);
       if (!isNaN(index)) selectEdge(index);
     },
-    [selectEdge]
+    [selectEdge],
   );
 
   const onPaneClick = useCallback(() => {
@@ -166,7 +166,7 @@ export function WorkflowCanvas() {
         setSelectedNodeIds(new Set(selectedNodes.map((n) => n.id)));
       }
     },
-    [setSelectedNodeIds]
+    [setSelectedNodeIds],
   );
 
   // Context menu handlers
@@ -174,9 +174,14 @@ export function WorkflowCanvas() {
     (event: React.MouseEvent, node: Node) => {
       event.preventDefault();
       selectNode(node.id);
-      setContextMenu({ type: "node", x: event.clientX, y: event.clientY, targetId: node.id });
+      setContextMenu({
+        type: "node",
+        x: event.clientX,
+        y: event.clientY,
+        targetId: node.id,
+      });
     },
-    [selectNode]
+    [selectNode],
   );
 
   const onEdgeContextMenu = useCallback(
@@ -184,9 +189,14 @@ export function WorkflowCanvas() {
       event.preventDefault();
       const index = parseInt(edge.id.replace("e-", ""), 10);
       if (!isNaN(index)) selectEdge(index);
-      setContextMenu({ type: "edge", x: event.clientX, y: event.clientY, targetId: edge.id });
+      setContextMenu({
+        type: "edge",
+        x: event.clientX,
+        y: event.clientY,
+        targetId: edge.id,
+      });
     },
-    [selectEdge]
+    [selectEdge],
   );
 
   const onPaneContextMenu = useCallback(
@@ -194,20 +204,30 @@ export function WorkflowCanvas() {
       event.preventDefault();
       setContextMenu({ type: "pane", x: event.clientX, y: event.clientY });
     },
-    []
+    [],
   );
 
   // Context menu action handlers — use multi-select if available, else target node
   const handleCopyNode = useCallback(() => {
     if (!activeWorkflow) return;
-    const ids = selectedNodeIds.size > 1 ? selectedNodeIds : contextMenu?.targetId ? new Set([contextMenu.targetId]) : new Set<string>();
+    const ids =
+      selectedNodeIds.size > 1
+        ? selectedNodeIds
+        : contextMenu?.targetId
+          ? new Set([contextMenu.targetId])
+          : new Set<string>();
     if (ids.size === 0) return;
     copyNodes(activeWorkflow.nodes, activeWorkflow.edges, ids);
   }, [activeWorkflow, contextMenu, selectedNodeIds]);
 
   const handleDuplicateNode = useCallback(() => {
     if (!activeWorkflow) return;
-    const ids = selectedNodeIds.size > 1 ? selectedNodeIds : contextMenu?.targetId ? new Set([contextMenu.targetId]) : new Set<string>();
+    const ids =
+      selectedNodeIds.size > 1
+        ? selectedNodeIds
+        : contextMenu?.targetId
+          ? new Set([contextMenu.targetId])
+          : new Set<string>();
     if (ids.size === 0) return;
     copyNodes(activeWorkflow.nodes, activeWorkflow.edges, ids);
     const result = pasteNodes();
@@ -216,7 +236,14 @@ export function WorkflowCanvas() {
       for (const e of result.edges) addEdge(e);
       if (result.nodes.length > 0) selectNode(result.nodes[0].id);
     }
-  }, [activeWorkflow, contextMenu, selectedNodeIds, addNode, addEdge, selectNode]);
+  }, [
+    activeWorkflow,
+    contextMenu,
+    selectedNodeIds,
+    addNode,
+    addEdge,
+    selectNode,
+  ]);
 
   const handleDeleteNode = useCallback(() => {
     if (selectedNodeIds.size > 1) {
@@ -271,7 +298,13 @@ export function WorkflowCanvas() {
       selectNode(newNode.id);
       setQuickAdd(null);
     },
-    [quickAdd, screenToFlowPosition, activeWorkflow?.nodes, addNode, selectNode]
+    [
+      quickAdd,
+      screenToFlowPosition,
+      activeWorkflow?.nodes,
+      addNode,
+      selectNode,
+    ],
   );
 
   const handleAutoLayout = useCallback(async () => {
@@ -299,7 +332,7 @@ export function WorkflowCanvas() {
         to: connection.target,
       });
     },
-    [addEdge]
+    [addEdge],
   );
 
   // Node position update on drag end (handles single + multi-select drag)
@@ -309,7 +342,7 @@ export function WorkflowCanvas() {
         updateNodePosition(n.id, n.position);
       }
     },
-    [updateNodePosition]
+    [updateNodePosition],
   );
 
   // Drag-and-drop from palette
@@ -340,7 +373,7 @@ export function WorkflowCanvas() {
       addNode(newNode);
       selectNode(newNode.id);
     },
-    [screenToFlowPosition, addNode, selectNode, activeWorkflow?.nodes]
+    [screenToFlowPosition, addNode, selectNode, activeWorkflow?.nodes],
   );
 
   if (!activeWorkflow) {
@@ -400,7 +433,8 @@ export function WorkflowCanvas() {
           onDeleteEdge={handleDeleteEdge}
           hasRetry={getEdgeRetryState()}
           onAddNode={() => {
-            if (contextMenu) setQuickAdd({ x: contextMenu.x, y: contextMenu.y });
+            if (contextMenu)
+              setQuickAdd({ x: contextMenu.x, y: contextMenu.y });
           }}
           onPaste={handlePaste}
           onAutoLayout={handleAutoLayout}

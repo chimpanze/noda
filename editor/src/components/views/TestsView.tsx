@@ -15,7 +15,7 @@ import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import type { TestRunResult } from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 
 interface TestSuite {
   id: string;
@@ -39,7 +39,9 @@ type TestStatus = "idle" | "running" | "passed" | "failed";
 export function TestsView() {
   const files = useEditorStore((s) => s.files);
   const loadFiles = useEditorStore((s) => s.loadFiles);
-  const [suites, setSuites] = useState<{ path: string; suite: TestSuite }[]>([]);
+  const [suites, setSuites] = useState<{ path: string; suite: TestSuite }[]>(
+    [],
+  );
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [editSuite, setEditSuite] = useState<TestSuite | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,8 +49,12 @@ export function TestsView() {
   const [isNew, setIsNew] = useState(false);
 
   // Test runner state
-  const [testResults, setTestResults] = useState<Map<string, TestRunResult>>(new Map());
-  const [testStatuses, setTestStatuses] = useState<Map<string, TestStatus>>(new Map());
+  const [testResults, setTestResults] = useState<Map<string, TestRunResult>>(
+    new Map(),
+  );
+  const [testStatuses, setTestStatuses] = useState<Map<string, TestStatus>>(
+    new Map(),
+  );
   const [runningAll, setRunningAll] = useState(false);
 
   const reload = useCallback(async () => {
@@ -59,7 +65,7 @@ export function TestsView() {
         files.tests.map(async (path) => {
           const data = await api.readFile(path);
           return { path, suite: data as TestSuite };
-        })
+        }),
       );
       setSuites(results);
     } finally {
@@ -82,7 +88,7 @@ export function TestsView() {
         setTestStatuses(new Map());
       }
     },
-    [suites]
+    [suites],
   );
 
   const startNew = useCallback(() => {
@@ -103,7 +109,10 @@ export function TestsView() {
     try {
       const filePath = isNew ? `tests/${editSuite.id}.json` : selectedPath!;
       await api.writeFile(filePath, editSuite);
-      showToast({ type: "success", message: `Test suite "${editSuite.id}" saved` });
+      showToast({
+        type: "success",
+        message: `Test suite "${editSuite.id}" saved`,
+      });
       setIsNew(false);
       await loadFiles();
       await reload();
@@ -158,7 +167,10 @@ export function TestsView() {
       if (failed === 0) {
         showToast({ type: "success", message: `All ${passed} tests passed` });
       } else {
-        showToast({ type: "error", message: `${failed} failed, ${passed} passed` });
+        showToast({
+          type: "error",
+          message: `${failed} failed, ${passed} passed`,
+        });
       }
     } catch (err) {
       showToast({ type: "error", message: `Test run failed: ${err}` });
@@ -180,37 +192,44 @@ export function TestsView() {
         const match = results.find((r) => r.case_name === testName);
         if (match) {
           setTestResults((prev) => new Map(prev).set(testName, match));
-          setTestStatuses((prev) => new Map(prev).set(testName, match.passed ? "passed" : "failed"));
+          setTestStatuses((prev) =>
+            new Map(prev).set(testName, match.passed ? "passed" : "failed"),
+          );
         }
       } catch (err) {
         setTestStatuses((prev) => new Map(prev).set(testName, "idle"));
         showToast({ type: "error", message: `Test run failed: ${err}` });
       }
     },
-    [selectedPath, isNew]
+    [selectedPath, isNew],
   );
 
   const updateSuite = useCallback(
     (patch: Partial<TestSuite>) => {
       if (editSuite) setEditSuite({ ...editSuite, ...patch });
     },
-    [editSuite]
+    [editSuite],
   );
 
   const updateTest = useCallback(
     (index: number, patch: Partial<TestCase>) => {
       if (!editSuite) return;
-      const tests = editSuite.tests.map((t, i) => (i === index ? { ...t, ...patch } : t));
+      const tests = editSuite.tests.map((t, i) =>
+        i === index ? { ...t, ...patch } : t,
+      );
       setEditSuite({ ...editSuite, tests });
     },
-    [editSuite]
+    [editSuite],
   );
 
   const addTest = useCallback(() => {
     if (!editSuite) return;
     setEditSuite({
       ...editSuite,
-      tests: [...editSuite.tests, { name: `test case ${editSuite.tests.length + 1}` }],
+      tests: [
+        ...editSuite.tests,
+        { name: `test case ${editSuite.tests.length + 1}` },
+      ],
     });
   }, [editSuite]);
 
@@ -222,7 +241,7 @@ export function TestsView() {
         tests: editSuite.tests.filter((_, i) => i !== index),
       });
     },
-    [editSuite]
+    [editSuite],
   );
 
   if (loading) {
@@ -231,152 +250,163 @@ export function TestsView() {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Tests" subtitle="Workflow test suites and execution results" />
+      <ViewHeader
+        title="Tests"
+        subtitle="Workflow test suites and execution results"
+      />
       <div className="flex-1 flex min-h-0">
-      {/* Suite list */}
-      <div className="w-72 border-r border-gray-200 overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Test Suites ({suites.length})
-          </h2>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Plus size={14} />
-            New
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {suites.map(({ path, suite }) => (
+        {/* Suite list */}
+        <div className="w-72 border-r border-gray-200 overflow-y-auto">
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Test Suites ({suites.length})
+            </h2>
             <button
-              key={path}
-              onClick={() => selectSuite(path)}
-              className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                selectedPath === path && !isNew ? "bg-blue-50" : ""
-              }`}
+              onClick={startNew}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
             >
-              <div className="text-sm font-medium text-gray-800">{suite.id}</div>
-              <div className="text-xs text-gray-400">
-                {suite.workflow} &middot; {suite.tests.length} test
-                {suite.tests.length !== 1 ? "s" : ""}
-              </div>
+              <Plus size={14} />
+              New
             </button>
-          ))}
-          {suites.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">No test suites found.</div>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {suites.map(({ path, suite }) => (
+              <button
+                key={path}
+                onClick={() => selectSuite(path)}
+                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
+                  selectedPath === path && !isNew ? "bg-blue-50" : ""
+                }`}
+              >
+                <div className="text-sm font-medium text-gray-800">
+                  {suite.id}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {suite.workflow} &middot; {suite.tests.length} test
+                  {suite.tests.length !== 1 ? "s" : ""}
+                </div>
+              </button>
+            ))}
+            {suites.length === 0 && (
+              <div className="p-4 text-sm text-gray-400">
+                No test suites found.
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Suite editor */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {editSuite ? (
+            <div className="max-w-3xl space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isNew ? "New Test Suite" : editSuite.id}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {!isNew && (
+                    <button
+                      onClick={handleRunAll}
+                      disabled={runningAll}
+                      className="px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded hover:bg-green-50 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {runningAll ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <Play size={14} />
+                      )}
+                      Run All
+                    </button>
+                  )}
+                  {!isNew && (
+                    <button
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                    >
+                      <Trash2 size={14} className="inline mr-1" />
+                      Delete
+                    </button>
+                  )}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || !editSuite.id || !editSuite.workflow}
+                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+
+              {/* Suite metadata */}
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Suite ID">
+                  <input
+                    type="text"
+                    value={editSuite.id}
+                    onChange={(e) => updateSuite({ id: e.target.value })}
+                    className="input-field font-mono"
+                    placeholder="e.g. test-create-task"
+                  />
+                </Field>
+                <Field label="Workflow">
+                  <select
+                    value={editSuite.workflow}
+                    onChange={(e) => updateSuite({ workflow: e.target.value })}
+                    className="input-field"
+                  >
+                    <option value="">Select workflow...</option>
+                    {(files?.workflows ?? []).map((wf) => {
+                      const name = wf
+                        .replace(/^workflows\//, "")
+                        .replace(/\.json$/, "");
+                      return (
+                        <option key={wf} value={name}>
+                          {name}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </Field>
+              </div>
+
+              {/* Test cases */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                    Test Cases ({editSuite.tests.length})
+                  </h4>
+                  <button
+                    onClick={addTest}
+                    className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700"
+                  >
+                    <Plus size={12} />
+                    Add Test
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {editSuite.tests.map((tc, i) => (
+                    <TestCaseEditor
+                      key={i}
+                      testCase={tc}
+                      index={i}
+                      onChange={(patch) => updateTest(i, patch)}
+                      onDelete={() => removeTest(i)}
+                      onRun={() => handleRunSingle(tc.name)}
+                      status={testStatuses.get(tc.name) ?? "idle"}
+                      result={testResults.get(tc.name)}
+                      canRun={!isNew && !!selectedPath}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-gray-400">
+              Select a test suite to edit or click "New" to create one.
+            </div>
           )}
         </div>
-      </div>
-
-      {/* Suite editor */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {editSuite ? (
-          <div className="max-w-3xl space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {isNew ? "New Test Suite" : editSuite.id}
-              </h3>
-              <div className="flex items-center gap-2">
-                {!isNew && (
-                  <button
-                    onClick={handleRunAll}
-                    disabled={runningAll}
-                    className="px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded hover:bg-green-50 disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {runningAll ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <Play size={14} />
-                    )}
-                    Run All
-                  </button>
-                )}
-                {!isNew && (
-                  <button
-                    onClick={handleDelete}
-                    className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                  >
-                    <Trash2 size={14} className="inline mr-1" />
-                    Delete
-                  </button>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !editSuite.id || !editSuite.workflow}
-                  className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
-
-            {/* Suite metadata */}
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Suite ID">
-                <input
-                  type="text"
-                  value={editSuite.id}
-                  onChange={(e) => updateSuite({ id: e.target.value })}
-                  className="input-field font-mono"
-                  placeholder="e.g. test-create-task"
-                />
-              </Field>
-              <Field label="Workflow">
-                <select
-                  value={editSuite.workflow}
-                  onChange={(e) => updateSuite({ workflow: e.target.value })}
-                  className="input-field"
-                >
-                  <option value="">Select workflow...</option>
-                  {(files?.workflows ?? []).map((wf) => {
-                    const name = wf.replace(/^workflows\//, "").replace(/\.json$/, "");
-                    return (
-                      <option key={wf} value={name}>{name}</option>
-                    );
-                  })}
-                </select>
-              </Field>
-            </div>
-
-            {/* Test cases */}
-            <div className="border-t border-gray-200 pt-4">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                  Test Cases ({editSuite.tests.length})
-                </h4>
-                <button
-                  onClick={addTest}
-                  className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700"
-                >
-                  <Plus size={12} />
-                  Add Test
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {editSuite.tests.map((tc, i) => (
-                  <TestCaseEditor
-                    key={i}
-                    testCase={tc}
-                    index={i}
-                    onChange={(patch) => updateTest(i, patch)}
-                    onDelete={() => removeTest(i)}
-                    onRun={() => handleRunSingle(tc.name)}
-                    status={testStatuses.get(tc.name) ?? "idle"}
-                    result={testResults.get(tc.name)}
-                    canRun={!isNew && !!selectedPath}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="text-sm text-gray-400">
-            Select a test suite to edit or click "New" to create one.
-          </div>
-        )}
-      </div>
       </div>
     </div>
   );
@@ -385,7 +415,9 @@ export function TestsView() {
 function StatusIcon({ status }: { status: TestStatus }) {
   switch (status) {
     case "running":
-      return <Loader2 size={14} className="text-blue-500 animate-spin shrink-0" />;
+      return (
+        <Loader2 size={14} className="text-blue-500 animate-spin shrink-0" />
+      );
     case "passed":
       return <CheckCircle size={14} className="text-green-500 shrink-0" />;
     case "failed":
@@ -419,13 +451,18 @@ function TestCaseEditor({
 
   // Auto-expand results when they arrive
   useEffect(() => {
-    if (result && !result.passed) setShowResult(true);
+    if (!result || result.passed) return;
+    const timer = setTimeout(() => setShowResult(true), 0);
+    return () => clearTimeout(timer);
   }, [result]);
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       <div className="flex items-center gap-2 px-3 py-2 bg-gray-50">
-        <button onClick={() => setExpanded(!expanded)} className="text-gray-400">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="text-gray-400"
+        >
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
         <StatusIcon status={status} />
@@ -437,7 +474,9 @@ function TestCaseEditor({
           placeholder="Test case name"
         />
         {result?.duration && (
-          <span className="text-[10px] text-gray-400 font-mono">{result.duration}</span>
+          <span className="text-[10px] text-gray-400 font-mono">
+            {result.duration}
+          </span>
         )}
         {canRun && (
           <button
@@ -483,7 +522,9 @@ function TestCaseEditor({
             )}
           </div>
           {result.error && (
-            <div className="mt-1 font-mono text-[11px] whitespace-pre-wrap">{result.error}</div>
+            <div className="mt-1 font-mono text-[11px] whitespace-pre-wrap">
+              {result.error}
+            </div>
           )}
           {showResult && !result.passed && (
             <div className="mt-2 space-y-2">
@@ -519,7 +560,9 @@ function TestCaseEditor({
           <JsonField
             label="Expected"
             value={testCase.expect}
-            onChange={(expect) => onChange({ expect: expect as TestCase["expect"] })}
+            onChange={(expect) =>
+              onChange({ expect: expect as TestCase["expect"] })
+            }
           />
         </div>
       )}
@@ -556,13 +599,15 @@ function JsonField({
         setError((e as Error).message);
       }
     },
-    [onChange]
+    [onChange],
   );
 
   return (
     <div>
       <div className="flex items-center justify-between mb-1">
-        <label className="text-xs font-medium text-gray-400 uppercase">{label}</label>
+        <label className="text-xs font-medium text-gray-400 uppercase">
+          {label}
+        </label>
         {error && <span className="text-xs text-red-500">Invalid JSON</span>}
       </div>
       <div className="border border-gray-200 rounded overflow-hidden">
@@ -589,7 +634,13 @@ function JsonField({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-gray-400 uppercase block mb-1">

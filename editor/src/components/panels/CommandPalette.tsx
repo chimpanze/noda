@@ -1,5 +1,14 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
-import { Search, FileText, Globe, Box, Database, TestTube, LayoutGrid, Zap } from "lucide-react";
+import {
+  Search,
+  FileText,
+  Globe,
+  Box,
+  Database,
+  TestTube,
+  LayoutGrid,
+  Zap,
+} from "lucide-react";
 import { useEditorStore } from "@/stores/editor";
 import type { ViewType } from "@/types";
 
@@ -21,6 +30,11 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  const updateSearch = useCallback((v: string) => {
+    setSearch(v);
+    setSelectedIndex(0);
+  }, []);
+
   const files = useEditorStore((s) => s.files);
   const nodeTypes = useEditorStore((s) => s.nodeTypes);
   const setActiveView = useEditorStore((s) => s.setActiveView);
@@ -32,14 +46,26 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 
     // Navigation actions
     const views: { view: ViewType; label: string; icon: React.ReactNode }[] = [
-      { view: "workflows", label: "Go to Workflows", icon: <LayoutGrid size={14} /> },
+      {
+        view: "workflows",
+        label: "Go to Workflows",
+        icon: <LayoutGrid size={14} />,
+      },
       { view: "routes", label: "Go to Routes", icon: <Globe size={14} /> },
-      { view: "services", label: "Go to Services", icon: <Database size={14} /> },
+      {
+        view: "services",
+        label: "Go to Services",
+        icon: <Database size={14} />,
+      },
       { view: "schemas", label: "Go to Schemas", icon: <FileText size={14} /> },
       { view: "tests", label: "Go to Tests", icon: <TestTube size={14} /> },
       { view: "workers", label: "Go to Workers", icon: <Box size={14} /> },
       { view: "schedules", label: "Go to Schedules", icon: <Zap size={14} /> },
-      { view: "connections", label: "Go to Connections", icon: <Zap size={14} /> },
+      {
+        view: "connections",
+        label: "Go to Connections",
+        icon: <Zap size={14} />,
+      },
       { view: "wasm", label: "Go to Wasm Runtimes", icon: <Box size={14} /> },
     ];
 
@@ -127,15 +153,10 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
       .filter(
         (item) =>
           item.label.toLowerCase().includes(lower) ||
-          (item.detail?.toLowerCase().includes(lower) ?? false)
+          (item.detail?.toLowerCase().includes(lower) ?? false),
       )
       .slice(0, 20);
   }, [allItems, search]);
-
-  // Reset selection when filter changes
-  useEffect(() => {
-    setSelectedIndex(0);
-  }, [filtered]);
 
   // Focus input on mount
   useEffect(() => {
@@ -161,7 +182,9 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
 
   // Scroll selected into view
   useEffect(() => {
-    const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
+    const el = listRef.current?.children[selectedIndex] as
+      | HTMLElement
+      | undefined;
     el?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
@@ -178,7 +201,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         filtered[selectedIndex]?.action();
       }
     },
-    [filtered, selectedIndex]
+    [filtered, selectedIndex],
   );
 
   return (
@@ -198,7 +221,7 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
               type="text"
               placeholder="Search workflows, routes, schemas, node types..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => updateSearch(e.target.value)}
               onKeyDown={handleKeyDown}
               className="w-full pl-9 pr-3 py-2 text-sm border-none focus:outline-none"
             />
@@ -234,9 +257,24 @@ export function CommandPalette({ onClose }: CommandPaletteProps) {
         </div>
 
         <div className="px-3 py-2 border-t border-gray-100 text-xs text-gray-400 flex gap-3">
-          <span><kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500">↑↓</kbd> Navigate</span>
-          <span><kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500">↵</kbd> Open</span>
-          <span><kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500">Esc</kbd> Close</span>
+          <span>
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500">
+              ↑↓
+            </kbd>{" "}
+            Navigate
+          </span>
+          <span>
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500">
+              ↵
+            </kbd>{" "}
+            Open
+          </span>
+          <span>
+            <kbd className="px-1 py-0.5 bg-gray-100 rounded text-gray-500">
+              Esc
+            </kbd>{" "}
+            Close
+          </span>
         </div>
       </div>
     </div>

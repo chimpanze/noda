@@ -31,7 +31,8 @@ export function ERDiagramTab({ models, onSelectModel }: Props) {
     models.forEach((m, i) => {
       const colCount = Object.keys(m.model.columns).length;
       const x = (i % COLS_PER_ROW) * (NODE_W + GAP_X);
-      const y = Math.floor(i / COLS_PER_ROW) * (NODE_H_BASE + colCount * ROW_H + GAP_Y);
+      const y =
+        Math.floor(i / COLS_PER_ROW) * (NODE_H_BASE + colCount * ROW_H + GAP_Y);
 
       ns.push({
         id: m.model.table,
@@ -90,7 +91,7 @@ export function ERDiagramTab({ models, onSelectModel }: Props) {
       const m = models.find((m) => m.model.table === node.id);
       if (m) onSelectModel(m.path);
     },
-    [models, onSelectModel]
+    [models, onSelectModel],
   );
 
   if (models.length === 0) {

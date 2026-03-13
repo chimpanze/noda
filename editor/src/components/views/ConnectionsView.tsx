@@ -4,7 +4,7 @@ import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocompl
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 
 interface EndpointConfig {
   type: "websocket" | "sse";
@@ -43,7 +43,9 @@ export function ConnectionsView() {
   const setActiveView = useEditorStore((s) => s.setActiveView);
   const setActiveWorkflow = useEditorStore((s) => s.setActiveWorkflow);
 
-  const [connFiles, setConnFiles] = useState<{ path: string; config: ConnectionFileConfig }[]>([]);
+  const [connFiles, setConnFiles] = useState<
+    { path: string; config: ConnectionFileConfig }[]
+  >([]);
   const [entries, setEntries] = useState<EndpointEntry[]>([]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
@@ -71,7 +73,7 @@ export function ConnectionsView() {
               allEntries.push({ filePath: path, name, endpoint });
             }
           }
-        })
+        }),
       );
       setConnFiles(fileConfigs);
       setEntries(allEntries);
@@ -82,7 +84,10 @@ export function ConnectionsView() {
       ]);
       const instNames = Object.keys(mwInfo.instances ?? {});
       setInstanceNames(instNames);
-      setMiddlewareNames([...mwInfo.middleware.map((m) => m.name), ...instNames]);
+      setMiddlewareNames([
+        ...mwInfo.middleware.map((m) => m.name),
+        ...instNames,
+      ]);
       setPresetNames(mwInfo.presets);
       setServiceNames(services.map((s) => s.name));
     } finally {
@@ -101,7 +106,7 @@ export function ConnectionsView() {
       setEditEndpoint(structuredClone(entries[index].endpoint));
       setIsNew(false);
     },
-    [entries]
+    [entries],
   );
 
   const startNew = useCallback(() => {
@@ -142,7 +147,10 @@ export function ConnectionsView() {
         if (!updated.endpoints) updated.endpoints = {};
         updated.endpoints[editName] = clean;
         await api.writeFile(targetFile.path, updated);
-        showToast({ type: "success", message: `Endpoint "${editName}" created` });
+        showToast({
+          type: "success",
+          message: `Endpoint "${editName}" created`,
+        });
       } else if (selectedIndex !== null) {
         const entry = entries[selectedIndex];
         const fileConfig = connFiles.find((f) => f.path === entry.filePath);
@@ -156,7 +164,10 @@ export function ConnectionsView() {
             updated.endpoints[editName] = clean;
           }
           await api.writeFile(fileConfig.path, updated);
-          showToast({ type: "success", message: `Endpoint "${editName}" saved` });
+          showToast({
+            type: "success",
+            message: `Endpoint "${editName}" saved`,
+          });
         }
       }
 
@@ -168,7 +179,16 @@ export function ConnectionsView() {
     } finally {
       setSaving(false);
     }
-  }, [editEndpoint, editName, isNew, selectedIndex, entries, connFiles, loadFiles, reload]);
+  }, [
+    editEndpoint,
+    editName,
+    isNew,
+    selectedIndex,
+    entries,
+    connFiles,
+    loadFiles,
+    reload,
+  ]);
 
   const handleDelete = useCallback(async () => {
     if (selectedIndex === null) return;
@@ -202,381 +222,443 @@ export function ConnectionsView() {
         setActiveWorkflow(match);
       }
     },
-    [files?.workflows, setActiveView, setActiveWorkflow]
+    [files?.workflows, setActiveView, setActiveWorkflow],
   );
 
   const update = useCallback(
     (patch: Partial<EndpointConfig>) => {
       if (editEndpoint) setEditEndpoint({ ...editEndpoint, ...patch });
     },
-    [editEndpoint]
+    [editEndpoint],
   );
 
   if (loading) {
-    return <div className="p-6 text-sm text-gray-400">Loading connections...</div>;
+    return (
+      <div className="p-6 text-sm text-gray-400">Loading connections...</div>
+    );
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Connections" subtitle="WebSocket and SSE real-time connection endpoints" />
+      <ViewHeader
+        title="Connections"
+        subtitle="WebSocket and SSE real-time connection endpoints"
+      />
       <div className="flex-1 flex min-h-0">
-      {/* Endpoint list */}
-      <div className="w-80 border-r border-gray-200 overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Connections ({entries.length})
-          </h2>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Plus size={14} />
-            New
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {entries.map((entry, index) => (
+        {/* Endpoint list */}
+        <div className="w-80 border-r border-gray-200 overflow-y-auto">
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Connections ({entries.length})
+            </h2>
             <button
-              key={`${entry.filePath}-${entry.name}`}
-              onClick={() => selectEndpoint(index)}
-              className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                selectedIndex === index && !isNew ? "bg-blue-50" : ""
-              }`}
+              onClick={startNew}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
             >
-              <div className="flex items-center gap-2">
-                {entry.endpoint.type === "websocket" ? (
-                  <Wifi size={12} className="text-violet-500 shrink-0" />
-                ) : (
-                  <Radio size={12} className="text-teal-500 shrink-0" />
-                )}
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-gray-800 truncate">
-                    {entry.name}
-                  </div>
-                  <div className="text-xs text-gray-400 truncate font-mono">
-                    {entry.endpoint.path}
+              <Plus size={14} />
+              New
+            </button>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {entries.map((entry, index) => (
+              <button
+                key={`${entry.filePath}-${entry.name}`}
+                onClick={() => selectEndpoint(index)}
+                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
+                  selectedIndex === index && !isNew ? "bg-blue-50" : ""
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {entry.endpoint.type === "websocket" ? (
+                    <Wifi size={12} className="text-violet-500 shrink-0" />
+                  ) : (
+                    <Radio size={12} className="text-teal-500 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-gray-800 truncate">
+                      {entry.name}
+                    </div>
+                    <div className="text-xs text-gray-400 truncate font-mono">
+                      {entry.endpoint.path}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </button>
-          ))}
-          {entries.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">No connections configured.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Endpoint editor */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {editEndpoint ? (
-          <div className="max-w-2xl space-y-5">
-            {/* Cross-Instance Sync */}
-            {connFiles.length > 0 && (
-              <div className="p-3 bg-gray-50 rounded border border-gray-200">
-                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-                  Cross-Instance Sync
-                </h4>
-                <Field label="PubSub Service">
-                  <select
-                    value={connFiles[0]?.config?.sync?.pubsub ?? ""}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      const target = connFiles[0];
-                      if (!target) return;
-                      const updated = structuredClone(target.config);
-                      if (val) {
-                        updated.sync = { ...updated.sync, pubsub: val };
-                      } else {
-                        delete updated.sync;
-                      }
-                      // Save file-level config immediately
-                      api.writeFile(target.path, updated).then(() => reload());
-                    }}
-                    className="input-field"
-                  >
-                    <option value="">None</option>
-                    {serviceNames.map((n) => (
-                      <option key={n} value={n}>{n}</option>
-                    ))}
-                  </select>
-                </Field>
+              </button>
+            ))}
+            {entries.length === 0 && (
+              <div className="p-4 text-sm text-gray-400">
+                No connections configured.
               </div>
             )}
+          </div>
+        </div>
 
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {isNew ? "New Endpoint" : editName}
-              </h3>
-              <div className="flex items-center gap-2">
-                {!isNew && (
+        {/* Endpoint editor */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {editEndpoint ? (
+            <div className="max-w-2xl space-y-5">
+              {/* Cross-Instance Sync */}
+              {connFiles.length > 0 && (
+                <div className="p-3 bg-gray-50 rounded border border-gray-200">
+                  <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                    Cross-Instance Sync
+                  </h4>
+                  <Field label="PubSub Service">
+                    <select
+                      value={connFiles[0]?.config?.sync?.pubsub ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        const target = connFiles[0];
+                        if (!target) return;
+                        const updated = structuredClone(target.config);
+                        if (val) {
+                          updated.sync = { ...updated.sync, pubsub: val };
+                        } else {
+                          delete updated.sync;
+                        }
+                        // Save file-level config immediately
+                        api
+                          .writeFile(target.path, updated)
+                          .then(() => reload());
+                      }}
+                      className="input-field"
+                    >
+                      <option value="">None</option>
+                      {serviceNames.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isNew ? "New Endpoint" : editName}
+                </h3>
+                <div className="flex items-center gap-2">
+                  {!isNew && (
+                    <button
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                    >
+                      <Trash2 size={14} className="inline mr-1" />
+                      Delete
+                    </button>
+                  )}
                   <button
-                    onClick={handleDelete}
-                    className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
+                    onClick={handleSave}
+                    disabled={saving || !editName}
+                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
                   >
-                    <Trash2 size={14} className="inline mr-1" />
-                    Delete
+                    {saving ? "Saving..." : "Save"}
                   </button>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !editName}
-                  className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
+                </div>
               </div>
-            </div>
 
-            {/* Name */}
-            <Field label="Name">
-              <input
-                type="text"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                className="input-field font-mono"
-                placeholder="e.g. tasks-live"
-              />
-            </Field>
-
-            {/* Type + Path */}
-            <div className="grid grid-cols-[160px_1fr] gap-3">
-              <Field label="Type">
-                <select
-                  value={editEndpoint.type}
-                  onChange={(e) => update({ type: e.target.value as "websocket" | "sse" })}
-                  className="input-field"
-                >
-                  <option value="websocket">WebSocket</option>
-                  <option value="sse">SSE</option>
-                </select>
-              </Field>
-              <Field label="Path">
+              {/* Name */}
+              <Field label="Name">
                 <input
                   type="text"
-                  value={editEndpoint.path}
-                  onChange={(e) => update({ path: e.target.value })}
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
                   className="input-field font-mono"
-                  placeholder="/ws/events"
+                  placeholder="e.g. tasks-live"
                 />
               </Field>
-            </div>
 
-            {/* Middleware Preset */}
-            <Field label="Middleware Preset">
-              <select
-                value={editEndpoint.middleware_preset ?? ""}
-                onChange={(e) => update({ middleware_preset: e.target.value || undefined })}
-                className="input-field"
-              >
-                <option value="">None</option>
-                {Object.entries(presetNames).map(([name, mws]) => (
-                  <option key={name} value={name}>{name} ({mws.join(", ")})</option>
-                ))}
-              </select>
-            </Field>
-
-            {/* Middleware */}
-            <Field label="Middleware">
-              <div className="flex flex-wrap gap-1.5 mb-1.5">
-                {(editEndpoint.middleware ?? []).map((mw) => (
-                  <span
-                    key={mw}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
-                  >
-                    {mw}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const filtered = (editEndpoint.middleware ?? []).filter((x) => x !== mw);
-                        update({ middleware: filtered.length > 0 ? filtered : undefined });
-                      }}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      &times;
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <select
-                value=""
-                onChange={(e) => {
-                  if (!e.target.value) return;
-                  const current = editEndpoint.middleware ?? [];
-                  update({ middleware: [...current, e.target.value] });
-                }}
-                className="input-field"
-              >
-                <option value="">Add middleware...</option>
-                {middlewareNames
-                  .filter((n) => !instanceNames.includes(n))
-                  .filter((n) => !(editEndpoint.middleware ?? []).includes(n))
-                  .map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                {instanceNames.filter((n) => !(editEndpoint.middleware ?? []).includes(n)).length > 0 && (
-                  <optgroup label="Instances">
-                    {instanceNames
-                      .filter((n) => !(editEndpoint.middleware ?? []).includes(n))
-                      .map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                  </optgroup>
-                )}
-              </select>
-            </Field>
-
-            {/* Channels */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Channels
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Pattern">
-                  <ExpressionAutocomplete
-                    value={editEndpoint.channels?.pattern ?? ""}
-                    onChange={(v) =>
-                      update({
-                        channels: {
-                          ...editEndpoint.channels,
-                          pattern: v || undefined,
-                        },
-                      })
+              {/* Type + Path */}
+              <div className="grid grid-cols-[160px_1fr] gap-3">
+                <Field label="Type">
+                  <select
+                    value={editEndpoint.type}
+                    onChange={(e) =>
+                      update({ type: e.target.value as "websocket" | "sse" })
                     }
-                    className="input-field font-mono"
-                    placeholder="{{ auth.sub }}"
-                  />
-                </Field>
-                <Field label="Max Per Channel">
-                  <input
-                    type="number"
-                    min={0}
-                    value={editEndpoint.channels?.max_per_channel ?? ""}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value, 10);
-                      update({
-                        channels: {
-                          ...editEndpoint.channels,
-                          max_per_channel: isNaN(val) ? undefined : val,
-                        },
-                      });
-                    }}
                     className="input-field"
-                    placeholder="unlimited"
-                  />
+                  >
+                    <option value="websocket">WebSocket</option>
+                    <option value="sse">SSE</option>
+                  </select>
                 </Field>
-              </div>
-            </div>
-
-            {/* Type-specific settings */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Transport Settings
-              </h4>
-              <div className="grid grid-cols-2 gap-3">
-                {editEndpoint.type === "websocket" && (
-                  <>
-                    <Field label="Ping Interval">
-                      <input
-                        type="text"
-                        value={editEndpoint.ping_interval ?? ""}
-                        onChange={(e) => update({ ping_interval: e.target.value || undefined })}
-                        className="input-field"
-                        placeholder="e.g. 30s"
-                      />
-                    </Field>
-                    <Field label="Max Message Size">
-                      <input
-                        type="text"
-                        value={editEndpoint.max_message_size ?? ""}
-                        onChange={(e) => update({ max_message_size: e.target.value || undefined })}
-                        className="input-field"
-                        placeholder="e.g. 1MB"
-                      />
-                    </Field>
-                  </>
-                )}
-                {editEndpoint.type === "sse" && (
-                  <Field label="Heartbeat">
-                    <input
-                      type="text"
-                      value={editEndpoint.heartbeat ?? ""}
-                      onChange={(e) => update({ heartbeat: e.target.value || undefined })}
-                      className="input-field"
-                      placeholder="e.g. 15s"
-                    />
-                  </Field>
-                )}
-                <Field label="Retry">
+                <Field label="Path">
                   <input
                     type="text"
-                    value={editEndpoint.retry ?? ""}
-                    onChange={(e) => update({ retry: e.target.value || undefined })}
-                    className="input-field"
-                    placeholder="e.g. 5s"
+                    value={editEndpoint.path}
+                    onChange={(e) => update({ path: e.target.value })}
+                    className="input-field font-mono"
+                    placeholder="/ws/events"
                   />
                 </Field>
               </div>
-            </div>
 
-            {/* Lifecycle Workflows */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Lifecycle Workflows
-              </h4>
-              <div className="space-y-3">
-                {(["on_connect", "on_message", "on_disconnect"] as const).map((hook) => (
-                  <Field key={hook} label={hook.replace("_", " ")}>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={editEndpoint[hook] as string ?? ""}
-                        onChange={(e) => update({ [hook]: e.target.value || undefined })}
-                        className="input-field flex-1"
+              {/* Middleware Preset */}
+              <Field label="Middleware Preset">
+                <select
+                  value={editEndpoint.middleware_preset ?? ""}
+                  onChange={(e) =>
+                    update({ middleware_preset: e.target.value || undefined })
+                  }
+                  className="input-field"
+                >
+                  <option value="">None</option>
+                  {Object.entries(presetNames).map(([name, mws]) => (
+                    <option key={name} value={name}>
+                      {name} ({mws.join(", ")})
+                    </option>
+                  ))}
+                </select>
+              </Field>
+
+              {/* Middleware */}
+              <Field label="Middleware">
+                <div className="flex flex-wrap gap-1.5 mb-1.5">
+                  {(editEndpoint.middleware ?? []).map((mw) => (
+                    <span
+                      key={mw}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-gray-100 text-gray-700 rounded"
+                    >
+                      {mw}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const filtered = (
+                            editEndpoint.middleware ?? []
+                          ).filter((x) => x !== mw);
+                          update({
+                            middleware:
+                              filtered.length > 0 ? filtered : undefined,
+                          });
+                        }}
+                        className="text-gray-400 hover:text-gray-600"
                       >
-                        <option value="">None</option>
-                        {(files?.workflows ?? []).map((wf) => {
-                          const name = wf.replace(/^workflows\//, "").replace(/\.json$/, "");
-                          return (
-                            <option key={wf} value={name}>{name}</option>
-                          );
-                        })}
-                      </select>
-                      {editEndpoint[hook] && (
-                        <button
-                          onClick={() => goToWorkflow(editEndpoint[hook] as string)}
-                          className="text-blue-500 hover:text-blue-700"
-                          title="Open workflow"
-                        >
-                          <ExternalLink size={14} />
-                        </button>
-                      )}
-                    </div>
+                        &times;
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const current = editEndpoint.middleware ?? [];
+                    update({ middleware: [...current, e.target.value] });
+                  }}
+                  className="input-field"
+                >
+                  <option value="">Add middleware...</option>
+                  {middlewareNames
+                    .filter((n) => !instanceNames.includes(n))
+                    .filter((n) => !(editEndpoint.middleware ?? []).includes(n))
+                    .map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  {instanceNames.filter(
+                    (n) => !(editEndpoint.middleware ?? []).includes(n),
+                  ).length > 0 && (
+                    <optgroup label="Instances">
+                      {instanceNames
+                        .filter(
+                          (n) => !(editEndpoint.middleware ?? []).includes(n),
+                        )
+                        .map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                </select>
+              </Field>
+
+              {/* Channels */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                  Channels
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <Field label="Pattern">
+                    <ExpressionAutocomplete
+                      value={editEndpoint.channels?.pattern ?? ""}
+                      onChange={(v) =>
+                        update({
+                          channels: {
+                            ...editEndpoint.channels,
+                            pattern: v || undefined,
+                          },
+                        })
+                      }
+                      className="input-field font-mono"
+                      placeholder="{{ auth.sub }}"
+                    />
                   </Field>
-                ))}
+                  <Field label="Max Per Channel">
+                    <input
+                      type="number"
+                      min={0}
+                      value={editEndpoint.channels?.max_per_channel ?? ""}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        update({
+                          channels: {
+                            ...editEndpoint.channels,
+                            max_per_channel: isNaN(val) ? undefined : val,
+                          },
+                        });
+                      }}
+                      className="input-field"
+                      placeholder="unlimited"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Type-specific settings */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                  Transport Settings
+                </h4>
+                <div className="grid grid-cols-2 gap-3">
+                  {editEndpoint.type === "websocket" && (
+                    <>
+                      <Field label="Ping Interval">
+                        <input
+                          type="text"
+                          value={editEndpoint.ping_interval ?? ""}
+                          onChange={(e) =>
+                            update({
+                              ping_interval: e.target.value || undefined,
+                            })
+                          }
+                          className="input-field"
+                          placeholder="e.g. 30s"
+                        />
+                      </Field>
+                      <Field label="Max Message Size">
+                        <input
+                          type="text"
+                          value={editEndpoint.max_message_size ?? ""}
+                          onChange={(e) =>
+                            update({
+                              max_message_size: e.target.value || undefined,
+                            })
+                          }
+                          className="input-field"
+                          placeholder="e.g. 1MB"
+                        />
+                      </Field>
+                    </>
+                  )}
+                  {editEndpoint.type === "sse" && (
+                    <Field label="Heartbeat">
+                      <input
+                        type="text"
+                        value={editEndpoint.heartbeat ?? ""}
+                        onChange={(e) =>
+                          update({ heartbeat: e.target.value || undefined })
+                        }
+                        className="input-field"
+                        placeholder="e.g. 15s"
+                      />
+                    </Field>
+                  )}
+                  <Field label="Retry">
+                    <input
+                      type="text"
+                      value={editEndpoint.retry ?? ""}
+                      onChange={(e) =>
+                        update({ retry: e.target.value || undefined })
+                      }
+                      className="input-field"
+                      placeholder="e.g. 5s"
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              {/* Lifecycle Workflows */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                  Lifecycle Workflows
+                </h4>
+                <div className="space-y-3">
+                  {(["on_connect", "on_message", "on_disconnect"] as const).map(
+                    (hook) => (
+                      <Field key={hook} label={hook.replace("_", " ")}>
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={(editEndpoint[hook] as string) ?? ""}
+                            onChange={(e) =>
+                              update({ [hook]: e.target.value || undefined })
+                            }
+                            className="input-field flex-1"
+                          >
+                            <option value="">None</option>
+                            {(files?.workflows ?? []).map((wf) => {
+                              const name = wf
+                                .replace(/^workflows\//, "")
+                                .replace(/\.json$/, "");
+                              return (
+                                <option key={wf} value={name}>
+                                  {name}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          {editEndpoint[hook] && (
+                            <button
+                              onClick={() =>
+                                goToWorkflow(editEndpoint[hook] as string)
+                              }
+                              className="text-blue-500 hover:text-blue-700"
+                              title="Open workflow"
+                            >
+                              <ExternalLink size={14} />
+                            </button>
+                          )}
+                        </div>
+                      </Field>
+                    ),
+                  )}
+                </div>
+              </div>
+
+              {/* JSON Preview */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  JSON Preview
+                </h4>
+                <pre className="p-3 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap border border-gray-200">
+                  {JSON.stringify(
+                    { [editName || "name"]: editEndpoint },
+                    null,
+                    2,
+                  )}
+                </pre>
               </div>
             </div>
-
-            {/* JSON Preview */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-                JSON Preview
-              </h4>
-              <pre className="p-3 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap border border-gray-200">
-                {JSON.stringify({ [editName || "name"]: editEndpoint }, null, 2)}
-              </pre>
+          ) : (
+            <div className="text-sm text-gray-400">
+              Select an endpoint to edit or click "New" to create one.
             </div>
-          </div>
-        ) : (
-          <div className="text-sm text-gray-400">
-            Select an endpoint to edit or click "New" to create one.
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
@@ -586,4 +668,3 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     </div>
   );
 }
-

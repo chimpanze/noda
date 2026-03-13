@@ -23,14 +23,14 @@ export function QuickAddDialog({ x, y, onAdd, onClose }: QuickAddDialogProps) {
     return nodeTypes.filter(
       (nt) =>
         nt.type.toLowerCase().includes(lower) ||
-        nt.name.toLowerCase().includes(lower)
+        nt.name.toLowerCase().includes(lower),
     );
   }, [nodeTypes, search]);
 
-  // Reset selection when filter changes
-  useEffect(() => {
+  const updateSearch = useCallback((v: string) => {
+    setSearch(v);
     setSelectedIndex(0);
-  }, [filtered]);
+  }, []);
 
   // Focus input on mount
   useEffect(() => {
@@ -49,7 +49,9 @@ export function QuickAddDialog({ x, y, onAdd, onClose }: QuickAddDialogProps) {
 
   // Scroll selected item into view
   useEffect(() => {
-    const el = listRef.current?.children[selectedIndex] as HTMLElement | undefined;
+    const el = listRef.current?.children[selectedIndex] as
+      | HTMLElement
+      | undefined;
     el?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
 
@@ -70,7 +72,7 @@ export function QuickAddDialog({ x, y, onAdd, onClose }: QuickAddDialogProps) {
         onClose();
       }
     },
-    [filtered, selectedIndex, onAdd, onClose]
+    [filtered, selectedIndex, onAdd, onClose],
   );
 
   // Position: ensure dialog stays within viewport
@@ -99,7 +101,7 @@ export function QuickAddDialog({ x, y, onAdd, onClose }: QuickAddDialogProps) {
             type="text"
             placeholder="Search node types..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => updateSearch(e.target.value)}
             onKeyDown={handleKeyDown}
             className="w-full pl-7 pr-2 py-1.5 text-sm border border-gray-200 rounded focus:outline-none focus:ring-1 focus:ring-blue-400"
           />
@@ -116,7 +118,9 @@ export function QuickAddDialog({ x, y, onAdd, onClose }: QuickAddDialogProps) {
               onClick={() => onAdd(nt.type)}
               onMouseEnter={() => setSelectedIndex(i)}
               className={`w-full text-left px-3 py-1.5 text-sm flex items-center gap-2 ${
-                i === selectedIndex ? "bg-blue-50 text-blue-700" : "text-gray-700 hover:bg-gray-50"
+                i === selectedIndex
+                  ? "bg-blue-50 text-blue-700"
+                  : "text-gray-700 hover:bg-gray-50"
               }`}
             >
               <span
@@ -124,7 +128,9 @@ export function QuickAddDialog({ x, y, onAdd, onClose }: QuickAddDialogProps) {
               />
               <span className="font-mono text-xs">{nt.type}</span>
               {nt.name !== nt.type && (
-                <span className="text-gray-400 text-xs truncate ml-auto">{nt.name}</span>
+                <span className="text-gray-400 text-xs truncate ml-auto">
+                  {nt.name}
+                </span>
               )}
             </button>
           );

@@ -4,7 +4,7 @@ import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocompl
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
-import { showToast } from "@/components/panels/Toast";
+import { showToast } from "@/utils/toast";
 import { describeCron } from "@/utils/cron";
 
 interface ScheduleConfig {
@@ -79,7 +79,7 @@ export function SchedulesView() {
             files.schedules!.map(async (path) => {
               const data = (await api.readFile(path)) as ScheduleConfig;
               results.push({ filePath: path, schedule: data });
-            })
+            }),
           );
           setEntries(results);
         })(),
@@ -101,7 +101,7 @@ export function SchedulesView() {
       setEditSchedule(structuredClone(entries[index].schedule));
       setIsNew(false);
     },
-    [entries]
+    [entries],
   );
 
   const startNew = useCallback(() => {
@@ -127,7 +127,10 @@ export function SchedulesView() {
         delete clean.services;
       if (clean.lock && !clean.lock.enabled) delete clean.lock;
       if (clean.trigger) {
-        if (!clean.trigger.input || Object.keys(clean.trigger.input).length === 0)
+        if (
+          !clean.trigger.input ||
+          Object.keys(clean.trigger.input).length === 0
+        )
           delete clean.trigger.input;
       }
 
@@ -171,14 +174,14 @@ export function SchedulesView() {
         setActiveWorkflow(match);
       }
     },
-    [files?.workflows, setActiveView, setActiveWorkflow]
+    [files?.workflows, setActiveView, setActiveWorkflow],
   );
 
   const update = useCallback(
     (patch: Partial<ScheduleConfig>) => {
       if (editSchedule) setEditSchedule({ ...editSchedule, ...patch });
     },
-    [editSchedule]
+    [editSchedule],
   );
 
   const updateTrigger = useCallback(
@@ -193,256 +196,287 @@ export function SchedulesView() {
         },
       });
     },
-    [editSchedule]
+    [editSchedule],
   );
 
   if (loading) {
-    return <div className="p-6 text-sm text-gray-400">Loading schedules...</div>;
+    return (
+      <div className="p-6 text-sm text-gray-400">Loading schedules...</div>
+    );
   }
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
-      <ViewHeader title="Schedules" subtitle="Cron-based scheduled workflow execution" />
+      <ViewHeader
+        title="Schedules"
+        subtitle="Cron-based scheduled workflow execution"
+      />
       <div className="flex-1 flex min-h-0">
-      {/* Schedule list */}
-      <div className="w-80 border-r border-gray-200 overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800">
-            Schedules ({entries.length})
-          </h2>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Plus size={14} />
-            New
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {entries.map((entry, index) => (
+        {/* Schedule list */}
+        <div className="w-80 border-r border-gray-200 overflow-y-auto">
+          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-800">
+              Schedules ({entries.length})
+            </h2>
             <button
-              key={entry.filePath}
-              onClick={() => selectSchedule(index)}
-              className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                selectedIndex === index && !isNew ? "bg-blue-50" : ""
-              }`}
+              onClick={startNew}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
             >
-              <div className="text-sm font-medium text-gray-800 truncate">
-                {entry.schedule.id}
-              </div>
-              <div className="text-xs text-gray-400 flex items-center gap-1">
-                <Clock size={10} />
-                {describeCron(entry.schedule.cron)}
-              </div>
+              <Plus size={14} />
+              New
             </button>
-          ))}
-          {entries.length === 0 && (
-            <div className="p-4 text-sm text-gray-400">No schedules configured.</div>
-          )}
-        </div>
-      </div>
-
-      {/* Schedule editor */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {editSchedule ? (
-          <div className="max-w-2xl space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {isNew ? "New Schedule" : editSchedule.id}
-              </h3>
-              <div className="flex items-center gap-2">
-                {!isNew && (
-                  <button
-                    onClick={handleDelete}
-                    className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                  >
-                    <Trash2 size={14} className="inline mr-1" />
-                    Delete
-                  </button>
-                )}
-                <button
-                  onClick={handleSave}
-                  disabled={saving || !editSchedule.id}
-                  className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
-
-            {/* ID */}
-            <Field label="ID">
-              <input
-                type="text"
-                value={editSchedule.id}
-                onChange={(e) => update({ id: e.target.value })}
-                className="input-field font-mono"
-                placeholder="e.g. cleanup-tokens"
-              />
-            </Field>
-
-            {/* Description */}
-            <Field label="Description">
-              <input
-                type="text"
-                value={editSchedule.description ?? ""}
-                onChange={(e) => update({ description: e.target.value || undefined })}
-                className="input-field"
-                placeholder="Brief description of this schedule"
-              />
-            </Field>
-
-            {/* Cron + Preview */}
-            <Field label="Cron Expression">
-              <input
-                type="text"
-                value={editSchedule.cron}
-                onChange={(e) => update({ cron: e.target.value })}
-                className="input-field font-mono"
-                placeholder="0 */6 * * *"
-              />
-              <div className="mt-1 text-xs text-gray-500">
-                {describeCron(editSchedule.cron)}
-              </div>
-            </Field>
-
-            {/* Timezone */}
-            <TimezoneCombobox
-              value={editSchedule.timezone ?? "UTC"}
-              onChange={(tz) => update({ timezone: tz })}
-            />
-
-            {/* Timeout */}
-            <Field label="Timeout">
-              <input
-                type="text"
-                value={editSchedule.timeout ?? ""}
-                onChange={(e) => update({ timeout: e.target.value || undefined })}
-                className="input-field"
-                placeholder="e.g. 30s"
-              />
-            </Field>
-
-            {/* Lock */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Distributed Lock
-              </h4>
-              <div className="flex items-center gap-3 mb-3">
-                <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editSchedule.lock?.enabled ?? false}
-                    onChange={(e) =>
-                      update({
-                        lock: { ...editSchedule.lock, enabled: e.target.checked },
-                      })
-                    }
-                    className="rounded"
-                  />
-                  Enabled
-                </label>
-              </div>
-              {editSchedule.lock?.enabled && (
-                <div className="grid grid-cols-2 gap-3">
-                  <Field label="Lock Service">
-                    <select
-                      value={editSchedule.services?.lock ?? ""}
-                      onChange={(e) =>
-                        update({
-                          services: { ...editSchedule.services, lock: e.target.value },
-                        })
-                      }
-                      className="input-field"
-                    >
-                      <option value="">Select service...</option>
-                      {serviceNames.map((n) => (
-                        <option key={n} value={n}>{n}</option>
-                      ))}
-                    </select>
-                  </Field>
-                  <Field label="TTL">
-                    <input
-                      type="text"
-                      value={editSchedule.lock?.ttl ?? ""}
-                      onChange={(e) =>
-                        update({
-                          lock: { ...editSchedule.lock, ttl: e.target.value || undefined },
-                        })
-                      }
-                      className="input-field"
-                      placeholder="e.g. 300s"
-                    />
-                  </Field>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {entries.map((entry, index) => (
+              <button
+                key={entry.filePath}
+                onClick={() => selectSchedule(index)}
+                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
+                  selectedIndex === index && !isNew ? "bg-blue-50" : ""
+                }`}
+              >
+                <div className="text-sm font-medium text-gray-800 truncate">
+                  {entry.schedule.id}
                 </div>
-              )}
-            </div>
+                <div className="text-xs text-gray-400 flex items-center gap-1">
+                  <Clock size={10} />
+                  {describeCron(entry.schedule.cron)}
+                </div>
+              </button>
+            ))}
+            {entries.length === 0 && (
+              <div className="p-4 text-sm text-gray-400">
+                No schedules configured.
+              </div>
+            )}
+          </div>
+        </div>
 
-            {/* Trigger */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
-                Trigger
-              </h4>
-              <Field label="Workflow">
+        {/* Schedule editor */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {editSchedule ? (
+            <div className="max-w-2xl space-y-5">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {isNew ? "New Schedule" : editSchedule.id}
+                </h3>
                 <div className="flex items-center gap-2">
-                  <select
-                    value={editSchedule.trigger?.workflow ?? ""}
-                    onChange={(e) => updateTrigger({ workflow: e.target.value })}
-                    className="input-field flex-1"
-                  >
-                    <option value="">Select workflow...</option>
-                    {(files?.workflows ?? []).map((wf) => {
-                      const name = wf.replace(/^workflows\//, "").replace(/\.json$/, "");
-                      return (
-                        <option key={wf} value={name}>{name}</option>
-                      );
-                    })}
-                  </select>
-                  {editSchedule.trigger?.workflow && (
+                  {!isNew && (
                     <button
-                      onClick={() => goToWorkflow(editSchedule.trigger!.workflow)}
-                      className="text-blue-500 hover:text-blue-700"
-                      title="Open workflow"
+                      onClick={handleDelete}
+                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
                     >
-                      <ExternalLink size={14} />
+                      <Trash2 size={14} className="inline mr-1" />
+                      Delete
                     </button>
                   )}
+                  <button
+                    onClick={handleSave}
+                    disabled={saving || !editSchedule.id}
+                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
+                  >
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                </div>
+              </div>
+
+              {/* ID */}
+              <Field label="ID">
+                <input
+                  type="text"
+                  value={editSchedule.id}
+                  onChange={(e) => update({ id: e.target.value })}
+                  className="input-field font-mono"
+                  placeholder="e.g. cleanup-tokens"
+                />
+              </Field>
+
+              {/* Description */}
+              <Field label="Description">
+                <input
+                  type="text"
+                  value={editSchedule.description ?? ""}
+                  onChange={(e) =>
+                    update({ description: e.target.value || undefined })
+                  }
+                  className="input-field"
+                  placeholder="Brief description of this schedule"
+                />
+              </Field>
+
+              {/* Cron + Preview */}
+              <Field label="Cron Expression">
+                <input
+                  type="text"
+                  value={editSchedule.cron}
+                  onChange={(e) => update({ cron: e.target.value })}
+                  className="input-field font-mono"
+                  placeholder="0 */6 * * *"
+                />
+                <div className="mt-1 text-xs text-gray-500">
+                  {describeCron(editSchedule.cron)}
                 </div>
               </Field>
 
-              {/* Input Mapping */}
-              <div className="mt-3">
-                <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-                  Input Mapping
-                </label>
-                <KeyValueEditor
-                  entries={editSchedule.trigger?.input ?? {}}
-                  onChange={(input) =>
-                    updateTrigger({
-                      input: Object.keys(input).length > 0 ? input : undefined,
-                    })
+              {/* Timezone */}
+              <TimezoneCombobox
+                value={editSchedule.timezone ?? "UTC"}
+                onChange={(tz) => update({ timezone: tz })}
+              />
+
+              {/* Timeout */}
+              <Field label="Timeout">
+                <input
+                  type="text"
+                  value={editSchedule.timeout ?? ""}
+                  onChange={(e) =>
+                    update({ timeout: e.target.value || undefined })
                   }
-                  workflow={editSchedule.trigger?.workflow}
+                  className="input-field"
+                  placeholder="e.g. 30s"
                 />
+              </Field>
+
+              {/* Lock */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                  Distributed Lock
+                </h4>
+                <div className="flex items-center gap-3 mb-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editSchedule.lock?.enabled ?? false}
+                      onChange={(e) =>
+                        update({
+                          lock: {
+                            ...editSchedule.lock,
+                            enabled: e.target.checked,
+                          },
+                        })
+                      }
+                      className="rounded"
+                    />
+                    Enabled
+                  </label>
+                </div>
+                {editSchedule.lock?.enabled && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Lock Service">
+                      <select
+                        value={editSchedule.services?.lock ?? ""}
+                        onChange={(e) =>
+                          update({
+                            services: {
+                              ...editSchedule.services,
+                              lock: e.target.value,
+                            },
+                          })
+                        }
+                        className="input-field"
+                      >
+                        <option value="">Select service...</option>
+                        {serviceNames.map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="TTL">
+                      <input
+                        type="text"
+                        value={editSchedule.lock?.ttl ?? ""}
+                        onChange={(e) =>
+                          update({
+                            lock: {
+                              ...editSchedule.lock,
+                              ttl: e.target.value || undefined,
+                            },
+                          })
+                        }
+                        className="input-field"
+                        placeholder="e.g. 300s"
+                      />
+                    </Field>
+                  </div>
+                )}
+              </div>
+
+              {/* Trigger */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                  Trigger
+                </h4>
+                <Field label="Workflow">
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={editSchedule.trigger?.workflow ?? ""}
+                      onChange={(e) =>
+                        updateTrigger({ workflow: e.target.value })
+                      }
+                      className="input-field flex-1"
+                    >
+                      <option value="">Select workflow...</option>
+                      {(files?.workflows ?? []).map((wf) => {
+                        const name = wf
+                          .replace(/^workflows\//, "")
+                          .replace(/\.json$/, "");
+                        return (
+                          <option key={wf} value={name}>
+                            {name}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {editSchedule.trigger?.workflow && (
+                      <button
+                        onClick={() =>
+                          goToWorkflow(editSchedule.trigger!.workflow)
+                        }
+                        className="text-blue-500 hover:text-blue-700"
+                        title="Open workflow"
+                      >
+                        <ExternalLink size={14} />
+                      </button>
+                    )}
+                  </div>
+                </Field>
+
+                {/* Input Mapping */}
+                <div className="mt-3">
+                  <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
+                    Input Mapping
+                  </label>
+                  <KeyValueEditor
+                    entries={editSchedule.trigger?.input ?? {}}
+                    onChange={(input) =>
+                      updateTrigger({
+                        input:
+                          Object.keys(input).length > 0 ? input : undefined,
+                      })
+                    }
+                    workflow={editSchedule.trigger?.workflow}
+                  />
+                </div>
+              </div>
+
+              {/* JSON Preview */}
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  JSON Preview
+                </h4>
+                <pre className="p-3 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap border border-gray-200">
+                  {JSON.stringify(editSchedule, null, 2)}
+                </pre>
               </div>
             </div>
-
-            {/* JSON Preview */}
-            <div className="border-t border-gray-200 pt-4">
-              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-                JSON Preview
-              </h4>
-              <pre className="p-3 bg-gray-50 rounded text-xs text-gray-600 overflow-x-auto whitespace-pre-wrap border border-gray-200">
-                {JSON.stringify(editSchedule, null, 2)}
-              </pre>
+          ) : (
+            <div className="text-sm text-gray-400">
+              Select a schedule to edit or click "New" to create one.
             </div>
-          </div>
-        ) : (
-          <div className="text-sm text-gray-400">
-            Select a schedule to edit or click "New" to create one.
-          </div>
-        )}
-      </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -459,7 +493,9 @@ function TimezoneCombobox({
   const [open, setOpen] = useState(false);
 
   const filtered = filter
-    ? ALL_TIMEZONES.filter((tz) => tz.toLowerCase().includes(filter.toLowerCase()))
+    ? ALL_TIMEZONES.filter((tz) =>
+        tz.toLowerCase().includes(filter.toLowerCase()),
+      )
     : ALL_TIMEZONES;
 
   const commonSet = new Set(COMMON_TIMEZONES);
@@ -517,7 +553,13 @@ function TimezoneCombobox({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
     <div>
       <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
@@ -549,7 +591,8 @@ function KeyValueEditor({
               value={key}
               onChange={(e) => {
                 const next: Record<string, string> = {};
-                for (const [k, v] of pairs) next[k === key ? e.target.value : k] = v;
+                for (const [k, v] of pairs)
+                  next[k === key ? e.target.value : k] = v;
                 onChange(next);
               }}
               className="shrink-0 input-field !w-1/3 font-mono"
@@ -570,7 +613,9 @@ function KeyValueEditor({
               <input
                 type="text"
                 value={val}
-                onChange={(e) => onChange({ ...entries, [key]: e.target.value })}
+                onChange={(e) =>
+                  onChange({ ...entries, [key]: e.target.value })
+                }
                 className="flex-1 min-w-0 input-field !w-auto font-mono"
                 placeholder="value"
               />
