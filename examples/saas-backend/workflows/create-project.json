@@ -18,7 +18,6 @@
   "nodes": {
     "gen_id": {
       "config": {
-        "data": {},
         "fields": {
           "project_id": "{{ $uuid() }}"
         }
@@ -33,8 +32,6 @@
           "name": "{{ input.name }}",
           "workspace_id": "{{ input.workspace_id }}"
         },
-        "fields": {},
-        "schema": {},
         "table": "projects"
       },
       "services": {
@@ -45,8 +42,6 @@
     "respond": {
       "config": {
         "body": "{{ nodes.insert }}",
-        "data": {},
-        "fields": {},
         "status": 201
       },
       "type": "response.json"

@@ -22,7 +22,6 @@
   "nodes": {
     "emit": {
       "config": {
-        "data": {},
         "mode": "stream",
         "payload": {
           "attachment_id": "{{ nodes.gen_id.attachment_id }}",
@@ -39,7 +38,6 @@
     },
     "gen_id": {
       "config": {
-        "allowed_types": [],
         "fields": {
           "attachment_id": "{{ $uuid() }}"
         }
@@ -58,7 +56,6 @@
           "uploaded_by": "{{ input.uploaded_by }}",
           "workspace_id": "{{ input.workspace_id }}"
         },
-        "fields": {},
         "table": "attachments"
       },
       "services": {
@@ -69,7 +66,6 @@
     "respond": {
       "config": {
         "body": "{{ nodes.insert }}",
-        "data": {},
         "status": 201
       },
       "type": "response.json"
@@ -83,10 +79,9 @@
           "image/webp",
           "application/pdf"
         ],
-        "data": {},
         "field": "file",
-        "fields": {},
-        "max_size": 10485760
+        "max_size": 10485760,
+        "path": "attachments/{{ $uuid() }}"
       },
       "services": {
         "destination": "uploads"

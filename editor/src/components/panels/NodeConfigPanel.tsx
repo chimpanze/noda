@@ -3,6 +3,7 @@ import Form, { type IChangeEvent } from "@rjsf/core";
 import validator from "@rjsf/validator-ajv8";
 import type { RJSFSchema, UiSchema } from "@rjsf/utils";
 import { useEditorStore } from "@/stores/editor";
+import { nodeDocIndex } from "virtual:docs";
 import * as api from "@/api/client";
 import { updateExpressionContext } from "@/utils/expressionLanguage";
 import { ExpressionWidget } from "./ExpressionWidget";
@@ -14,9 +15,11 @@ import { StringArrayField } from "@/components/widgets/StringArrayField";
 import { KeyValueMapField } from "@/components/widgets/KeyValueMapField";
 import { FlexibleValueField } from "@/components/widgets/FlexibleValueField";
 import { JoinArrayField } from "@/components/widgets/JoinArrayField";
+import { CookieArrayField } from "@/components/widgets/CookieArrayField";
 import { SchemaRefField } from "@/components/widgets/SchemaRefField";
 import { StyledObjectFieldTemplate } from "@/components/widgets/StyledObjectFieldTemplate";
 import { StyledFieldTemplate } from "@/components/widgets/StyledFieldTemplate";
+import { StatusCodeWidget } from "@/components/widgets/StatusCodeWidget";
 import { TableSelectWidget } from "@/components/widgets/TableSelectWidget";
 
 // Custom widget registry for RJSF
@@ -25,6 +28,7 @@ const widgets = {
   enumSelect: EnumSelectWidget,
   booleanToggle: BooleanToggleWidget,
   number: NumberWidget,
+  statusCode: StatusCodeWidget,
   tableSelect: TableSelectWidget,
 };
 
@@ -34,6 +38,7 @@ const fields = {
   keyValueMap: KeyValueMapField,
   flexibleValue: FlexibleValueField,
   joinArray: JoinArrayField,
+  cookieArray: CookieArrayField,
   schemaRef: SchemaRefField,
 };
 
@@ -49,6 +54,8 @@ export function NodeConfigPanel() {
 
   const [schema, setSchema] = useState<RJSFSchema | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const openDoc = useEditorStore((s) => s.openDoc);
 
   const node = activeWorkflow?.nodes.find((n) => n.id === selectedNodeId);
   const descriptor = nodeTypes.find((nt) => nt.type === node?.type);
@@ -112,12 +119,15 @@ export function NodeConfigPanel() {
 
   // Build uiSchema — assign widgets/fields based on schema type
   const isDbNode = node.type.startsWith("db.");
+  const isResponseNode = node.type.startsWith("response.");
   const uiSchema: UiSchema = {};
   if (schema?.properties) {
     for (const [key, prop] of Object.entries(schema.properties)) {
       const p = prop as Record<string, unknown>;
       if (isDbNode && key === "table") {
         uiSchema[key] = { "ui:widget": "tableSelect" };
+      } else if (isResponseNode && key === "status") {
+        uiSchema[key] = { "ui:widget": "statusCode" };
       } else if (p.enum) {
         uiSchema[key] = { "ui:widget": "enumSelect" };
       } else if (p.type === "string") {
@@ -128,6 +138,8 @@ export function NodeConfigPanel() {
         uiSchema[key] = { "ui:widget": "number" };
       } else if (p.type === "array" && key === "joins") {
         uiSchema[key] = { "ui:field": "joinArray" };
+      } else if (p.type === "array" && key === "cookies") {
+        uiSchema[key] = { "ui:field": "cookieArray" };
       } else if (
         p.type === "array" &&
         (
@@ -154,7 +166,17 @@ export function NodeConfigPanel() {
       <div className="px-4 py-3 border-b border-gray-200 shrink-0">
         <div className="flex items-center justify-between mb-1">
           <div className="text-xs font-mono text-gray-400">{node.type}</div>
-          <SaveIndicator status={saveStatus} />
+          <div className="flex items-center gap-2">
+            {nodeDocIndex[node.type] && (
+              <button
+                onClick={() => openDoc(nodeDocIndex[node.type])}
+                className="text-xs text-blue-500 hover:text-blue-700"
+              >
+                Docs
+              </button>
+            )}
+            <SaveIndicator status={saveStatus} />
+          </div>
         </div>
         {descriptor?.description && (
           <p className="text-xs text-gray-400 mb-2">{descriptor.description}</p>

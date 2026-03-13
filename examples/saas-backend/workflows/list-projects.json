@@ -22,7 +22,6 @@
             "total": "{{ nodes.total.count }}"
           }
         },
-        "cookies": "test",
         "status": 200
       },
       "type": "response.json"

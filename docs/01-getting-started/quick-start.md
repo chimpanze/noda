@@ -1,34 +1,6 @@
-# Getting Started with Noda
+# Quick Start
 
-Noda is a configuration-driven API runtime for Go. You define routes, workflows, middleware, auth, services, and real-time connections in JSON config files — no application code required for standard patterns. Custom logic runs in Wasm modules.
-
-## Installation
-
-### Docker (recommended)
-
-```bash
-docker pull ghcr.io/your-org/noda:latest
-```
-
-### Go Install
-
-```bash
-go install github.com/your-org/noda/cmd/noda@latest
-```
-
-### Binary Download
-
-Download the latest release from the [releases page](https://github.com/your-org/noda/releases) for your platform.
-
-### Prerequisites
-
-- **PostgreSQL** (optional) — for database operations
-- **Redis** (optional) — for caching, events, pub/sub, distributed locking
-- **libvips** (optional) — for image processing (`image.*` nodes)
-
-## Quick Start
-
-### 1. Scaffold a New Project
+## 1. Scaffold a New Project
 
 ```bash
 noda init my-api
@@ -47,7 +19,7 @@ my-api/
 └── tests/                 # Workflow test suites
 ```
 
-### 2. Define a Route
+## 2. Define a Route
 
 Create `routes/hello.json`:
 
@@ -66,7 +38,7 @@ Create `routes/hello.json`:
 }
 ```
 
-### 3. Define a Workflow
+## 3. Define a Workflow
 
 Create `workflows/hello.json`:
 
@@ -89,13 +61,13 @@ Create `workflows/hello.json`:
 }
 ```
 
-### 4. Start the Server
+## 4. Start the Server
 
 ```bash
 noda start
 ```
 
-### 5. Make a Request
+## 5. Make a Request
 
 ```bash
 curl http://localhost:3000/api/hello?name=Noda
@@ -204,32 +176,6 @@ A node references a service through its `services` field:
   "config": { ... }
 }
 ```
-
-### Expressions
-
-Noda uses `{{ }}` expression syntax powered by [expr-lang/expr](https://expr-lang.org/). Expressions can access:
-
-- **`input`** — data passed to the workflow from the trigger
-- **`auth`** — authentication data (user_id, roles, claims)
-- **`trigger`** — trigger metadata (type, timestamp, trace_id)
-- **`nodes.<id>`** — output data from previously executed nodes
-- **`$item`**, **`$index`** — loop iteration variables (inside `control.loop`)
-
-Built-in functions: `len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$env()`.
-
-### Expressions in Config Fields
-
-Most config fields accept expressions:
-
-```json
-{
-  "body": "{{ nodes.fetch[0] }}",
-  "message": "Hello, {{ input.name }}!",
-  "condition": "{{ auth.roles contains 'admin' }}"
-}
-```
-
-Some fields are **static** (never expressions): `mode`, `cases`, `workflow`, `method`, `type`, `backoff`.
 
 ## Tutorial: Build a Task API
 
@@ -453,26 +399,3 @@ docker compose up
 ```
 
 Your API is now running at `http://localhost:3000`.
-
-## CLI Reference
-
-| Command | Description |
-|---------|-------------|
-| `noda init [name]` | Scaffold a new project |
-| `noda start` | Start the server |
-| `noda dev` | Start in dev mode with hot reload |
-| `noda validate` | Validate all config files |
-| `noda test` | Run workflow tests |
-| `noda migrate` | Run database migrations |
-| `noda generate` | Generate config scaffolds |
-| `noda plugin list` | List available plugins |
-| `noda plugin info <name>` | Show plugin details |
-| `noda completion <shell>` | Generate shell completions |
-
-## Next Steps
-
-- [Config Reference](config-reference.md) — all config file formats and fields
-- [Node Reference](node-reference.md) — all 46 node types with examples
-- [Plugin Author Guide](plugin-author-guide.md) — build custom plugins
-- [Wasm Developer Guide](wasm-developer-guide.md) — build Wasm modules
-- [Deployment Guide](deployment-guide.md) — production deployment

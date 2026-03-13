@@ -87,6 +87,11 @@ interface EditorState {
   dirtyFiles: Set<string>;
   markDirty: (path: string) => void;
   markClean: (path: string) => void;
+
+  // Doc navigation
+  pendingDocPath: string | null;
+  openDoc: (docPath: string) => void;
+  clearPendingDocPath: () => void;
 }
 
 /**
@@ -536,4 +541,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       next.delete(path);
       return { dirtyFiles: next };
     }),
+
+  // Doc navigation
+  pendingDocPath: null,
+  openDoc: (docPath) => set({ activeView: "docs", pendingDocPath: docPath }),
+  clearPendingDocPath: () => set({ pendingDocPath: null }),
 }));

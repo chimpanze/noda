@@ -24,8 +24,7 @@
       "config": {
         "fields": {
           "workspace_id": "{{ $uuid() }}"
-        },
-        "schema": {}
+        }
       },
       "type": "transform.set"
     },
@@ -37,7 +36,6 @@
           "user_id": "{{ input.owner_id }}",
           "workspace_id": "{{ nodes.gen_id.workspace_id }}"
         },
-        "fields": {},
         "table": "workspace_members"
       },
       "services": {
@@ -53,7 +51,6 @@
           "owner_id": "{{ input.owner_id }}",
           "slug": "{{ input.slug }}"
         },
-        "fields": {},
         "table": "workspaces"
       },
       "services": {
@@ -64,7 +61,6 @@
     "respond": {
       "config": {
         "body": "{{ nodes.insert_workspace }}",
-        "data": {},
         "status": 201
       },
       "type": "response.json"

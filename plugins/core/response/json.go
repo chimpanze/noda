@@ -20,7 +20,24 @@ func (d *jsonDescriptor) ConfigSchema() map[string]any {
 			"status":  map[string]any{"type": "string", "description": "HTTP status code"},
 			"body":    map[string]any{"title": "body", "description": "Response body"},
 			"headers": map[string]any{"type": "object", "description": "Response headers"},
-			"cookies": map[string]any{"type": "string", "description": "Expression resolving to cookies array"},
+			"cookies": map[string]any{
+				"type":        "array",
+				"description": "Response cookies",
+				"items": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"name":      map[string]any{"type": "string", "description": "Cookie name"},
+						"value":     map[string]any{"type": "string", "description": "Cookie value (supports expressions)"},
+						"path":      map[string]any{"type": "string", "description": "Cookie path"},
+						"domain":    map[string]any{"type": "string", "description": "Cookie domain"},
+						"max_age":   map[string]any{"type": "number", "description": "Time to live in seconds"},
+						"secure":    map[string]any{"type": "boolean", "description": "HTTPS only"},
+						"http_only": map[string]any{"type": "boolean", "description": "No JavaScript access"},
+						"same_site": map[string]any{"type": "string", "enum": []any{"Strict", "Lax", "None"}, "description": "SameSite attribute"},
+					},
+					"required": []any{"name", "value"},
+				},
+			},
 		},
 		"required": []any{"status", "body"},
 	}
@@ -78,14 +95,23 @@ func (e *jsonExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 		return "", nil, fmt.Errorf("response.json: %w", err)
 	}
 
-	// Resolve cookies
+	// Resolve cookies — supports both inline array (visual editor) and string expression
 	var cookies []api.Cookie
-	if cookiesExpr, ok := config["cookies"].(string); ok && cookiesExpr != "" {
-		cookiesVal, err := nCtx.Resolve(cookiesExpr)
+	switch cv := config["cookies"].(type) {
+	case string:
+		if cv != "" {
+			cookiesVal, err := nCtx.Resolve(cv)
+			if err != nil {
+				return "", nil, fmt.Errorf("response.json: cookies: %w", err)
+			}
+			cookies = toCookies(cookiesVal)
+		}
+	case []any:
+		resolved, err := resolveDeep(nCtx, cv)
 		if err != nil {
 			return "", nil, fmt.Errorf("response.json: cookies: %w", err)
 		}
-		cookies = toCookies(cookiesVal)
+		cookies = toCookies(resolved)
 	}
 
 	resp := &api.HTTPResponse{

@@ -55,26 +55,12 @@ pdk/                                   ← Wasm plugin development kit
 examples/                              ← 6 example projects
 testdata/                              ← test fixtures
 docs/
-  getting-started.md                   ← installation, quick start, tutorial
-  config-reference.md                  ← all config file formats and fields
-  node-reference.md                    ← all 46 node types with examples
-  plugin-author-guide.md               ← building custom plugins
-  wasm-developer-guide.md              ← building Wasm modules
-  deployment-guide.md                  ← production deployment guide
-  architecture/
-    architecture-plan.md               ← full system design
-    interfaces.md                      ← Go public API interfaces
-    wasm-host-api.md                   ← Wasm module developer contract
-    config-conventions.md              ← config field naming rules and patterns
-    core-nodes.md                      ← all 46 node specs
-    visual-editor.md                   ← editor design
-    future-client-generation.md        ← future vision: SDK + Lit web components
-  use-cases/
-    01-rest-api.md                     ← simple CRUD API
-    02-saas-backend.md                 ← multi-tenant with webhooks, workers, uploads
-    03-realtime-collab.md              ← WebSocket live editing
-    04-discord-bot.md                  ← Wasm module with gateway connection
-    05-multiplayer-game.md             ← Wasm 20Hz game loop
+  01-getting-started/                  ← installation, quick start, expressions
+  02-config/                           ← all config file formats and fields (11 files)
+  03-nodes/                            ← all 50 node types (one file per node)
+  04-guides/                           ← deployment, plugin dev, wasm dev
+  05-examples/                         ← 5 use case walkthroughs
+  _internal/                           ← architecture docs (excluded from editor)
 ```
 
 ## Technology Stack

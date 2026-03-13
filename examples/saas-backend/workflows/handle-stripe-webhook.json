@@ -46,7 +46,6 @@
     },
     "log_unknown": {
       "config": {
-        "cases": [],
         "level": "info",
         "message": "Ignoring Stripe event: {{ input.event_type }}"
       },

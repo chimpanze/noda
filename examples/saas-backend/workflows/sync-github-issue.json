@@ -60,7 +60,6 @@
           "opened",
           "closed"
         ],
-        "data": {},
         "expression": "{{ input.action }}"
       },
       "type": "control.switch"

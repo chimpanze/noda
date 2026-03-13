@@ -1,10 +1,12 @@
 import { useState, useMemo, useCallback } from "react";
-import { Search, GripVertical } from "lucide-react";
+import { Search, GripVertical, BookOpen } from "lucide-react";
 import { useEditorStore } from "@/stores/editor";
+import { nodeDocIndex } from "virtual:docs";
 import { getCategoryStyle } from "./nodeStyles";
 
 export function NodePalette() {
   const nodeTypes = useEditorStore((s) => s.nodeTypes);
+  const openDoc = useEditorStore((s) => s.openDoc);
   const [search, setSearch] = useState("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
 
@@ -94,10 +96,23 @@ export function NodePalette() {
                     draggable
                     onDragStart={(e) => onDragStart(e, nt.type)}
                     title={nt.description}
-                    className="flex items-center gap-1.5 px-4 py-1 cursor-grab active:cursor-grabbing hover:bg-blue-50 text-xs text-gray-700"
+                    className="group flex items-center gap-1.5 px-4 py-1 cursor-grab active:cursor-grabbing hover:bg-blue-50 text-xs text-gray-700"
                   >
                     <GripVertical size={10} className="text-gray-300 shrink-0" />
-                    <span className="truncate">{nt.type}</span>
+                    <span className="truncate flex-1">{nt.type}</span>
+                    {nodeDocIndex[nt.type] && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          e.preventDefault();
+                          openDoc(nodeDocIndex[nt.type]);
+                        }}
+                        className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-blue-500 shrink-0"
+                        title="View docs"
+                      >
+                        <BookOpen size={10} />
+                      </button>
+                    )}
                   </div>
                 ))}
             </div>

@@ -73,7 +73,7 @@ The same concept always uses the same key across all nodes. This eliminates gues
 |---|---|---|---|
 | `status` | expression (int) | HTTP status code | `response.json`, `response.error` |
 | `headers` | map of expressions | HTTP headers | `response.json`, `http.request` |
-| `cookies` | expression (array) | Response cookies | `response.json` |
+| `cookies` | array of objects | Response cookies (each with `name`, `value`, `path`, `domain`, `max_age`, `secure`, `http_only`, `same_site`) | `response.json` |
 | `method` | static | HTTP method | `http.request` |
 
 ### Control and Limits

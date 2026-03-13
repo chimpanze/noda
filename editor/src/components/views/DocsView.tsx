@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import Markdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { useEditorStore } from "@/stores/editor";
 import { docs } from "virtual:docs";
 
 interface TocEntry {
@@ -30,6 +31,9 @@ function extractHeadings(content: string): TocEntry[] {
 }
 
 export function DocsView() {
+  const pendingDocPath = useEditorStore((s) => s.pendingDocPath);
+  const clearPendingDocPath = useEditorStore((s) => s.clearPendingDocPath);
+
   const grouped = useMemo(() => {
     const map = new Map<string, typeof docs>();
     for (const doc of docs) {
@@ -41,9 +45,17 @@ export function DocsView() {
   }, []);
 
   const [activePath, setActivePath] = useState(() => {
-    const gs = docs.find((d) => d.path === "getting-started.md");
+    const gs = docs.find((d) => d.title === "Quick Start" || d.path.includes("quick-start"));
     return gs?.path ?? docs[0]?.path ?? "";
   });
+
+  // Consume pendingDocPath from store
+  useEffect(() => {
+    if (pendingDocPath) {
+      setActivePath(pendingDocPath);
+      clearPendingDocPath();
+    }
+  }, [pendingDocPath, clearPendingDocPath]);
 
   const activeDoc = docs.find((d) => d.path === activePath);
 
@@ -106,15 +118,93 @@ export function DocsView() {
     [],
   );
 
-  // Group ordering: General first, then alphabetical
+  // Group ordering: sort by sortOrder (from directory numeric prefix)
   const groupOrder = useMemo(() => {
     const keys = [...grouped.keys()];
     return keys.sort((a, b) => {
-      if (a === "General") return -1;
-      if (b === "General") return 1;
+      const aOrder = grouped.get(a)?.[0]?.sortOrder ?? 99;
+      const bOrder = grouped.get(b)?.[0]?.sortOrder ?? 99;
+      if (aOrder !== bOrder) return aOrder - bOrder;
       return a.localeCompare(b);
     });
   }, [grouped]);
+
+  // For the Nodes group, sub-group by prefix
+  const renderGroupEntries = useCallback(
+    (group: string, groupDocs: typeof docs) => {
+      const isNodesGroup = group.toLowerCase() === "nodes";
+      if (!isNodesGroup) {
+        return groupDocs.map((doc) => (
+          <button
+            key={doc.path}
+            onClick={() => setActivePath(doc.path)}
+            className={`w-full text-left px-4 py-1.5 text-sm transition-colors ${
+              activePath === doc.path
+                ? "bg-blue-50 text-blue-700 font-medium"
+                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            }`}
+          >
+            {doc.title}
+          </button>
+        ));
+      }
+
+      // Sub-group nodes by prefix (db, cache, control, etc.)
+      const subGroups = new Map<string, typeof docs>();
+      const indexDocs: typeof docs = [];
+      for (const doc of groupDocs) {
+        if (!doc.nodeType) {
+          indexDocs.push(doc);
+          continue;
+        }
+        const prefix = doc.nodeType.split(".")[0];
+        const list = subGroups.get(prefix) ?? [];
+        list.push(doc);
+        subGroups.set(prefix, list);
+      }
+
+      const sortedPrefixes = [...subGroups.keys()].sort();
+
+      return (
+        <>
+          {indexDocs.map((doc) => (
+            <button
+              key={doc.path}
+              onClick={() => setActivePath(doc.path)}
+              className={`w-full text-left px-4 py-1.5 text-sm transition-colors ${
+                activePath === doc.path
+                  ? "bg-blue-50 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              }`}
+            >
+              {doc.title}
+            </button>
+          ))}
+          {sortedPrefixes.map((prefix) => (
+            <div key={prefix}>
+              <div className="px-5 pt-2 pb-0.5 text-[9px] font-semibold text-gray-300 uppercase tracking-wider">
+                {prefix}
+              </div>
+              {subGroups.get(prefix)!.map((doc) => (
+                <button
+                  key={doc.path}
+                  onClick={() => setActivePath(doc.path)}
+                  className={`w-full text-left px-6 py-1 text-xs transition-colors ${
+                    activePath === doc.path
+                      ? "bg-blue-50 text-blue-700 font-medium"
+                      : "text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
+                >
+                  {doc.nodeType}
+                </button>
+              ))}
+            </div>
+          ))}
+        </>
+      );
+    },
+    [activePath],
+  );
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -127,19 +217,7 @@ export function DocsView() {
               <div className="px-4 pt-3 pb-1 text-[10px] font-semibold text-gray-400 uppercase tracking-wider">
                 {group}
               </div>
-              {grouped.get(group)!.map((doc) => (
-                <button
-                  key={doc.path}
-                  onClick={() => setActivePath(doc.path)}
-                  className={`w-full text-left px-4 py-1.5 text-sm transition-colors ${
-                    activePath === doc.path
-                      ? "bg-blue-50 text-blue-700 font-medium"
-                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                  }`}
-                >
-                  {doc.title}
-                </button>
-              ))}
+              {renderGroupEntries(group, grouped.get(group)!)}
             </div>
           ))}
         </div>

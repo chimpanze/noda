@@ -44,7 +44,6 @@
     },
     "emit_pr": {
       "config": {
-        "cases": [],
         "mode": "stream",
         "payload": "{{ input.payload }}",
         "topic": "github.pr"

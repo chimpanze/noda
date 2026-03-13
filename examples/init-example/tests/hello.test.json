@@ -1,16 +1,22 @@
 {
   "id": "hello-test",
-  "workflow": "hello",
   "tests": [
     {
-      "name": "greets by name",
-      "input": { "name": "World" },
       "expect": {
-        "status": "success",
-        "output": {
-          "greeting": "Hello, World!"
-        }
-      }
+        "outputs": {
+          "respond": {
+            "Body": {
+              "greeting": "Hello, World!"
+            }
+          }
+        },
+        "status": "success"
+      },
+      "input": {
+        "name": "World"
+      },
+      "name": "greets by name"
     }
-  ]
+  ],
+  "workflow": "hello"
 }

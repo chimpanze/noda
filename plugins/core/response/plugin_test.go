@@ -256,6 +256,24 @@ func TestJSONDescriptor(t *testing.T) {
 	req := schema["required"].([]any)
 	assert.Contains(t, req, "status")
 	assert.Contains(t, req, "body")
+
+	// cookies should be an array of objects with name/value required
+	cookiesProp := props["cookies"].(map[string]any)
+	assert.Equal(t, "array", cookiesProp["type"])
+	items := cookiesProp["items"].(map[string]any)
+	assert.Equal(t, "object", items["type"])
+	itemProps := items["properties"].(map[string]any)
+	assert.Contains(t, itemProps, "name")
+	assert.Contains(t, itemProps, "value")
+	assert.Contains(t, itemProps, "path")
+	assert.Contains(t, itemProps, "domain")
+	assert.Contains(t, itemProps, "max_age")
+	assert.Contains(t, itemProps, "secure")
+	assert.Contains(t, itemProps, "http_only")
+	assert.Contains(t, itemProps, "same_site")
+	itemReq := items["required"].([]any)
+	assert.Contains(t, itemReq, "name")
+	assert.Contains(t, itemReq, "value")
 }
 
 // --- Error Descriptor ---
@@ -897,4 +915,103 @@ func TestResolveDeep_DepthLimit(t *testing.T) {
 	_, err := resolveDeep(ctx, nested)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "resolve depth exceeds maximum")
+}
+
+// --- JSON Executor: inline cookie array (visual editor format) ---
+
+func TestJSONExecutor_InlineCookieArray(t *testing.T) {
+	exec := newJSONExecutor(nil)
+
+	_, data, err := exec.Execute(context.Background(), newTestContext(), map[string]any{
+		"status": "200",
+		"body":   "ok",
+		"cookies": []any{
+			map[string]any{
+				"name":      "session",
+				"value":     "abc123",
+				"path":      "/",
+				"max_age":   float64(3600),
+				"secure":    true,
+				"http_only": true,
+				"same_site": "Strict",
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	resp := data.(*api.HTTPResponse)
+	require.Len(t, resp.Cookies, 1)
+	c := resp.Cookies[0]
+	assert.Equal(t, "session", c.Name)
+	assert.Equal(t, "abc123", c.Value)
+	assert.Equal(t, "/", c.Path)
+	assert.Equal(t, 3600, c.MaxAge)
+	assert.True(t, c.Secure)
+	assert.True(t, c.HTTPOnly)
+	assert.Equal(t, "Strict", c.SameSite)
+}
+
+// --- JSON Executor: inline cookie array with expressions ---
+
+func TestJSONExecutor_InlineCookieArrayWithExpressions(t *testing.T) {
+	exec := newJSONExecutor(nil)
+	mCtx := newResolveContext(map[string]any{
+		"token-val": "resolved-token",
+	})
+
+	_, data, err := exec.Execute(context.Background(), mCtx, map[string]any{
+		"status": "200",
+		"body":   "ok",
+		"cookies": []any{
+			map[string]any{
+				"name":  "token",
+				"value": "token-val",
+			},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	resp := data.(*api.HTTPResponse)
+	require.Len(t, resp.Cookies, 1)
+	assert.Equal(t, "token", resp.Cookies[0].Name)
+	assert.Equal(t, "resolved-token", resp.Cookies[0].Value)
+}
+
+// --- JSON Executor: inline cookie array multiple cookies ---
+
+func TestJSONExecutor_InlineCookieArrayMultiple(t *testing.T) {
+	exec := newJSONExecutor(nil)
+
+	_, data, err := exec.Execute(context.Background(), newTestContext(), map[string]any{
+		"status": "200",
+		"body":   "ok",
+		"cookies": []any{
+			map[string]any{"name": "a", "value": "1"},
+			map[string]any{"name": "b", "value": "2"},
+			map[string]any{"name": "c", "value": "3"},
+		},
+	}, nil)
+	require.NoError(t, err)
+
+	resp := data.(*api.HTTPResponse)
+	require.Len(t, resp.Cookies, 3)
+	assert.Equal(t, "a", resp.Cookies[0].Name)
+	assert.Equal(t, "b", resp.Cookies[1].Name)
+	assert.Equal(t, "c", resp.Cookies[2].Name)
+}
+
+// --- JSON Executor: empty inline cookie array ---
+
+func TestJSONExecutor_EmptyInlineCookieArray(t *testing.T) {
+	exec := newJSONExecutor(nil)
+
+	_, data, err := exec.Execute(context.Background(), newTestContext(), map[string]any{
+		"status":  "200",
+		"body":    "ok",
+		"cookies": []any{},
+	}, nil)
+	require.NoError(t, err)
+
+	resp := data.(*api.HTTPResponse)
+	assert.Nil(t, resp.Cookies)
 }
