@@ -185,3 +185,85 @@ func TestResolveRefs_MultipleDefinitionsFromOneFile(t *testing.T) {
 	assert.Equal(t, "user", rc.Routes["routes/a.json"]["schema"].(map[string]any)["type"])
 	assert.Equal(t, "task", rc.Routes["routes/b.json"]["schema"].(map[string]any)["type"])
 }
+
+func TestResolveRefs_SubfolderSchema(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"project/schemas/validation/CreateTask.json": {
+				"CreateTask": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"title": map[string]any{"type": "string"},
+					},
+				},
+			},
+			"project/schemas/models/Task.json": {
+				"Task": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"id":    map[string]any{"type": "string"},
+						"title": map[string]any{"type": "string"},
+					},
+				},
+			},
+			// Flat schema still works
+			"project/schemas/Common.json": {
+				"Pagination": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"page": map[string]any{"type": "integer"},
+					},
+				},
+			},
+		},
+		Routes: map[string]map[string]any{
+			"routes/create.json": {
+				"body":     map[string]any{"$ref": "schemas/validation/CreateTask"},
+				"response": map[string]any{"$ref": "schemas/models/Task"},
+			},
+			"routes/list.json": {
+				"pagination": map[string]any{"$ref": "schemas/Pagination"},
+			},
+		},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	assert.Empty(t, errs)
+
+	// Subfolder ref: schemas/validation/CreateTask
+	body := rc.Routes["routes/create.json"]["body"].(map[string]any)
+	assert.Equal(t, "object", body["type"])
+	assert.NotNil(t, body["properties"])
+
+	// Subfolder ref: schemas/models/Task
+	response := rc.Routes["routes/create.json"]["response"].(map[string]any)
+	assert.Equal(t, "object", response["type"])
+
+	// Flat ref still works: schemas/Pagination
+	pagination := rc.Routes["routes/list.json"]["pagination"].(map[string]any)
+	assert.Equal(t, "object", pagination["type"])
+}
+
+func TestExtractSchemasRelPath(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"/project/schemas/Task.json", "schemas"},
+		{"/project/schemas/validation/CreateTask.json", "schemas/validation"},
+		{"/project/schemas/models/db/User.json", "schemas/models/db"},
+		{"schemas/Task.json", "schemas"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			result := extractSchemasRelPath(tt.input)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

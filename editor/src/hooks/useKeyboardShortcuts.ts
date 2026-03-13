@@ -54,8 +54,15 @@ export function useKeyboardShortcuts() {
         return;
       }
 
+      // Ctrl+Shift+S — validate & save
+      if (meta && e.key === "s" && e.shiftKey) {
+        e.preventDefault();
+        useEditorStore.getState().validateAndSave();
+        return;
+      }
+
       // Ctrl+S — save
-      if (meta && e.key === "s") {
+      if (meta && e.key === "s" && !e.shiftKey) {
         e.preventDefault();
         saveWorkflow();
         return;

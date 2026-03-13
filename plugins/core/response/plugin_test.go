@@ -885,3 +885,16 @@ func TestJSONExecutor_StatusNonIntString(t *testing.T) {
 	resp := data.(*api.HTTPResponse)
 	assert.Equal(t, 200, resp.Status)
 }
+
+func TestResolveDeep_DepthLimit(t *testing.T) {
+	// Build a nested structure deeper than maxResolveDepth
+	var nested any = "leaf"
+	for i := 0; i < maxResolveDepth+10; i++ {
+		nested = map[string]any{fmt.Sprintf("level_%d", i): nested}
+	}
+
+	ctx := newTestContext()
+	_, err := resolveDeep(ctx, nested)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolve depth exceeds maximum")
+}

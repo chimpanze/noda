@@ -40,19 +40,30 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 	registry := make(map[string]map[string]any)
 
 	for filePath, content := range schemas {
-		// Extract directory-relative name: schemas/User.json → schemas
-		dir := filepath.Dir(filePath)
-		baseDirName := filepath.Base(dir) // "schemas"
+		relDir := extractSchemasRelPath(filePath)
 
 		for key, val := range content {
 			if schema, ok := val.(map[string]any); ok {
-				refName := baseDirName + "/" + key
+				refName := relDir + "/" + key
 				registry[refName] = schema
 			}
 		}
 	}
 
 	return registry
+}
+
+// extractSchemasRelPath returns the directory path from the "schemas" segment onward,
+// e.g. "/project/schemas/validation/Task.json" → "schemas/validation".
+// For the flat case "/project/schemas/Task.json" → "schemas".
+func extractSchemasRelPath(filePath string) string {
+	parts := strings.Split(filepath.ToSlash(filePath), "/")
+	for i, p := range parts {
+		if p == "schemas" {
+			return strings.Join(parts[i:len(parts)-1], "/")
+		}
+	}
+	return "schemas"
 }
 
 func resolveRefsInValue(v any, registry map[string]map[string]any, filePath string, seen []string) (any, []error) {

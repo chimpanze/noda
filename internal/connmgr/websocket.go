@@ -21,17 +21,23 @@ const (
 
 // WebSocketConfig holds configuration for a WebSocket endpoint.
 type WebSocketConfig struct {
-	Endpoint       string
-	Path           string
-	ChannelPattern string // e.g., "doc.{{ request.params.doc_id }}"
-	PingInterval   time.Duration
-	MaxMessageSize int64
-	MaxPerChannel  int
+	Endpoint              string
+	Path                  string
+	ChannelPattern        string // e.g., "doc.{{ request.params.doc_id }}"
+	PingInterval          time.Duration
+	MaxMessageSize        int64
+	MaxPerChannel         int
+	MaxConcurrentMessages int // max concurrent onMessage goroutines (default 100)
 
 	OnConnect    string // workflow ID
 	OnMessage    string // workflow ID
 	OnDisconnect string // workflow ID
 }
+
+const (
+	defaultMaxConcurrentMessages = 100
+	lifecycleTimeout             = 30 * time.Second
+)
 
 // WebSocketHandler manages a single WebSocket endpoint.
 type WebSocketHandler struct {
@@ -40,7 +46,8 @@ type WebSocketHandler struct {
 	runner     api.WorkflowRunner
 	compiler   *expr.Compiler
 	logger     *slog.Logger
-	paramNames []string // route param names extracted from path pattern
+	paramNames []string      // route param names extracted from path pattern
+	msgSem     chan struct{} // bounds concurrent onMessage goroutines
 }
 
 // NewWebSocketHandler creates a handler for a WebSocket endpoint.
@@ -57,6 +64,10 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner api.WorkflowR
 	if compiler == nil {
 		compiler = expr.NewCompiler()
 	}
+	maxMsg := cfg.MaxConcurrentMessages
+	if maxMsg <= 0 {
+		maxMsg = defaultMaxConcurrentMessages
+	}
 	return &WebSocketHandler{
 		config:     cfg,
 		manager:    mgr,
@@ -64,6 +75,7 @@ func NewWebSocketHandler(cfg WebSocketConfig, mgr *Manager, runner api.WorkflowR
 		compiler:   compiler,
 		logger:     logger,
 		paramNames: extractParamNamesFromPath(cfg.Path),
+		msgSem:     make(chan struct{}, maxMsg),
 	}
 }
 
@@ -165,11 +177,19 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 		if h.config.OnMessage != "" && h.runner != nil {
 			input := h.buildInput(conn)
 			input["data"] = parseJSONMessage(msg)
-			go func() {
-				if err := h.runner(context.Background(), h.config.OnMessage, input); err != nil {
-					h.logger.Error("on_message workflow failed", "workflow", h.config.OnMessage, "error", err)
-				}
-			}()
+			select {
+			case h.msgSem <- struct{}{}:
+				go func() {
+					defer func() { <-h.msgSem }()
+					msgCtx, msgCancel := context.WithTimeout(context.Background(), lifecycleTimeout)
+					defer msgCancel()
+					if err := h.runner(msgCtx, h.config.OnMessage, input); err != nil {
+						h.logger.Error("on_message workflow failed", "workflow", h.config.OnMessage, "error", err)
+					}
+				}()
+			default:
+				h.logger.Warn("on_message dropped: concurrency limit reached", "conn", connID)
+			}
 		}
 	}
 }
@@ -178,8 +198,10 @@ func (h *WebSocketHandler) fireLifecycle(workflowID string, conn *Conn) {
 	if workflowID == "" || h.runner == nil {
 		return
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), lifecycleTimeout)
+	defer cancel()
 	input := h.buildInput(conn)
-	if err := h.runner(context.Background(), workflowID, input); err != nil {
+	if err := h.runner(ctx, workflowID, input); err != nil {
 		h.logger.Error("lifecycle workflow failed", "workflow", workflowID, "error", err)
 	}
 }

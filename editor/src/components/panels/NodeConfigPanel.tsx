@@ -13,8 +13,11 @@ import { NumberWidget } from "@/components/widgets/NumberWidget";
 import { StringArrayField } from "@/components/widgets/StringArrayField";
 import { KeyValueMapField } from "@/components/widgets/KeyValueMapField";
 import { FlexibleValueField } from "@/components/widgets/FlexibleValueField";
+import { JoinArrayField } from "@/components/widgets/JoinArrayField";
+import { SchemaRefField } from "@/components/widgets/SchemaRefField";
 import { StyledObjectFieldTemplate } from "@/components/widgets/StyledObjectFieldTemplate";
 import { StyledFieldTemplate } from "@/components/widgets/StyledFieldTemplate";
+import { TableSelectWidget } from "@/components/widgets/TableSelectWidget";
 
 // Custom widget registry for RJSF
 const widgets = {
@@ -22,6 +25,7 @@ const widgets = {
   enumSelect: EnumSelectWidget,
   booleanToggle: BooleanToggleWidget,
   number: NumberWidget,
+  tableSelect: TableSelectWidget,
 };
 
 // Custom field registry for RJSF
@@ -29,6 +33,8 @@ const fields = {
   stringArray: StringArrayField,
   keyValueMap: KeyValueMapField,
   flexibleValue: FlexibleValueField,
+  joinArray: JoinArrayField,
+  schemaRef: SchemaRefField,
 };
 
 export function NodeConfigPanel() {
@@ -105,11 +111,14 @@ export function NodeConfigPanel() {
   }
 
   // Build uiSchema — assign widgets/fields based on schema type
+  const isDbNode = node.type.startsWith("db.");
   const uiSchema: UiSchema = {};
   if (schema?.properties) {
     for (const [key, prop] of Object.entries(schema.properties)) {
       const p = prop as Record<string, unknown>;
-      if (p.enum) {
+      if (isDbNode && key === "table") {
+        uiSchema[key] = { "ui:widget": "tableSelect" };
+      } else if (p.enum) {
         uiSchema[key] = { "ui:widget": "enumSelect" };
       } else if (p.type === "string") {
         uiSchema[key] = { "ui:widget": "expression" };
@@ -117,8 +126,20 @@ export function NodeConfigPanel() {
         uiSchema[key] = { "ui:widget": "booleanToggle" };
       } else if (p.type === "integer" || p.type === "number") {
         uiSchema[key] = { "ui:widget": "number" };
-      } else if (p.type === "array" && (!p.items || (p.items as Record<string, unknown>)?.type === "string")) {
+      } else if (p.type === "array" && key === "joins") {
+        uiSchema[key] = { "ui:field": "joinArray" };
+      } else if (
+        p.type === "array" &&
+        (
+          (p.items && (p.items as Record<string, unknown>)?.type === "string") ||
+          key === "select"
+        )
+      ) {
         uiSchema[key] = { "ui:field": "stringArray" };
+      } else if (p.type === "array") {
+        uiSchema[key] = { "ui:field": "flexibleValue" };
+      } else if (p.type === "object" && !p.properties && key === "schema") {
+        uiSchema[key] = { "ui:field": "schemaRef" };
       } else if (p.type === "object" && !p.properties) {
         uiSchema[key] = { "ui:field": "keyValueMap" };
       } else if (!p.type && !p.enum && !p.properties) {

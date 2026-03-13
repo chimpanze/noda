@@ -56,6 +56,26 @@ func ValidateJoinType(s string) error {
 	return nil
 }
 
+// blockedSQLKeywords are dangerous SQL keywords that should never appear in user-provided fragments.
+var blockedSQLKeywords = []string{
+	"DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE",
+	"EXEC", "UNION", "SELECT", "GRANT", "REVOKE", "TRUNCATE",
+}
+
+// wordBoundaryRe matches non-word characters for whole-word keyword detection.
+var wordBoundaryRe = regexp.MustCompile(`\W+`)
+
+// containsWord checks if s contains kw as a whole word (not as a substring of another word).
+func containsWord(s, kw string) bool {
+	words := wordBoundaryRe.Split(s, -1)
+	for _, w := range words {
+		if w == kw {
+			return true
+		}
+	}
+	return false
+}
+
 // ValidateSQLFragment rejects strings containing dangerous SQL patterns.
 func ValidateSQLFragment(s string) error {
 	if strings.Contains(s, ";") {
@@ -66,6 +86,12 @@ func ValidateSQLFragment(s string) error {
 	}
 	if strings.Contains(s, "/*") {
 		return fmt.Errorf("SQL fragment must not contain block comments")
+	}
+	upper := strings.ToUpper(s)
+	for _, kw := range blockedSQLKeywords {
+		if containsWord(upper, kw) {
+			return fmt.Errorf("SQL fragment contains blocked keyword %q", kw)
+		}
 	}
 	return nil
 }

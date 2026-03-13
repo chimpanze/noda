@@ -3,6 +3,7 @@
 export interface FileList {
   root: string;
   overlay: string;
+  vars: string;
   schemas: string[];
   routes: string[];
   workflows: string[];
@@ -10,6 +11,7 @@ export interface FileList {
   schedules: string[];
   connections: string[];
   tests: string[];
+  models: string[];
 }
 
 export interface NodeDescriptor {
@@ -134,10 +136,59 @@ export type ViewType =
   | "connections"
   | "services"
   | "schemas"
+  | "vars"
   | "wasm"
   | "tests"
+  | "models"
   | "settings"
   | "docs";
+
+export interface VarInfo {
+  name: string;
+  value: string;
+  usages: string[];
+}
+
+// Model types
+export interface ModelInfo {
+  path: string;
+  model: ModelDefinition;
+}
+
+export interface ModelDefinition {
+  table: string;
+  columns: Record<string, ColumnDef>;
+  relations?: Record<string, RelationDef>;
+  indexes?: IndexDef[];
+  timestamps?: boolean;
+  soft_delete?: boolean;
+}
+
+export interface ColumnDef {
+  type: string;
+  primary_key?: boolean;
+  not_null?: boolean;
+  default?: string;
+  enum?: string[];
+  max_length?: number;
+  precision?: number;
+  scale?: number;
+  order?: number;
+}
+
+export interface RelationDef {
+  type: "belongsTo" | "hasMany" | "manyToMany";
+  table: string;
+  foreign_key: string;
+  on_delete?: string;
+  junction?: string;
+  local_key?: string;
+}
+
+export interface IndexDef {
+  columns: string[];
+  unique?: boolean;
+}
 
 export interface ConfigField {
   key: string;

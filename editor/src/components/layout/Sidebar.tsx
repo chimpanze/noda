@@ -7,6 +7,8 @@ import {
   Cable,
   Server,
   FileJson,
+  Database,
+  Braces,
   Cpu,
   TestTube,
   Settings,
@@ -52,8 +54,10 @@ const navGroups: NavGroup[] = [
   {
     label: "Data",
     items: [
+      { view: "models", label: "Models", icon: <Database size={18} /> },
       { view: "services", label: "Services", icon: <Server size={18} /> },
       { view: "schemas", label: "Schemas", icon: <FileJson size={18} /> },
+      { view: "vars", label: "Variables", icon: <Braces size={18} /> },
     ],
   },
   {

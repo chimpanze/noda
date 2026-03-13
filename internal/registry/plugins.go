@@ -42,26 +42,37 @@ func (r *PluginRegistry) Register(plugin api.Plugin) error {
 
 	if len(existingNodes) > 0 && len(newNodes) == 0 && !existingHasServices && newHasServices {
 		// Existing has nodes, new has services → merge
-		r.plugins[prefix] = &compositePlugin{nodes: existing, services: plugin}
+		r.plugins[prefix] = &compositePlugin{name: mergedName(existing, plugin), nodes: existing, services: plugin}
 		return nil
 	}
 	if len(existingNodes) == 0 && len(newNodes) > 0 && existingHasServices && !newHasServices {
 		// Existing has services, new has nodes → merge
-		r.plugins[prefix] = &compositePlugin{nodes: plugin, services: existing}
+		r.plugins[prefix] = &compositePlugin{name: mergedName(plugin, existing), nodes: plugin, services: existing}
 		return nil
 	}
 
 	return fmt.Errorf("duplicate plugin prefix %q: %q and %q", prefix, existing.Name(), plugin.Name())
 }
 
+// mergedName returns a name for a composite plugin. If both plugins share the
+// same name it is returned as-is; otherwise the names are joined with "+".
+func mergedName(nodes, services api.Plugin) string {
+	nn, sn := nodes.Name(), services.Name()
+	if nn == sn {
+		return nn
+	}
+	return nn + "+" + sn
+}
+
 // compositePlugin merges a node-providing plugin with a service-providing plugin
 // that share the same prefix.
 type compositePlugin struct {
+	name     string     // explicit name preserved at merge time
 	nodes    api.Plugin // provides Nodes()
 	services api.Plugin // provides HasServices(), CreateService(), etc.
 }
 
-func (c *compositePlugin) Name() string   { return c.services.Name() }
+func (c *compositePlugin) Name() string   { return c.name }
 func (c *compositePlugin) Prefix() string { return c.services.Prefix() }
 
 func (c *compositePlugin) Nodes() []api.NodeRegistration {

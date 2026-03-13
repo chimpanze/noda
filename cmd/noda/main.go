@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -69,10 +70,11 @@ func main() {
 	}
 
 	rootCmd := &cobra.Command{
-		Use:     "noda",
-		Short:   "Noda — configuration-driven API runtime",
-		Long:    "Noda is a configuration-driven API runtime for Go. JSON config files define routes, workflows, middleware, auth, services, and real-time connections.",
-		Version: Version,
+		Use:          "noda",
+		Short:        "Noda — configuration-driven API runtime",
+		Long:         "Noda is a configuration-driven API runtime for Go. JSON config files define routes, workflows, middleware, auth, services, and real-time connections.",
+		Version:      Version,
+		SilenceUsage: true,
 	}
 
 	rootCmd.PersistentFlags().String("env", "", "runtime environment")
@@ -126,8 +128,7 @@ func newValidateCmd() *cobra.Command {
 			if verbose {
 				info, err := config.GetValidateInfo(configDir, envFlag)
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("getting validation info: %w", err)
 				}
 				fmt.Printf("Environment: %s\n", info.Environment)
 				if info.OverlayFile != "" {
@@ -143,8 +144,7 @@ func newValidateCmd() *cobra.Command {
 
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
-				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
-				os.Exit(1)
+				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
 			// Plugin/service/node startup validation (dry-run: no database connections)
@@ -152,10 +152,11 @@ func newValidateCmd() *cobra.Command {
 			registerCorePlugins(plugins)
 			_, bootstrapErrs := registry.Bootstrap(rc, plugins, registry.BootstrapOptions{DryRun: true})
 			if len(bootstrapErrs) > 0 {
+				var errMsgs []string
 				for _, e := range bootstrapErrs {
-					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
+					errMsgs = append(errMsgs, e.Error())
 				}
-				os.Exit(1)
+				return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
 			}
 
 			fmt.Printf("✓ All config files valid (%d files checked)\n", rc.FileCount)
@@ -184,15 +185,13 @@ func newTestCmd() *cobra.Command {
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
-				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
-				os.Exit(1)
+				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
 			// Load test suites
 			suites, err := nodatesting.LoadTests(rc)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error loading tests: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("loading tests: %w", err)
 			}
 
 			if len(suites) == 0 {
@@ -238,7 +237,7 @@ func newTestCmd() *cobra.Command {
 			fmt.Print(nodatesting.FormatResults(suiteResults, verbose))
 
 			if anyFailed {
-				os.Exit(1)
+				return fmt.Errorf("some tests failed")
 			}
 			return nil
 		},
@@ -281,8 +280,7 @@ func newStartCmd() *cobra.Command {
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
-				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
-				os.Exit(1)
+				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
 			// Initialize OTel tracing
@@ -297,30 +295,28 @@ func newStartCmd() *cobra.Command {
 			registerCorePlugins(plugins)
 			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
 			if len(bootstrapErrs) > 0 {
+				var errMsgs []string
 				for _, e := range bootstrapErrs {
-					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
+					errMsgs = append(errMsgs, e.Error())
 				}
-				os.Exit(1)
+				return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
 			}
 
 			// Pre-compile all workflows once for server, scheduler, and workers
 			workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error compiling workflows: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("compiling workflows: %w", err)
 			}
 
 			var srv *server.Server
 			if runServer {
 				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler))
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("creating server: %w", err)
 				}
 
 				if err := srv.Setup(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error setting up server: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("setting up server: %w", err)
 				}
 
 				if err := srv.RegisterOpenAPIRoutes(); err != nil {
@@ -349,10 +345,9 @@ func newStartCmd() *cobra.Command {
 					logger,
 				)
 				if err := workerRuntime.Start(context.Background()); err != nil {
-					fmt.Fprintf(os.Stderr, "Error starting workers: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("starting workers: %w", err)
 				}
-				fmt.Printf("Workers started with %d consumer(s)\n", len(workerConfigs))
+				slog.Info("workers started", "consumers", len(workerConfigs))
 			}
 
 			// Start scheduler if configured and requested
@@ -374,10 +369,9 @@ func newStartCmd() *cobra.Command {
 					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error starting scheduler: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("starting scheduler: %w", err)
 				}
-				fmt.Printf("Scheduler started with %d job(s)\n", len(scheduleConfigs))
+				slog.Info("scheduler started", "jobs", len(scheduleConfigs))
 			}
 
 			// Start Wasm runtimes if configured and requested
@@ -394,18 +388,16 @@ func newStartCmd() *cobra.Command {
 							cfg.ModulePath = filepath.Join(configDir, cfg.ModulePath)
 						}
 						if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
-							fmt.Fprintf(os.Stderr, "Error loading wasm module %q: %s\n", name, err)
-							os.Exit(1)
+							return fmt.Errorf("loading wasm module %q: %w", name, err)
 						}
 						// Register WasmService so wasm.send/wasm.query nodes can reference this module
 						wasmSvc := wasm.NewWasmService(wasmRuntime, name)
 						_ = bootstrap.Services.Register(name, wasmSvc, nil)
 					}
 					if err := wasmRuntime.StartAll(context.Background()); err != nil {
-						fmt.Fprintf(os.Stderr, "Error starting wasm runtimes: %s\n", err)
-						os.Exit(1)
+						return fmt.Errorf("starting wasm runtimes: %w", err)
 					}
-					fmt.Printf("Wasm runtimes started with %d module(s)\n", len(wasmRuntimes))
+					slog.Info("wasm runtimes started", "modules", len(wasmRuntimes))
 				}
 			}
 
@@ -417,7 +409,7 @@ func newStartCmd() *cobra.Command {
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 				<-sigCh
-				fmt.Println("\nShutting down...")
+				slog.Info("shutting down")
 
 				deadline := 30 * time.Second
 				if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
@@ -433,12 +425,12 @@ func newStartCmd() *cobra.Command {
 			}()
 
 			if srv != nil {
-				fmt.Printf("Noda server starting on port %d\n", srv.Port())
+				slog.Info("server starting", "port", srv.Port())
 				return srv.Start()
 			}
 
 			// No server — block on signal
-			fmt.Println("Noda started (no HTTP server)")
+			slog.Info("started without HTTP server")
 			select {}
 		},
 	}
@@ -467,8 +459,7 @@ func newDevCmd() *cobra.Command {
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
-				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
-				os.Exit(1)
+				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
 			// Initialize OTel tracing
@@ -478,8 +469,7 @@ func newDevCmd() *cobra.Command {
 			}
 			traceProvider, err := trace.NewProvider(context.Background(), traceCfg, logger)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error initializing tracer: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("initializing tracer: %w", err)
 			}
 
 			// Create trace event hub for dev mode streaming
@@ -490,29 +480,27 @@ func newDevCmd() *cobra.Command {
 			registerCorePlugins(plugins)
 			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
 			if len(bootstrapErrs) > 0 {
+				var errMsgs []string
 				for _, e := range bootstrapErrs {
-					fmt.Fprintf(os.Stderr, "  ✗ %s\n", e)
+					errMsgs = append(errMsgs, e.Error())
 				}
-				os.Exit(1)
+				return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
 			}
 
 			// Pre-compile all workflows
 			workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error compiling workflows: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("compiling workflows: %w", err)
 			}
 
 			// Create and setup server
 			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating server: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("creating server: %w", err)
 			}
 
 			if err := srv.Setup(); err != nil {
-				fmt.Fprintf(os.Stderr, "Error setting up server: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("setting up server: %w", err)
 			}
 
 			// Register OpenAPI routes
@@ -542,10 +530,9 @@ func newDevCmd() *cobra.Command {
 					logger,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
-					fmt.Fprintf(os.Stderr, "Error starting scheduler: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("starting scheduler: %w", err)
 				}
-				fmt.Printf("Scheduler started with %d job(s)\n", len(scheduleConfigs))
+				slog.Info("scheduler started", "jobs", len(scheduleConfigs))
 			}
 
 			// Set up hot-reload
@@ -567,7 +554,11 @@ func newDevCmd() *cobra.Command {
 					if file == "" {
 						file = "index.html"
 					}
-					return c.SendFile(filepath.Join(editorDist, file))
+					absPath := filepath.Join(editorDist, filepath.Clean(file))
+					if !strings.HasPrefix(absPath, editorDist) {
+						return c.Status(403).SendString("forbidden")
+					}
+					return c.SendFile(absPath)
 				})
 			} else {
 				// Use embedded editor assets
@@ -577,14 +568,13 @@ func newDevCmd() *cobra.Command {
 			// Set up file watcher
 			watcher, err := devmode.NewWatcher(reloader.HandleChange, logger)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error creating file watcher: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("creating file watcher: %w", err)
 			}
 			if err := watcher.WatchDir(configDir); err != nil {
 				logger.Warn("failed to watch config directory", "error", err.Error())
 			}
 			watcher.Start()
-			fmt.Printf("Watching %s for changes\n", configDir)
+			slog.Info("watching for changes", "dir", configDir)
 
 			// Mark server as ready
 			server.SetReady()
@@ -594,7 +584,7 @@ func newDevCmd() *cobra.Command {
 				sigCh := make(chan os.Signal, 1)
 				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 				<-sigCh
-				fmt.Println("\nShutting down...")
+				slog.Info("shutting down")
 
 				deadline := 30 * time.Second
 				if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
@@ -609,9 +599,9 @@ func newDevCmd() *cobra.Command {
 				os.Exit(0)
 			}()
 
-			fmt.Printf("Noda dev server starting on port %d\n", srv.Port())
-			fmt.Println("Trace WebSocket available at /ws/trace")
-			fmt.Println("Editor available at /editor/")
+			slog.Info("dev server starting", "port", srv.Port())
+			slog.Info("trace websocket available", "path", "/ws/trace")
+			slog.Info("editor available", "path", "/editor/")
 			return srv.Start()
 		},
 	}
@@ -636,26 +626,22 @@ func newGenerateCmd() *cobra.Command {
 			// Load and validate config
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
-				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
-				os.Exit(1)
+				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
 			doc, err := server.GenerateOpenAPI(rc)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error generating OpenAPI spec: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("generating OpenAPI spec: %w", err)
 			}
 
 			specBytes, err := json.MarshalIndent(doc, "", "  ")
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error marshaling spec: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("marshaling spec: %w", err)
 			}
 
 			if output != "" {
 				if err := os.WriteFile(output, specBytes, 0644); err != nil {
-					fmt.Fprintf(os.Stderr, "Error writing file: %s\n", err)
-					os.Exit(1)
+					return fmt.Errorf("writing file: %w", err)
 				}
 				fmt.Printf("OpenAPI spec written to %s\n", output)
 			} else {
@@ -700,8 +686,7 @@ func newMigrateCmd() *cobra.Command {
 
 			upFile, downFile, err := migrate.Create(migrationsDir, args[0])
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("create migration: %w", err)
 			}
 			fmt.Printf("Created:\n  %s\n  %s\n", upFile, downFile)
 			return nil
@@ -712,16 +697,15 @@ func newMigrateCmd() *cobra.Command {
 		Use:   "up",
 		Short: "Apply all pending migrations",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, configDir, err := getDBFromConfig(cmd)
+			db, configDir, cleanup, err := getDBFromConfig(cmd)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("migrate up: %w", err)
 			}
+			defer cleanup()
 
 			ran, err := migrate.Up(db, configDir+"/migrations")
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("migrate up: %w", err)
 			}
 
 			if len(ran) == 0 {
@@ -740,16 +724,15 @@ func newMigrateCmd() *cobra.Command {
 		Use:   "down",
 		Short: "Roll back the last migration",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, configDir, err := getDBFromConfig(cmd)
+			db, configDir, cleanup, err := getDBFromConfig(cmd)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("migrate down: %w", err)
 			}
+			defer cleanup()
 
 			rolled, err := migrate.Down(db, configDir+"/migrations")
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("migrate down: %w", err)
 			}
 			fmt.Printf("  Rolled back: %s\n", rolled)
 			return nil
@@ -760,16 +743,15 @@ func newMigrateCmd() *cobra.Command {
 		Use:   "status",
 		Short: "Show migration status",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			db, configDir, err := getDBFromConfig(cmd)
+			db, configDir, cleanup, err := getDBFromConfig(cmd)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("migrate status: %w", err)
 			}
+			defer cleanup()
 
 			statuses, err := migrate.Status(db, configDir+"/migrations")
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Error: %s\n", err)
-				os.Exit(1)
+				return fmt.Errorf("migrate status: %w", err)
 			}
 
 			if len(statuses) == 0 {
@@ -792,7 +774,7 @@ func newMigrateCmd() *cobra.Command {
 	return cmd
 }
 
-func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
+func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 	configDir, _ := cmd.Flags().GetString("config")
 	envFlag, _ := cmd.Flags().GetString("env")
 	serviceName, _ := cmd.Flags().GetString("service")
@@ -801,18 +783,18 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
 
 	rc, errs := config.ValidateAll(configDir, envFlag)
 	if len(errs) > 0 {
-		return nil, "", fmt.Errorf("config validation failed")
+		return nil, "", nil, fmt.Errorf("config validation failed")
 	}
 
 	// Create the database service from config
 	servicesConfig, ok := rc.Root["services"].(map[string]any)
 	if !ok {
-		return nil, "", fmt.Errorf("no services configured")
+		return nil, "", nil, fmt.Errorf("no services configured")
 	}
 
 	svcConfig, ok := servicesConfig[serviceName].(map[string]any)
 	if !ok {
-		return nil, "", fmt.Errorf("service %q not found in config", serviceName)
+		return nil, "", nil, fmt.Errorf("service %q not found in config", serviceName)
 	}
 
 	innerConfig, _ := svcConfig["config"].(map[string]any)
@@ -823,15 +805,21 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, error) {
 	plugin := &dbplugin.Plugin{}
 	svc, err := plugin.CreateService(innerConfig)
 	if err != nil {
-		return nil, "", fmt.Errorf("create database service: %w", err)
+		return nil, "", nil, fmt.Errorf("create database service: %w", err)
 	}
 
 	db, ok := svc.(*gorm.DB)
 	if !ok {
-		return nil, "", fmt.Errorf("service %q is not a database", serviceName)
+		return nil, "", nil, fmt.Errorf("service %q is not a database", serviceName)
 	}
 
-	return db, configDir, nil
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("get underlying sql.DB: %w", err)
+	}
+	cleanup := func() { _ = sqlDB.Close() }
+
+	return db, configDir, cleanup, nil
 }
 
 // corePlugins returns all built-in plugins. Used by both buildCoreNodeRegistry
@@ -901,8 +889,7 @@ func newScheduleCmd() *cobra.Command {
 
 			rc, errs := config.ValidateAll(configDir, envFlag)
 			if len(errs) > 0 {
-				fmt.Fprint(os.Stderr, config.FormatErrors(errs))
-				os.Exit(1)
+				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
 			if len(rc.Schedules) == 0 {

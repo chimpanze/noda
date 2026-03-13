@@ -308,6 +308,33 @@ migrations/
 └── 20240102000000_add_user_id.down.sql
 ```
 
+## Redis Configuration
+
+Redis-backed services (cache, stream, pubsub) accept a `url` field using the standard Redis URL format, plus optional connection pool settings:
+
+```json
+{
+  "services": {
+    "redis": {
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}",
+        "pool_size": 20,
+        "min_idle": 5
+      }
+    }
+  }
+}
+```
+
+| Field | Description | Default |
+|-------|-------------|---------|
+| `url` | Redis URL (`redis://user:pass@host:6379/0`) | required |
+| `pool_size` | Maximum connections in the pool | go-redis default (10 per CPU) |
+| `min_idle` | Minimum idle connections kept open | go-redis default (0) |
+
+For production workloads, tune `pool_size` based on your concurrency needs. A good starting point is 2x your expected concurrent database operations. Set `min_idle` to reduce connection establishment latency under load.
+
 ## Production Checklist
 
 - [ ] Set `NODA_ENV=production` to load production config overlay

@@ -248,8 +248,9 @@ type mockScheduler struct {
 	stopped atomic.Bool
 }
 
-func (m *mockScheduler) Stop() {
+func (m *mockScheduler) Stop(ctx context.Context) error {
 	m.stopped.Store(true)
+	return nil
 }
 
 type mockWasm struct {

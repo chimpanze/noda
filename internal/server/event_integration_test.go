@@ -179,7 +179,7 @@ func TestE2E_EventEmitAndWorkerConsume(t *testing.T) {
 	ctx := context.Background()
 	err := rt.Start(ctx)
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	// Emit event via HTTP
 	body := `{"user_id": "u1", "action": "signup"}`
@@ -257,7 +257,7 @@ func TestE2E_WorkerFailureRedelivery(t *testing.T) {
 		return attempts >= 1
 	}, 5*time.Second, 50*time.Millisecond)
 
-	rt.Stop()
+	rt.Stop(context.Background())
 
 	// The message should NOT have been acked (it's still pending)
 	// This verifies the failure path doesn't ack

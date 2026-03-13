@@ -50,6 +50,7 @@
       },
       "required": ["workflow"]
     },
+    "response_timeout": { "type": "string" },
     "response": {
       "type": "object",
       "properties": {

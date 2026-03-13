@@ -168,12 +168,16 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 					}
 					continue
 				}
-				if _, exists := configuredServices[svcNameStr]; !exists {
+				svcPrefix, exists := configuredServices[svcNameStr]
+				if !exists {
 					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q not found in config (slot: %s)", wfName, nodeID, svcNameStr, slot))
+					continue
+				}
+				if svcPrefix != dep.Prefix {
+					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q",
+						wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix))
 				}
 			}
-
-			_ = desc
 		}
 	}
 

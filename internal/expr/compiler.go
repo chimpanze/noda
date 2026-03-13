@@ -18,7 +18,8 @@ type CompiledExpression struct {
 type CompilerOption func(*compilerConfig)
 
 type compilerConfig struct {
-	exprOptions []expr.Option
+	exprOptions  []expr.Option
+	maxCacheSize int // 0 means unlimited
 }
 
 // WithExprOptions adds expr.Option values to be used during compilation.
@@ -28,10 +29,19 @@ func WithExprOptions(opts ...expr.Option) CompilerOption {
 	}
 }
 
+// WithMaxCacheSize sets the maximum number of compiled expressions to cache.
+// When the limit is reached, the cache is cleared. 0 means unlimited.
+func WithMaxCacheSize(size int) CompilerOption {
+	return func(c *compilerConfig) {
+		c.maxCacheSize = size
+	}
+}
+
 // Compiler compiles and caches expressions.
 type Compiler struct {
 	mu    sync.RWMutex
 	cache map[string]*CompiledExpression
+	order []string // insertion order for LRU eviction
 	opts  compilerConfig
 }
 
@@ -67,7 +77,7 @@ func (c *Compiler) Compile(input string) (*CompiledExpression, error) {
 
 	if parsed.IsLiteral {
 		c.mu.Lock()
-		c.cache[input] = compiled
+		c.addToCache(input, compiled)
 		c.mu.Unlock()
 		return compiled, nil
 	}
@@ -91,10 +101,29 @@ func (c *Compiler) Compile(input string) (*CompiledExpression, error) {
 	}
 
 	c.mu.Lock()
-	c.cache[input] = compiled
+	c.addToCache(input, compiled)
 	c.mu.Unlock()
 
 	return compiled, nil
+}
+
+// addToCache adds a compiled expression to the cache, evicting the oldest 25%
+// of entries when the limit is reached. Must be called with c.mu held.
+func (c *Compiler) addToCache(key string, compiled *CompiledExpression) {
+	if c.opts.maxCacheSize > 0 && len(c.cache) >= c.opts.maxCacheSize {
+		evictCount := c.opts.maxCacheSize / 4
+		if evictCount < 1 {
+			evictCount = 1
+		}
+		for i := 0; i < evictCount && i < len(c.order); i++ {
+			delete(c.cache, c.order[i])
+		}
+		c.order = c.order[evictCount:]
+	}
+	if _, exists := c.cache[key]; !exists {
+		c.order = append(c.order, key)
+	}
+	c.cache[key] = compiled
 }
 
 // CompileAll compiles all expressions in a string map, collecting all errors.

@@ -390,3 +390,19 @@ func BenchmarkExecContext_SetOutput_Concurrent(b *testing.B) {
 
 // Ensure noopExecutor satisfies the interface.
 var _ api.NodeExecutor = &noopExecutor{}
+
+func BenchmarkResolve(b *testing.B) {
+	compiler := expr.NewCompilerWithFunctions()
+	ctx := NewExecutionContext(
+		WithInput(map[string]any{"name": "test", "count": 42}),
+		WithCompiler(compiler),
+		WithLogger(discardLogger),
+	)
+	ctx.SetOutput("step1", map[string]any{"result": "ok"})
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, _ = ctx.Resolve("{{ input.name }}")
+	}
+}

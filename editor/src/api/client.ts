@@ -6,6 +6,8 @@ import type {
   PluginInfo,
   SchemaInfo,
   MiddlewareInfo,
+  ModelInfo,
+  VarInfo,
   ValidationResult,
 } from "@/types";
 
@@ -136,5 +138,103 @@ export async function listSchemas(): Promise<SchemaInfo[]> {
 
 export async function listMiddleware(): Promise<MiddlewareInfo> {
   const { data } = await api.get<MiddlewareInfo>("/middleware");
+  return data;
+}
+
+// Models
+export async function listModels(): Promise<ModelInfo[]> {
+  const { data } = await api.get<{ models: ModelInfo[] }>("/models");
+  return data.models;
+}
+
+export interface MigrationPreview {
+  status: string;
+  up: string;
+  down: string;
+  up_path?: string;
+  down_path?: string;
+}
+
+export async function generateMigration(
+  confirm: boolean = false
+): Promise<MigrationPreview> {
+  const { data } = await api.post<MigrationPreview>(
+    "/models/generate-migration",
+    { confirm }
+  );
+  return data;
+}
+
+export interface CRUDPreview {
+  status: string;
+  files: Record<string, unknown>;
+}
+
+export async function generateCRUD(opts: {
+  model: string;
+  confirm?: boolean;
+  service?: string;
+  base_path?: string;
+  operations?: string[];
+  artifacts?: string[];
+  scope_column?: string;
+  scope_param?: string;
+}): Promise<CRUDPreview> {
+  const { data } = await api.post<CRUDPreview>(
+    "/models/generate-crud",
+    opts
+  );
+  return data;
+}
+
+// Shared variables
+export async function listVars(): Promise<VarInfo[]> {
+  const { data } = await api.get<{ variables: VarInfo[] }>("/vars");
+  return data.variables;
+}
+
+// Environment variables
+export interface EnvVarInfo {
+  name: string;
+  defined: boolean;
+  sources: string[];
+}
+
+export async function getEnvVars(): Promise<EnvVarInfo[]> {
+  const { data } = await api.get<{ variables: EnvVarInfo[] }>("/env");
+  return data.variables;
+}
+
+// OpenAPI
+export async function getOpenAPISpec(): Promise<Record<string, unknown>> {
+  const { data } = await api.get<Record<string, unknown>>("/openapi");
+  return data;
+}
+
+// Test runner
+export interface TestRunResult {
+  case_name: string;
+  passed: boolean;
+  error?: string;
+  duration: string;
+  expected: {
+    status: string;
+    output: Record<string, unknown>;
+    error_node: string;
+  };
+  actual: {
+    status: string;
+    outputs: Record<string, unknown>;
+    error_node?: string;
+    error_msg?: string;
+  };
+}
+
+export async function runTests(
+  suitePath: string
+): Promise<TestRunResult[]> {
+  const { data } = await api.post<TestRunResult[]>("/tests/run", {
+    path: suitePath,
+  });
   return data;
 }

@@ -291,3 +291,53 @@ func TestNewLoopExecutor_RunnerIsNil(t *testing.T) {
 	exec := newLoopExecutor(nil).(*LoopExecutor)
 	assert.Nil(t, exec.Runner, "runner should be nil from factory (injected later)")
 }
+
+func TestLoop_CollectionSizeLimitExceeded(t *testing.T) {
+	runner := &mockRunner{}
+	exec := &LoopExecutor{Runner: runner}
+
+	// Create a collection exceeding the configurable max_items
+	items := make([]any, 15)
+	for i := range items {
+		items[i] = i
+	}
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"items": items,
+	}))
+
+	config := map[string]any{
+		"collection": "{{ input.items }}",
+		"workflow":   "sub-wf",
+		"max_items":  10,
+	}
+
+	_, _, err := exec.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum")
+}
+
+func TestLoop_DefaultMaxItemsAllowsLargeCollection(t *testing.T) {
+	runner := &mockRunner{}
+	exec := &LoopExecutor{Runner: runner}
+
+	// 100 items should be fine with default 100_000 limit
+	items := make([]any, 100)
+	for i := range items {
+		items[i] = fmt.Sprintf("item-%d", i)
+	}
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"items": items,
+	}))
+
+	config := map[string]any{
+		"collection": "{{ input.items }}",
+		"workflow":   "sub-wf",
+	}
+
+	output, _, err := exec.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "done", output)
+	assert.Len(t, runner.calls, 100)
+}

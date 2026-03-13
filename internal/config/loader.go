@@ -10,6 +10,7 @@ import (
 type RawConfig struct {
 	Root        map[string]any
 	Overlay     map[string]any            // nil if no overlay
+	Vars        map[string]string         // from vars.json (optional)
 	Schemas     map[string]map[string]any // keyed by file path
 	Routes      map[string]map[string]any
 	Workflows   map[string]map[string]any
@@ -17,6 +18,7 @@ type RawConfig struct {
 	Schedules   map[string]map[string]any
 	Connections map[string]map[string]any
 	Tests       map[string]map[string]any
+	Models      map[string]map[string]any
 }
 
 // LoadAll loads all discovered JSON files into a RawConfig, collecting all errors.
@@ -30,6 +32,7 @@ func LoadAll(discovered *DiscoveredFiles) (*RawConfig, []error) {
 		Schedules:   make(map[string]map[string]any),
 		Connections: make(map[string]map[string]any),
 		Tests:       make(map[string]map[string]any),
+		Models:      make(map[string]map[string]any),
 	}
 
 	// Load root (required)
@@ -50,6 +53,25 @@ func LoadAll(discovered *DiscoveredFiles) (*RawConfig, []error) {
 		}
 	}
 
+	// Load vars.json (optional)
+	if discovered.Vars != "" {
+		varsRaw, err := loadJSONFile(discovered.Vars)
+		if err != nil {
+			errs = append(errs, err)
+		} else {
+			vars := make(map[string]string, len(varsRaw))
+			for k, v := range varsRaw {
+				s, ok := v.(string)
+				if !ok {
+					errs = append(errs, fmt.Errorf("%s: value for %q must be a string", discovered.Vars, k))
+					continue
+				}
+				vars[k] = s
+			}
+			rc.Vars = vars
+		}
+	}
+
 	// Load categorized files
 	categories := []struct {
 		paths  []string
@@ -62,6 +84,7 @@ func LoadAll(discovered *DiscoveredFiles) (*RawConfig, []error) {
 		{discovered.Schedules, rc.Schedules},
 		{discovered.Connections, rc.Connections},
 		{discovered.Tests, rc.Tests},
+		{discovered.Models, rc.Models},
 	}
 
 	for _, cat := range categories {

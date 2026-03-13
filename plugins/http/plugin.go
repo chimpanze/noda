@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -37,6 +38,11 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	}
 
 	baseURL, _ := config["base_url"].(string)
+	if baseURL != "" {
+		if !strings.HasPrefix(baseURL, "http://") && !strings.HasPrefix(baseURL, "https://") {
+			return nil, fmt.Errorf("http: base_url must use http:// or https:// scheme, got %q", baseURL)
+		}
+	}
 
 	var defaultHeaders map[string]string
 	if hdrs, ok := config["headers"].(map[string]any); ok {

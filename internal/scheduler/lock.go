@@ -6,36 +6,53 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/plugin"
+	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
 )
 
-// tryAcquireLock attempts a Redis SET NX on the given key with TTL.
-// Returns true if the lock was acquired, false if another instance holds it.
-func tryAcquireLock(ctx context.Context, svc any, key string, ttl time.Duration) (bool, error) {
+// releaseLockScript atomically deletes a key only if it holds the expected token.
+var releaseLockScript = redis.NewScript(`
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0
+`)
+
+// tryAcquireLock attempts a Redis SET NX on the given key with a unique token and TTL.
+// Returns the lock token (non-empty) if the lock was acquired, empty if another instance holds it.
+func tryAcquireLock(ctx context.Context, svc any, key string, ttl time.Duration) (string, error) {
 	provider, ok := svc.(plugin.RedisClientProvider)
 	if !ok {
-		return false, fmt.Errorf("lock: service does not implement RedisClientProvider")
+		return "", fmt.Errorf("lock: service does not implement RedisClientProvider")
 	}
 
 	if ttl == 0 {
 		ttl = 5 * time.Minute
 	}
 
-	result, err := provider.Client().SetArgs(ctx, key, "1", redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
+	token := uuid.New().String()
+	result, err := provider.Client().SetArgs(ctx, key, token, redis.SetArgs{Mode: "NX", TTL: ttl}).Result()
 	if err == redis.Nil {
-		return false, nil
+		return "", nil
 	}
 	if err != nil {
-		return false, fmt.Errorf("lock acquire %q: %w", key, err)
+		return "", fmt.Errorf("lock acquire %q: %w", key, err)
 	}
-	return result == "OK", nil
+	if result == "OK" {
+		return token, nil
+	}
+	return "", nil
 }
 
-// releaseLockKey deletes a lock key.
-func releaseLockKey(ctx context.Context, svc any, key string) error {
+// releaseLockKey releases a lock only if the token matches (compare-and-delete via Lua).
+func releaseLockKey(ctx context.Context, svc any, key string, token string) error {
 	provider, ok := svc.(plugin.RedisClientProvider)
 	if !ok {
 		return fmt.Errorf("lock: service does not implement RedisClientProvider")
 	}
-	return provider.Client().Del(ctx, key).Err()
+	_, err := releaseLockScript.Run(ctx, provider.Client(), []string{key}, token).Result()
+	if err != nil && err != redis.Nil {
+		return fmt.Errorf("lock release %q: %w", key, err)
+	}
+	return nil
 }

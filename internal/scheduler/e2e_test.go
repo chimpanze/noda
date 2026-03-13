@@ -1,6 +1,7 @@
 package scheduler
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -59,7 +60,7 @@ func TestE2E_ScheduledWorkflowExecutes(t *testing.T) {
 
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	require.NoError(t, rt.Start())
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	// Wait for the job to fire and complete successfully
 	require.Eventually(t, func() bool {
@@ -130,9 +131,9 @@ func TestE2E_TwoInstances_OnlyOneExecutes(t *testing.T) {
 	rtB := NewRuntime([]ScheduleConfig{sc}, svcRegB, nodeRegB, workflows, nil, nil, nil, nil)
 
 	require.NoError(t, rtA.Start())
-	defer rtA.Stop()
+	defer rtA.Stop(context.Background())
 	require.NoError(t, rtB.Start())
-	defer rtB.Stop()
+	defer rtB.Stop(context.Background())
 
 	// Wait until at least one execution happened across both instances
 	require.Eventually(t, func() bool {
@@ -197,7 +198,7 @@ func TestE2E_SchedulerGracefulShutdown(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		rt.Stop()
+		rt.Stop(context.Background())
 		close(done)
 	}()
 

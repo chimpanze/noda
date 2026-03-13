@@ -88,6 +88,9 @@
       ],
       "tenant_param": "workspace_id"
     },
+    "cors": {
+      "allow_origins": "*"
+    },
     "jwt": {
       "algorithm": "HS256",
       "secret": "{{ $env('JWT_SECRET') }}",

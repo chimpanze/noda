@@ -97,6 +97,9 @@ func (r *Runtime) Start(ctx context.Context) error {
 		if concurrency < 1 {
 			concurrency = 1
 		}
+		if concurrency > maxConcurrency {
+			return fmt.Errorf("worker %q: concurrency %d exceeds maximum %d", w.ID, concurrency, maxConcurrency)
+		}
 
 		// Get the stream service
 		svcInstance, ok := r.services.Get(w.StreamSvc)
@@ -134,11 +137,22 @@ func (r *Runtime) Start(ctx context.Context) error {
 }
 
 // Stop gracefully shuts down all workers and waits for in-flight processing.
-func (r *Runtime) Stop() {
+// If ctx is cancelled before all workers finish, Stop returns ctx.Err().
+func (r *Runtime) Stop(ctx context.Context) error {
 	if r.cancel != nil {
 		r.cancel()
 	}
-	r.wg.Wait()
+	done := make(chan struct{})
+	go func() {
+		r.wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // consume is the main loop for a single consumer goroutine.
@@ -180,6 +194,9 @@ func (r *Runtime) consume(ctx context.Context, w WorkerConfig, client *redis.Cli
 		}
 	}
 }
+
+// maxConcurrency is the upper bound for per-worker concurrency.
+const maxConcurrency = 1000
 
 // defaultMessageTimeout is used when no per-worker timeout is configured.
 const defaultMessageTimeout = 5 * time.Minute

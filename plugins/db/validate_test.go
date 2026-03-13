@@ -111,6 +111,10 @@ func TestValidateSQLFragment(t *testing.T) {
 		{"simple expression", "age > 18", false},
 		{"column reference", "users.active = true", false},
 		{"empty string", "", false},
+		{"column named created_at", "a.created_at = b.created_at", false},
+		{"column named updated_at", "updated_at IS NOT NULL", false},
+		{"column with select substring", "user_selection = 'yes'", false},
+		{"valid ON clause", "a.id = b.user_id AND a.active = true", false},
 
 		{"semicolon", "1; DROP TABLE users", true},
 		{"line comment", "1 -- comment", true},
@@ -118,6 +122,20 @@ func TestValidateSQLFragment(t *testing.T) {
 		{"just semicolon", ";", true},
 		{"just comment start", "/*", true},
 		{"just line comment", "--", true},
+		{"DROP keyword", "1=1 DROP TABLE users", true},
+		{"SELECT keyword", "1=1 UNION SELECT * FROM users", true},
+		{"UNION keyword", "id IN (SELECT 1 UNION SELECT 2)", true},
+		{"DELETE keyword", "DELETE FROM users", true},
+		{"INSERT keyword", "INSERT INTO users VALUES (1)", true},
+		{"UPDATE keyword", "UPDATE users SET name='x'", true},
+		{"ALTER keyword", "ALTER TABLE users ADD x INT", true},
+		{"CREATE keyword", "CREATE TABLE evil(id INT)", true},
+		{"TRUNCATE keyword", "TRUNCATE users", true},
+		{"GRANT keyword", "GRANT ALL ON users TO evil", true},
+		{"REVOKE keyword", "REVOKE ALL ON users FROM evil", true},
+		{"EXEC keyword", "EXEC sp_executesql", true},
+		{"case insensitive drop", "drop table users", true},
+		{"mixed case Union", "Union Select * from users", true},
 	}
 
 	for _, tt := range tests {

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, ExternalLink, Clock } from "lucide-react";
+import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
@@ -8,6 +9,7 @@ import { describeCron } from "@/utils/cron";
 
 interface ScheduleConfig {
   id: string;
+  description?: string;
   cron: string;
   timezone?: string;
   services?: Record<string, string>;
@@ -38,6 +40,18 @@ const COMMON_TIMEZONES = [
   "Asia/Kolkata",
   "Australia/Sydney",
 ];
+
+const ALL_TIMEZONES = (() => {
+  try {
+    const all = Intl.supportedValuesOf("timeZone");
+    // Put common ones first, then the rest
+    const commonSet = new Set(COMMON_TIMEZONES);
+    const rest = all.filter((tz) => !commonSet.has(tz));
+    return [...COMMON_TIMEZONES, ...rest];
+  } catch {
+    return COMMON_TIMEZONES;
+  }
+})();
 
 export function SchedulesView() {
   const files = useEditorStore((s) => s.files);
@@ -105,6 +119,7 @@ export function SchedulesView() {
     setSaving(true);
     try {
       const clean = structuredClone(editSchedule);
+      if (!clean.description) delete clean.description;
       if (!clean.timezone) delete clean.timezone;
       if (clean.services && !Object.values(clean.services).some(Boolean))
         delete clean.services;
@@ -264,6 +279,17 @@ export function SchedulesView() {
               />
             </Field>
 
+            {/* Description */}
+            <Field label="Description">
+              <input
+                type="text"
+                value={editSchedule.description ?? ""}
+                onChange={(e) => update({ description: e.target.value || undefined })}
+                className="input-field"
+                placeholder="Brief description of this schedule"
+              />
+            </Field>
+
             {/* Cron + Preview */}
             <Field label="Cron Expression">
               <input
@@ -279,17 +305,10 @@ export function SchedulesView() {
             </Field>
 
             {/* Timezone */}
-            <Field label="Timezone">
-              <select
-                value={editSchedule.timezone ?? "UTC"}
-                onChange={(e) => update({ timezone: e.target.value })}
-                className="input-field"
-              >
-                {COMMON_TIMEZONES.map((tz) => (
-                  <option key={tz} value={tz}>{tz}</option>
-                ))}
-              </select>
-            </Field>
+            <TimezoneCombobox
+              value={editSchedule.timezone ?? "UTC"}
+              onChange={(tz) => update({ timezone: tz })}
+            />
 
             {/* Lock */}
             <div className="border-t border-gray-200 pt-4">
@@ -390,6 +409,7 @@ export function SchedulesView() {
                       input: Object.keys(input).length > 0 ? input : undefined,
                     })
                   }
+                  workflow={editSchedule.trigger?.workflow}
                 />
               </div>
             </div>
@@ -415,6 +435,75 @@ export function SchedulesView() {
   );
 }
 
+function TimezoneCombobox({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (tz: string) => void;
+}) {
+  const [filter, setFilter] = useState("");
+  const [open, setOpen] = useState(false);
+
+  const filtered = filter
+    ? ALL_TIMEZONES.filter((tz) => tz.toLowerCase().includes(filter.toLowerCase()))
+    : ALL_TIMEZONES;
+
+  const commonSet = new Set(COMMON_TIMEZONES);
+
+  return (
+    <Field label="Timezone">
+      <div className="relative">
+        <input
+          type="text"
+          value={open ? filter : value}
+          onChange={(e) => {
+            setFilter(e.target.value);
+            if (!open) setOpen(true);
+          }}
+          onFocus={() => {
+            setOpen(true);
+            setFilter("");
+          }}
+          onBlur={() => {
+            // Delay to allow click on option
+            setTimeout(() => setOpen(false), 150);
+          }}
+          className="input-field"
+          placeholder="Search timezones..."
+        />
+        {open && (
+          <div className="absolute z-10 mt-1 w-full max-h-48 overflow-y-auto bg-white border border-gray-200 rounded shadow-lg">
+            {filtered.length === 0 && (
+              <div className="px-3 py-2 text-xs text-gray-400">No matches</div>
+            )}
+            {filtered.map((tz) => (
+              <button
+                key={tz}
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => {
+                  onChange(tz);
+                  setOpen(false);
+                  setFilter("");
+                }}
+                className={`w-full text-left px-3 py-1.5 text-sm hover:bg-blue-50 ${
+                  tz === value ? "bg-blue-50 font-medium" : ""
+                } ${commonSet.has(tz) && !filter ? "text-gray-800" : "text-gray-600"}`}
+              >
+                {tz}
+                {commonSet.has(tz) && !filter && (
+                  <span className="ml-1 text-[10px] text-gray-400">common</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </Field>
+  );
+}
+
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
@@ -429,9 +518,11 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 function KeyValueEditor({
   entries,
   onChange,
+  workflow,
 }: {
   entries: Record<string, string>;
   onChange: (entries: Record<string, string>) => void;
+  workflow?: string;
 }) {
   const pairs = Object.entries(entries);
 
@@ -452,13 +543,25 @@ function KeyValueEditor({
               placeholder="key"
             />
             <span className="text-gray-400 text-xs">:</span>
-            <input
-              type="text"
-              value={val}
-              onChange={(e) => onChange({ ...entries, [key]: e.target.value })}
-              className="flex-1 min-w-0 input-field !w-auto font-mono"
-              placeholder="value"
-            />
+            {workflow ? (
+              <div className="flex-1 min-w-0">
+                <ExpressionAutocomplete
+                  value={val}
+                  onChange={(v) => onChange({ ...entries, [key]: v })}
+                  workflow={workflow}
+                  className="input-field !w-auto font-mono"
+                  placeholder="value"
+                />
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => onChange({ ...entries, [key]: e.target.value })}
+                className="flex-1 min-w-0 input-field !w-auto font-mono"
+                placeholder="value"
+              />
+            )}
             <button
               type="button"
               onClick={() => {

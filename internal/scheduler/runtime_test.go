@@ -119,7 +119,7 @@ func TestRuntime_JobFires(t *testing.T) {
 
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	// Wait for at least 1 job run
 	require.Eventually(t, func() bool {
@@ -155,7 +155,7 @@ func TestRuntime_TriggerMetadata(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -198,7 +198,7 @@ func TestRuntime_InputMapping(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -221,7 +221,7 @@ func TestRuntime_JobFailureLogged(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -250,7 +250,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		rt.Stop()
+		rt.Stop(context.Background())
 		close(done)
 	}()
 
@@ -273,7 +273,7 @@ func TestRuntime_NextRun(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	next, ok := rt.NextRun("next-job")
 	assert.True(t, ok)
@@ -324,7 +324,7 @@ func TestDistributedLock_Acquire(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	require.Eventually(t, func() bool {
 		history := rt.History()
@@ -363,7 +363,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 	rt1 := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt1.Start()
 	require.NoError(t, err)
-	defer rt1.Stop()
+	defer rt1.Stop(context.Background())
 
 	// Wait for first to acquire and execute
 	require.Eventually(t, func() bool {
@@ -413,23 +413,23 @@ func TestDistributedLock_Release(t *testing.T) {
 
 	ctx := context.Background()
 	key := "test-lock-key"
-	acquired, err := tryAcquireLock(ctx, svc, key, 5*time.Minute)
+	token, err := tryAcquireLock(ctx, svc, key, 5*time.Minute)
 	require.NoError(t, err)
-	assert.True(t, acquired)
+	assert.NotEmpty(t, token)
 
 	// Same key should now be locked
-	acquired2, err := tryAcquireLock(ctx, svc, key, 5*time.Minute)
+	token2, err := tryAcquireLock(ctx, svc, key, 5*time.Minute)
 	require.NoError(t, err)
-	assert.False(t, acquired2)
+	assert.Empty(t, token2)
 
-	// Release
-	err = releaseLockKey(ctx, svc, key)
+	// Release with correct token
+	err = releaseLockKey(ctx, svc, key, token)
 	require.NoError(t, err)
 
 	// Now acquirable again
-	acquired3, err := tryAcquireLock(ctx, svc, key, 5*time.Minute)
+	token3, err := tryAcquireLock(ctx, svc, key, 5*time.Minute)
 	require.NoError(t, err)
-	assert.True(t, acquired3)
+	assert.NotEmpty(t, token3)
 }
 
 // --- Helpers ---
@@ -489,7 +489,7 @@ func TestRuntime_MultipleJobs(t *testing.T) {
 	rt := NewRuntime(schedules, svcReg, nodeReg, workflows, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
-	defer rt.Stop()
+	defer rt.Stop(context.Background())
 
 	require.Eventually(t, func() bool {
 		history := rt.History()

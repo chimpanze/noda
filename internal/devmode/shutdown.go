@@ -8,7 +8,7 @@ import (
 
 // Stoppable is something that can be stopped gracefully (e.g., scheduler).
 type Stoppable interface {
-	Stop()
+	Stop(ctx context.Context) error
 }
 
 // ContextStoppable can be stopped with a context (e.g., Wasm runtime).
@@ -59,13 +59,17 @@ func ShutdownSequence(
 	// 2. Stop workers (drains in-flight messages)
 	logger.Info("shutdown: stopping workers")
 	if workers != nil {
-		workers.Stop()
+		if err := workers.Stop(ctx); err != nil {
+			logger.Error("shutdown: workers stop error", "error", err.Error())
+		}
 	}
 
 	// 3. Stop scheduler
 	logger.Info("shutdown: stopping scheduler")
 	if scheduler != nil {
-		scheduler.Stop()
+		if err := scheduler.Stop(ctx); err != nil {
+			logger.Error("shutdown: scheduler stop error", "error", err.Error())
+		}
 	}
 
 	// 4. Stop Wasm runtimes (calls shutdown on each module)
@@ -83,7 +87,9 @@ func ShutdownSequence(
 	// 6. Close WebSocket/SSE connections
 	if connMgr != nil {
 		logger.Info("shutdown: closing connections")
-		connMgr.Stop()
+		if err := connMgr.Stop(ctx); err != nil {
+			logger.Error("shutdown: connmgr stop error", "error", err.Error())
+		}
 	}
 
 	// 7. Close service connections (DB, Redis, storage)

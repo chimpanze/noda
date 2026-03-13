@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { Undo2, Redo2, LayoutDashboard, Save, Download, Upload, FolderDown } from "lucide-react";
+import { Undo2, Redo2, LayoutDashboard, Save, ShieldCheck, Download, Upload, FolderDown } from "lucide-react";
 import { useEditorStore } from "@/stores/editor";
 import { autoLayout } from "@/components/canvas/autoLayout";
 import { exportWorkflow, importWorkflow, exportAllAsZip } from "@/utils/importExport";
@@ -9,7 +9,11 @@ export function Toolbar() {
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
   const saveWorkflow = useEditorStore((s) => s.saveWorkflow);
+  const validateAndSave = useEditorStore((s) => s.validateAndSave);
   const saveStatus = useEditorStore((s) => s.saveStatus);
+  const autoSave = useEditorStore((s) => s.autoSave);
+  const setAutoSave = useEditorStore((s) => s.setAutoSave);
+  const dirtyFiles = useEditorStore((s) => s.dirtyFiles);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
   const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
   const setWorkflow = useEditorStore((s) => s.setWorkflow);
@@ -75,6 +79,12 @@ export function Toolbar() {
         onClick={saveWorkflow}
         disabled={!activeWorkflow}
       />
+      <ToolButton
+        icon={<ShieldCheck size={16} />}
+        title="Validate & Save (Ctrl+Shift+S)"
+        onClick={validateAndSave}
+        disabled={!activeWorkflow}
+      />
       <div className="w-px h-5 bg-gray-300 mx-1" />
       <ToolButton
         icon={<Download size={16} />}
@@ -98,6 +108,13 @@ export function Toolbar() {
 
       <div className="flex-1" />
 
+      {/* Unsaved indicator */}
+      {!autoSave && dirtyFiles.size > 0 && (
+        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded mr-2">
+          Unsaved
+        </span>
+      )}
+
       {/* Save status */}
       {saveStatus !== "idle" && (
         <span
@@ -112,6 +129,17 @@ export function Toolbar() {
           {saveStatus === "saving" ? "Saving..." : saveStatus === "saved" ? "Saved" : "Error"}
         </span>
       )}
+
+      {/* Auto-save toggle */}
+      <label className="flex items-center gap-1 text-xs text-gray-500 mr-2 cursor-pointer select-none">
+        <input
+          type="checkbox"
+          checked={autoSave}
+          onChange={(e) => setAutoSave(e.target.checked)}
+          className="accent-blue-500"
+        />
+        Auto-save
+      </label>
 
       {/* Import error */}
       {importError && (

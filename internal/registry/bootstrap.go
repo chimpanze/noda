@@ -58,7 +58,7 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 	}
 
 	// 4. Create shared expression compiler
-	compiler := expr.NewCompilerWithFunctions()
+	compiler := expr.NewCompilerWithVars(rc.Vars)
 
 	// 5. Run startup validation
 	if opt.DryRun {

@@ -4,6 +4,8 @@ import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import { registerExpressionLanguage } from "@/utils/expressionLanguage";
 import * as api from "@/api/client";
+import { useEditorStore } from "@/stores/editor";
+import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
 
 // RJSF custom widget for expression fields (string fields that may contain {{ }})
 export function ExpressionWidget(props: WidgetProps) {
@@ -13,6 +15,12 @@ export function ExpressionWidget(props: WidgetProps) {
   );
   const [validationError, setValidationError] = useState<string | null>(null);
   const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
+  const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
+  const workflowName = activeWorkflowPath
+    ?.replace(/^workflows\//, "")
+    .replace(/\.json$/, "");
 
   const handleMonacoMount = useCallback((_editor: MonacoEditor.IStandaloneCodeEditor, monaco: Monaco) => {
     registerExpressionLanguage(monaco);
@@ -50,19 +58,6 @@ export function ExpressionWidget(props: WidgetProps) {
       validateExpression(v);
     },
     [onChange, validateExpression]
-  );
-
-  const handleInputChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const v = e.target.value;
-      onChange(v);
-      validateExpression(v);
-      // Auto-switch to Monaco if user types {{
-      if (v.includes("{{") && !useMonaco) {
-        setUseMonaco(true);
-      }
-    },
-    [onChange, useMonaco, validateExpression]
   );
 
   return (
@@ -108,11 +103,17 @@ export function ExpressionWidget(props: WidgetProps) {
           />
         </div>
       ) : (
-        <input
-          type="text"
+        <ExpressionAutocomplete
           value={typeof value === "string" ? value : ""}
-          onChange={handleInputChange}
-          readOnly={readonly}
+          onChange={(v) => {
+            onChange(v);
+            validateExpression(v);
+            if (v.includes("{{") && !useMonaco) {
+              setUseMonaco(true);
+            }
+          }}
+          workflow={workflowName}
+          node={selectedNodeId ?? undefined}
           className={`w-full px-3 py-1.5 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent ${
             validationError ? "border-red-400" : "border-gray-300"
           }`}

@@ -24,7 +24,8 @@
       "config": {
         "fields": {
           "workspace_id": "{{ $uuid() }}"
-        }
+        },
+        "schema": {}
       },
       "type": "transform.set"
     },
@@ -52,6 +53,7 @@
           "owner_id": "{{ input.owner_id }}",
           "slug": "{{ input.slug }}"
         },
+        "fields": {},
         "table": "workspaces"
       },
       "services": {

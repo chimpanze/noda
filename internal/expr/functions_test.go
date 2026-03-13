@@ -64,6 +64,54 @@ func TestFunction_UnknownFunction(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestFunction_Var_ReturnsValue(t *testing.T) {
+	vars := map[string]string{"TOPIC": "events", "TABLE": "users"}
+	c := NewCompilerWithVars(vars)
+	compiled, err := c.Compile(`{{ $var('TOPIC') }}`)
+	require.NoError(t, err)
+	result, err := Evaluate(compiled, map[string]any{})
+	require.NoError(t, err)
+	assert.Equal(t, "events", result)
+}
+
+func TestFunction_Var_InExpression(t *testing.T) {
+	vars := map[string]string{"TABLE": "users"}
+	c := NewCompilerWithVars(vars)
+	compiled, err := c.Compile(`{{ $var('TABLE') + "_archive" }}`)
+	require.NoError(t, err)
+	result, err := Evaluate(compiled, map[string]any{})
+	require.NoError(t, err)
+	assert.Equal(t, "users_archive", result)
+}
+
+func TestFunction_Var_MissingKey(t *testing.T) {
+	vars := map[string]string{"TOPIC": "events"}
+	c := NewCompilerWithVars(vars)
+	compiled, err := c.Compile(`{{ $var('MISSING') }}`)
+	require.NoError(t, err)
+	_, err = Evaluate(compiled, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "MISSING")
+}
+
+func TestFunction_Var_WrongArity(t *testing.T) {
+	vars := map[string]string{"A": "1"}
+	c := NewCompilerWithVars(vars)
+	_, err := c.Compile(`{{ $var('A', 'B') }}`)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "too many arguments")
+}
+
+func TestFunction_Var_NilVars(t *testing.T) {
+	c := NewCompilerWithVars(nil)
+	compiled, err := c.Compile(`{{ $var('KEY') }}`)
+	require.NoError(t, err)
+	_, err = Evaluate(compiled, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "KEY")
+	assert.Contains(t, err.Error(), "no vars defined")
+}
+
 func TestFunctionRegistry_CustomFunction(t *testing.T) {
 	reg := NewFunctionRegistry()
 	reg.Register("double", func(params ...any) (any, error) {

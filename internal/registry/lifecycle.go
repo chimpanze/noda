@@ -58,7 +58,8 @@ func (r *ServiceRegistry) HealthCheckAll() []error {
 	defer r.mu.RUnlock()
 
 	var errs []error
-	for name, entry := range r.services {
+	for _, name := range r.order {
+		entry := r.services[name]
 		if err := entry.plugin.HealthCheck(entry.instance); err != nil {
 			errs = append(errs, fmt.Errorf("service %q health check failed: %w", name, err))
 		}

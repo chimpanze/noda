@@ -35,7 +35,8 @@ func (s *Server) registerHealthRoutes() {
 		for name, svc := range services {
 			if checker, ok := svc.(interface{ Ping() error }); ok {
 				if err := checker.Ping(); err != nil {
-					details[name] = "unhealthy: " + err.Error()
+					details[name] = "unhealthy"
+					s.logger.Error("health check failed", "service", name, "error", err)
 					allHealthy = false
 					continue
 				}

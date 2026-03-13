@@ -7,6 +7,7 @@ import type {
   WorkflowEdge,
   ValidationError,
   NodeDescriptor,
+  VarInfo,
 } from "@/types";
 import * as api from "@/api/client";
 import * as history from "@/stores/history";
@@ -23,6 +24,10 @@ interface EditorState {
   // Files
   files: FileList | null;
   loadFiles: () => Promise<void>;
+
+  // Shared variables
+  vars: VarInfo[];
+  loadVars: () => Promise<void>;
 
   // Workflows
   activeWorkflowPath: string | null;
@@ -69,6 +74,9 @@ interface EditorState {
   saveWorkflow: () => Promise<void>;
   _saveTimer: ReturnType<typeof setTimeout> | null;
   _debounceSave: () => void;
+  autoSave: boolean;
+  setAutoSave: (enabled: boolean) => void;
+  validateAndSave: () => Promise<void>;
 
   // Validation
   validationErrors: ValidationError[];
@@ -165,6 +173,17 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadFiles: async () => {
     const files = await api.listFiles();
     set({ files });
+  },
+
+  // Shared variables
+  vars: [],
+  loadVars: async () => {
+    try {
+      const vars = await api.listVars();
+      set({ vars });
+    } catch {
+      // vars.json may not exist
+    }
   },
 
   // Workflows
@@ -417,6 +436,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   // Save
   saveStatus: "idle" as SaveStatus,
+  autoSave: false,
+  setAutoSave: (enabled) => set({ autoSave: enabled }),
   _saveTimer: null,
   _debounceSave: () => {
     const state = get();
@@ -424,10 +445,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (state.activeWorkflowPath) {
       get().markDirty(state.activeWorkflowPath);
     }
+    if (!state.autoSave) return;
     const timer = setTimeout(() => {
       get().saveWorkflow();
     }, 300);
     set({ _saveTimer: timer });
+  },
+  validateAndSave: async () => {
+    const { activeWorkflowPath, activeWorkflow, _rawWorkflow } = get();
+    if (!activeWorkflowPath || !activeWorkflow) return;
+    const payload = denormalizeWorkflow(activeWorkflow, _rawWorkflow ?? {});
+    try {
+      const result = await api.validateFile(activeWorkflowPath, payload);
+      if (!result.valid) {
+        set({ validationErrors: result.errors });
+        showToast({
+          type: "info",
+          message: `Validation found ${result.errors.length} error${result.errors.length !== 1 ? "s" : ""}`,
+          action: { label: "Save anyway", onClick: () => get().saveWorkflow() },
+        });
+        return;
+      }
+      set({ validationErrors: [] });
+      await get().saveWorkflow();
+    } catch {
+      showToast({ type: "error", message: "Validation request failed" });
+    }
   },
   saveWorkflow: async () => {
     const { activeWorkflowPath, activeWorkflow, _rawWorkflow } = get();

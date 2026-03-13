@@ -901,7 +901,7 @@ func TestPluginRegistry_CompositePlugin_NodesThenServices(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, p.HasServices())
 	assert.Len(t, p.Nodes(), 1)
-	assert.Equal(t, "db-svc", p.Name())
+	assert.Equal(t, "db-nodes+db-svc", p.Name())
 	assert.Equal(t, "db", p.Prefix())
 }
 

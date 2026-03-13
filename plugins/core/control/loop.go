@@ -70,6 +70,18 @@ func (e *LoopExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "done", []any{}, nil
 	}
 
+	// Enforce collection size limit
+	maxItems := 100_000
+	if mi, ok := config["max_items"].(float64); ok && int(mi) > 0 {
+		maxItems = int(mi)
+	}
+	if mi, ok := config["max_items"].(int); ok && mi > 0 {
+		maxItems = mi
+	}
+	if len(items) > maxItems {
+		return "", nil, fmt.Errorf("loop: collection size %d exceeds maximum %d", len(items), maxItems)
+	}
+
 	if e.Runner == nil {
 		return "", nil, fmt.Errorf("loop: sub-workflow runner not configured")
 	}

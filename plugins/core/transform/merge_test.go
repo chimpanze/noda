@@ -196,3 +196,27 @@ func TestMerge_MatchMoreThanTwoInputs(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "exactly 2 inputs")
 }
+
+func TestMerge_AppendExceedsMaxItems(t *testing.T) {
+	executor := newMergeExecutor(nil)
+
+	// Create arrays that together exceed maxMergeItems
+	bigArray := make([]any, maxMergeItems/2+1)
+	for i := range bigArray {
+		bigArray[i] = i
+	}
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": bigArray,
+		"b": bigArray,
+	}))
+
+	config := map[string]any{
+		"mode":   "append",
+		"inputs": []any{"{{ input.a }}", "{{ input.b }}"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum")
+}

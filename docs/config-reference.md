@@ -7,6 +7,7 @@ This document covers every config file format in Noda with all fields, types, de
 ```
 project/
 ├── noda.json              # Root config (required)
+├── vars.json              # Shared variables (optional)
 ├── routes/*.json          # HTTP route definitions
 ├── workflows/*.json       # Workflow DAGs
 ├── workers/*.json         # Event-driven worker subscriptions
@@ -91,9 +92,9 @@ Map of service instance name to service config. Each service connects to an exte
 
 | Config Field | Type | Required | Description |
 |-------------|------|----------|-------------|
-| `addr` | string | yes | Redis address (host:port) |
-| `password` | string | no | Redis password |
-| `db` | integer | no | Redis database number |
+| `url` | string | yes | Redis URL (e.g., `redis://user:pass@host:6379/0`) |
+| `pool_size` | integer | no | Maximum number of connections in the pool |
+| `min_idle` | integer | no | Minimum number of idle connections |
 
 ```json
 {
@@ -101,7 +102,9 @@ Map of service instance name to service config. Each service connects to an exte
     "redis": {
       "plugin": "cache",
       "config": {
-        "addr": "{{ $env('REDIS_URL') }}"
+        "url": "{{ $env('REDIS_URL') }}",
+        "pool_size": 20,
+        "min_idle": 5
       }
     }
   }
@@ -133,17 +136,17 @@ Map of service instance name to service config. Each service connects to an exte
 
 | Config Field | Type | Required | Description |
 |-------------|------|----------|-------------|
-| `addr` | string | yes | Redis address |
-| `password` | string | no | Redis password |
-| `db` | integer | no | Redis database number |
+| `url` | string | yes | Redis URL (e.g., `redis://host:6379/0`) |
+| `pool_size` | integer | no | Maximum number of connections in the pool |
+| `min_idle` | integer | no | Minimum number of idle connections |
 
 #### PubSub Service (`plugin: "pubsub"`)
 
 | Config Field | Type | Required | Description |
 |-------------|------|----------|-------------|
-| `addr` | string | yes | Redis address |
-| `password` | string | no | Redis password |
-| `db` | integer | no | Redis database number |
+| `url` | string | yes | Redis URL (e.g., `redis://host:6379/0`) |
+| `pool_size` | integer | no | Maximum number of connections in the pool |
+| `min_idle` | integer | no | Minimum number of idle connections |
 
 #### HTTP Client Service (`plugin: "http"`)
 
@@ -198,6 +201,17 @@ Map of service instance name to service config. Each service connects to an exte
   }
 }
 ```
+
+### security.validation
+
+Noda enforces input and output validation at multiple levels:
+
+- **Request body validation:** When a route defines `body.schema`, request bodies are validated against the JSON Schema before the workflow runs. Invalid requests receive a `422` response with field-level errors. Set `body.validate: false` to use the schema for documentation only.
+- **Response validation:** When a route defines `response.<status>.schema`, workflow responses are checked against the schema. The `response.validate` field controls behavior (`"warn"`, `"strict"`, or `false`). See [Route Config](#route-config) for details.
+- **In-workflow validation:** Use `transform.validate` nodes to validate intermediate data against a JSON Schema within a workflow.
+- **SQL injection prevention:** Database nodes validate table names, column names, ORDER BY clauses, JOIN types, and SQL fragments. Dangerous patterns (semicolons, comments) are rejected. Always pass dynamic values through `params`.
+- **Redirect URL validation:** `response.redirect` rejects protocol-relative URLs and URLs containing newlines to prevent open redirects and header injection.
+- **Recursion limits:** `workflow.run` and `control.loop` share a maximum recursion depth of 64 to prevent stack exhaustion.
 
 ### middleware_presets
 
@@ -593,17 +607,85 @@ Referenced from routes and nodes with `$ref`:
 
 ---
 
+## Shared Variables (`vars.json`)
+
+Define named values in a `vars.json` file at the project root to avoid repeating strings across config files:
+
+```json
+{
+  "MAIN_DB": "main-db",
+  "TOPIC_MEMBER_INVITED": "member.invited",
+  "TABLE_TASKS": "tasks"
+}
+```
+
+All values must be strings. Reference them with `$var()` in any config section:
+
+```json
+{
+  "subscribe": {
+    "topic": "{{ $var('TOPIC_MEMBER_INVITED') }}"
+  }
+}
+```
+
+### How it works
+
+- **Standalone** `{{ $var('X') }}` is resolved at **config load time** — the entire field value is replaced before the workflow is loaded
+- **Inside expressions** like `{{ "prefix." + $var('TOPIC') }}`, `$var()` is a **runtime function** evaluated by the expression engine
+- Config-time resolution works across **all** config sections: root, routes, workflows, workers, schedules, connections, tests, and models
+- Resolution happens after `$env()` and before `$ref`, so you can use environment variables inside `vars.json` values but not `$var()` inside `$ref` targets
+- An undefined variable name produces a load error (config-time) or runtime error (expression) with the variable name
+
+### When to use `$var()` vs `$env()`
+
+| | `$var()` | `$env()` |
+|---|---|---|
+| **Source** | `vars.json` (checked into version control) | OS environment / `.env` file |
+| **Scope** | All config sections | Root config only |
+| **Use case** | Shared logical names (topics, tables, service names) | Secrets and environment-specific values (DSNs, keys) |
+
+### Example
+
+```
+vars.json
+```
+```json
+{
+  "STREAM_SVC": "redis-stream",
+  "TOPIC_TASK_CREATED": "task.created",
+  "TOPIC_TASK_FAILED": "task.failed"
+}
+```
+
+```
+workers/process-task.json
+```
+```json
+{
+  "id": "process-task",
+  "services": { "stream": "{{ $var('STREAM_SVC') }}" },
+  "subscribe": { "topic": "{{ $var('TOPIC_TASK_CREATED') }}" },
+  "dead_letter": { "topic": "{{ $var('TOPIC_TASK_FAILED') }}" },
+  "trigger": { "workflow": "process-task" }
+}
+```
+
+---
+
 ## Environment Variables and Overlays
 
 ### `$env()` Function
 
-Use `$env('VAR_NAME')` in any string value to reference environment variables:
+Use `$env('VAR_NAME')` in any string value in the root config to reference environment variables:
 
 ```json
 {
   "dsn": "{{ $env('DATABASE_URL') }}"
 }
 ```
+
+**Note:** `$env()` only resolves in `noda.json` (and its overlay). For values needed across all config sections, define them in `vars.json` using `$var()` instead.
 
 ### `.env` File
 

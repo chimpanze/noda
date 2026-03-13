@@ -82,12 +82,16 @@ func Up(db *gorm.DB, migrationsDir string) ([]string, error) {
 			return ran, fmt.Errorf("read %s: %w", upFile, err)
 		}
 
-		if err := db.Exec(string(sql)).Error; err != nil {
-			return ran, fmt.Errorf("apply %s_%s: %w", m.Version, m.Name, err)
-		}
-
-		if err := db.Create(&schemaMigration{Version: m.Version}).Error; err != nil {
-			return ran, fmt.Errorf("record migration %s: %w", m.Version, err)
+		if err := db.Transaction(func(tx *gorm.DB) error {
+			if err := tx.Exec(string(sql)).Error; err != nil {
+				return fmt.Errorf("apply %s_%s: %w", m.Version, m.Name, err)
+			}
+			if err := tx.Create(&schemaMigration{Version: m.Version}).Error; err != nil {
+				return fmt.Errorf("record migration %s: %w", m.Version, err)
+			}
+			return nil
+		}); err != nil {
+			return ran, err
 		}
 
 		ran = append(ran, fmt.Sprintf("%s_%s", m.Version, m.Name))
@@ -134,12 +138,16 @@ func Down(db *gorm.DB, migrationsDir string) (string, error) {
 		return "", fmt.Errorf("read %s: %w", downFile, err)
 	}
 
-	if err := db.Exec(string(sql)).Error; err != nil {
-		return "", fmt.Errorf("rollback %s_%s: %w", target.Version, target.Name, err)
-	}
-
-	if err := db.Where("version = ?", target.Version).Delete(&schemaMigration{}).Error; err != nil {
-		return "", fmt.Errorf("remove migration record %s: %w", target.Version, err)
+	if err := db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(string(sql)).Error; err != nil {
+			return fmt.Errorf("rollback %s_%s: %w", target.Version, target.Name, err)
+		}
+		if err := tx.Where("version = ?", target.Version).Delete(&schemaMigration{}).Error; err != nil {
+			return fmt.Errorf("remove migration record %s: %w", target.Version, err)
+		}
+		return nil
+	}); err != nil {
+		return "", err
 	}
 
 	return fmt.Sprintf("%s_%s", target.Version, target.Name), nil

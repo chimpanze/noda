@@ -126,10 +126,17 @@ func (r *Runtime) Start() error {
 }
 
 // Stop gracefully shuts down the scheduler and waits for running jobs to finish.
-func (r *Runtime) Stop() {
-	if r.cron != nil {
-		ctx := r.cron.Stop()
-		<-ctx.Done()
+// If ctx is cancelled before all jobs finish, Stop returns ctx.Err().
+func (r *Runtime) Stop(ctx context.Context) error {
+	if r.cron == nil {
+		return nil
+	}
+	cronCtx := r.cron.Stop()
+	select {
+	case <-cronCtx.Done():
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -202,7 +209,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			return
 		}
 
-		acquired, err := tryAcquireLock(ctx, lockSvc, lockKey, sc.LockTTL)
+		lockToken, err := tryAcquireLock(ctx, lockSvc, lockKey, sc.LockTTL)
 		if err != nil {
 			r.logger.Error("scheduler: lock error",
 				"schedule_id", sc.ID,
@@ -218,7 +225,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			})
 			return
 		}
-		if !acquired {
+		if lockToken == "" {
 			r.logger.Info("scheduler: lock not acquired, skipping",
 				"schedule_id", sc.ID,
 				"trace_id", traceID,
@@ -236,7 +243,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			// Use a fresh context for lock release since the job context may have expired.
 			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer releaseCancel()
-			if err := releaseLockKey(releaseCtx, lockSvc, lockKey); err != nil {
+			if err := releaseLockKey(releaseCtx, lockSvc, lockKey, lockToken); err != nil {
 				r.logger.Warn("scheduler: lock release failed",
 					"schedule_id", sc.ID,
 					"trace_id", traceID,

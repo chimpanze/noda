@@ -40,6 +40,7 @@ This creates a project with the following structure:
 ```
 my-api/
 ├── noda.json              # Root config: services, security, middleware
+├── vars.json              # Shared variables (optional)
 ├── routes/                # HTTP route definitions
 ├── workflows/             # Workflow DAGs
 ├── schemas/               # JSON Schema definitions

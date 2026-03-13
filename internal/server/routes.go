@@ -102,10 +102,18 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		}
 	}
 
+	// Parse per-route response timeout (overrides global server config)
+	var routeTimeout time.Duration
+	if v, ok := route["response_timeout"].(string); ok {
+		if d, err := time.ParseDuration(v); err == nil {
+			routeTimeout = d
+		}
+	}
+
 	// Build handler with route-level middleware composed inline.
 	// This ensures middleware only applies to this specific method+path,
 	// not to all methods on the same path.
-	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig, validator, respValidator)
+	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig, validator, respValidator, routeTimeout)
 
 	// Build handler chain: middleware first, then the route handler.
 	// Fiber v3 executes handlers in registration order, calling c.Next() to advance.
@@ -183,7 +191,7 @@ func (s *Server) validateAndWriteResponse(c fiber.Ctx, resp *api.HTTPResponse, r
 }
 
 // buildRouteHandler creates the Fiber handler that runs trigger mapping → workflow → response.
-func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any, validator *bodyValidator, respValidator *responseValidator) fiber.Handler {
+func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any, validator *bodyValidator, respValidator *responseValidator, routeTimeout time.Duration) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// Generate trace ID early so it's available for all error paths
 		traceID := uuid.New().String()
@@ -279,7 +287,9 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 
 		// 6. Wait for response or workflow completion or timeout
 		responseTimeout := defaultResponseTimeout
-		if serverCfg, ok := s.config.Root["server"].(map[string]any); ok {
+		if routeTimeout > 0 {
+			responseTimeout = routeTimeout
+		} else if serverCfg, ok := s.config.Root["server"].(map[string]any); ok {
 			if v, ok := serverCfg["response_timeout"].(string); ok {
 				if d, err := time.ParseDuration(v); err == nil {
 					responseTimeout = d

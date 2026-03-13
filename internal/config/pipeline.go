@@ -6,6 +6,7 @@ import "log/slog"
 type ResolvedConfig struct {
 	Environment string
 	Root        map[string]any
+	Vars        map[string]string
 	Schemas     map[string]map[string]any
 	Routes      map[string]map[string]any
 	Workflows   map[string]map[string]any
@@ -13,6 +14,7 @@ type ResolvedConfig struct {
 	Schedules   map[string]map[string]any
 	Connections map[string]map[string]any
 	Tests       map[string]map[string]any
+	Models      map[string]map[string]any
 	FileCount   int
 }
 
@@ -59,6 +61,18 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 		return nil, valErrs
 	}
 
+	// 5.5 Resolve $var()
+	if len(raw.Vars) > 0 {
+		varErrs := ResolveVarsAll(raw)
+		if len(varErrs) > 0 {
+			var valErrs []ValidationError
+			for _, e := range varErrs {
+				valErrs = append(valErrs, ValidationError{Message: e.Error()})
+			}
+			return nil, valErrs
+		}
+	}
+
 	// 6. Resolve $ref
 	refErrs := ResolveRefs(raw)
 	if len(refErrs) > 0 {
@@ -86,10 +100,14 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 	if discovered.Overlay != "" {
 		fileCount++
 	}
+	if discovered.Vars != "" {
+		fileCount++
+	}
 	for _, paths := range [][]string{
 		discovered.Schemas, discovered.Routes, discovered.Workflows,
 		discovered.Workers, discovered.Schedules, discovered.Connections,
 		discovered.Tests,
+		discovered.Models,
 	} {
 		fileCount += len(paths)
 	}
@@ -97,6 +115,7 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 	return &ResolvedConfig{
 		Environment: env,
 		Root:        raw.Root,
+		Vars:        raw.Vars,
 		Schemas:     raw.Schemas,
 		Routes:      raw.Routes,
 		Workflows:   raw.Workflows,
@@ -104,6 +123,7 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 		Schedules:   raw.Schedules,
 		Connections: raw.Connections,
 		Tests:       raw.Tests,
+		Models:      raw.Models,
 		FileCount:   fileCount,
 	}, nil
 }
@@ -138,6 +158,7 @@ func GetValidateInfo(rootPath string, envFlag string) (*ValidateInfo, error) {
 			"schedules":   len(discovered.Schedules),
 			"connections": len(discovered.Connections),
 			"tests":       len(discovered.Tests),
+			"models":      len(discovered.Models),
 		},
 	}
 

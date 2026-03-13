@@ -1,8 +1,19 @@
 import { useEffect, useState, useCallback } from "react";
-import { Circle, Plus, Trash2, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Circle,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  Play,
+} from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
+import type { TestRunResult } from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/components/panels/Toast";
 
@@ -23,6 +34,8 @@ interface TestCase {
   };
 }
 
+type TestStatus = "idle" | "running" | "passed" | "failed";
+
 export function TestsView() {
   const files = useEditorStore((s) => s.files);
   const loadFiles = useEditorStore((s) => s.loadFiles);
@@ -32,6 +45,11 @@ export function TestsView() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [isNew, setIsNew] = useState(false);
+
+  // Test runner state
+  const [testResults, setTestResults] = useState<Map<string, TestRunResult>>(new Map());
+  const [testStatuses, setTestStatuses] = useState<Map<string, TestStatus>>(new Map());
+  const [runningAll, setRunningAll] = useState(false);
 
   const reload = useCallback(async () => {
     if (!files?.tests) return;
@@ -60,6 +78,8 @@ export function TestsView() {
         setSelectedPath(path);
         setEditSuite(structuredClone(entry.suite));
         setIsNew(false);
+        setTestResults(new Map());
+        setTestStatuses(new Map());
       }
     },
     [suites]
@@ -73,6 +93,8 @@ export function TestsView() {
       workflow: "",
       tests: [{ name: "test case 1" }],
     });
+    setTestResults(new Map());
+    setTestStatuses(new Map());
   }, []);
 
   const handleSave = useCallback(async () => {
@@ -107,6 +129,66 @@ export function TestsView() {
       showToast({ type: "error", message: `Failed to delete: ${err}` });
     }
   }, [selectedPath, loadFiles, reload]);
+
+  const handleRunAll = useCallback(async () => {
+    if (!selectedPath || isNew) return;
+    setRunningAll(true);
+
+    // Mark all as running
+    const statuses = new Map<string, TestStatus>();
+    for (const tc of editSuite?.tests ?? []) {
+      statuses.set(tc.name, "running");
+    }
+    setTestStatuses(new Map(statuses));
+    setTestResults(new Map());
+
+    try {
+      const results = await api.runTests(selectedPath);
+      const newResults = new Map<string, TestRunResult>();
+      const newStatuses = new Map<string, TestStatus>();
+      for (const r of results) {
+        newResults.set(r.case_name, r);
+        newStatuses.set(r.case_name, r.passed ? "passed" : "failed");
+      }
+      setTestResults(newResults);
+      setTestStatuses(newStatuses);
+
+      const passed = results.filter((r) => r.passed).length;
+      const failed = results.length - passed;
+      if (failed === 0) {
+        showToast({ type: "success", message: `All ${passed} tests passed` });
+      } else {
+        showToast({ type: "error", message: `${failed} failed, ${passed} passed` });
+      }
+    } catch (err) {
+      showToast({ type: "error", message: `Test run failed: ${err}` });
+      // Reset statuses
+      setTestStatuses(new Map());
+    } finally {
+      setRunningAll(false);
+    }
+  }, [selectedPath, isNew, editSuite?.tests]);
+
+  const handleRunSingle = useCallback(
+    async (testName: string) => {
+      if (!selectedPath || isNew) return;
+
+      setTestStatuses((prev) => new Map(prev).set(testName, "running"));
+
+      try {
+        const results = await api.runTests(selectedPath);
+        const match = results.find((r) => r.case_name === testName);
+        if (match) {
+          setTestResults((prev) => new Map(prev).set(testName, match));
+          setTestStatuses((prev) => new Map(prev).set(testName, match.passed ? "passed" : "failed"));
+        }
+      } catch (err) {
+        setTestStatuses((prev) => new Map(prev).set(testName, "idle"));
+        showToast({ type: "error", message: `Test run failed: ${err}` });
+      }
+    },
+    [selectedPath, isNew]
+  );
 
   const updateSuite = useCallback(
     (patch: Partial<TestSuite>) => {
@@ -198,6 +280,20 @@ export function TestsView() {
               <div className="flex items-center gap-2">
                 {!isNew && (
                   <button
+                    onClick={handleRunAll}
+                    disabled={runningAll}
+                    className="px-3 py-1.5 text-sm text-green-700 border border-green-300 rounded hover:bg-green-50 disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {runningAll ? (
+                      <Loader2 size={14} className="animate-spin" />
+                    ) : (
+                      <Play size={14} />
+                    )}
+                    Run All
+                  </button>
+                )}
+                {!isNew && (
+                  <button
                     onClick={handleDelete}
                     className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
                   >
@@ -266,6 +362,10 @@ export function TestsView() {
                     index={i}
                     onChange={(patch) => updateTest(i, patch)}
                     onDelete={() => removeTest(i)}
+                    onRun={() => handleRunSingle(tc.name)}
+                    status={testStatuses.get(tc.name) ?? "idle"}
+                    result={testResults.get(tc.name)}
+                    canRun={!isNew && !!selectedPath}
                   />
                 ))}
               </div>
@@ -282,18 +382,45 @@ export function TestsView() {
   );
 }
 
+function StatusIcon({ status }: { status: TestStatus }) {
+  switch (status) {
+    case "running":
+      return <Loader2 size={14} className="text-blue-500 animate-spin shrink-0" />;
+    case "passed":
+      return <CheckCircle size={14} className="text-green-500 shrink-0" />;
+    case "failed":
+      return <XCircle size={14} className="text-red-500 shrink-0" />;
+    default:
+      return <Circle size={14} className="text-gray-300 shrink-0" />;
+  }
+}
+
 function TestCaseEditor({
   testCase,
   index,
   onChange,
   onDelete,
+  onRun,
+  status,
+  result,
+  canRun,
 }: {
   testCase: TestCase;
   index: number;
   onChange: (patch: Partial<TestCase>) => void;
   onDelete: () => void;
+  onRun: () => void;
+  status: TestStatus;
+  result?: TestRunResult;
+  canRun: boolean;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const [showResult, setShowResult] = useState(false);
+
+  // Auto-expand results when they arrive
+  useEffect(() => {
+    if (result && !result.passed) setShowResult(true);
+  }, [result]);
 
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
@@ -301,7 +428,7 @@ function TestCaseEditor({
         <button onClick={() => setExpanded(!expanded)} className="text-gray-400">
           {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
-        <Circle size={14} className="text-gray-300 shrink-0" />
+        <StatusIcon status={status} />
         <input
           type="text"
           value={testCase.name}
@@ -309,6 +436,19 @@ function TestCaseEditor({
           className="flex-1 text-sm font-medium text-gray-800 bg-transparent border-none focus:outline-none"
           placeholder="Test case name"
         />
+        {result?.duration && (
+          <span className="text-[10px] text-gray-400 font-mono">{result.duration}</span>
+        )}
+        {canRun && (
+          <button
+            onClick={onRun}
+            disabled={status === "running"}
+            className="text-green-500 hover:text-green-700 disabled:opacity-50"
+            title="Run this test"
+          >
+            <Play size={12} />
+          </button>
+        )}
         <span className="text-xs text-gray-400">#{index + 1}</span>
         <button
           onClick={onDelete}
@@ -318,6 +458,51 @@ function TestCaseEditor({
           <Trash2 size={12} />
         </button>
       </div>
+
+      {/* Test result panel */}
+      {result && (
+        <div
+          className={`px-3 py-2 text-xs border-t ${
+            result.passed
+              ? "bg-green-50 border-green-200 text-green-800"
+              : "bg-red-50 border-red-200 text-red-800"
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="font-medium">
+              {result.passed ? "PASSED" : "FAILED"}
+              {result.duration && ` (${result.duration})`}
+            </span>
+            {!result.passed && (
+              <button
+                onClick={() => setShowResult(!showResult)}
+                className="text-red-600 hover:text-red-800"
+              >
+                {showResult ? "Hide Details" : "Show Details"}
+              </button>
+            )}
+          </div>
+          {result.error && (
+            <div className="mt-1 font-mono text-[11px] whitespace-pre-wrap">{result.error}</div>
+          )}
+          {showResult && !result.passed && (
+            <div className="mt-2 space-y-2">
+              <div>
+                <span className="font-medium">Expected:</span>
+                <pre className="mt-0.5 p-1.5 bg-white/60 rounded font-mono text-[10px] whitespace-pre-wrap">
+                  {JSON.stringify(result.expected, null, 2)}
+                </pre>
+              </div>
+              <div>
+                <span className="font-medium">Actual:</span>
+                <pre className="mt-0.5 p-1.5 bg-white/60 rounded font-mono text-[10px] whitespace-pre-wrap">
+                  {JSON.stringify(result.actual, null, 2)}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {expanded && (
         <div className="p-3 space-y-3">

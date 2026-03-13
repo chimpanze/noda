@@ -233,3 +233,50 @@ func TestValidateStartup_MultipleErrors(t *testing.T) {
 	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions(), nil)
 	assert.Len(t, errs, 3)
 }
+
+func TestValidateStartupDryRun_WrongPrefix(t *testing.T) {
+	plugins := NewPluginRegistry()
+	dbPlugin := pluginWithNodes("test-db", "db", []api.NodeRegistration{
+		{
+			Descriptor: &stubDescriptor{
+				name: "query",
+				deps: map[string]api.ServiceDep{
+					"database": {Prefix: "db", Required: true},
+				},
+			},
+			Factory: func(map[string]any) api.NodeExecutor { return &stubExecutor{} },
+		},
+	})
+	require.NoError(t, plugins.Register(dbPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(dbPlugin))
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"my-cache": map[string]any{
+					"plugin": "cache",
+				},
+			},
+		},
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"fetch": map[string]any{
+						"type": "db.query",
+						"services": map[string]any{
+							"database": "my-cache", // cache service in a db slot
+						},
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "prefix")
+	assert.Contains(t, errs[0].Error(), "cache")
+	assert.Contains(t, errs[0].Error(), "db")
+}

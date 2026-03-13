@@ -151,7 +151,7 @@ func TestRuntime_ConsumesAndExecutes(t *testing.T) {
 		return processed >= 1
 	}, 5*time.Second, 50*time.Millisecond)
 
-	rt.Stop()
+	rt.Stop(context.Background())
 }
 
 func TestRuntime_ConcurrentProcessing(t *testing.T) {
@@ -215,7 +215,7 @@ func TestRuntime_ConcurrentProcessing(t *testing.T) {
 		return processed >= 5
 	}, 10*time.Second, 50*time.Millisecond)
 
-	rt.Stop()
+	rt.Stop(context.Background())
 }
 
 func TestRuntime_GracefulShutdown(t *testing.T) {
@@ -252,7 +252,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 	// Stop should return quickly
 	done := make(chan struct{})
 	go func() {
-		rt.Stop()
+		rt.Stop(context.Background())
 		close(done)
 	}()
 
@@ -346,7 +346,7 @@ func TestRuntime_TriggerMapping(t *testing.T) {
 		return processed >= 1
 	}, 5*time.Second, 50*time.Millisecond)
 
-	rt.Stop()
+	rt.Stop(context.Background())
 }
 
 // trackingMiddleware tracks how many messages were processed.

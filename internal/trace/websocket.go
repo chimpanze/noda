@@ -25,7 +25,7 @@ func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) 
 			case <-done:
 			case writeCh <- data:
 			default:
-				// Drop message if buffer full (slow client)
+				logger.Warn("trace event dropped: buffer full", "remote", c.RemoteAddr().String())
 			}
 		})
 		defer unsubscribe()

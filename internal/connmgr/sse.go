@@ -123,10 +123,12 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 
 	// Fire on_connect lifecycle
 	if h.config.OnConnect != "" && h.runner != nil {
+		connectCtx, connectCancel := context.WithTimeout(context.Background(), lifecycleTimeout)
 		input := buildSSEInput(conn)
-		if err := h.runner(context.Background(), h.config.OnConnect, input); err != nil {
+		if err := h.runner(connectCtx, h.config.OnConnect, input); err != nil {
 			h.logger.Error("on_connect workflow failed", "workflow", h.config.OnConnect, "error", err)
 		}
+		connectCancel()
 	}
 
 	return c.SendStreamWriter(func(w *bufio.Writer) {
@@ -134,10 +136,12 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 			close(done) // signal SSEFn to stop accepting events
 			h.manager.Unregister(connID)
 			if h.config.OnDisconnect != "" && h.runner != nil {
+				disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), lifecycleTimeout)
 				input := buildSSEInput(conn)
-				if err := h.runner(context.Background(), h.config.OnDisconnect, input); err != nil {
+				if err := h.runner(disconnectCtx, h.config.OnDisconnect, input); err != nil {
 					h.logger.Error("on_disconnect workflow failed", "workflow", h.config.OnDisconnect, "error", err)
 				}
+				disconnectCancel()
 			}
 		}()
 

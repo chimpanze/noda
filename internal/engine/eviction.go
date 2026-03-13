@@ -35,6 +35,15 @@ func NewEvictionTracker(graph *CompiledGraph, execCtx *ExecutionContextImpl) *Ev
 		outputKeys[nodeID] = key
 	}
 
+	// Pre-compute reverse config-ref index: outputKey → set of nodes referencing it.
+	// This avoids O(n^2) iteration when building consumer sets below.
+	reverseConfigRefs := make(map[string][]string)
+	for id, node := range graph.Nodes {
+		for ref := range node.ConfigRefs {
+			reverseConfigRefs[ref] = append(reverseConfigRefs[ref], id)
+		}
+	}
+
 	// For each non-terminal node, find all consumers and build the reverse map.
 	for nodeID := range graph.Nodes {
 		if terminalSet[nodeID] {
@@ -49,11 +58,8 @@ func NewEvictionTracker(graph *CompiledGraph, execCtx *ExecutionContextImpl) *Ev
 				consumerSet[t] = true
 			}
 		}
-		for id, node := range graph.Nodes {
-			if id == nodeID || consumerSet[id] {
-				continue
-			}
-			if node.ConfigRefs[outputKey] {
+		for _, id := range reverseConfigRefs[outputKey] {
+			if id != nodeID {
 				consumerSet[id] = true
 			}
 		}

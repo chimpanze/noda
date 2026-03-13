@@ -33,6 +33,8 @@ func (d *mergeDescriptor) ConfigSchema() map[string]any {
 	}
 }
 
+const maxMergeItems = 100_000
+
 type mergeExecutor struct{}
 
 func newMergeExecutor(config map[string]any) api.NodeExecutor {
@@ -84,6 +86,9 @@ func (e *mergeExecutor) appendMode(inputs [][]any) (string, any, error) {
 	var result []any
 	for _, items := range inputs {
 		result = append(result, items...)
+		if len(result) > maxMergeItems {
+			return "", nil, fmt.Errorf("transform.merge: result size %d exceeds maximum %d", len(result), maxMergeItems)
+		}
 	}
 	if result == nil {
 		result = []any{}
@@ -194,6 +199,9 @@ func (e *mergeExecutor) positionMode(inputs [][]any) (string, any, error) {
 	}
 
 	length := len(inputs[0])
+	if length > maxMergeItems {
+		return "", nil, fmt.Errorf("transform.merge: array size %d exceeds maximum %d", length, maxMergeItems)
+	}
 	for i, items := range inputs {
 		if len(items) != length {
 			return "", nil, fmt.Errorf("transform.merge: position mode requires all inputs to have the same length (input 0 has %d, input %d has %d)", length, i, len(items))

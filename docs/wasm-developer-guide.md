@@ -396,8 +396,26 @@ asc main.ts --target release --outFile module.wasm
 
 ## Security
 
-- Wasm modules run in a sandboxed Wazero runtime
-- Outbound HTTP and WebSocket connections are whitelisted via `allow_outbound`
-- Only explicitly listed `services` and `connections` are accessible
+Wasm modules run in a sandboxed Wazero runtime with multiple layers of access control:
+
+### Sandbox Isolation
 - No filesystem access — use the storage service instead
-- No network access beyond whitelisted hosts
+- No direct network access — all outbound communication goes through host functions
+
+### Service Access Control
+- Only services listed in the module's `services` config array are accessible via `noda_call`
+- Calling a service not in the list returns `PERMISSION_DENIED`
+- Similarly, only `connections` listed in the config can be used for WebSocket/SSE sends
+
+### Outbound Network Whitelisting
+- Outbound HTTP requests are restricted to hosts listed in `allow_outbound.http`
+- Outbound WebSocket connections are restricted to hosts listed in `allow_outbound.ws`
+- Host matching compares the parsed URL hostname against the whitelist entries
+- Requests to non-whitelisted hosts return `PERMISSION_DENIED`
+
+### Input Validation
+- All host API calls validate required fields — missing or empty required parameters return `VALIDATION_ERROR`
+- For example, cache `get`/`set`/`del` require a non-empty `key`, timers require a non-empty `name`, and `trigger_workflow` requires a non-empty `workflow` ID
+
+### Lifecycle Context
+- Async operations (`noda_call_async`, `trigger_workflow`) are bound to the module's lifecycle context, not a detached background context — they are cancelled if the module shuts down

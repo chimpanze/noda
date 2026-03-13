@@ -20,6 +20,8 @@ import { WasmView } from "@/components/views/WasmView";
 import { MiddlewareView } from "@/components/views/MiddlewareView";
 import { ServerSettingsView } from "@/components/views/ServerSettingsView";
 import { DocsView } from "@/components/views/DocsView";
+import { ModelsView } from "@/components/views/ModelsView";
+import { VarsView } from "@/components/views/VarsView";
 import { ShortcutModal } from "@/components/panels/ShortcutModal";
 import { CommandPalette } from "@/components/panels/CommandPalette";
 import { ToastContainer } from "@/components/panels/Toast";
@@ -34,6 +36,7 @@ export default function App() {
   const activeView = useEditorStore((s) => s.activeView);
   const loadFiles = useEditorStore((s) => s.loadFiles);
   const loadNodeTypes = useEditorStore((s) => s.loadNodeTypes);
+  const loadVars = useEditorStore((s) => s.loadVars);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const selectedEdgeIndex = useEditorStore((s) => s.selectedEdgeIndex);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
@@ -43,9 +46,10 @@ export default function App() {
   useEffect(() => {
     loadFiles();
     loadNodeTypes();
+    loadVars();
     connectTrace();
     return () => disconnectTrace();
-  }, [loadFiles, loadNodeTypes]);
+  }, [loadFiles, loadNodeTypes, loadVars]);
 
   // Warn before navigating away with unsaved changes
   useEffect(() => {
@@ -103,6 +107,8 @@ export default function App() {
               <RoutesView />
             ) : activeView === "middleware" ? (
               <MiddlewareView />
+            ) : activeView === "models" ? (
+              <ModelsView />
             ) : activeView === "services" ? (
               <ServicesView />
             ) : activeView === "schemas" ? (
@@ -113,6 +119,8 @@ export default function App() {
               <WorkersView />
             ) : activeView === "schedules" ? (
               <SchedulesView />
+            ) : activeView === "vars" ? (
+              <VarsView />
             ) : activeView === "connections" ? (
               <ConnectionsView />
             ) : activeView === "wasm" ? (

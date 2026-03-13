@@ -1,6 +1,8 @@
 import { useState, useCallback } from "react";
 import { Trash2, Plus, X } from "lucide-react";
 import type { SchemaInfo } from "@/types";
+import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
+import { SchemaSelect } from "@/components/widgets/SchemaSelect";
 
 export interface RouteConfig {
   id: string;
@@ -10,7 +12,9 @@ export interface RouteConfig {
   tags?: string[];
   middleware?: string[];
   middleware_preset?: string;
-  body?: { schema?: unknown; raw?: boolean; validate?: boolean };
+  params?: { schema?: unknown };
+  query?: { schema?: unknown };
+  body?: { schema?: unknown; raw?: boolean; validate?: boolean; content_type?: string };
   response?: {
     validate?: string;
     statuses?: Record<string, { description?: string; schema?: { $ref: string } }>;
@@ -19,6 +23,7 @@ export interface RouteConfig {
     workflow: string;
     input?: Record<string, string>;
     files?: string[];
+    raw_body?: boolean;
   };
   [key: string]: unknown;
 }
@@ -66,12 +71,15 @@ export function RouteFormPanel({
     [route, onChange]
   );
 
-  const currentBodyRef =
-    route.body?.schema &&
-    typeof route.body.schema === "object" &&
-    (route.body.schema as Record<string, unknown>)["$ref"]
-      ? String((route.body.schema as Record<string, unknown>)["$ref"])
-      : "";
+  const schemaRef = (obj?: { schema?: unknown }) => {
+    if (!obj?.schema || typeof obj.schema !== "object") return "";
+    const ref = (obj.schema as Record<string, unknown>)["$ref"];
+    return ref ? String(ref) : "";
+  };
+
+  const currentBodyRef = schemaRef(route.body);
+  const currentParamsRef = schemaRef(route.params);
+  const currentQueryRef = schemaRef(route.query);
 
   const responseStatuses = route.response?.statuses ?? {};
   const responseValidate = route.response?.validate ?? "off";
@@ -145,6 +153,38 @@ export function RouteFormPanel({
           onChange={(e) => update({ summary: e.target.value || undefined })}
           className="input-field"
           placeholder="Brief description of this route"
+        />
+      </Field>
+
+      {/* Path Parameters Schema */}
+      <Field label="Path Parameters Schema">
+        <SchemaSelect
+          schemas={schemas}
+          value={currentParamsRef}
+          onChange={(ref) => {
+            if (ref) {
+              update({ params: { schema: { $ref: ref } } });
+            } else {
+              update({ params: undefined });
+            }
+          }}
+          className="input-field font-mono"
+        />
+      </Field>
+
+      {/* Query Parameters Schema */}
+      <Field label="Query Parameters Schema">
+        <SchemaSelect
+          schemas={schemas}
+          value={currentQueryRef}
+          onChange={(ref) => {
+            if (ref) {
+              update({ query: { schema: { $ref: ref } } });
+            } else {
+              update({ query: undefined });
+            }
+          }}
+          className="input-field font-mono"
         />
       </Field>
 
@@ -241,6 +281,7 @@ export function RouteFormPanel({
             updateTrigger({ input: Object.keys(input).length > 0 ? input : undefined })
           }
           valuePlaceholder="{{ body.field }}"
+          workflow={route.trigger?.workflow}
         />
 
         {/* Files */}
@@ -252,6 +293,19 @@ export function RouteFormPanel({
           }
           placeholder="e.g. file"
         />
+
+        {/* Raw Body */}
+        <div className="mt-2">
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={route.trigger?.raw_body ?? false}
+              onChange={(e) => updateTrigger({ raw_body: e.target.checked || undefined })}
+              className="rounded border-gray-300"
+            />
+            Pass raw body
+          </label>
+        </div>
       </div>
 
       {/* Body Schema */}
@@ -259,11 +313,34 @@ export function RouteFormPanel({
         <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
           Request Body
         </h4>
-        <Field label="Schema">
+        <Field label="Content Type">
           <select
-            value={currentBodyRef}
+            value={route.body?.content_type ?? ""}
             onChange={(e) => {
-              const ref = e.target.value;
+              const ct = e.target.value;
+              if (ct) {
+                update({ body: { ...route.body, content_type: ct } });
+              } else {
+                if (route.body) {
+                  const { content_type: _, ...rest } = route.body;
+                  update({ body: Object.keys(rest).length > 0 ? rest : undefined });
+                }
+              }
+            }}
+            className="input-field"
+          >
+            <option value="">Default (application/json)</option>
+            <option value="application/json">application/json</option>
+            <option value="multipart/form-data">multipart/form-data</option>
+            <option value="application/x-www-form-urlencoded">application/x-www-form-urlencoded</option>
+            <option value="text/plain">text/plain</option>
+          </select>
+        </Field>
+        <Field label="Schema">
+          <SchemaSelect
+            schemas={schemas}
+            value={currentBodyRef}
+            onChange={(ref) => {
               if (ref) {
                 update({ body: { ...route.body, schema: { $ref: ref } } });
               } else {
@@ -272,12 +349,7 @@ export function RouteFormPanel({
               }
             }}
             className="input-field font-mono"
-          >
-            <option value="">No schema</option>
-            {schemas.map((s) => (
-              <option key={s.path} value={s.path}>{s.path}</option>
-            ))}
-          </select>
+          />
         </Field>
         <div className="mt-2">
           <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
@@ -350,11 +422,11 @@ export function RouteFormPanel({
               </div>
               <div className="flex-1 min-w-0">
                 <label className="text-[10px] text-gray-400 uppercase block">Schema</label>
-                <select
+                <SchemaSelect
+                  schemas={schemas}
                   value={entry.schema?.$ref ?? ""}
-                  onChange={(e) => {
+                  onChange={(ref) => {
                     const statuses = { ...responseStatuses };
-                    const ref = e.target.value;
                     statuses[code] = {
                       ...statuses[code],
                       schema: ref ? { $ref: ref } : undefined,
@@ -362,12 +434,7 @@ export function RouteFormPanel({
                     update({ response: { ...route.response, statuses } });
                   }}
                   className="input-field text-xs font-mono"
-                >
-                  <option value="">No schema</option>
-                  {schemas.map((s) => (
-                    <option key={s.path} value={s.path}>{s.path}</option>
-                  ))}
-                </select>
+                />
               </div>
               <button
                 type="button"
@@ -486,11 +553,13 @@ function KeyValueEditor({
   entries,
   onChange,
   valuePlaceholder,
+  workflow,
 }: {
   label: string;
   entries: Record<string, string>;
   onChange: (entries: Record<string, string>) => void;
   valuePlaceholder?: string;
+  workflow?: string;
 }) {
   const pairs = Object.entries(entries);
 
@@ -535,13 +604,25 @@ function KeyValueEditor({
               placeholder="key"
             />
             <span className="text-gray-400 text-xs">:</span>
-            <input
-              type="text"
-              value={val}
-              onChange={(e) => updateValue(key, e.target.value)}
-              className="flex-1 min-w-0 input-field !w-auto font-mono"
-              placeholder={valuePlaceholder}
-            />
+            {workflow ? (
+              <div className="flex-1 min-w-0">
+                <ExpressionAutocomplete
+                  value={val}
+                  onChange={(v) => updateValue(key, v)}
+                  workflow={workflow}
+                  className="input-field !w-auto font-mono"
+                  placeholder={valuePlaceholder}
+                />
+              </div>
+            ) : (
+              <input
+                type="text"
+                value={val}
+                onChange={(e) => updateValue(key, e.target.value)}
+                className="flex-1 min-w-0 input-field !w-auto font-mono"
+                placeholder={valuePlaceholder}
+              />
+            )}
             <button
               type="button"
               onClick={() => remove(key)}

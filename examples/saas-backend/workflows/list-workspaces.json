@@ -13,26 +13,31 @@
         "body": {
           "data": "{{ nodes.rows }}"
         },
+        "headers": {},
         "status": 200
       },
       "type": "response.json"
     },
     "rows": {
       "config": {
-        "table": "workspaces",
-        "select": ["workspaces.*"],
         "joins": [
           {
-            "type": "INNER",
+            "on": "workspaces.id = workspace_members.workspace_id",
             "table": "workspace_members",
-            "on": "workspaces.id = workspace_members.workspace_id"
+            "type": "INNER"
           }
         ],
+        "order": "workspaces.created_at DESC",
+        "select": [
+          "workspaces.*"
+        ],
+        "table": "workspaces",
         "where_clause": {
-          "query": "workspace_members.user_id = ?",
-          "params": ["{{ input.user_id }}"]
-        },
-        "order": "workspaces.created_at DESC"
+          "params": [
+            "{{ input.user_id }}"
+          ],
+          "query": "workspace_members.user_id = ?"
+        }
       },
       "services": {
         "database": "main-db"

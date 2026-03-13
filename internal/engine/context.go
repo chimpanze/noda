@@ -13,6 +13,13 @@ import (
 	"go.opentelemetry.io/otel/trace/noop"
 )
 
+// exprContextPool reuses the outer 4-key map in buildExprContext to reduce allocations.
+var exprContextPool = sync.Pool{
+	New: func() any {
+		return make(map[string]any, 4)
+	},
+}
+
 // ResponseInterceptor is called when a node produces an HTTPResponse.
 type ResponseInterceptor func(resp *api.HTTPResponse)
 
@@ -47,6 +54,7 @@ func NewExecutionContext(opts ...ExecutionContextOption) *ExecutionContextImpl {
 		trigger: api.TriggerData{
 			TraceID: uuid.New().String(),
 		},
+		// Fallback compiler for tests. Production paths inject the shared compiler via WithCompiler().
 		compiler: expr.NewCompilerWithFunctions(),
 		logger:   slog.Default(),
 		tracer:   noop.NewTracerProvider().Tracer("noda"),
@@ -133,6 +141,7 @@ func (c *ExecutionContextImpl) Resolve(expression string) (any, error) {
 	c.mu.RLock()
 	context := c.buildExprContext()
 	c.mu.RUnlock()
+	defer returnExprContext(context)
 
 	resolver := expr.NewResolver(c.compiler, context)
 	return resolver.Resolve(expression)
@@ -144,6 +153,7 @@ func (c *ExecutionContextImpl) ResolveWithVars(expression string, extraVars map[
 	c.mu.RLock()
 	context := c.buildExprContext()
 	c.mu.RUnlock()
+	defer returnExprContext(context)
 
 	for k, v := range extraVars {
 		context[k] = v
@@ -256,8 +266,13 @@ func (c *ExecutionContextImpl) DecrementDepth() {
 }
 
 // buildExprContext creates the expression evaluation context map.
+// The returned map is from a pool — callers must call returnExprContext when done.
 func (c *ExecutionContextImpl) buildExprContext() map[string]any {
-	ctx := make(map[string]any)
+	ctx := exprContextPool.Get().(map[string]any)
+	// Clear stale keys
+	for k := range ctx {
+		delete(ctx, k)
+	}
 	ctx["input"] = c.input
 	if c.auth != nil {
 		ctx["auth"] = map[string]any{
@@ -279,4 +294,8 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 	}
 	ctx["nodes"] = nodesMap
 	return ctx
+}
+
+func returnExprContext(ctx map[string]any) {
+	exprContextPool.Put(ctx)
 }

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import { ExternalLink, Plus, ChevronRight, ChevronDown, Copy, Shield } from "lucide-react";
+import { ExternalLink, Plus, ChevronRight, ChevronDown, Copy, Shield, Download, FileJson } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
@@ -25,7 +25,7 @@ interface RouteFileEntry {
   route: RouteConfig;
 }
 
-type TabType = "editor" | "tryit" | "json";
+type TabType = "editor" | "tryit" | "json" | "openapi";
 
 // --- Path tree types ---
 interface TreeNode {
@@ -110,6 +110,10 @@ export function RoutesView() {
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [editGroup, setEditGroup] = useState<RouteGroupConfig | null>(null);
   const [savingGroup, setSavingGroup] = useState(false);
+
+  // OpenAPI state
+  const [openApiSpec, setOpenApiSpec] = useState<string | null>(null);
+  const [openApiLoading, setOpenApiLoading] = useState(false);
 
   // Tree expansion state
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -227,11 +231,14 @@ export function RoutesView() {
       if (!clean.tags?.length) delete clean.tags;
       if (!clean.middleware?.length) delete clean.middleware;
       if (!clean.middleware_preset) delete clean.middleware_preset;
-      if (!clean.body || (!clean.body.schema && !clean.body.raw && clean.body.validate !== false))
+      if (!clean.params?.schema) delete clean.params;
+      if (!clean.query?.schema) delete clean.query;
+      if (!clean.body || (!clean.body.schema && !clean.body.raw && clean.body.validate !== false && !clean.body.content_type))
         delete clean.body;
       else {
         if (clean.body.validate === true || clean.body.validate === undefined)
           delete clean.body.validate;
+        if (!clean.body.content_type) delete clean.body.content_type;
       }
       if (clean.trigger) {
         if (!clean.trigger.workflow) delete (clean as Record<string, unknown>).trigger;
@@ -239,6 +246,7 @@ export function RoutesView() {
           if (!clean.trigger.input || Object.keys(clean.trigger.input).length === 0)
             delete clean.trigger.input;
           if (!clean.trigger.files?.length) delete clean.trigger.files;
+          if (!clean.trigger.raw_body) delete clean.trigger.raw_body;
         }
       }
       // Clean response
@@ -385,13 +393,42 @@ export function RoutesView() {
           <h2 className="text-sm font-semibold text-gray-800">
             Routes ({routeEntries.length})
           </h2>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Plus size={14} />
-            New
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={async () => {
+                setSelectedIndex(null);
+                setEditRoute(null);
+                setSelectedGroup(null);
+                setEditGroup(null);
+                setActiveTab("openapi");
+                setOpenApiLoading(true);
+                try {
+                  const spec = await api.getOpenAPISpec();
+                  setOpenApiSpec(JSON.stringify(spec, null, 2));
+                } catch (err) {
+                  showToast({ type: "error", message: `Failed to load OpenAPI spec: ${err}` });
+                } finally {
+                  setOpenApiLoading(false);
+                }
+              }}
+              className={`flex items-center gap-1 px-2 py-1 text-xs rounded ${
+                activeTab === "openapi"
+                  ? "text-blue-700 bg-blue-50"
+                  : "text-gray-500 hover:bg-gray-100"
+              }`}
+              title="OpenAPI Spec"
+            >
+              <FileJson size={14} />
+              OpenAPI
+            </button>
+            <button
+              onClick={startNew}
+              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
+            >
+              <Plus size={14} />
+              New
+            </button>
+          </div>
         </div>
         <div>
           {tree.children.size > 0 ? (
@@ -438,9 +475,67 @@ export function RoutesView() {
         </div>
       </div>
 
-      {/* Route editor / Group editor */}
+      {/* Route editor / Group editor / OpenAPI */}
       <div className="flex-1 flex flex-col min-h-0">
-        {selectedGroup !== null && editGroup ? (
+        {activeTab === "openapi" ? (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-4xl space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold text-gray-900">OpenAPI Specification</h3>
+                {openApiSpec && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(openApiSpec);
+                        showToast({ type: "success", message: "Copied to clipboard" });
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+                    >
+                      <Copy size={12} />
+                      Copy
+                    </button>
+                    <button
+                      onClick={() => {
+                        const blob = new Blob([openApiSpec], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = "openapi.json";
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
+                    >
+                      <Download size={12} />
+                      Download
+                    </button>
+                  </div>
+                )}
+              </div>
+              {openApiLoading ? (
+                <div className="text-sm text-gray-400">Generating OpenAPI spec...</div>
+              ) : openApiSpec ? (
+                <div className="border border-gray-200 rounded overflow-hidden">
+                  <Editor
+                    height="600px"
+                    language="json"
+                    value={openApiSpec}
+                    options={{
+                      minimap: { enabled: false },
+                      fontSize: 13,
+                      scrollBeyondLastLine: false,
+                      lineNumbers: "on",
+                      readOnly: true,
+                      wordWrap: "on",
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="text-sm text-gray-400">Failed to load OpenAPI spec.</div>
+              )}
+            </div>
+          </div>
+        ) : selectedGroup !== null && editGroup ? (
           <div className="flex-1 overflow-y-auto p-6">
             <RouteGroupFormPanel
               prefix={selectedGroup}
@@ -459,7 +554,7 @@ export function RoutesView() {
             {/* Tab bar */}
             <div className="flex items-center border-b border-gray-200 bg-gray-50 shrink-0">
               {(["editor", "tryit", "json"] as TabType[]).map((tab) => {
-                const labels: Record<TabType, string> = {
+                const labels: Record<string, string> = {
                   editor: "Editor",
                   tryit: "Try It",
                   json: "JSON",

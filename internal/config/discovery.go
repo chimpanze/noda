@@ -11,6 +11,7 @@ import (
 type DiscoveredFiles struct {
 	Root        string   // path to noda.json (required)
 	Overlay     string   // path to noda.{env}.json (optional, empty if not found)
+	Vars        string   // path to vars.json (optional, empty if not found)
 	Schemas     []string // schemas/**/*.json
 	Routes      []string // routes/**/*.json
 	Workflows   []string // workflows/**/*.json
@@ -18,6 +19,7 @@ type DiscoveredFiles struct {
 	Schedules   []string // schedules/**/*.json
 	Connections []string // connections/**/*.json
 	Tests       []string // tests/**/*.json
+	Models      []string // models/**/*.json
 }
 
 // Discover scans rootPath for config files and categorizes them by convention.
@@ -40,6 +42,12 @@ func Discover(rootPath string, env string) (*DiscoveredFiles, error) {
 		}
 	}
 
+	// Check for vars.json
+	varsFile := filepath.Join(rootPath, "vars.json")
+	if _, err := os.Stat(varsFile); err == nil {
+		d.Vars = varsFile
+	}
+
 	// Scan each config directory
 	dirs := []struct {
 		name   string
@@ -52,6 +60,7 @@ func Discover(rootPath string, env string) (*DiscoveredFiles, error) {
 		{"schedules", &d.Schedules},
 		{"connections", &d.Connections},
 		{"tests", &d.Tests},
+		{"models", &d.Models},
 	}
 
 	for _, dir := range dirs {

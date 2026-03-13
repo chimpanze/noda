@@ -141,15 +141,24 @@ func strVal(m map[string]any, key string) string {
 	return v
 }
 
+const maxResolveDepth = 100
+
 // resolveDeep recursively resolves expression strings within a nested map/slice structure.
 func resolveDeep(nCtx api.ExecutionContext, v any) (any, error) {
+	return resolveDeepWithDepth(nCtx, v, 0)
+}
+
+func resolveDeepWithDepth(nCtx api.ExecutionContext, v any, depth int) (any, error) {
+	if depth > maxResolveDepth {
+		return nil, fmt.Errorf("resolve depth exceeds maximum %d", maxResolveDepth)
+	}
 	switch val := v.(type) {
 	case string:
 		return nCtx.Resolve(val)
 	case map[string]any:
 		result := make(map[string]any, len(val))
 		for k, item := range val {
-			resolved, err := resolveDeep(nCtx, item)
+			resolved, err := resolveDeepWithDepth(nCtx, item, depth+1)
 			if err != nil {
 				return nil, fmt.Errorf("field %q: %w", k, err)
 			}
@@ -159,7 +168,7 @@ func resolveDeep(nCtx api.ExecutionContext, v any) (any, error) {
 	case []any:
 		result := make([]any, len(val))
 		for i, item := range val {
-			resolved, err := resolveDeep(nCtx, item)
+			resolved, err := resolveDeepWithDepth(nCtx, item, depth+1)
 			if err != nil {
 				return nil, err
 			}

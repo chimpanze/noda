@@ -94,10 +94,41 @@ func (r *FunctionRegistry) ExprOptions() []expr.Option {
 	return opts
 }
 
+// NewFunctionRegistryWithVars creates a registry with built-in functions plus a $var function
+// that looks up keys from the provided vars map. If vars is nil, $var() returns an error.
+func NewFunctionRegistryWithVars(vars map[string]string) *FunctionRegistry {
+	r := NewFunctionRegistry()
+
+	r.Register("$var", func(params ...any) (any, error) {
+		if len(params) != 1 {
+			return nil, fmt.Errorf("$var: expected 1 argument, got %d", len(params))
+		}
+		key, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("$var: expected string argument, got %T", params[0])
+		}
+		if vars == nil {
+			return nil, fmt.Errorf("$var: unknown variable %q (no vars defined)", key)
+		}
+		val, exists := vars[key]
+		if !exists {
+			return nil, fmt.Errorf("$var: unknown variable %q", key)
+		}
+		return val, nil
+	}, new(func(string) string))
+
+	return r
+}
+
+// NewCompilerWithVars creates a compiler with built-in functions and $var() bound to the given vars map.
+func NewCompilerWithVars(vars map[string]string) *Compiler {
+	reg := NewFunctionRegistryWithVars(vars)
+	return NewCompiler(WithExprOptions(reg.ExprOptions()...))
+}
+
 // NewCompilerWithFunctions creates a compiler with the built-in function registry.
 func NewCompilerWithFunctions() *Compiler {
-	reg := NewFunctionRegistry()
-	return NewCompiler(WithExprOptions(reg.ExprOptions()...))
+	return NewCompilerWithVars(nil)
 }
 
 // coerceToInt converts a value to int. Handles string, float64, int, and json.Number.

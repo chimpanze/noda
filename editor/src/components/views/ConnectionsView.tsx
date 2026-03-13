@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, ExternalLink, Wifi, Radio } from "lucide-react";
+import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
@@ -14,6 +15,9 @@ interface EndpointConfig {
     max_per_channel?: number;
   };
   ping_interval?: string;
+  max_message_size?: string;
+  heartbeat?: string;
+  retry?: string;
   on_connect?: string;
   on_message?: string;
   on_disconnect?: string;
@@ -48,6 +52,7 @@ export function ConnectionsView() {
   const [isNew, setIsNew] = useState(false);
   const [middlewareNames, setMiddlewareNames] = useState<string[]>([]);
   const [instanceNames, setInstanceNames] = useState<string[]>([]);
+  const [serviceNames, setServiceNames] = useState<string[]>([]);
 
   const reload = useCallback(async () => {
     if (!files?.connections) return;
@@ -69,10 +74,14 @@ export function ConnectionsView() {
       setConnFiles(fileConfigs);
       setEntries(allEntries);
 
-      const mwInfo = await api.listMiddleware();
+      const [mwInfo, services] = await Promise.all([
+        api.listMiddleware(),
+        api.listServices(),
+      ]);
       const instNames = Object.keys(mwInfo.instances ?? {});
       setInstanceNames(instNames);
       setMiddlewareNames([...mwInfo.middleware.map((m) => m.name), ...instNames]);
+      setServiceNames(services.map((s) => s.name));
     } finally {
       setLoading(false);
     }
@@ -110,6 +119,9 @@ export function ConnectionsView() {
       if (!clean.middleware?.length) delete clean.middleware;
       if (clean.channels && !clean.channels.pattern) delete clean.channels;
       if (!clean.ping_interval) delete clean.ping_interval;
+      if (!clean.max_message_size) delete clean.max_message_size;
+      if (!clean.heartbeat) delete clean.heartbeat;
+      if (!clean.retry) delete clean.retry;
       if (!clean.on_connect) delete clean.on_connect;
       if (!clean.on_message) delete clean.on_message;
       if (!clean.on_disconnect) delete clean.on_disconnect;
@@ -254,6 +266,39 @@ export function ConnectionsView() {
       <div className="flex-1 overflow-y-auto p-6">
         {editEndpoint ? (
           <div className="max-w-2xl space-y-5">
+            {/* Cross-Instance Sync */}
+            {connFiles.length > 0 && (
+              <div className="p-3 bg-gray-50 rounded border border-gray-200">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  Cross-Instance Sync
+                </h4>
+                <Field label="PubSub Service">
+                  <select
+                    value={connFiles[0]?.config?.sync?.pubsub ?? ""}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const target = connFiles[0];
+                      if (!target) return;
+                      const updated = structuredClone(target.config);
+                      if (val) {
+                        updated.sync = { ...updated.sync, pubsub: val };
+                      } else {
+                        delete updated.sync;
+                      }
+                      // Save file-level config immediately
+                      api.writeFile(target.path, updated).then(() => reload());
+                    }}
+                    className="input-field"
+                  >
+                    <option value="">None</option>
+                    {serviceNames.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                </Field>
+              </div>
+            )}
+
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold text-gray-900">
                 {isNew ? "New Endpoint" : editName}
@@ -369,14 +414,13 @@ export function ConnectionsView() {
               </h4>
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Pattern">
-                  <input
-                    type="text"
+                  <ExpressionAutocomplete
                     value={editEndpoint.channels?.pattern ?? ""}
-                    onChange={(e) =>
+                    onChange={(v) =>
                       update({
                         channels: {
                           ...editEndpoint.channels,
-                          pattern: e.target.value || undefined,
+                          pattern: v || undefined,
                         },
                       })
                     }
@@ -405,18 +449,56 @@ export function ConnectionsView() {
               </div>
             </div>
 
-            {/* WebSocket-specific */}
-            {editEndpoint.type === "websocket" && (
-              <Field label="Ping Interval">
-                <input
-                  type="text"
-                  value={editEndpoint.ping_interval ?? ""}
-                  onChange={(e) => update({ ping_interval: e.target.value || undefined })}
-                  className="input-field w-48"
-                  placeholder="e.g. 30s"
-                />
-              </Field>
-            )}
+            {/* Type-specific settings */}
+            <div className="border-t border-gray-200 pt-4">
+              <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-3">
+                Transport Settings
+              </h4>
+              <div className="grid grid-cols-2 gap-3">
+                {editEndpoint.type === "websocket" && (
+                  <>
+                    <Field label="Ping Interval">
+                      <input
+                        type="text"
+                        value={editEndpoint.ping_interval ?? ""}
+                        onChange={(e) => update({ ping_interval: e.target.value || undefined })}
+                        className="input-field"
+                        placeholder="e.g. 30s"
+                      />
+                    </Field>
+                    <Field label="Max Message Size">
+                      <input
+                        type="text"
+                        value={editEndpoint.max_message_size ?? ""}
+                        onChange={(e) => update({ max_message_size: e.target.value || undefined })}
+                        className="input-field"
+                        placeholder="e.g. 1MB"
+                      />
+                    </Field>
+                  </>
+                )}
+                {editEndpoint.type === "sse" && (
+                  <Field label="Heartbeat">
+                    <input
+                      type="text"
+                      value={editEndpoint.heartbeat ?? ""}
+                      onChange={(e) => update({ heartbeat: e.target.value || undefined })}
+                      className="input-field"
+                      placeholder="e.g. 15s"
+                    />
+                  </Field>
+                )}
+                <Field label="Retry">
+                  <input
+                    type="text"
+                    value={editEndpoint.retry ?? ""}
+                    onChange={(e) => update({ retry: e.target.value || undefined })}
+                    className="input-field"
+                    placeholder="e.g. 5s"
+                  />
+                </Field>
+              </div>
+            </div>
 
             {/* Lifecycle Workflows */}
             <div className="border-t border-gray-200 pt-4">

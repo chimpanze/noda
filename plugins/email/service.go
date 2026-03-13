@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+// sanitizeHeader strips CR and LF characters to prevent header injection.
+func sanitizeHeader(v string) string {
+	return strings.NewReplacer("\r", "", "\n", "").Replace(v)
+}
+
 // Service manages SMTP email sending.
 type Service struct {
 	host     string
@@ -92,7 +97,7 @@ func (s *Service) Send(msg *Message) (string, error) {
 
 	var sb strings.Builder
 	for k, v := range headers {
-		fmt.Fprintf(&sb, "%s: %s\r\n", k, v)
+		fmt.Fprintf(&sb, "%s: %s\r\n", k, sanitizeHeader(v))
 	}
 	sb.WriteString("\r\n")
 	sb.WriteString(msg.Body)

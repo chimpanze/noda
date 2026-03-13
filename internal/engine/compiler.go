@@ -151,6 +151,17 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		g.Adjacency[id] = make(map[string][]string)
 	}
 
+	// Validate alias uniqueness
+	aliases := make(map[string]string) // alias -> nodeID
+	for id, node := range wf.Nodes {
+		if node.As != "" {
+			if existingID, exists := aliases[node.As]; exists {
+				return nil, fmt.Errorf("duplicate alias %q: used by both node %q and %q", node.As, existingID, id)
+			}
+			aliases[node.As] = id
+		}
+	}
+
 	// Compile edges
 	for _, edge := range wf.Edges {
 		if _, ok := g.Nodes[edge.From]; !ok {
@@ -270,6 +281,8 @@ func detectCycle(g *CompiledGraph) error {
 }
 
 // computeJoinTypes determines AND-join vs OR-join for each node.
+// This runs at compile time and the result is cached, so the O(n^2) worst case
+// from hasCommonConditionalAncestor is acceptable for typical workflow sizes.
 func computeJoinTypes(g *CompiledGraph) {
 	for id := range g.Nodes {
 		inbound := g.Reverse[id]

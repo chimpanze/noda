@@ -14,7 +14,9 @@ All nodes have access to these variables in expressions:
 | `nodes.<id>` | Output data from a previously executed node |
 | `$item`, `$index` | Loop iteration variables (inside `control.loop`) |
 
-Built-in functions: `len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$env()`.
+Built-in functions: `len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$env()`, `$var()`.
+
+**Note:** `$var()` works in two ways: as a **config-time substitution** when it is the entire field value (`{{ $var('NAME') }}`), and as a **runtime expression function** when used inside a larger expression (e.g., `{{ "prefix." + $var('TOPIC') }}`). Both resolve values from `vars.json`. See [Config Reference — Shared Variables](config-reference.md#shared-variables-varsjson).
 
 ---
 
@@ -74,6 +76,8 @@ Iterates a sub-workflow over each item in a collection.
 
 The `done` output receives an array of all iteration results.
 
+**Recursion limit:** `control.loop` and `workflow.run` share a maximum recursion depth of 64. Exceeding this limit returns a `RECURSION_DEPTH_EXCEEDED` error. This prevents stack exhaustion from deeply nested or runaway loops.
+
 ```json
 {
   "type": "control.loop",
@@ -105,6 +109,8 @@ Executes a sub-workflow. Outputs are dynamic — they match the sub-workflow's `
 **Service Deps:** `database` (prefix: `db`, optional — required if `transaction: true`)
 
 **Outputs:** Dynamic from sub-workflow + `error`
+
+**Recursion limit:** Recursive workflow calls (direct or indirect) are limited to a depth of 64, shared with `control.loop`. Exceeding this limit returns a `RECURSION_DEPTH_EXCEEDED` error.
 
 ```json
 {
@@ -318,6 +324,8 @@ Builds an HTTP redirect response.
 |-------------|------|----------|-------------|
 | `url` | string (expr) | yes | Redirect target URL |
 | `status` | integer | no | HTTP status code (default: 302) |
+
+**URL validation:** URLs must start with `/` (relative), `http://`, or `https://` (absolute). Protocol-relative URLs (`//`) are blocked to prevent open redirects. URLs containing carriage returns or newlines are rejected to prevent header injection.
 
 ```json
 {
@@ -770,6 +778,8 @@ Structured SELECT returning an array of row objects.
 **Service Deps:** `database` (prefix: `db`, required)
 
 **Output:** `[]map[string]any` (empty array if no rows).
+
+**SQL injection prevention:** All database nodes validate SQL fragments to prevent injection attacks. Table names, column names, and identifiers must match `^[a-zA-Z_][a-zA-Z0-9_.]*$`. ORDER BY clauses are validated per-item. JOIN types must be one of `INNER`, `LEFT`, `RIGHT`, `FULL`, or `CROSS`. SQL fragments (`where_clause.query`, `joins[].on`, `group`, `having`) reject semicolons (`;`), line comments (`--`), and block comments (`/*`). Always pass dynamic values through `params` rather than interpolating them into SQL strings.
 
 ```json
 {
