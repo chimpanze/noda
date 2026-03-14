@@ -17,6 +17,7 @@ import (
 	"github.com/chimpanze/noda/internal/devmode"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
+	nodamcp "github.com/chimpanze/noda/internal/mcp"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
@@ -47,6 +48,7 @@ import (
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
+	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
@@ -106,6 +108,7 @@ func main() {
 		newInitCmd(),
 		newPluginCmd(),
 		newCompletionCmd(),
+		newMCPCmd(),
 	)
 
 	if err := rootCmd.Execute(); err != nil {
@@ -654,18 +657,21 @@ func newGenerateCmd() *cobra.Command {
 
 	openAPICmd.Flags().String("output", "", "output file path (default: stdout)")
 
-	mcpCmd := &cobra.Command{
-		Use:   "mcp",
-		Short: "Generate MCP server definition (stub)",
-		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println("MCP server generation is not yet implemented.")
-			fmt.Println("This will generate an MCP-compatible server definition from your Noda config.")
-		},
-	}
-
-	cmd.AddCommand(openAPICmd, mcpCmd)
+	cmd.AddCommand(openAPICmd)
 
 	return cmd
+}
+
+func newMCPCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "mcp",
+		Short: "Start MCP server over stdio for AI agent integration",
+		Long:  "Start a Model Context Protocol server over stdin/stdout. AI agents (Claude Code, Cursor, etc.) use this to discover node types, get schemas, scaffold projects, and validate configs.",
+		RunE: func(_ *cobra.Command, _ []string) error {
+			s := nodamcp.NewServer(Version)
+			return mcpserver.ServeStdio(s)
+		},
+	}
 }
 
 func newMigrateCmd() *cobra.Command {

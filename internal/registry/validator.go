@@ -114,7 +114,12 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		for name, raw := range servicesMap {
 			if cfg, ok := raw.(map[string]any); ok {
 				if pluginName, ok := cfg["plugin"].(string); ok {
-					configuredServices[name] = pluginName
+					// Resolve plugin name to its prefix (e.g. "postgres" → "db")
+					if p, found := plugins.GetByName(pluginName); found {
+						configuredServices[name] = p.Prefix()
+					} else {
+						configuredServices[name] = pluginName
+					}
 				}
 			}
 		}

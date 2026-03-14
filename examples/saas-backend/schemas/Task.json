@@ -17,9 +17,9 @@
     "type": "object",
     "properties": {
       "title": { "type": "string", "minLength": 1 },
-      "description": { "type": "string" },
+      "description": { "type": ["string", "null"] },
       "project_id": { "type": "string", "minLength": 1 },
-      "assignee_id": { "type": "string" }
+      "assignee_id": { "type": ["string", "null"] }
     },
     "required": ["project_id", "title"]
   },
@@ -27,9 +27,9 @@
     "type": "object",
     "properties": {
       "title": { "type": "string", "minLength": 1 },
-      "description": { "type": "string" },
-      "status": { "type": "string", "enum": ["todo", "in_progress", "done"] },
-      "assignee_id": { "type": "string" }
+      "description": { "type": ["string", "null"] },
+      "status": { "type": ["string", "null"], "enum": ["todo", "in_progress", "done", null] },
+      "assignee_id": { "type": ["string", "null"] }
     }
   }
 }

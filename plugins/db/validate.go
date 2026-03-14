@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*$`)
+	identifierRe = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_.]*(\.\*)?$|^\*$`)
 	orderItemRe  = regexp.MustCompile(`(?i)^[a-zA-Z_][a-zA-Z0-9_.]*(\s+(ASC|DESC))?$`)
 
 	validJoinTypes = map[string]bool{
