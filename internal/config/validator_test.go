@@ -169,6 +169,55 @@ func TestValidate_ExtraFieldsAllowed(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
+func TestValidate_ValidModel(t *testing.T) {
+	rc := &RawConfig{
+		Root: map[string]any{},
+		Models: map[string]map[string]any{
+			"models/user.json": {
+				"table": "users",
+				"columns": map[string]any{
+					"id":   map[string]any{"type": "uuid", "primary_key": true},
+					"name": map[string]any{"type": "text", "not_null": true},
+				},
+			},
+		},
+		Schemas:     map[string]map[string]any{},
+		Routes:      map[string]map[string]any{},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+	}
+
+	errs := Validate(rc)
+	assert.Empty(t, errs)
+}
+
+func TestValidate_InvalidModel_MissingTable(t *testing.T) {
+	rc := &RawConfig{
+		Root: map[string]any{},
+		Models: map[string]map[string]any{
+			"models/bad.json": {
+				"columns": map[string]any{
+					"id": map[string]any{"type": "uuid"},
+				},
+			},
+		},
+		Schemas:     map[string]map[string]any{},
+		Routes:      map[string]map[string]any{},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+	}
+
+	errs := Validate(rc)
+	assert.NotEmpty(t, errs)
+	assert.Equal(t, "models/bad.json", errs[0].FilePath)
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && searchString(s, substr)
 }

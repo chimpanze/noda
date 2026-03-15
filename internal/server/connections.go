@@ -174,6 +174,10 @@ func (s *Server) resolveEndpointMiddleware(ep map[string]any) ([]fiber.Handler, 
 
 	middlewareNames = dedupe(middlewareNames)
 
+	if err := ValidateMiddlewareOrder(middlewareNames); err != nil {
+		return nil, err
+	}
+
 	handlers := make([]fiber.Handler, 0, len(middlewareNames))
 	for _, name := range middlewareNames {
 		h, err := BuildMiddleware(name, s.config.Root)

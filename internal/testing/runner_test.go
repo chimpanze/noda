@@ -347,6 +347,84 @@ func TestRunner_ThreeNodeChain(t *testing.T) {
 	assert.True(t, results[0].Passed, results[0].Error)
 }
 
+func TestRunTestCase_PopulatesTrace(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"workflows/wf.json": {
+				"id": "trace-wf",
+				"nodes": map[string]any{
+					"fetch": map[string]any{"type": "db.query"},
+					"format": map[string]any{
+						"type": "transform.set",
+						"config": map[string]any{
+							"fields": map[string]any{
+								"result": "{{ nodes.fetch.name }}",
+							},
+						},
+					},
+				},
+				"edges": []any{
+					map[string]any{"from": "fetch", "to": "format"},
+				},
+			},
+		},
+	}
+
+	suite := TestSuite{
+		Workflow: "trace-wf",
+		Cases: []TestCase{
+			{
+				Name: "trace populated",
+				Mocks: map[string]MockConfig{
+					"fetch": {Output: map[string]any{"name": "Alice"}},
+				},
+				Expect: TestExpectation{
+					Status: "success",
+					Output: map[string]any{
+						"format.result": "Alice",
+					},
+				},
+			},
+		},
+	}
+
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	require.Len(t, results, 1)
+	assert.True(t, results[0].Passed, results[0].Error)
+	assert.NotEmpty(t, results[0].Trace, "trace should be populated")
+
+	// Check that expected node IDs appear in trace
+	nodeIDs := make(map[string]bool)
+	for _, te := range results[0].Trace {
+		nodeIDs[te.NodeID] = true
+	}
+	assert.True(t, nodeIDs["fetch"], "trace should contain fetch node")
+	assert.True(t, nodeIDs["format"], "trace should contain format node")
+}
+
+func TestFormatResults_VerboseShowsTrace(t *testing.T) {
+	suiteResults := []SuiteResult{
+		{
+			Suite: TestSuite{Workflow: "test-wf"},
+			Results: []TestResult{
+				{
+					CaseName: "with trace",
+					Passed:   true,
+					Trace: []TraceEvent{
+						{NodeID: "node1", Type: "transform.set", Output: "success", Duration: 100},
+						{NodeID: "node2", Type: "db.query", Output: "success", Duration: 200},
+					},
+				},
+			},
+		},
+	}
+
+	output := FormatResults(suiteResults, true)
+	assert.Contains(t, output, "Trace:")
+	assert.Contains(t, output, "node1")
+	assert.Contains(t, output, "node2")
+}
+
 func TestRunner_TestdataIntegration(t *testing.T) {
 	rc, errs := config.ValidateAll("../../testdata/valid-project", "development")
 	require.Empty(t, errs)

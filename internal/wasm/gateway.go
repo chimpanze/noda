@@ -181,9 +181,17 @@ func (g *Gateway) Configure(payload map[string]any) (any, error) {
 	}
 
 	if v, ok := payload["heartbeat_interval"].(float64); ok && v > 0 {
+		gc.mu.Lock()
 		gc.config.HeartbeatInterval = time.Duration(v) * time.Millisecond
 		gc.config.HeartbeatPayload = payload["heartbeat_payload"]
+		gc.mu.Unlock()
 		go g.heartbeatLoop(gc)
+	}
+
+	if rc, ok := payload["reconnect"].(map[string]any); ok {
+		gc.mu.Lock()
+		gc.config.Reconnect = parseReconnectConfig(rc)
+		gc.mu.Unlock()
 	}
 
 	return nil, nil
@@ -221,6 +229,7 @@ func (g *Gateway) readLoop(gc *gatewayConn) {
 				Connection: gc.id,
 				Event:      "disconnected",
 			})
+			go g.reconnectLoop(gc)
 		}
 	}()
 
@@ -244,11 +253,14 @@ func (g *Gateway) readLoop(gc *gatewayConn) {
 
 // heartbeatLoop sends periodic heartbeat messages.
 func (g *Gateway) heartbeatLoop(gc *gatewayConn) {
-	if gc.config.HeartbeatInterval <= 0 {
+	gc.mu.Lock()
+	interval := gc.config.HeartbeatInterval
+	gc.mu.Unlock()
+	if interval <= 0 {
 		return
 	}
 
-	ticker := time.NewTicker(gc.config.HeartbeatInterval)
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for {
@@ -268,6 +280,74 @@ func (g *Gateway) heartbeatLoop(gc *gatewayConn) {
 			gc.mu.Unlock()
 		}
 	}
+}
+
+// parseReconnectConfig extracts reconnection settings from a config map.
+func parseReconnectConfig(m map[string]any) *ReconnectConfig {
+	rc := &ReconnectConfig{}
+	if v, ok := m["enabled"].(bool); ok {
+		rc.Enabled = v
+	}
+	if v, ok := m["max_attempts"].(float64); ok {
+		rc.MaxAttempts = int(v)
+	}
+	if v, ok := m["backoff"].(string); ok {
+		rc.Backoff = v
+	}
+	if v, ok := m["initial_delay"].(float64); ok {
+		rc.InitialDelay = time.Duration(v) * time.Millisecond
+	}
+	return rc
+}
+
+// reconnectLoop attempts to re-establish a dropped gateway connection.
+func (g *Gateway) reconnectLoop(gc *gatewayConn) {
+	gc.mu.Lock()
+	rcfg := gc.config.Reconnect
+	gc.mu.Unlock()
+
+	if rcfg == nil || !rcfg.Enabled {
+		return
+	}
+
+	delay := rcfg.InitialDelay
+	if delay <= 0 {
+		delay = time.Second
+	}
+
+	for attempt := 1; attempt <= rcfg.MaxAttempts; attempt++ {
+		time.Sleep(delay)
+
+		conn, _, err := websocket.DefaultDialer.Dial(gc.url, nil)
+		if err != nil {
+			g.logger.Debug("gateway reconnect failed", "module", g.module.Name, "id", gc.id, "attempt", attempt, "error", err)
+			switch rcfg.Backoff {
+			case "exponential":
+				delay *= 2
+			case "linear":
+				delay += rcfg.InitialDelay
+			}
+			continue
+		}
+
+		// Successful reconnection
+		gc.mu.Lock()
+		gc.ws = conn
+		gc.closed = false
+		gc.stopCh = make(chan struct{})
+		gc.mu.Unlock()
+
+		g.module.AddConnectionEvent(ConnectionEvent{
+			Connection: gc.id,
+			Event:      "reconnected",
+		})
+
+		g.logger.Debug("gateway reconnected", "module", g.module.Name, "id", gc.id, "attempt", attempt)
+		go g.readLoop(gc)
+		return
+	}
+
+	g.logger.Warn("gateway reconnect exhausted", "module", g.module.Name, "id", gc.id, "max_attempts", rcfg.MaxAttempts)
 }
 
 // isAllowed checks if a URL host is in the module's whitelist.

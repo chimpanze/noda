@@ -20,7 +20,7 @@ func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, 
 	}
 	middlewareNames = append(middlewareNames, groupMW...)
 
-	// 3. Route-level middleware
+	// 2. Route-level middleware
 	if preset, ok := route["middleware_preset"].(string); ok && preset != "" {
 		expanded, err := s.expandPreset(preset)
 		if err != nil {

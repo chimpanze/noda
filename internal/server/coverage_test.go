@@ -1603,6 +1603,28 @@ func TestResolveEndpointMiddleware_DeduplicatesPresetAndDirect(t *testing.T) {
 	assert.Len(t, handlers, 2) // recover + requestid
 }
 
+// --- Endpoint middleware ordering validation ---
+
+func TestResolveEndpointMiddleware_ValidOrder(t *testing.T) {
+	srv := testServerWithConfig(map[string]any{})
+
+	handlers, err := srv.resolveEndpointMiddleware(map[string]any{
+		"middleware": []any{"recover", "requestid"},
+	})
+	require.NoError(t, err)
+	assert.Len(t, handlers, 2)
+}
+
+func TestResolveEndpointMiddleware_InvalidOrder(t *testing.T) {
+	srv := testServerWithConfig(map[string]any{})
+
+	_, err := srv.resolveEndpointMiddleware(map[string]any{
+		"middleware": []any{"casbin.enforce", "auth.jwt"},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "must appear before")
+}
+
 // --- Middleware: CORS with nil config ---
 
 func TestBuildMiddleware_CORS_NilConfig(t *testing.T) {

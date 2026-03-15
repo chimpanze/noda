@@ -2824,3 +2824,190 @@ func TestModule_TickRate_ExactBoundaries(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, m.tickRate)
 }
+
+// --- Gateway: reconnection ---
+
+func TestParseReconnectConfig(t *testing.T) {
+	rc := parseReconnectConfig(map[string]any{
+		"enabled":       true,
+		"max_attempts":  float64(5),
+		"backoff":       "exponential",
+		"initial_delay": float64(1000),
+	})
+
+	assert.True(t, rc.Enabled)
+	assert.Equal(t, 5, rc.MaxAttempts)
+	assert.Equal(t, "exponential", rc.Backoff)
+	assert.Equal(t, 1000*time.Millisecond, rc.InitialDelay)
+}
+
+func TestParseReconnectConfig_Defaults(t *testing.T) {
+	rc := parseReconnectConfig(map[string]any{})
+	assert.False(t, rc.Enabled)
+	assert.Equal(t, 0, rc.MaxAttempts)
+	assert.Equal(t, "", rc.Backoff)
+	assert.Equal(t, time.Duration(0), rc.InitialDelay)
+}
+
+func TestReconnectLoop_Disabled(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, _ := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	gw := NewGateway(m, testLogger())
+
+	gc := &gatewayConn{
+		id:     "test-conn",
+		url:    "ws://localhost:9999",
+		stopCh: make(chan struct{}),
+		config: GatewayConfig{
+			Reconnect: &ReconnectConfig{Enabled: false, MaxAttempts: 3},
+		},
+	}
+
+	// Should return immediately when disabled
+	done := make(chan struct{})
+	go func() {
+		gw.reconnectLoop(gc)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// OK
+	case <-time.After(1 * time.Second):
+		t.Fatal("reconnectLoop did not return when disabled")
+	}
+}
+
+func TestReconnectLoop_NilConfig(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, _ := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	gw := NewGateway(m, testLogger())
+
+	gc := &gatewayConn{
+		id:     "test-conn",
+		url:    "ws://localhost:9999",
+		stopCh: make(chan struct{}),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		gw.reconnectLoop(gc)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// OK
+	case <-time.After(1 * time.Second):
+		t.Fatal("reconnectLoop did not return for nil config")
+	}
+}
+
+func TestReconnectLoop_MaxAttempts(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, _ := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	gw := NewGateway(m, testLogger())
+
+	gc := &gatewayConn{
+		id:     "test-conn",
+		url:    "ws://localhost:1", // unreachable
+		stopCh: make(chan struct{}),
+		config: GatewayConfig{
+			Reconnect: &ReconnectConfig{
+				Enabled:      true,
+				MaxAttempts:  2,
+				Backoff:      "linear",
+				InitialDelay: 10 * time.Millisecond,
+			},
+		},
+	}
+
+	done := make(chan struct{})
+	go func() {
+		gw.reconnectLoop(gc)
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// OK — exhausted attempts
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnectLoop did not exhaust attempts in time")
+	}
+}
+
+func TestReconnectLoop_Success(t *testing.T) {
+	server := startTestWSServer(t, func(conn *websocket.Conn) {
+		defer conn.Close()
+		for {
+			_, _, err := conn.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	})
+	defer server.Close()
+
+	host := server.Listener.Addr().String()
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, _ := NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 1,
+		AllowWS:  []string{host},
+	}, dispatcher, testLogger())
+	gw := NewGateway(m, testLogger())
+
+	gc := &gatewayConn{
+		id:     "reconn-test",
+		url:    wsURL(server),
+		stopCh: make(chan struct{}),
+		closed: true,
+		config: GatewayConfig{
+			Reconnect: &ReconnectConfig{
+				Enabled:      true,
+				MaxAttempts:  3,
+				Backoff:      "exponential",
+				InitialDelay: 10 * time.Millisecond,
+			},
+		},
+	}
+
+	gw.mu.Lock()
+	gw.conns["reconn-test"] = gc
+	gw.mu.Unlock()
+
+	gw.reconnectLoop(gc)
+
+	gc.mu.Lock()
+	isClosed := gc.closed
+	gc.mu.Unlock()
+
+	assert.False(t, isClosed, "connection should be re-established")
+
+	// Verify reconnected event
+	m.mu.Lock()
+	var hasReconnected bool
+	for _, evt := range m.connectionEvents {
+		if evt.Event == "reconnected" && evt.Connection == "reconn-test" {
+			hasReconnected = true
+			break
+		}
+	}
+	m.mu.Unlock()
+	assert.True(t, hasReconnected, "should have emitted reconnected event")
+
+	// Cleanup
+	gw.CloseAll()
+}

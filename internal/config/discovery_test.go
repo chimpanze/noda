@@ -111,6 +111,28 @@ func TestDiscover_OverlayMatchedByEnv(t *testing.T) {
 	assert.Equal(t, filepath.Join(dir, "noda.production.json"), d.Overlay)
 }
 
+func TestDiscover_WithVarsFile(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{}`,
+		"vars.json": `{"key": "value"}`,
+	})
+
+	d, err := Discover(dir, "")
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "vars.json"), d.Vars)
+}
+
+func TestDiscover_WithModels(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json":        `{}`,
+		"models/user.json": `{"table": "users", "columns": {}}`,
+	})
+
+	d, err := Discover(dir, "")
+	require.NoError(t, err)
+	assert.Len(t, d.Models, 1)
+}
+
 func TestDiscover_OverlayNotFound(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
 		"noda.json": `{}`,

@@ -6,6 +6,9 @@ import (
 	"regexp"
 )
 
+// envPattern is intentionally unexported: $env() resolution is restricted to the root
+// config (see resolveEnvVarsSelective). VarPattern is exported for the editor's variable
+// highlighting, but env resolution should never run on routes/workflows at config time.
 var envPattern = regexp.MustCompile(`\{\{\s*\$env\(\s*'([^']+)'\s*\)\s*\}\}`)
 
 // resolveEnvVars replaces {{ $env('VAR') }} patterns in string values of the config map.
@@ -59,8 +62,7 @@ func resolveEnvString(s string, path string, errs *[]error) string {
 	})
 }
 
-// resolveEnvVarsSelective resolves $env() in the root config only.
-// Since wasm_runtimes is nested inside root, their config sections are resolved too.
+// resolveEnvVarsSelective resolves $env() patterns in the entire root config recursively.
 // Other config sections (routes, workflows, etc.) are left unchanged — their {{ }}
 // expressions are runtime expressions, not config-time resolution.
 func resolveEnvVarsSelective(rc *RawConfig) []error {

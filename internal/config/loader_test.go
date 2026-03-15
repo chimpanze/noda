@@ -124,6 +124,35 @@ func TestLoadAll_BOMStripped(t *testing.T) {
 	assert.Equal(t, true, rc.Root["bom"])
 }
 
+func TestLoadAll_WithVarsFile(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{}`,
+		"vars.json": `{"api_key": "secret123", "base_url": "https://example.com"}`,
+	})
+
+	d, err := Discover(dir, "")
+	require.NoError(t, err)
+
+	rc, errs := LoadAll(d)
+	assert.Empty(t, errs)
+	assert.Equal(t, "secret123", rc.Vars["api_key"])
+	assert.Equal(t, "https://example.com", rc.Vars["base_url"])
+}
+
+func TestLoadAll_VarsNonStringValue(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{}`,
+		"vars.json": `{"port": 3000}`,
+	})
+
+	d, err := Discover(dir, "")
+	require.NoError(t, err)
+
+	_, errs := LoadAll(d)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "must be a string")
+}
+
 func TestLoadAll_ErrorIncludesFilePath(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
 		"noda.json":       `{}`,

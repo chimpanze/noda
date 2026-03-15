@@ -78,9 +78,34 @@ func runTestCase(
 		}
 	}
 
+	// Set up trace collection
+	var traceEvents []TraceEvent
+	startTimes := map[string]time.Time{}
+
 	// Build execution context
 	opts := []engine.ExecutionContextOption{
 		engine.WithWorkflowID(workflowID),
+		engine.WithTraceCallback(func(eventType, nodeID, nodeType, output, errMsg string, data any) {
+			switch eventType {
+			case "node:entered":
+				startTimes[nodeID] = time.Now()
+			case "node:completed", "node:failed":
+				dur := time.Duration(0)
+				if st, ok := startTimes[nodeID]; ok {
+					dur = time.Since(st)
+				}
+				out := output
+				if errMsg != "" {
+					out = errMsg
+				}
+				traceEvents = append(traceEvents, TraceEvent{
+					NodeID:   nodeID,
+					Type:     nodeType,
+					Output:   out,
+					Duration: dur,
+				})
+			}
+		}),
 	}
 	if tc.Input != nil {
 		opts = append(opts, engine.WithInput(tc.Input))
@@ -119,6 +144,7 @@ func runTestCase(
 		Passed:   passed,
 		Expected: tc.Expect,
 		Actual:   actual,
+		Trace:    traceEvents,
 		Duration: time.Since(start),
 	}
 	if !passed {
