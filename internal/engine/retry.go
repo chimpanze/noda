@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/trace"
 )
 
 // retryNode re-executes a node according to the retry config.
@@ -32,6 +33,12 @@ func retryNode(
 
 		execCtx.Log("info", fmt.Sprintf("retry attempt %d/%d", attempt, retry.Attempts), map[string]any{
 			"node_id": node.ID,
+			"delay":   currentDelay.String(),
+		})
+
+		execCtx.EmitTrace(string(trace.EventRetryAttempted), node.ID, node.Type, "", "", map[string]any{
+			"attempt": attempt,
+			"max":     retry.Attempts,
 			"delay":   currentDelay.String(),
 		})
 

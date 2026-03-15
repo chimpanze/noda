@@ -8,16 +8,11 @@ import (
 )
 
 // ResolveMiddlewareChain resolves the full middleware chain for a route.
-// Order: global → group → route-specific.
+// Order: group → route-specific. Global middleware is applied via app.Use().
 func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, error) {
 	var middlewareNames []string
 
-	// 1. Global middleware from root config
-	if globalMW := s.getGlobalMiddleware(); len(globalMW) > 0 {
-		middlewareNames = append(middlewareNames, globalMW...)
-	}
-
-	// 2. Group middleware (based on route path matching route_groups)
+	// 1. Group middleware (based on route path matching route_groups)
 	routePath, _ := route["path"].(string)
 	groupMW, err := s.getGroupMiddleware(routePath)
 	if err != nil {

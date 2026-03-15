@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"sync/atomic"
 
 	"github.com/gofiber/fiber/v3"
@@ -32,7 +33,25 @@ func (s *Server) registerHealthRoutes() {
 		details := make(map[string]string, len(services))
 		allHealthy := true
 
+		// Use HealthCheckAll for plugin-based checks
+		healthErrs := s.services.HealthCheckAll()
+		failedServices := make(map[string]bool)
+		for _, err := range healthErrs {
+			s.logger.Error("health check failed", "error", err)
+			for name := range services {
+				if strings.Contains(err.Error(), name) {
+					failedServices[name] = true
+				}
+			}
+		}
+
 		for name, svc := range services {
+			if failedServices[name] {
+				details[name] = "unhealthy"
+				allHealthy = false
+				continue
+			}
+			// Also check Ping() for services not covered by plugin health checks
 			if checker, ok := svc.(interface{ Ping() error }); ok {
 				if err := checker.Ping(); err != nil {
 					details[name] = "unhealthy"

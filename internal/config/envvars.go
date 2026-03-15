@@ -8,10 +8,10 @@ import (
 
 var envPattern = regexp.MustCompile(`\{\{\s*\$env\(\s*'([^']+)'\s*\)\s*\}\}`)
 
-// ResolveEnvVars replaces {{ $env('VAR') }} patterns in string values of the config map.
+// resolveEnvVars replaces {{ $env('VAR') }} patterns in string values of the config map.
 // Only resolves in the root config (not in routes, workflows, etc.).
 // Returns the resolved config and any errors for missing environment variables.
-func ResolveEnvVars(config map[string]any) (map[string]any, []error) {
+func resolveEnvVars(config map[string]any) (map[string]any, []error) {
 	var errs []error
 	result := resolveEnvVarsRecursive(config, "", &errs)
 	return result.(map[string]any), errs
@@ -59,18 +59,18 @@ func resolveEnvString(s string, path string, errs *[]error) string {
 	})
 }
 
-// ResolveEnvVarsSelective resolves $env() in the root config only.
+// resolveEnvVarsSelective resolves $env() in the root config only.
 // Since wasm_runtimes is nested inside root, their config sections are resolved too.
 // Other config sections (routes, workflows, etc.) are left unchanged — their {{ }}
 // expressions are runtime expressions, not config-time resolution.
-func ResolveEnvVarsSelective(rc *RawConfig) []error {
+func resolveEnvVarsSelective(rc *RawConfig) []error {
 	if rc.Root == nil {
 		return nil
 	}
 
 	var allErrs []error
 
-	resolved, errs := ResolveEnvVars(rc.Root)
+	resolved, errs := resolveEnvVars(rc.Root)
 	allErrs = append(allErrs, errs...)
 	rc.Root = resolved
 

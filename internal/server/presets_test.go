@@ -81,7 +81,7 @@ func TestResolveMiddlewareChain_RouteExtendsGroup(t *testing.T) {
 	assert.Len(t, handlers, 2) // recover from group + requestid from route
 }
 
-func TestResolveMiddlewareChain_GlobalMiddleware(t *testing.T) {
+func TestResolveMiddlewareChain_GlobalMiddleware_NotIncluded(t *testing.T) {
 	srv := testServerWithConfig(map[string]any{
 		"global_middleware": []any{"recover", "requestid"},
 	})
@@ -91,14 +91,14 @@ func TestResolveMiddlewareChain_GlobalMiddleware(t *testing.T) {
 		"path": "/test",
 	}
 
+	// Global middleware is applied via app.Use(), not per-route chain
 	handlers, err := srv.ResolveMiddlewareChain(route)
 	require.NoError(t, err)
-	assert.Len(t, handlers, 2)
+	assert.Len(t, handlers, 0)
 }
 
 func TestResolveMiddlewareChain_Deduplication(t *testing.T) {
 	srv := testServerWithConfig(map[string]any{
-		"global_middleware": []any{"recover"},
 		"middleware_presets": map[string]any{
 			"base": []any{"recover", "requestid"},
 		},
@@ -110,13 +110,14 @@ func TestResolveMiddlewareChain_Deduplication(t *testing.T) {
 	})
 
 	route := map[string]any{
-		"id":   "dedup-route",
-		"path": "/api/test",
+		"id":         "dedup-route",
+		"path":       "/api/test",
+		"middleware": []any{"recover", "limiter"},
 	}
 
 	handlers, err := srv.ResolveMiddlewareChain(route)
 	require.NoError(t, err)
-	assert.Len(t, handlers, 2) // recover (deduped) + requestid
+	assert.Len(t, handlers, 3) // recover (deduped) + requestid from group + limiter from route
 }
 
 func TestValidateMiddlewareOrder_WithInstances(t *testing.T) {

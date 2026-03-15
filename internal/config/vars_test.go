@@ -14,7 +14,7 @@ func TestResolveVars_Simple(t *testing.T) {
 		"service": "{{ $var('MAIN_DB') }}",
 	}
 
-	result, errs := ResolveVars(config, vars)
+	result, errs := resolveVars(config, vars)
 	assert.Empty(t, errs)
 	assert.Equal(t, "main-db", result["service"])
 }
@@ -29,7 +29,7 @@ func TestResolveVars_MultipleInOneString(t *testing.T) {
 		"url": "postgres://{{ $var('HOST') }}:{{ $var('PORT') }}/main",
 	}
 
-	result, errs := ResolveVars(config, vars)
+	result, errs := resolveVars(config, vars)
 	assert.Empty(t, errs)
 	assert.Equal(t, "postgres://localhost:5432/main", result["url"])
 }
@@ -47,7 +47,7 @@ func TestResolveVars_Nested(t *testing.T) {
 		},
 	}
 
-	result, errs := ResolveVars(config, vars)
+	result, errs := resolveVars(config, vars)
 	assert.Empty(t, errs)
 	table := result["nodes"].(map[string]any)["query"].(map[string]any)["config"].(map[string]any)["table"]
 	assert.Equal(t, "tasks", table)
@@ -60,7 +60,7 @@ func TestResolveVars_InArray(t *testing.T) {
 		"topics": []any{"{{ $var('TOPIC') }}", "other.topic"},
 	}
 
-	result, errs := ResolveVars(config, vars)
+	result, errs := resolveVars(config, vars)
 	assert.Empty(t, errs)
 	assert.Equal(t, []any{"member.invited", "other.topic"}, result["topics"])
 }
@@ -76,7 +76,7 @@ func TestResolveVars_UnknownVariable(t *testing.T) {
 		},
 	}
 
-	_, errs := ResolveVars(config, vars)
+	_, errs := resolveVars(config, vars)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "MISSING")
 	assert.Contains(t, errs[0].Error(), "nodes.emit.topic")
@@ -90,7 +90,7 @@ func TestResolveVars_MultipleUnknown(t *testing.T) {
 		"b": "{{ $var('MISSING_B') }}",
 	}
 
-	_, errs := ResolveVars(config, vars)
+	_, errs := resolveVars(config, vars)
 	assert.Len(t, errs, 2)
 }
 
@@ -103,7 +103,7 @@ func TestResolveVars_NonStringValuesUntouched(t *testing.T) {
 		"nothing": nil,
 	}
 
-	result, errs := ResolveVars(config, vars)
+	result, errs := resolveVars(config, vars)
 	assert.Empty(t, errs)
 	assert.Equal(t, float64(3000), result["port"])
 	assert.Equal(t, true, result["debug"])
@@ -114,7 +114,7 @@ func TestResolveVars_EmptyVarsIsNoOp(t *testing.T) {
 		"key": "value",
 	}
 
-	result, errs := ResolveVars(config, map[string]string{})
+	result, errs := resolveVars(config, map[string]string{})
 	assert.Empty(t, errs)
 	assert.Equal(t, "value", result["key"])
 }
@@ -161,7 +161,7 @@ func TestResolveVarsAll_AcrossSections(t *testing.T) {
 		Schemas:     make(map[string]map[string]any),
 	}
 
-	errs := ResolveVarsAll(rc)
+	errs := resolveVarsAll(rc)
 	assert.Empty(t, errs)
 
 	// Check worker topic resolved
@@ -182,7 +182,7 @@ func TestResolveVarsAll_EmptyVarsNoOp(t *testing.T) {
 		Root: map[string]any{"name": "test"},
 	}
 
-	errs := ResolveVarsAll(rc)
+	errs := resolveVarsAll(rc)
 	assert.Empty(t, errs)
 	assert.Equal(t, "test", rc.Root["name"])
 }

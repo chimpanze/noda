@@ -34,10 +34,13 @@ func (s *Server) registerConnections() error {
 
 			// Create a manager per endpoint
 			mgr := connmgr.NewManager()
+			s.connManagers.Add(mgr)
 			svc := connmgr.NewEndpointService(mgr, name)
 
 			// Register as a service so workflow nodes can reference it
-			_ = s.services.Register(name, svc, nil)
+			if err := s.services.Register(name, svc, nil); err != nil {
+				s.logger.Warn("connection service registration failed", "name", name, "error", err)
+			}
 
 			// Extract channel pattern
 			channelPattern := ""

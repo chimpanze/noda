@@ -12,10 +12,10 @@ func VarPattern() *regexp.Regexp {
 	return varPattern
 }
 
-// ResolveVars replaces {{ $var('KEY') }} patterns in string values of the config map.
+// resolveVars replaces {{ $var('KEY') }} patterns in string values of the config map.
 // Looks up values from the provided vars map.
 // Returns the resolved config and any errors for unknown variables.
-func ResolveVars(config map[string]any, vars map[string]string) (map[string]any, []error) {
+func resolveVars(config map[string]any, vars map[string]string) (map[string]any, []error) {
 	var errs []error
 	result := resolveVarsRecursive(config, vars, "", &errs)
 	return result.(map[string]any), errs
@@ -63,9 +63,9 @@ func resolveVarString(s string, vars map[string]string, path string, errs *[]err
 	})
 }
 
-// ResolveVarsAll resolves $var() across all config sections (Root, Routes, Workflows, etc.).
+// resolveVarsAll resolves $var() across all config sections (Root, Routes, Workflows, etc.).
 // Unlike $env() which only resolves in root, $var() is config-time and resolves everywhere.
-func ResolveVarsAll(rc *RawConfig) []error {
+func resolveVarsAll(rc *RawConfig) []error {
 	if len(rc.Vars) == 0 {
 		return nil
 	}
@@ -74,7 +74,7 @@ func ResolveVarsAll(rc *RawConfig) []error {
 
 	// Resolve in root
 	if rc.Root != nil {
-		resolved, errs := ResolveVars(rc.Root, rc.Vars)
+		resolved, errs := resolveVars(rc.Root, rc.Vars)
 		allErrs = append(allErrs, errs...)
 		rc.Root = resolved
 	}
@@ -92,7 +92,7 @@ func ResolveVarsAll(rc *RawConfig) []error {
 
 	for _, section := range sections {
 		for filePath, data := range section {
-			resolved, errs := ResolveVars(data, rc.Vars)
+			resolved, errs := resolveVars(data, rc.Vars)
 			allErrs = append(allErrs, errs...)
 			section[filePath] = resolved
 		}

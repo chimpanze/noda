@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/registry"
@@ -15,15 +16,16 @@ import (
 
 // Server wraps the Fiber app and Noda runtime dependencies.
 type Server struct {
-	app       *fiber.App
-	config    *config.ResolvedConfig
-	compiler  *expr.Compiler
-	services  *registry.ServiceRegistry
-	nodes     *registry.NodeRegistry
-	workflows *engine.WorkflowCache
-	traceHub  *trace.EventHub
-	port      int
-	logger    *slog.Logger
+	app          *fiber.App
+	config       *config.ResolvedConfig
+	compiler     *expr.Compiler
+	services     *registry.ServiceRegistry
+	nodes        *registry.NodeRegistry
+	workflows    *engine.WorkflowCache
+	traceHub     *trace.EventHub
+	connManagers *connmgr.ManagerGroup
+	port         int
+	logger       *slog.Logger
 }
 
 // ServerOption configures a Server.
@@ -54,11 +56,12 @@ func WithTraceHub(hub *trace.EventHub) ServerOption {
 // NewServer creates a Fiber app from the resolved config.
 func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, nodes *registry.NodeRegistry, opts ...ServerOption) (*Server, error) {
 	s := &Server{
-		config:   rc,
-		services: services,
-		nodes:    nodes,
-		port:     3000,
-		logger:   slog.Default(),
+		config:       rc,
+		services:     services,
+		nodes:        nodes,
+		connManagers: connmgr.NewManagerGroup(),
+		port:         3000,
+		logger:       slog.Default(),
 	}
 	for _, opt := range opts {
 		opt(s)
@@ -142,6 +145,9 @@ func (s *Server) Setup() error {
 
 // WorkflowCache returns the server's workflow cache (for worker/scheduler sharing).
 func (s *Server) WorkflowCache() *engine.WorkflowCache { return s.workflows }
+
+// ConnManagers returns the server's connection manager group (for graceful shutdown).
+func (s *Server) ConnManagers() *connmgr.ManagerGroup { return s.connManagers }
 
 // Start begins listening on the configured port.
 func (s *Server) Start() error {

@@ -52,7 +52,7 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 	}
 
 	// 5. Resolve $env() in root config
-	envErrs := ResolveEnvVarsSelective(raw)
+	envErrs := resolveEnvVarsSelective(raw)
 	if len(envErrs) > 0 {
 		var valErrs []ValidationError
 		for _, e := range envErrs {
@@ -63,7 +63,7 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 
 	// 5.5 Resolve $var()
 	if len(raw.Vars) > 0 {
-		varErrs := ResolveVarsAll(raw)
+		varErrs := resolveVarsAll(raw)
 		if len(varErrs) > 0 {
 			var valErrs []ValidationError
 			for _, e := range varErrs {

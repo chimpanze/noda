@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/devmode"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
@@ -343,7 +344,7 @@ func newStartCmd() *cobra.Command {
 			var workerRuntime *worker.Runtime
 			if runWorkers && len(rc.Workers) > 0 {
 				workerConfigs := worker.ParseWorkerConfigs(rc.Workers)
-				mw := worker.DefaultMiddleware(5 * time.Minute)
+				mw := resolveWorkerMiddleware(workerConfigs, 5*time.Minute)
 				workerRuntime = worker.NewRuntime(
 					workerConfigs,
 					bootstrap.Services,
@@ -402,7 +403,9 @@ func newStartCmd() *cobra.Command {
 						}
 						// Register WasmService so wasm.send/wasm.query nodes can reference this module
 						wasmSvc := wasm.NewWasmService(wasmRuntime, name)
-						_ = bootstrap.Services.Register(name, wasmSvc, nil)
+						if err := bootstrap.Services.Register(name, wasmSvc, nil); err != nil {
+							logger.Warn("wasm service registration failed", "name", name, "error", err)
+						}
 					}
 					if err := wasmRuntime.StartAll(context.Background()); err != nil {
 						return fmt.Errorf("starting wasm runtimes: %w", err)
@@ -431,7 +434,11 @@ func newStartCmd() *cobra.Command {
 					}
 				}
 
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, workerRuntime, wasmRuntime, nil, nil, bootstrap.Services, traceProvider)
+				var connMgr *connmgr.ManagerGroup
+				if srv != nil {
+					connMgr = srv.ConnManagers()
+				}
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, workerRuntime, wasmRuntime, nil, connMgr, bootstrap.Services, traceProvider)
 				os.Exit(0)
 			}()
 
@@ -563,7 +570,9 @@ func newDevCmd() *cobra.Command {
 						return fmt.Errorf("loading wasm module %q: %w", name, err)
 					}
 					wasmSvc := wasm.NewWasmService(wasmRuntime, name)
-					_ = bootstrap.Services.Register(name, wasmSvc, nil)
+					if err := bootstrap.Services.Register(name, wasmSvc, nil); err != nil {
+						logger.Warn("wasm service registration failed", "name", name, "error", err)
+					}
 				}
 				if err := wasmRuntime.StartAll(context.Background()); err != nil {
 					return fmt.Errorf("starting wasm runtimes: %w", err)
@@ -574,7 +583,11 @@ func newDevCmd() *cobra.Command {
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rc, hub, logger)
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
-				logger.Info("config reloaded — new workflows and routes will apply to new requests")
+				if err := workflowCache.Invalidate(newRC.Workflows, bootstrap.Nodes); err != nil {
+					logger.Error("workflow cache invalidation failed", "error", err)
+				} else {
+					logger.Info("workflow cache invalidated", "workflows", len(newRC.Workflows))
+				}
 			})
 
 			// Register editor API endpoints (dev mode only)
@@ -632,7 +645,7 @@ func newDevCmd() *cobra.Command {
 					}
 				}
 
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, wasmRuntime, watcher, nil, bootstrap.Services, traceProvider)
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, wasmRuntime, watcher, srv.ConnManagers(), bootstrap.Services, traceProvider)
 				os.Exit(0)
 			}()
 
@@ -1056,4 +1069,15 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 	}
 
 	return cfg
+}
+
+// resolveWorkerMiddleware checks if any worker config specifies custom middleware.
+// If so, uses the first worker's middleware list via ResolveMiddleware; otherwise falls back to DefaultMiddleware.
+func resolveWorkerMiddleware(configs []worker.WorkerConfig, timeout time.Duration) []worker.Middleware {
+	for _, wc := range configs {
+		if len(wc.Middleware) > 0 {
+			return worker.ResolveMiddleware(wc.Middleware, timeout)
+		}
+	}
+	return worker.DefaultMiddleware(timeout)
 }

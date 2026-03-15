@@ -14,7 +14,7 @@ func TestResolveEnvVars_Simple(t *testing.T) {
 		"url": "{{ $env('DB_HOST') }}",
 	}
 
-	result, errs := ResolveEnvVars(config)
+	result, errs := resolveEnvVars(config)
 	assert.Empty(t, errs)
 	assert.Equal(t, "localhost", result["url"])
 }
@@ -27,7 +27,7 @@ func TestResolveEnvVars_MultipleInOneString(t *testing.T) {
 		"url": "postgres://{{ $env('DB_HOST') }}:{{ $env('DB_PORT') }}/main",
 	}
 
-	result, errs := ResolveEnvVars(config)
+	result, errs := resolveEnvVars(config)
 	assert.Empty(t, errs)
 	assert.Equal(t, "postgres://localhost:5432/main", result["url"])
 }
@@ -45,7 +45,7 @@ func TestResolveEnvVars_Nested(t *testing.T) {
 		},
 	}
 
-	result, errs := ResolveEnvVars(config)
+	result, errs := resolveEnvVars(config)
 	assert.Empty(t, errs)
 	pw := result["services"].(map[string]any)["db"].(map[string]any)["config"].(map[string]any)["password"]
 	assert.Equal(t, "abc123", pw)
@@ -60,7 +60,7 @@ func TestResolveEnvVars_MissingVar(t *testing.T) {
 		},
 	}
 
-	_, errs := ResolveEnvVars(config)
+	_, errs := resolveEnvVars(config)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "MISSING_VAR")
 	assert.Contains(t, errs[0].Error(), "services.db.url")
@@ -72,7 +72,7 @@ func TestResolveEnvVars_MultipleMissingVars(t *testing.T) {
 		"b": "{{ $env('MISSING_B') }}",
 	}
 
-	_, errs := ResolveEnvVars(config)
+	_, errs := resolveEnvVars(config)
 	assert.Len(t, errs, 2)
 }
 
@@ -83,7 +83,7 @@ func TestResolveEnvVars_NonStringValuesUntouched(t *testing.T) {
 		"nothing": nil,
 	}
 
-	result, errs := ResolveEnvVars(config)
+	result, errs := resolveEnvVars(config)
 	assert.Empty(t, errs)
 	assert.Equal(t, float64(3000), result["port"])
 	assert.Equal(t, true, result["debug"])
@@ -96,7 +96,7 @@ func TestResolveEnvVars_InArray(t *testing.T) {
 		"origins": []any{"{{ $env('ORIGIN') }}", "http://localhost"},
 	}
 
-	result, errs := ResolveEnvVars(config)
+	result, errs := resolveEnvVars(config)
 	assert.Empty(t, errs)
 	assert.Equal(t, []any{"https://example.com", "http://localhost"}, result["origins"])
 }
@@ -119,7 +119,7 @@ func TestResolveEnvVarsSelective_OnlyResolvesRoot(t *testing.T) {
 		},
 	}
 
-	errs := ResolveEnvVarsSelective(rc)
+	errs := resolveEnvVarsSelective(rc)
 	assert.Empty(t, errs)
 
 	// Root should be resolved

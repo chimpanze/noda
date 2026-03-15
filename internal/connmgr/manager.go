@@ -181,6 +181,53 @@ func matchWildcard(pattern, channel string) bool {
 	return true
 }
 
+// Stop gracefully unregisters all connections.
+func (m *Manager) Stop(_ context.Context) error {
+	m.mu.Lock()
+	ids := make([]string, 0, len(m.connections))
+	for id := range m.connections {
+		ids = append(ids, id)
+	}
+	m.mu.Unlock()
+
+	for _, id := range ids {
+		m.Unregister(id)
+	}
+	return nil
+}
+
+// ManagerGroup collects multiple Managers and stops them together.
+type ManagerGroup struct {
+	mu       sync.Mutex
+	managers []*Manager
+}
+
+// NewManagerGroup creates a new ManagerGroup.
+func NewManagerGroup() *ManagerGroup {
+	return &ManagerGroup{}
+}
+
+// Add registers a Manager to be stopped on shutdown.
+func (g *ManagerGroup) Add(m *Manager) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.managers = append(g.managers, m)
+}
+
+// Stop calls Stop on all registered managers.
+func (g *ManagerGroup) Stop(ctx context.Context) error {
+	g.mu.Lock()
+	managers := g.managers
+	g.mu.Unlock()
+
+	for _, m := range managers {
+		if err := m.Stop(ctx); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // GetConnection returns a connection by ID.
 func (m *Manager) GetConnection(connID string) *Conn {
 	m.mu.RLock()

@@ -108,7 +108,7 @@ func BenchmarkResolveEnvVars(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = ResolveEnvVars(config)
+		_, _ = resolveEnvVars(config)
 	}
 }
 

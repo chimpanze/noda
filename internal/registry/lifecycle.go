@@ -65,6 +65,9 @@ func (r *ServiceRegistry) HealthCheckAll() []error {
 	var errs []error
 	for _, name := range r.order {
 		entry := r.services[name]
+		if entry.plugin == nil {
+			continue
+		}
 		if err := entry.plugin.HealthCheck(entry.instance); err != nil {
 			errs = append(errs, fmt.Errorf("service %q health check failed: %w", name, err))
 		}

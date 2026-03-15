@@ -172,6 +172,20 @@ const defaultJobTimeout = 5 * time.Minute
 
 // runJob executes a single scheduled job with optional distributed locking.
 func (r *Runtime) runJob(sc ScheduleConfig) {
+	defer func() {
+		if rv := recover(); rv != nil {
+			r.logger.Error("scheduler: job panicked",
+				"schedule_id", sc.ID,
+				"panic", fmt.Sprintf("%v", rv),
+			)
+			r.recordRun(JobRun{
+				ScheduleID: sc.ID,
+				StartedAt:  time.Now(),
+				Error:      fmt.Sprintf("panic: %v", rv),
+			})
+		}
+	}()
+
 	timeout := sc.Timeout
 	if timeout == 0 {
 		timeout = defaultJobTimeout
@@ -390,10 +404,22 @@ func (r *Runtime) recordRun(run JobRun) {
 func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig {
 	var configs []ScheduleConfig
 	for _, raw := range schedules {
+		tz := engine.MapStrVal(raw, "timezone")
+		if tz != "" {
+			if _, err := time.LoadLocation(tz); err != nil {
+				slog.Warn("scheduler: invalid timezone, falling back to server default",
+					"schedule_id", engine.MapStrVal(raw, "id"),
+					"timezone", tz,
+					"error", err,
+				)
+				tz = ""
+			}
+		}
+
 		sc := ScheduleConfig{
 			ID:          engine.MapStrVal(raw, "id"),
 			Cron:        engine.MapStrVal(raw, "cron"),
-			Timezone:    engine.MapStrVal(raw, "timezone"),
+			Timezone:    tz,
 			Description: engine.MapStrVal(raw, "description"),
 		}
 

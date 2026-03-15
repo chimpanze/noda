@@ -97,6 +97,9 @@ func (r *ServiceRegistry) ByPrefix(prefix string) map[string]any {
 
 	result := make(map[string]any)
 	for name, entry := range r.services {
+		if entry.plugin == nil {
+			continue
+		}
 		if entry.plugin.Prefix() == prefix {
 			result[name] = entry.instance
 		}
