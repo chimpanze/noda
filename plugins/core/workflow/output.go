@@ -24,6 +24,12 @@ func (d *outputDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"name"},
 	}
 }
+func (d *outputDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "The workflow output data",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type outputExecutor struct{}
 

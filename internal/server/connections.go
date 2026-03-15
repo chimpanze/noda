@@ -82,7 +82,7 @@ func (s *Server) registerConnections() error {
 				runner := s.buildWorkflowRunner("websocket")
 				handler := connmgr.NewWebSocketHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app, middleware...)
-				s.logger.Debug("websocket endpoint registered", "name", name, "path", path)
+				s.logger.Info("connection endpoint registered", "name", name, "type", "websocket", "path", path)
 
 			case "sse":
 				cfg := connmgr.SSEConfig{
@@ -110,7 +110,7 @@ func (s *Server) registerConnections() error {
 				runner := s.buildWorkflowRunner("sse")
 				handler := connmgr.NewSSEHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app, middleware...)
-				s.logger.Debug("sse endpoint registered", "name", name, "path", path)
+				s.logger.Info("connection endpoint registered", "name", name, "type", "sse", "path", path)
 			}
 		}
 	}

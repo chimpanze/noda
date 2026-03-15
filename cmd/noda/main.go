@@ -406,6 +406,7 @@ func newStartCmd() *cobra.Command {
 
 			// Mark ready
 			server.SetReady()
+			slog.Info("noda ready")
 
 			// Handle graceful shutdown
 			go func() {
@@ -538,6 +539,29 @@ func newDevCmd() *cobra.Command {
 				slog.Info("scheduler started", "jobs", len(scheduleConfigs))
 			}
 
+			// Start Wasm runtimes if configured
+			var wasmRuntime *wasm.Runtime
+			wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any)
+			if len(wasmRuntimes) > 0 {
+				workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler)
+				wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
+				for name, raw := range wasmRuntimes {
+					cfg := parseWasmModuleConfig(name, raw)
+					if cfg.ModulePath != "" && !filepath.IsAbs(cfg.ModulePath) {
+						cfg.ModulePath = filepath.Join(configDir, cfg.ModulePath)
+					}
+					if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
+						return fmt.Errorf("loading wasm module %q: %w", name, err)
+					}
+					wasmSvc := wasm.NewWasmService(wasmRuntime, name)
+					_ = bootstrap.Services.Register(name, wasmSvc, nil)
+				}
+				if err := wasmRuntime.StartAll(context.Background()); err != nil {
+					return fmt.Errorf("starting wasm runtimes: %w", err)
+				}
+				slog.Info("wasm runtimes started", "modules", len(wasmRuntimes))
+			}
+
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rc, hub, logger)
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
@@ -581,6 +605,7 @@ func newDevCmd() *cobra.Command {
 
 			// Mark server as ready
 			server.SetReady()
+			slog.Info("noda ready")
 
 			// Handle graceful shutdown
 			go func() {
@@ -598,7 +623,7 @@ func newDevCmd() *cobra.Command {
 					}
 				}
 
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, nil, watcher, nil, bootstrap.Services, traceProvider)
+				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, wasmRuntime, watcher, nil, bootstrap.Services, traceProvider)
 				os.Exit(0)
 			}()
 

@@ -29,6 +29,7 @@ func (m *mockDescriptor) Name() string                           { return "test.
 func (m *mockDescriptor) Description() string                    { return "" }
 func (m *mockDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (m *mockDescriptor) ConfigSchema() map[string]any           { return nil }
+func (m *mockDescriptor) OutputDescriptions() map[string]string  { return nil }
 
 type mockExecutor struct{}
 

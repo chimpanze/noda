@@ -23,6 +23,12 @@ func (d *filterDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"collection", "expression"},
 	}
 }
+func (d *filterDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Array of items matching the condition",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type filterExecutor struct{}
 

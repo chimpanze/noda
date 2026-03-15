@@ -23,6 +23,12 @@ func (d *logDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"level", "message"},
 	}
 }
+func (d *logDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (message was logged)",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type logExecutor struct{}
 

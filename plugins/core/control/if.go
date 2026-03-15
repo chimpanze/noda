@@ -21,6 +21,13 @@ func (d *ifDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"condition"},
 	}
 }
+func (d *ifDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"then":  "Input data passed through (condition was true)",
+		"else":  "Input data passed through (condition was false)",
+		"error": "Expression evaluation error",
+	}
+}
 
 type ifExecutor struct{}
 

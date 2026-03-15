@@ -28,18 +28,19 @@ func TestPlugin_AllNodesRegistered(t *testing.T) {
 	assert.Contains(t, types, "util.uuid")
 	assert.Contains(t, types, "util.delay")
 	assert.Contains(t, types, "util.timestamp")
+	assert.Contains(t, types, "util.jwt_sign")
 }
 
 func TestPlugin_NodeCount(t *testing.T) {
 	p := &Plugin{}
 	nodes := p.Nodes()
-	assert.Len(t, nodes, 4)
+	assert.Len(t, nodes, 5)
 
 	names := make([]string, len(nodes))
 	for i, n := range nodes {
 		names[i] = n.Descriptor.Name()
 	}
-	assert.ElementsMatch(t, []string{"log", "uuid", "delay", "timestamp"}, names)
+	assert.ElementsMatch(t, []string{"log", "uuid", "delay", "timestamp", "jwt_sign"}, names)
 }
 
 func TestPlugin_HasNoServices(t *testing.T) {

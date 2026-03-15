@@ -1,6 +1,9 @@
 package registry
 
-import "fmt"
+import (
+	"fmt"
+	"log/slog"
+)
 
 // InitializeServices creates service instances from the root config's "services" map.
 // Each service entry must have a "plugin" field referencing a registered plugin prefix.
@@ -46,6 +49,8 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 
 		if err := registry.Register(name, instance, plugin); err != nil {
 			errs = append(errs, fmt.Errorf("service %q: %w", name, err))
+		} else {
+			slog.Info("service initialized", "name", name, "plugin", pluginName)
 		}
 	}
 

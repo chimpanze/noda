@@ -26,6 +26,12 @@ func (d *convertDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"input", "output", "format"},
 	}
 }
+func (d *convertDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Converted image bytes",
+		"error":   "Image processing error",
+	}
+}
 
 type convertExecutor struct{}
 

@@ -25,6 +25,12 @@ func (d *readDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"path"},
 	}
 }
+func (d *readDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "File contents as string or bytes",
+		"error":   "File not found or read error",
+	}
+}
 
 type readExecutor struct{}
 

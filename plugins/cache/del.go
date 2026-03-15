@@ -26,6 +26,12 @@ func (d *delDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"key"},
 	}
 }
+func (d *delDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (key was deleted)",
+		"error":   "Connection error",
+	}
+}
 
 type delExecutor struct{}
 

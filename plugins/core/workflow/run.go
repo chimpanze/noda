@@ -36,6 +36,12 @@ func (d *runDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"workflow"},
 	}
 }
+func (d *runDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Output from the sub-workflow",
+		"error":   "Sub-workflow execution error",
+	}
+}
 
 // RunExecutor executes a sub-workflow.
 // SubWorkflowRunner is injected by the engine to avoid circular imports.

@@ -12,11 +12,34 @@ All nodes have access to these variables in expressions:
 | `auth` | Auth data: `user_id`, `roles`, `claims` |
 | `trigger` | Trigger metadata: `type`, `timestamp`, `trace_id` |
 | `nodes.<id>` | Output data from a previously executed node |
+| `env.<NAME>` | Environment variable (includes `.env` file values) |
 | `$item`, `$index` | Loop iteration variables (inside `control.loop`) |
 
 ## Built-in Functions
 
-`len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$env()`, `$var()`.
+`len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$var()`.
+
+### Hashing Functions
+
+| Function | Description |
+|---|---|
+| `sha256(string)` | Returns hex-encoded SHA-256 hash |
+| `sha512(string)` | Returns hex-encoded SHA-512 hash |
+| `md5(string)` | Returns hex-encoded MD5 hash |
+| `hmac(data, key, algorithm)` | Returns hex-encoded HMAC. Algorithm: `"sha256"` or `"sha512"` |
+| `bcrypt_hash(password)` | Returns a bcrypt hash string (default cost) |
+| `bcrypt_verify(password, hash)` | Returns `true` if the password matches the hash, `false` otherwise |
+
+```json
+{
+  "body": {
+    "checksum": "{{ sha256(input.payload) }}",
+    "signature": "{{ hmac(input.body, $var('WEBHOOK_SECRET'), 'sha256') }}",
+    "password_hash": "{{ bcrypt_hash(input.password) }}",
+    "valid": "{{ bcrypt_verify(input.password, nodes.lookup.password_hash) }}"
+  }
+}
+```
 
 ## Expressions in Config Fields
 

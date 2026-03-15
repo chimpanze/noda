@@ -28,6 +28,12 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table", "where"},
 	}
 }
+func (d *deleteDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with rows_affected count",
+		"error":   "Database error details",
+	}
+}
 
 type deleteExecutor struct{}
 

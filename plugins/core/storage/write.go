@@ -26,6 +26,12 @@ func (d *writeDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"path", "data"},
 	}
 }
+func (d *writeDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with path of the written file",
+		"error":   "Write error",
+	}
+}
 
 type writeExecutor struct{}
 

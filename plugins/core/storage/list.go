@@ -24,6 +24,12 @@ func (d *listDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"prefix"},
 	}
 }
+func (d *listDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Array of file info objects (name, size, modified)",
+		"error":   "Read error",
+	}
+}
 
 type listExecutor struct{}
 

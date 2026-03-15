@@ -259,9 +259,6 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 	}
 
 	// Warn about potentially weak secrets
-	if !strings.Contains(secret, "{{") {
-		slog.Warn("auth.jwt: secret appears to be a literal value; consider using {{ $env(JWT_SECRET) }}")
-	}
 	if len(secret) < 32 {
 		slog.Warn("auth.jwt: secret is shorter than 32 bytes; consider using a stronger secret")
 	}

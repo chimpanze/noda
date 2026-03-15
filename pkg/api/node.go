@@ -13,7 +13,8 @@ type NodeDescriptor interface {
 	Name() string
 	Description() string
 	ServiceDeps() map[string]ServiceDep
-	ConfigSchema() map[string]any // JSON Schema as a Go map
+	ConfigSchema() map[string]any          // JSON Schema as a Go map
+	OutputDescriptions() map[string]string // describes data shape per output port
 }
 
 // NodeRegistration pairs a node descriptor with its factory function.

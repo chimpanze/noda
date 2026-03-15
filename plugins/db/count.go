@@ -30,6 +30,12 @@ func (d *countDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table"},
 	}
 }
+func (d *countDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Integer count of matching rows",
+		"error":   "Database error details",
+	}
+}
 
 type countExecutor struct{}
 

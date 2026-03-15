@@ -26,6 +26,12 @@ func (d *getDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"key"},
 	}
 }
+func (d *getDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "The cached value (string or deserialized object)",
+		"error":   "Cache miss or connection error",
+	}
+}
 
 type getExecutor struct{}
 

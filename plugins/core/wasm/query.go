@@ -28,6 +28,12 @@ func (d *queryDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"data"},
 	}
 }
+func (d *queryDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Query result from the Wasm module",
+		"error":   "Wasm execution error",
+	}
+}
 
 type queryExecutor struct{}
 

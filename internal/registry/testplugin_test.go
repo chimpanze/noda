@@ -66,7 +66,8 @@ func (d *kvGetDescriptor) ServiceDeps() map[string]api.ServiceDep {
 		"store": {Prefix: "kv", Required: true},
 	}
 }
-func (d *kvGetDescriptor) ConfigSchema() map[string]any { return nil }
+func (d *kvGetDescriptor) ConfigSchema() map[string]any          { return nil }
+func (d *kvGetDescriptor) OutputDescriptions() map[string]string { return nil }
 
 type kvGetExecutor struct{}
 
@@ -94,7 +95,8 @@ func (d *kvSetDescriptor) ServiceDeps() map[string]api.ServiceDep {
 		"store": {Prefix: "kv", Required: true},
 	}
 }
-func (d *kvSetDescriptor) ConfigSchema() map[string]any { return nil }
+func (d *kvSetDescriptor) ConfigSchema() map[string]any          { return nil }
+func (d *kvSetDescriptor) OutputDescriptions() map[string]string { return nil }
 
 type kvSetExecutor struct{}
 

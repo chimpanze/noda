@@ -16,6 +16,7 @@ func (d *benchDescriptor) Name() string                           { return d.nam
 func (d *benchDescriptor) Description() string                    { return "" }
 func (d *benchDescriptor) ServiceDeps() map[string]api.ServiceDep { return nil }
 func (d *benchDescriptor) ConfigSchema() map[string]any           { return nil }
+func (d *benchDescriptor) OutputDescriptions() map[string]string  { return nil }
 
 type benchExecutor struct{}
 

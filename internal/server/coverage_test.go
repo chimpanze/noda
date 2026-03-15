@@ -2277,7 +2277,7 @@ func TestErrorResponse_JSONMarshalling(t *testing.T) {
 
 func TestMapErrorToHTTP_ValidationError_Details(t *testing.T) {
 	err := &api.ValidationError{Field: "name", Message: "required", Value: ""}
-	status, resp := MapErrorToHTTP(err, "t-1")
+	status, resp := MapErrorToHTTP(err, "t-1", false)
 	assert.Equal(t, 422, status)
 	details := resp.Error.Details.(map[string]any)
 	assert.Equal(t, "name", details["field"])
@@ -2887,25 +2887,25 @@ func TestRoute_MethodNotAllowed(t *testing.T) {
 
 func TestMapErrorToHTTP_NotFoundMessage(t *testing.T) {
 	err := &api.NotFoundError{Resource: "user", ID: "99"}
-	_, resp := MapErrorToHTTP(err, "t")
+	_, resp := MapErrorToHTTP(err, "t", false)
 	assert.Contains(t, resp.Error.Message, "user")
 }
 
 func TestMapErrorToHTTP_ConflictMessage(t *testing.T) {
 	err := &api.ConflictError{Resource: "email", Reason: "already exists"}
-	_, resp := MapErrorToHTTP(err, "t")
+	_, resp := MapErrorToHTTP(err, "t", false)
 	assert.Contains(t, resp.Error.Message, "already exists")
 }
 
 func TestMapErrorToHTTP_ServiceUnavailableMessage(t *testing.T) {
 	err := &api.ServiceUnavailableError{Service: "redis", Cause: fmt.Errorf("timeout")}
-	_, resp := MapErrorToHTTP(err, "t")
+	_, resp := MapErrorToHTTP(err, "t", false)
 	assert.Contains(t, resp.Error.Message, "redis")
 }
 
 func TestMapErrorToHTTP_TimeoutMessage(t *testing.T) {
 	err := &api.TimeoutError{Duration: 10 * time.Second, Operation: "query"}
-	_, resp := MapErrorToHTTP(err, "t")
+	_, resp := MapErrorToHTTP(err, "t", false)
 	assert.Contains(t, resp.Error.Message, "query")
 }
 

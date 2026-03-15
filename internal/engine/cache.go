@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 )
 
@@ -35,6 +36,8 @@ func NewWorkflowCache(workflows map[string]map[string]any, resolver NodeOutputRe
 			c.graphs[jsonID] = graph
 		}
 	}
+
+	slog.Info("workflows compiled", "count", len(c.graphs))
 
 	return c, nil
 }

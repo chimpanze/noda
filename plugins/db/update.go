@@ -29,6 +29,12 @@ func (d *updateDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table", "data", "where"},
 	}
 }
+func (d *updateDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with rows_affected count",
+		"error":   "Database error details",
+	}
+}
 
 type updateExecutor struct{}
 

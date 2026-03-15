@@ -26,6 +26,12 @@ func (d *existsDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"key"},
 	}
 }
+func (d *existsDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Boolean indicating if the key exists",
+		"error":   "Connection error",
+	}
+}
 
 type existsExecutor struct{}
 

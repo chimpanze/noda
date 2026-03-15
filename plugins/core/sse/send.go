@@ -29,6 +29,12 @@ func (d *sendDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"channel", "data"},
 	}
 }
+func (d *sendDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (event sent to SSE connections)",
+		"error":   "Send error",
+	}
+}
 
 type sendExecutor struct{}
 

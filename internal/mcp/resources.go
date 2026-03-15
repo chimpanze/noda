@@ -20,6 +20,7 @@ func registerResources(s *server.MCPServer) {
 	}{
 		{"noda://docs/quick-start", "Quick Start Guide", "How to get started with Noda in 5 minutes", "01-getting-started/quick-start.md"},
 		{"noda://docs/expressions", "Expression Reference", "Noda expression syntax, context variables, and built-in functions", "01-getting-started/expressions.md"},
+		{"noda://docs/data-flow", "Data Flow Guide", "How data flows through workflows: trigger input, node outputs, aliases, and data threading", "01-getting-started/data-flow.md"},
 	}
 
 	for _, r := range docResources {

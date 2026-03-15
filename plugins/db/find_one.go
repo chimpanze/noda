@@ -33,6 +33,12 @@ func (d *findOneDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table"},
 	}
 }
+func (d *findOneDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Single row object or nil if not found",
+		"error":   "Database error details",
+	}
+}
 
 type findOneExecutor struct{}
 

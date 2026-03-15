@@ -31,6 +31,12 @@ func (d *emitDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"mode", "topic", "payload"},
 	}
 }
+func (d *emitDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (event was emitted)",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type emitExecutor struct{}
 

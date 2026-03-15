@@ -27,6 +27,12 @@ func (d *watermarkDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"input", "output", "watermark"},
 	}
 }
+func (d *watermarkDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Watermarked image bytes",
+		"error":   "Image processing error",
+	}
+}
 
 type watermarkExecutor struct{}
 

@@ -25,6 +25,12 @@ func (d *errorDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"status", "code", "message"},
 	}
 }
+func (d *errorDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "HTTP error response set",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type errorExecutor struct{}
 

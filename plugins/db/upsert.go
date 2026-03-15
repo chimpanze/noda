@@ -32,6 +32,12 @@ func (d *upsertDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table", "data", "conflict"},
 	}
 }
+func (d *upsertDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "The upserted row object",
+		"error":   "Database error details",
+	}
+}
 
 type upsertExecutor struct{}
 

@@ -31,6 +31,12 @@ func (d *queryDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"query"},
 	}
 }
+func (d *queryDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Array of row objects matching the query",
+		"error":   "Database error details",
+	}
+}
 
 type queryExecutor struct{}
 

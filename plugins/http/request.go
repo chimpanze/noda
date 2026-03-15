@@ -32,6 +32,12 @@ func (d *requestDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"method", "url"},
 	}
 }
+func (d *requestDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with status, headers, and body from the HTTP response",
+		"error":   "HTTP request error",
+	}
+}
 
 type requestExecutor struct{}
 

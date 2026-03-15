@@ -38,6 +38,12 @@ func (d *findDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table"},
 	}
 }
+func (d *findDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Array of row objects matching the conditions",
+		"error":   "Database error details",
+	}
+}
 
 type findExecutor struct{}
 

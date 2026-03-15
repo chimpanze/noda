@@ -31,6 +31,12 @@ func (d *loopDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"collection", "workflow"},
 	}
 }
+func (d *loopDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"done":  "Array of results from each iteration",
+		"error": "Error from a failed iteration",
+	}
+}
 
 // LoopExecutor handles iteration over collections.
 // The actual sub-workflow execution is injected via SubWorkflowRunner

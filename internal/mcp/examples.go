@@ -95,6 +95,134 @@ var examplePatterns = map[string]map[string]string{
     }
   }
 }`,
+		"workflow": `{
+  "id": "login",
+  "nodes": {
+    "lookup": {
+      "type": "db.findOne",
+      "config": {
+        "table": "users",
+        "where": { "email": "{{ input.email }}" }
+      }
+    },
+    "check_user": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ nodes.lookup != nil }}"
+      }
+    },
+    "verify": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "valid": "{{ bcrypt_verify(input.password, nodes.lookup.password_hash) }}"
+        }
+      }
+    },
+    "check_password": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ nodes.verify.valid == true }}"
+      }
+    },
+    "sign_token": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": {
+          "user_id": "{{ nodes.lookup.id }}",
+          "email": "{{ nodes.lookup.email }}"
+        },
+        "expires_in": "24h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "token": "{{ nodes.sign_token.token }}"
+        }
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 401,
+        "message": "Invalid credentials"
+      }
+    },
+    "wrong_password": {
+      "type": "response.error",
+      "config": {
+        "status": 401,
+        "message": "Invalid credentials"
+      }
+    }
+  },
+  "edges": [
+    { "from": "lookup", "to": "check_user", "output": "success" },
+    { "from": "check_user", "to": "verify", "output": "true" },
+    { "from": "check_user", "to": "not_found", "output": "false" },
+    { "from": "verify", "to": "check_password", "output": "success" },
+    { "from": "check_password", "to": "sign_token", "output": "true" },
+    { "from": "check_password", "to": "wrong_password", "output": "false" },
+    { "from": "sign_token", "to": "respond", "output": "success" }
+  ]
+}`,
+		"register_route": `{
+  "id": "register",
+  "method": "POST",
+  "path": "/api/auth/register",
+  "trigger": {
+    "workflow": "register",
+    "input": {
+      "name": "{{ request.body.name }}",
+      "email": "{{ request.body.email }}",
+      "password": "{{ request.body.password }}"
+    }
+  }
+}`,
+		"register_workflow": `{
+  "id": "register",
+  "nodes": {
+    "hash": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "password_hash": "{{ bcrypt_hash(input.password) }}"
+        }
+      }
+    },
+    "create": {
+      "type": "db.create",
+      "config": {
+        "table": "users",
+        "data": {
+          "id": "{{ $uuid() }}",
+          "name": "{{ input.name }}",
+          "email": "{{ input.email }}",
+          "password_hash": "{{ nodes.hash.password_hash }}",
+          "created_at": "{{ now() }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "id": "{{ nodes.create.id }}",
+          "name": "{{ nodes.create.name }}",
+          "email": "{{ nodes.create.email }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "hash", "to": "create", "output": "success" },
+    { "from": "create", "to": "respond", "output": "success" }
+  ]
+}`,
 	},
 	"websocket": {
 		"description": "WebSocket real-time connection",

@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"log/slog"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/expr"
@@ -41,6 +42,8 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 		}
 	}
 
+	slog.Info("node types registered", "count", len(nodes.AllTypes()))
+
 	// 2. Collect deferred services (connection endpoints, wasm runtimes)
 	// These will be created later by the server/wasm runtime, but we need
 	// their names and prefixes for startup validation.
@@ -57,6 +60,8 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 		}
 	}
 
+	slog.Info("services initialized", "count", services.Count())
+
 	// 4. Create shared expression compiler
 	compiler := expr.NewCompilerWithVars(rc.Vars)
 
@@ -68,6 +73,8 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 		valErrs := ValidateStartup(rc, plugins, services, nodes, compiler, deferred)
 		allErrors = append(allErrors, valErrs...)
 	}
+
+	slog.Info("startup validation passed")
 
 	if len(allErrors) > 0 {
 		return nil, allErrors

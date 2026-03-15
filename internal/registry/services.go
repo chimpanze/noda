@@ -101,6 +101,13 @@ func (r *ServiceRegistry) ByPrefix(prefix string) map[string]any {
 	return result
 }
 
+// Count returns the number of registered services.
+func (r *ServiceRegistry) Count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.order)
+}
+
 // Order returns the service names in initialization order.
 func (r *ServiceRegistry) Order() []string {
 	r.mu.RLock()

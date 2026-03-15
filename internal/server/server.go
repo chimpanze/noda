@@ -119,11 +119,13 @@ func (s *Server) Setup() error {
 	if err := s.applyGlobalMiddleware(); err != nil {
 		return fmt.Errorf("global middleware: %w", err)
 	}
+	s.logger.Info("global middleware applied", "count", len(s.getGlobalMiddleware()))
 
 	// Register routes
 	if err := s.registerRoutes(); err != nil {
 		return fmt.Errorf("register routes: %w", err)
 	}
+	s.logger.Info("routes registered", "count", len(s.config.Routes))
 
 	// Register WebSocket and SSE endpoints
 	if err := s.registerConnections(); err != nil {

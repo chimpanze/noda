@@ -28,6 +28,12 @@ func (d *setDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"key", "value"},
 	}
 }
+func (d *setDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (value was stored)",
+		"error":   "Connection error",
+	}
+}
 
 type setExecutor struct{}
 

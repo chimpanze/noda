@@ -14,6 +14,7 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 		{Descriptor: &uuidDescriptor{}, Factory: newUUIDExecutor},
 		{Descriptor: &delayDescriptor{}, Factory: newDelayExecutor},
 		{Descriptor: &timestampDescriptor{}, Factory: newTimestampExecutor},
+		{Descriptor: &jwtSignDescriptor{}, Factory: newJWTSignExecutor},
 	}
 }
 

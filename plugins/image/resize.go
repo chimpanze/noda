@@ -28,6 +28,12 @@ func (d *resizeDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"input", "output", "width", "height"},
 	}
 }
+func (d *resizeDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Resized image bytes",
+		"error":   "Image processing error",
+	}
+}
 
 type resizeExecutor struct{}
 

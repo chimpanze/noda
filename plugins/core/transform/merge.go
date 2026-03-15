@@ -32,6 +32,12 @@ func (d *mergeDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"mode", "inputs"},
 	}
 }
+func (d *mergeDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Merged object combining all sources",
+		"error":   "Expression evaluation error",
+	}
+}
 
 const maxMergeItems = 100_000
 

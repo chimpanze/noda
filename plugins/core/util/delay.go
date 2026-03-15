@@ -22,6 +22,12 @@ func (d *delayDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"timeout"},
 	}
 }
+func (d *delayDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (delay completed)",
+		"error":   "Context cancelled",
+	}
+}
 
 type delayExecutor struct {
 	duration time.Duration

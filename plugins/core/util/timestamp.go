@@ -26,6 +26,11 @@ func (d *timestampDescriptor) ConfigSchema() map[string]any {
 		},
 	}
 }
+func (d *timestampDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "ISO 8601 timestamp string",
+	}
+}
 
 type timestampExecutor struct{}
 

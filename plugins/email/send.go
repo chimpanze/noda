@@ -29,6 +29,12 @@ func (d *sendDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"to", "subject", "body"},
 	}
 }
+func (d *sendDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (email was sent)",
+		"error":   "SMTP error",
+	}
+}
 
 type sendExecutor struct{}
 

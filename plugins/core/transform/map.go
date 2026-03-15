@@ -25,6 +25,12 @@ func (d *mapDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"collection", "expression"},
 	}
 }
+func (d *mapDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Array of transformed items",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type mapExecutor struct{}
 

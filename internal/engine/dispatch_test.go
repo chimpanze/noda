@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -180,6 +181,53 @@ func TestDispatchNode_PanicRecovery(t *testing.T) {
 	assert.Equal(t, "", output)
 }
 
+func TestDispatchNode_ReturnsNodeExecutionError(t *testing.T) {
+	nodes, _, services := setupDispatchTest(t)
+	execCtx := NewExecutionContext()
+
+	// Set some outputs so OutputKeys returns them
+	execCtx.SetOutput("step0", map[string]any{"val": 1})
+
+	node := &CompiledNode{
+		ID:      "step1",
+		Type:    "mock.fail",
+		Outputs: []string{"success"}, // no error output → fatal path
+	}
+
+	_, err := dispatchNode(context.Background(), node, execCtx, services, nodes)
+	require.Error(t, err)
+
+	var nodeErr *NodeExecutionError
+	require.True(t, errors.As(err, &nodeErr))
+	assert.Equal(t, "step1", nodeErr.NodeID)
+	assert.Equal(t, "mock.fail", nodeErr.NodeType)
+	assert.Contains(t, nodeErr.AvailableNodes, "step0")
+	assert.Contains(t, nodeErr.Err.Error(), "node failed")
+}
+
+func TestDispatchNode_ErrorEdgeIncludesContext(t *testing.T) {
+	nodes, _, services := setupDispatchTest(t)
+	execCtx := NewExecutionContext()
+	execCtx.SetOutput("prev", "data")
+
+	node := &CompiledNode{
+		ID:      "step1",
+		Type:    "mock.fail",
+		Outputs: []string{"success", "error"}, // has error output
+	}
+
+	output, err := dispatchNode(context.Background(), node, execCtx, services, nodes)
+	require.NoError(t, err)
+	assert.Equal(t, "error", output)
+
+	data, ok := execCtx.GetOutput("step1")
+	require.True(t, ok)
+	errorData := data.(map[string]any)
+	assert.Equal(t, "step1", errorData["node_id"])
+	assert.Equal(t, "mock.fail", errorData["node_type"])
+	assert.Contains(t, errorData["available_nodes"], "prev")
+}
+
 // test helpers for dispatch tests
 type testPlugin struct {
 	name   string
@@ -204,3 +252,4 @@ func (d *testDescriptor) Name() string                           { return d.name
 func (d *testDescriptor) Description() string                    { return "" }
 func (d *testDescriptor) ServiceDeps() map[string]api.ServiceDep { return d.deps }
 func (d *testDescriptor) ConfigSchema() map[string]any           { return nil }
+func (d *testDescriptor) OutputDescriptions() map[string]string  { return nil }

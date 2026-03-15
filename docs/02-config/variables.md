@@ -30,13 +30,14 @@ All values must be strings. Reference them with `$var()` in any config section:
 - Resolution happens after `$env()` and before `$ref`, so you can use environment variables inside `vars.json` values but not `$var()` inside `$ref` targets
 - An undefined variable name produces a load error (config-time) or runtime error (expression) with the variable name
 
-### When to use `$var()` vs `$env()`
+### When to use `$var()` vs `env.*` vs `$env()`
 
-| | `$var()` | `$env()` |
-|---|---|---|
-| **Source** | `vars.json` (checked into version control) | OS environment / `.env` file |
-| **Scope** | All config sections | Root config only |
-| **Use case** | Shared logical names (topics, tables, service names) | Secrets and environment-specific values (DSNs, keys) |
+| | `$var()` | `env.*` | `$env()` |
+|---|---|---|---|
+| **Source** | `vars.json` (checked into version control) | OS environment / `.env` file | OS environment / `.env` file |
+| **Scope** | All config sections | Workflow expressions | Root config (`noda.json`) only |
+| **Syntax** | `{{ $var('NAME') }}` | `{{ env.NAME }}` | `{{ $env('NAME') }}` |
+| **Use case** | Shared logical names (topics, tables, service names) | Secrets in workflow nodes (JWT secrets, API keys) | Secrets in root config (DSNs, service URLs) |
 
 ### Example
 
@@ -78,7 +79,7 @@ Use `$env('VAR_NAME')` in any string value in the root config to reference envir
 }
 ```
 
-**Note:** `$env()` only resolves in `noda.json` (and its overlay). For values needed across all config sections, define them in `vars.json` using `$var()` instead.
+**Note:** `$env()` only resolves in `noda.json` (and its overlay). In workflow expressions, use `env.VAR_NAME` instead to access environment variables at runtime.
 
 ### `.env` File
 

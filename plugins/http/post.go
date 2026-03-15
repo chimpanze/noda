@@ -24,6 +24,12 @@ func (d *postDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"url", "body"},
 	}
 }
+func (d *postDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with status, headers, and body from the HTTP response",
+		"error":   "HTTP request error",
+	}
+}
 
 type postExecutor struct{}
 

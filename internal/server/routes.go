@@ -139,7 +139,7 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		return fmt.Errorf("unsupported HTTP method: %s", method)
 	}
 
-	s.logger.Debug("route registered", "id", routeID, "method", method, "path", path)
+	s.logger.Info("route registered", "id", routeID, "method", method, "path", path)
 	return nil
 }
 
@@ -308,7 +308,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		case wfErr := <-workflowDone:
 			// Workflow completed — check if a response was sent before returning
 			if wfErr != nil {
-				status, errResp := MapErrorToHTTP(wfErr, traceID)
+				status, errResp := MapErrorToHTTP(wfErr, traceID, s.traceHub != nil)
 				return writeErrorResponse(c, status, errResp)
 			}
 			// Drain responseCh: the response node may have fired just before

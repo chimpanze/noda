@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -36,6 +37,9 @@ func (r *NodeRegistry) RegisterFromPlugin(plugin api.Plugin) error {
 		}
 		r.descriptors[fullType] = reg.Descriptor
 		r.factories[fullType] = reg.Factory
+	}
+	if count := len(plugin.Nodes()); count > 0 {
+		slog.Debug("nodes registered", "plugin", plugin.Prefix(), "count", count)
 	}
 	return nil
 }

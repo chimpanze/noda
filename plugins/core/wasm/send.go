@@ -29,6 +29,12 @@ func (d *sendDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"data"},
 	}
 }
+func (d *sendDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Response from the Wasm module",
+		"error":   "Wasm execution error",
+	}
+}
 
 type sendExecutor struct{}
 

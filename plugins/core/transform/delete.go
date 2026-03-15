@@ -22,6 +22,12 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"data", "fields"},
 	}
 }
+func (d *deleteDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with specified fields removed",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type deleteExecutor struct{}
 

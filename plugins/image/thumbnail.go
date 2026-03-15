@@ -28,6 +28,12 @@ func (d *thumbnailDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"input", "output", "width", "height"},
 	}
 }
+func (d *thumbnailDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Thumbnail image bytes",
+		"error":   "Image processing error",
+	}
+}
 
 type thumbnailExecutor struct{}
 

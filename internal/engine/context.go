@@ -3,6 +3,9 @@ package engine
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -241,6 +244,18 @@ func (c *ExecutionContextImpl) InterceptResponse(data any) {
 	}
 }
 
+// OutputKeys returns the sorted keys of the outputs map (node IDs whose output is available).
+func (c *ExecutionContextImpl) OutputKeys() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	keys := make([]string, 0, len(c.outputs))
+	for k := range c.outputs {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
 // EvictOutput removes an output from the context.
 func (c *ExecutionContextImpl) EvictOutput(key string) {
 	c.mu.Lock()
@@ -293,7 +308,20 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 		nodesMap[k] = v
 	}
 	ctx["nodes"] = nodesMap
+	ctx["env"] = envMap()
 	return ctx
+}
+
+// envMap returns the current process environment as a map.
+func envMap() map[string]any {
+	environ := os.Environ()
+	m := make(map[string]any, len(environ))
+	for _, entry := range environ {
+		if k, v, ok := strings.Cut(entry, "="); ok {
+			m[k] = v
+		}
+	}
+	return m
 }
 
 func returnExprContext(ctx map[string]any) {

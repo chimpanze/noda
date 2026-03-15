@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"log/slog"
 	"sync"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -31,6 +32,7 @@ func (r *PluginRegistry) Register(plugin api.Plugin) error {
 	existing, conflict := r.plugins[prefix]
 	if !conflict {
 		r.plugins[prefix] = plugin
+		slog.Debug("plugin registered", "prefix", prefix, "name", plugin.Name(), "has_services", plugin.HasServices(), "nodes", len(plugin.Nodes()))
 		return nil
 	}
 

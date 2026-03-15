@@ -23,6 +23,12 @@ func (d *setDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"fields"},
 	}
 }
+func (d *setDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with the specified fields set",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type setExecutor struct{}
 

@@ -62,6 +62,26 @@ func TestExecutionContext_Resolve(t *testing.T) {
 	assert.Equal(t, 42, result)
 }
 
+func TestExecutionContext_ResolveEnv(t *testing.T) {
+	t.Setenv("NODA_TEST_SECRET", "super-secret")
+
+	ctx := NewExecutionContext()
+
+	result, err := ctx.Resolve("{{ env.NODA_TEST_SECRET }}")
+	require.NoError(t, err)
+	assert.Equal(t, "super-secret", result)
+}
+
+func TestExecutionContext_ResolveEnvInExpression(t *testing.T) {
+	t.Setenv("NODA_TEST_PREFIX", "prod")
+
+	ctx := NewExecutionContext()
+
+	result, err := ctx.Resolve("{{ env.NODA_TEST_PREFIX + \"-db\" }}")
+	require.NoError(t, err)
+	assert.Equal(t, "prod-db", result)
+}
+
 func TestExecutionContext_ConcurrentOutputWrites(t *testing.T) {
 	ctx := NewExecutionContext()
 
@@ -112,6 +132,22 @@ func TestExecutionContext_DepthTracking(t *testing.T) {
 	for i := 0; i < 64; i++ {
 		ctx.DecrementDepth()
 	}
+}
+
+func TestOutputKeys(t *testing.T) {
+	ctx := NewExecutionContext()
+	ctx.SetOutput("zebra", "z")
+	ctx.SetOutput("alpha", "a")
+	ctx.SetOutput("mike", "m")
+
+	keys := ctx.OutputKeys()
+	assert.Equal(t, []string{"alpha", "mike", "zebra"}, keys)
+}
+
+func TestOutputKeys_Empty(t *testing.T) {
+	ctx := NewExecutionContext()
+	keys := ctx.OutputKeys()
+	assert.Empty(t, keys)
 }
 
 func TestExecutionContext_EvictOutput(t *testing.T) {

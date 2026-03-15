@@ -42,6 +42,12 @@ func (d *jsonDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"status", "body"},
 	}
 }
+func (d *jsonDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "HTTP response set (status + JSON body + optional headers/cookies)",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type jsonExecutor struct{}
 

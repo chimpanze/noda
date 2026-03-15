@@ -38,6 +38,12 @@ func (d *handleDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"max_size", "allowed_types", "path"},
 	}
 }
+func (d *handleDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with filename, size, content_type, and file data",
+		"error":   "Upload validation error (size/type)",
+	}
+}
 
 type handleExecutor struct{}
 

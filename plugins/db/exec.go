@@ -31,6 +31,12 @@ func (d *execDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"query"},
 	}
 }
+func (d *execDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with rows_affected count",
+		"error":   "Database error details",
+	}
+}
 
 type execExecutor struct{}
 

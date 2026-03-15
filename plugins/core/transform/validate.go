@@ -27,6 +27,12 @@ func (d *validateDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"schema"},
 	}
 }
+func (d *validateDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "The validated input data (unchanged)",
+		"error":   "Validation error with details",
+	}
+}
 
 type validateExecutor struct {
 	compiled   *jsonschema.Schema

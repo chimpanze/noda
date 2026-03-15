@@ -23,6 +23,12 @@ func (d *getDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"url"},
 	}
 }
+func (d *getDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Object with status, headers, and body from the HTTP response",
+		"error":   "HTTP request error",
+	}
+}
 
 type getExecutor struct{}
 

@@ -24,6 +24,12 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"path"},
 	}
 }
+func (d *deleteDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "null (file was deleted)",
+		"error":   "File not found or delete error",
+	}
+}
 
 type deleteExecutor struct{}
 

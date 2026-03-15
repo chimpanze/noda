@@ -23,6 +23,12 @@ func (d *redirectDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"url"},
 	}
 }
+func (d *redirectDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "HTTP redirect response set",
+		"error":   "Expression evaluation error",
+	}
+}
 
 type redirectExecutor struct{}
 

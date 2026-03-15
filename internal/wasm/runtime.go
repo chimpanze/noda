@@ -89,6 +89,8 @@ func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, was
 	r.modules[cfg.Name] = module
 	r.mu.Unlock()
 
+	r.logger.Info("wasm module loaded", "name", cfg.Name, "path", cfg.ModulePath, "size_bytes", len(wasmBytes))
+
 	return module, nil
 }
 
@@ -215,6 +217,7 @@ func (r *Runtime) StartAll(ctx context.Context) error {
 		if err := m.Initialize(ctx); err != nil {
 			return fmt.Errorf("initialize module %q: %w", name, err)
 		}
+		r.logger.Info("wasm module initialized", "name", name)
 		m.Start()
 		r.logger.Info("wasm module started", "name", name, "tick_rate", m.tickRate)
 	}

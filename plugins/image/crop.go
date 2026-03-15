@@ -27,6 +27,12 @@ func (d *cropDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"input", "output", "width", "height"},
 	}
 }
+func (d *cropDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "Cropped image bytes",
+		"error":   "Image processing error",
+	}
+}
 
 type cropExecutor struct{}
 

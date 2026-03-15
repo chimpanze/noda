@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -39,6 +40,16 @@ func TestListNodesHandler(t *testing.T) {
 
 		count := data["count"].(float64)
 		assert.Equal(t, float64(len(nodes)), count)
+
+		// Verify that at least some nodes have output_data
+		hasOutputData := 0
+		for _, n := range nodes {
+			node := n.(map[string]any)
+			if _, ok := node["output_data"]; ok {
+				hasOutputData++
+			}
+		}
+		assert.Greater(t, hasOutputData, 0, "expected at least some nodes to have output_data")
 	})
 
 	t.Run("filter by category", func(t *testing.T) {
@@ -80,6 +91,10 @@ func TestGetNodeSchemaHandler(t *testing.T) {
 		assert.Equal(t, "db.query", data["node_type"])
 		assert.NotEmpty(t, data["description"])
 		assert.NotNil(t, data["outputs"])
+		assert.NotNil(t, data["output_data"], "expected output_data for db.query")
+		outputData := data["output_data"].(map[string]any)
+		assert.NotEmpty(t, outputData["success"])
+		assert.NotEmpty(t, outputData["error"])
 	})
 
 	t.Run("unknown node type", func(t *testing.T) {
@@ -88,6 +103,52 @@ func TestGetNodeSchemaHandler(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, result.IsError)
 	})
+}
+
+func TestListFunctionsHandler(t *testing.T) {
+	req := makeCallToolRequest("noda_list_functions", nil)
+	result, err := listFunctionsHandler(context.Background(), req)
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	require.False(t, result.IsError)
+
+	data := parseTextResult(t, result)
+	count := int(data["count"].(float64))
+	functions := data["functions"].([]any)
+	assert.Equal(t, len(functions), count)
+
+	// Should have Noda built-in (12) + expr-lang built-in (19) = 31
+	assert.Equal(t, 31, count)
+
+	// Build a name set and check a few expected functions
+	nameSet := make(map[string]bool, len(functions))
+	for _, f := range functions {
+		fn := f.(map[string]any)
+		name := fn["name"].(string)
+		nameSet[name] = true
+		// Every function should have all three fields
+		assert.NotEmpty(t, fn["name"], "function missing name")
+		assert.NotEmpty(t, fn["signature"], "function %s missing signature", name)
+		assert.NotEmpty(t, fn["description"], "function %s missing description", name)
+	}
+
+	// Noda functions
+	assert.True(t, nameSet["$uuid"], "missing $uuid")
+	assert.True(t, nameSet["sha256"], "missing sha256")
+	assert.True(t, nameSet["bcrypt_hash"], "missing bcrypt_hash")
+
+	// expr-lang built-in functions
+	assert.True(t, nameSet["len"], "missing len")
+	assert.True(t, nameSet["contains"], "missing contains")
+	assert.True(t, nameSet["filter"], "missing filter")
+	assert.True(t, nameSet["keys"], "missing keys")
+
+	// Verify sorted order
+	for i := 1; i < len(functions); i++ {
+		prev := functions[i-1].(map[string]any)["name"].(string)
+		curr := functions[i].(map[string]any)["name"].(string)
+		assert.True(t, prev <= curr, "functions not sorted: %q > %q", prev, curr)
+	}
 }
 
 func TestGetConfigSchemaHandler(t *testing.T) {
@@ -139,6 +200,92 @@ func TestValidateExpressionHandler(t *testing.T) {
 		assert.False(t, data["valid"].(bool))
 		assert.NotEmpty(t, data["error"])
 	})
+
+	t.Run("expression with variables", func(t *testing.T) {
+		req := makeCallToolRequest("noda_validate_expression", map[string]any{"expression": "{{ input.name }}"})
+		result, err := validateExpressionHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.True(t, data["valid"].(bool))
+		variables := toStringSlice(data["variables"])
+		assert.Contains(t, variables, "input.name")
+		functions := toStringSlice(data["functions"])
+		assert.Empty(t, functions)
+	})
+
+	t.Run("expression with functions", func(t *testing.T) {
+		req := makeCallToolRequest("noda_validate_expression", map[string]any{"expression": "{{ $uuid() }}"})
+		result, err := validateExpressionHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.True(t, data["valid"].(bool))
+		variables := toStringSlice(data["variables"])
+		assert.Empty(t, variables)
+		functions := toStringSlice(data["functions"])
+		assert.Contains(t, functions, "$uuid")
+	})
+
+	t.Run("expression with unknown function warning", func(t *testing.T) {
+		req := makeCallToolRequest("noda_validate_expression", map[string]any{"expression": "{{ uuid() }}"})
+		result, err := validateExpressionHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		warnings := toStringSlice(data["warnings"])
+		found := false
+		for _, w := range warnings {
+			if strings.Contains(w, "did you mean $uuid") {
+				found = true
+				break
+			}
+		}
+		assert.True(t, found, "expected warning suggesting $uuid, got: %v", warnings)
+	})
+
+	t.Run("expression with node references", func(t *testing.T) {
+		req := makeCallToolRequest("noda_validate_expression", map[string]any{"expression": "{{ nodes.create.id }}"})
+		result, err := validateExpressionHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.True(t, data["valid"].(bool))
+		variables := toStringSlice(data["variables"])
+		assert.Contains(t, variables, "nodes.create.id")
+	})
+
+	t.Run("mixed expression", func(t *testing.T) {
+		req := makeCallToolRequest("noda_validate_expression", map[string]any{
+			"expression": "{{ bcrypt_verify(input.password, nodes.lookup.hash) }}",
+		})
+		result, err := validateExpressionHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.True(t, data["valid"].(bool))
+		variables := toStringSlice(data["variables"])
+		assert.Contains(t, variables, "input.password")
+		assert.Contains(t, variables, "nodes.lookup.hash")
+		functions := toStringSlice(data["functions"])
+		assert.Contains(t, functions, "bcrypt_verify")
+	})
+}
+
+// toStringSlice converts a JSON array ([]any) to []string.
+func toStringSlice(v any) []string {
+	if v == nil {
+		return nil
+	}
+	arr, ok := v.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, len(arr))
+	for i, item := range arr {
+		out[i] = item.(string)
+	}
+	return out
 }
 
 func TestGetExamplesHandler(t *testing.T) {
@@ -201,6 +348,156 @@ func TestValidateConfigHandler(t *testing.T) {
 	t.Run("relative path rejected", func(t *testing.T) {
 		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": "relative/path"})
 		result, err := validateConfigHandler(context.Background(), req)
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+	})
+}
+
+func TestExplainWorkflowHandler(t *testing.T) {
+	nodeReg := buildNodeRegistry()
+	handler := explainWorkflowHandler(nodeReg)
+
+	t.Run("basic workflow", func(t *testing.T) {
+		workflow := `{
+			"id": "test",
+			"nodes": {
+				"greet": {
+					"type": "transform.set",
+					"config": {
+						"fields": {
+							"message": "Hello, {{ input.name }}!"
+						}
+					}
+				},
+				"respond": {
+					"type": "response.json",
+					"config": {
+						"status": 200,
+						"body": {
+							"greeting": "{{ nodes.greet.message }}"
+						}
+					}
+				}
+			},
+			"edges": [
+				{"from": "greet", "to": "respond", "output": "success"}
+			]
+		}`
+
+		req := makeCallToolRequest("noda_explain_workflow", map[string]any{
+			"workflow": workflow,
+		})
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		data := parseTextResult(t, result)
+		assert.Equal(t, "test", data["workflow_id"])
+
+		nodes := data["nodes"].([]any)
+		assert.Len(t, nodes, 2)
+
+		order := data["execution_order"].([]any)
+		assert.Equal(t, "greet", order[0])
+		assert.Equal(t, "respond", order[1])
+
+		entryNodes := data["entry_nodes"].([]any)
+		assert.Contains(t, entryNodes, "greet")
+
+		terminalNodes := data["terminal_nodes"].([]any)
+		assert.Contains(t, terminalNodes, "respond")
+
+		// Verify expressions were collected
+		greetNode := nodes[0].(map[string]any)
+		assert.Equal(t, "greet", greetNode["id"])
+		expressions := greetNode["expressions"].([]any)
+		assert.Contains(t, expressions, "{{ input.name }}")
+
+		// Verify edges
+		respondNode := nodes[1].(map[string]any)
+		assert.Equal(t, "respond", respondNode["id"])
+		incoming := respondNode["incoming_edges"].([]any)
+		assert.Contains(t, incoming, "greet.success")
+
+		outgoing := greetNode["outgoing_edges"].([]any)
+		assert.Contains(t, outgoing, "success -> respond")
+	})
+
+	t.Run("workflow with alias", func(t *testing.T) {
+		workflow := `{
+			"id": "alias-test",
+			"nodes": {
+				"fetch_user": {
+					"type": "db.findOne",
+					"as": "user",
+					"config": {
+						"table": "users",
+						"where": {"id": "{{ input.id }}"}
+					}
+				}
+			},
+			"edges": []
+		}`
+		req := makeCallToolRequest("noda_explain_workflow", map[string]any{
+			"workflow": workflow,
+		})
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		nodes := data["nodes"].([]any)
+		node := nodes[0].(map[string]any)
+		assert.Equal(t, "user", node["alias"])
+		assert.Equal(t, "nodes.user", node["output_path"])
+	})
+
+	t.Run("with mock input", func(t *testing.T) {
+		workflow := `{
+			"id": "mock-test",
+			"nodes": {
+				"greet": {
+					"type": "transform.set",
+					"config": {
+						"fields": {
+							"message": "Hello, {{ input.name }}!"
+						}
+					}
+				}
+			},
+			"edges": []
+		}`
+		req := makeCallToolRequest("noda_explain_workflow", map[string]any{
+			"workflow": workflow,
+			"input":    `{"name": "World"}`,
+		})
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		data := parseTextResult(t, result)
+		nodes := data["nodes"].([]any)
+		node := nodes[0].(map[string]any)
+		config := node["config"].(map[string]any)
+		fields := config["fields"].(map[string]any)
+		assert.Equal(t, "Hello, World!", fields["message"])
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		req := makeCallToolRequest("noda_explain_workflow", map[string]any{
+			"workflow": "not json",
+		})
+		result, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		assert.True(t, result.IsError)
+	})
+
+	t.Run("invalid input JSON", func(t *testing.T) {
+		workflow := `{"id": "test", "nodes": {}, "edges": []}`
+		req := makeCallToolRequest("noda_explain_workflow", map[string]any{
+			"workflow": workflow,
+			"input":    "not json",
+		})
+		result, err := handler(context.Background(), req)
 		require.NoError(t, err)
 		assert.True(t, result.IsError)
 	})

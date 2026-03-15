@@ -59,12 +59,16 @@ func dispatchNode(
 	output, data, execErr := executor.Execute(ctx, execCtx, node.Config, resolvedServices)
 
 	if execErr != nil {
+		availableNodes := execCtx.OutputKeys()
+
 		// Check if node has error output edges
 		if containsString(node.Outputs, "error") {
 			// Store error data and return "error" output
 			errorData := map[string]any{
-				"error":   execErr.Error(),
-				"node_id": node.ID,
+				"error":           execErr.Error(),
+				"node_id":         node.ID,
+				"node_type":       node.Type,
+				"available_nodes": availableNodes,
 			}
 			execCtx.SetOutput(node.ID, errorData)
 			trace.EndNodeSpan(nodeSpan, "error", nil)
@@ -72,8 +76,15 @@ func dispatchNode(
 			return "error", nil
 		}
 		trace.EndNodeSpan(nodeSpan, "", execErr)
-		execCtx.EmitTrace("node:failed", node.ID, node.Type, "", execErr.Error(), nil)
-		return "", fmt.Errorf("node %q: %w", node.ID, execErr)
+		execCtx.EmitTrace("node:failed", node.ID, node.Type, "", execErr.Error(), map[string]any{
+			"available_nodes": availableNodes,
+		})
+		return "", &NodeExecutionError{
+			NodeID:         node.ID,
+			NodeType:       node.Type,
+			Err:            execErr,
+			AvailableNodes: availableNodes,
+		}
 	}
 
 	// Intercept HTTPResponse if present

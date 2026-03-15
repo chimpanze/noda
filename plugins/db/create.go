@@ -29,6 +29,12 @@ func (d *createDescriptor) ConfigSchema() map[string]any {
 		"required": []any{"table", "data"},
 	}
 }
+func (d *createDescriptor) OutputDescriptions() map[string]string {
+	return map[string]string{
+		"success": "The created row object including generated fields (id, created_at, etc.)",
+		"error":   "Database error details (e.g. unique constraint violation)",
+	}
+}
 
 type createExecutor struct{}
 
