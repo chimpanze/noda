@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -12,6 +13,7 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 	workflowIDs := collectIDs(rc.Workflows)
 	serviceMap := collectServices(rc.Root)
 	presets := collectPresets(rc.Root)
+	instances := collectInstances(rc.Root)
 
 	// Route → Workflow
 	for filePath, route := range rc.Routes {
@@ -27,7 +29,7 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 			}
 		}
 		// Route middleware presets
-		errs = append(errs, validateMiddlewareRefs(filePath, route, presets)...)
+		errs = append(errs, validateMiddlewareRefs(filePath, route, presets, instances)...)
 	}
 
 	// Worker → Stream service and Workflow
@@ -279,7 +281,22 @@ func collectPresets(root map[string]any) map[string]bool {
 	return result
 }
 
-func validateMiddlewareRefs(filePath string, route map[string]any, presets map[string]bool) []ValidationError {
+func collectInstances(root map[string]any) map[string]bool {
+	result := make(map[string]bool)
+	if root == nil {
+		return result
+	}
+	instances, ok := root["middleware_instances"].(map[string]any)
+	if !ok {
+		return result
+	}
+	for name := range instances {
+		result[name] = true
+	}
+	return result
+}
+
+func validateMiddlewareRefs(filePath string, route map[string]any, presets map[string]bool, instances map[string]bool) []ValidationError {
 	var errs []ValidationError
 	mw, ok := route["middleware"].([]any)
 	if !ok {
@@ -297,6 +314,18 @@ func validateMiddlewareRefs(filePath string, route map[string]any, presets map[s
 					JSONPath: fmt.Sprintf("/middleware/%d/preset", i),
 					Message:  fmt.Sprintf("references non-existent middleware preset %q", preset),
 				})
+			}
+		}
+		if name, ok := m["use"].(string); ok {
+			if idx := strings.Index(name, ":"); idx >= 0 {
+				// Instance reference like "auth.jwt:prod"
+				if !instances[name] {
+					errs = append(errs, ValidationError{
+						FilePath: filePath,
+						JSONPath: fmt.Sprintf("/middleware/%d/use", i),
+						Message:  fmt.Sprintf("references non-existent middleware instance %q", name),
+					})
+				}
 			}
 		}
 	}

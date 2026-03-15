@@ -176,16 +176,16 @@ func TestBuildMiddleware_Limiter_InvalidExpiration(t *testing.T) {
 }
 
 func TestBuildMiddleware_Limiter_NilConfig(t *testing.T) {
-	h, err := BuildMiddleware("limiter", nil)
-	require.NoError(t, err)
-	require.NotNil(t, h)
+	_, err := BuildMiddleware("limiter", nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max=0")
 }
 
 func TestBuildMiddleware_JWT_UnsupportedAlgorithm(t *testing.T) {
 	_, err := BuildMiddleware("auth.jwt", map[string]any{
 		"security": map[string]any{
 			"jwt": map[string]any{
-				"secret":    "test-key",
+				"secret":    "test-key-that-is-at-least-32-bytes-long!!",
 				"algorithm": "RS256",
 			},
 		},
@@ -195,7 +195,7 @@ func TestBuildMiddleware_JWT_UnsupportedAlgorithm(t *testing.T) {
 }
 
 func TestBuildMiddleware_JWT_HS384(t *testing.T) {
-	secret := "test-secret-384"
+	secret := "test-secret-384-at-least-32-bytes-long!"
 	app := fiber.New()
 	h, err := BuildMiddleware("auth.jwt", map[string]any{
 		"security": map[string]any{
@@ -226,7 +226,7 @@ func TestBuildMiddleware_JWT_HS384(t *testing.T) {
 }
 
 func TestBuildMiddleware_JWT_HS512(t *testing.T) {
-	secret := "test-secret-512"
+	secret := "test-secret-512-at-least-32-bytes-long!"
 	app := fiber.New()
 	h, err := BuildMiddleware("auth.jwt", map[string]any{
 		"security": map[string]any{
@@ -261,7 +261,7 @@ func TestBuildMiddleware_JWT_InvalidAuthFormat(t *testing.T) {
 	h, err := BuildMiddleware("auth.jwt", map[string]any{
 		"security": map[string]any{
 			"jwt": map[string]any{
-				"secret": "test-key",
+				"secret": "test-key-that-is-at-least-32-bytes-long!!",
 			},
 		},
 	})
@@ -283,7 +283,7 @@ func TestBuildMiddleware_JWT_InvalidAuthFormat(t *testing.T) {
 }
 
 func TestBuildMiddleware_JWT_Roles(t *testing.T) {
-	secret := "test-secret-roles"
+	secret := "test-secret-roles-at-least-32-bytes!"
 	app := fiber.New()
 	h, err := BuildMiddleware("auth.jwt", map[string]any{
 		"security": map[string]any{
@@ -296,7 +296,7 @@ func TestBuildMiddleware_JWT_Roles(t *testing.T) {
 
 	app.Use(h)
 	app.Get("/test", func(c fiber.Ctx) error {
-		roles := c.Locals(LocalJWTRoles)
+		roles := c.Locals(api.LocalJWTRoles)
 		return c.JSON(map[string]any{"roles": roles})
 	})
 
@@ -1974,9 +1974,9 @@ func TestBuildRawRequestContext_WithJWTClaims(t *testing.T) {
 	var ctx map[string]any
 
 	app.Use(func(c fiber.Ctx) error {
-		c.Locals(LocalJWTClaims, map[string]any{"sub": "user-1"})
-		c.Locals(LocalJWTUserID, "user-1")
-		c.Locals(LocalJWTRoles, []string{"admin"})
+		c.Locals(api.LocalJWTClaims, map[string]any{"sub": "user-1"})
+		c.Locals(api.LocalJWTUserID, "user-1")
+		c.Locals(api.LocalJWTRoles, []string{"admin"})
 		return c.Next()
 	})
 
@@ -2018,9 +2018,9 @@ func TestExtractAuth_WithClaims(t *testing.T) {
 	var auth *api.AuthData
 
 	app.Use(func(c fiber.Ctx) error {
-		c.Locals(LocalJWTClaims, map[string]any{"sub": "user-1", "email": "a@b.com"})
-		c.Locals(LocalJWTUserID, "user-1")
-		c.Locals(LocalJWTRoles, []string{"editor"})
+		c.Locals(api.LocalJWTClaims, map[string]any{"sub": "user-1", "email": "a@b.com"})
+		c.Locals(api.LocalJWTUserID, "user-1")
+		c.Locals(api.LocalJWTRoles, []string{"editor"})
 		return c.Next()
 	})
 
@@ -2062,7 +2062,7 @@ func TestCasbin_MultiTenant_QueryFallback(t *testing.T) {
 
 	app := fiber.New(fiber.Config{ErrorHandler: errHandler})
 	app.Get("/api/data", func(c fiber.Ctx) error {
-		c.Locals(LocalJWTUserID, "alice")
+		c.Locals(api.LocalJWTUserID, "alice")
 		return c.Next()
 	}, mw, func(c fiber.Ctx) error {
 		return c.SendString("ok")
@@ -2258,7 +2258,7 @@ func TestResolveMiddlewareChain_UnknownMiddleware(t *testing.T) {
 func TestResolveMiddlewareChain_BadOrder(t *testing.T) {
 	srv := testServerWithConfig(map[string]any{
 		"security": map[string]any{
-			"jwt":    map[string]any{"secret": "s"},
+			"jwt":    map[string]any{"secret": "test-secret-key-that-is-at-least-32-bytes-long"},
 			"casbin": map[string]any{"model": aclModel, "policies": []any{[]any{"p", "a", "/b", "GET"}}},
 		},
 	})
@@ -2313,7 +2313,7 @@ func TestExtractSubject_WithUserID(t *testing.T) {
 	var sub string
 
 	app.Get("/test", func(c fiber.Ctx) error {
-		c.Locals(LocalJWTUserID, "user-1")
+		c.Locals(api.LocalJWTUserID, "user-1")
 		sub = extractSubject(c)
 		return c.SendString("ok")
 	})
@@ -2342,7 +2342,7 @@ func TestExtractSubject_EmptyString(t *testing.T) {
 	var sub string
 
 	app.Get("/test", func(c fiber.Ctx) error {
-		c.Locals(LocalJWTUserID, "")
+		c.Locals(api.LocalJWTUserID, "")
 		sub = extractSubject(c)
 		return c.SendString("ok")
 	})
@@ -2750,7 +2750,7 @@ func TestCasbin_MultiTenant_NoTenantParam(t *testing.T) {
 
 	app := fiber.New(fiber.Config{ErrorHandler: errHandler})
 	app.Get("/api/data", func(c fiber.Ctx) error {
-		c.Locals(LocalJWTUserID, "alice")
+		c.Locals(api.LocalJWTUserID, "alice")
 		return c.Next()
 	}, mw, func(c fiber.Ctx) error {
 		return c.SendString("ok")

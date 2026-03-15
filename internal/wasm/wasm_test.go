@@ -890,10 +890,6 @@ func (s *mockStreamService) Publish(_ context.Context, topic string, payload any
 	return fmt.Sprintf("msg-%d", s.nextID), nil
 }
 
-func (s *mockStreamService) Ack(_ context.Context, _, _, _ string) error {
-	return nil
-}
-
 // --- Mock PubSubService ---
 
 type mockPubSubService struct {

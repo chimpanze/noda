@@ -913,7 +913,7 @@ func TestEviction_TerminalNodesNeverEvicted(t *testing.T) {
 	execCtx.SetOutput("a", "data-a")
 
 	tracker := NewEvictionTracker(graph, execCtx)
-	tracker.NodeCompleted("a", graph)
+	tracker.NodeCompleted("a")
 
 	// Terminal node outputs should never be evicted
 	_, ok := execCtx.GetOutput("a")
@@ -948,12 +948,12 @@ func TestEviction_ExpressionRefTracking(t *testing.T) {
 	tracker := NewEvictionTracker(graph, execCtx)
 
 	// After B completes, A is still referenced by C
-	tracker.NodeCompleted("b", graph)
+	tracker.NodeCompleted("b")
 	_, ok := execCtx.GetOutput("a")
 	assert.True(t, ok, "a should not be evicted — c still references it via expression")
 
 	// After C completes, A can be evicted
-	tracker.NodeCompleted("c", graph)
+	tracker.NodeCompleted("c")
 	_, ok = execCtx.GetOutput("a")
 	assert.False(t, ok, "a should be evicted after all consumers complete")
 }

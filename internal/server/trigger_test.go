@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -128,9 +129,9 @@ func TestMapTrigger_AuthFromJWT(t *testing.T) {
 
 	// Simulate JWT middleware setting locals
 	app.Use(func(c fiber.Ctx) error {
-		c.Locals(LocalJWTClaims, map[string]any{"sub": "user-1", "email": "test@test.com"})
-		c.Locals(LocalJWTUserID, "user-1")
-		c.Locals(LocalJWTRoles, []string{"admin"})
+		c.Locals(api.LocalJWTClaims, map[string]any{"sub": "user-1", "email": "test@test.com"})
+		c.Locals(api.LocalJWTUserID, "user-1")
+		c.Locals(api.LocalJWTRoles, []string{"admin"})
 		return c.Next()
 	})
 

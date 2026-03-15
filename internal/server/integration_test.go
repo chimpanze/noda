@@ -132,7 +132,7 @@ func TestE2E_POST_TriggerMapping_ResponseJSON(t *testing.T) {
 
 // JWT middleware → $.auth available in workflow expressions
 func TestE2E_JWT_AuthInWorkflow(t *testing.T) {
-	secret := "e2e-secret"
+	secret := "e2e-secret-at-least-32-bytes-long-here!"
 	srv := newTestServer(t,
 		map[string]map[string]any{
 			"me": {
@@ -306,7 +306,7 @@ func TestE2E_MiddlewareChainOrder(t *testing.T) {
 		map[string]any{
 			"security": map[string]any{
 				"jwt": map[string]any{
-					"secret": "auth-test-secret",
+					"secret": "auth-test-secret-at-least-32-bytes!",
 				},
 			},
 		},
@@ -323,7 +323,7 @@ func TestE2E_MiddlewareChainOrder(t *testing.T) {
 		"sub": "user-1",
 		"exp": time.Now().Add(time.Hour).Unix(),
 	})
-	tokenStr, _ := token.SignedString([]byte("auth-test-secret"))
+	tokenStr, _ := token.SignedString([]byte("auth-test-secret-at-least-32-bytes!"))
 	req = httptest.NewRequest("GET", "/secret", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenStr)
 	resp, err = srv.App().Test(req)
@@ -333,7 +333,7 @@ func TestE2E_MiddlewareChainOrder(t *testing.T) {
 
 // Route groups with preset middleware
 func TestE2E_RouteGroupsWithPresets(t *testing.T) {
-	secret := "group-secret"
+	secret := "group-secret-at-least-32-bytes-long-here!"
 	srv := newTestServer(t,
 		map[string]map[string]any{
 			"admin-users": {

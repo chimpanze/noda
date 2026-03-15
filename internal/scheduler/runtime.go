@@ -172,6 +172,9 @@ const defaultJobTimeout = 5 * time.Minute
 
 // runJob executes a single scheduled job with optional distributed locking.
 func (r *Runtime) runJob(sc ScheduleConfig) {
+	start := time.Now()
+	traceID := uuid.New().String()
+
 	defer func() {
 		if rv := recover(); rv != nil {
 			r.logger.Error("scheduler: job panicked",
@@ -180,7 +183,9 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			)
 			r.recordRun(JobRun{
 				ScheduleID: sc.ID,
-				StartedAt:  time.Now(),
+				TraceID:    traceID,
+				StartedAt:  start,
+				Duration:   time.Since(start),
 				Error:      fmt.Sprintf("panic: %v", rv),
 			})
 		}
@@ -193,9 +198,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	now := time.Now()
-	traceID := uuid.New().String()
-	start := now
+	now := start
 
 	r.logger.Info("scheduler: job firing",
 		"schedule_id", sc.ID,

@@ -58,7 +58,7 @@ func makeToken(t *testing.T, secret, sub string, roles []string) string {
 
 // TestE2E_Casbin_PermittedAndDenied tests full JWT + Casbin middleware chain through the server.
 func TestE2E_Casbin_PermittedAndDenied(t *testing.T) {
-	secret := "test-casbin-secret"
+	secret := "test-casbin-secret-at-least-32-bytes!"
 
 	srv := newTestServer(t,
 		map[string]map[string]any{
@@ -139,7 +139,7 @@ func TestE2E_Casbin_PermittedAndDenied(t *testing.T) {
 
 // TestE2E_Casbin_AdminVsMember tests role-based access with different privilege levels.
 func TestE2E_Casbin_AdminVsMember(t *testing.T) {
-	secret := "test-roles-secret"
+	secret := "test-roles-secret-at-least-32-bytes!"
 
 	srv := newTestServer(t,
 		map[string]map[string]any{
@@ -248,7 +248,7 @@ func TestE2E_Casbin_AdminVsMember(t *testing.T) {
 
 // TestE2E_Casbin_MultiTenant tests tenant-scoped authorization.
 func TestE2E_Casbin_MultiTenant(t *testing.T) {
-	secret := "test-tenant-secret"
+	secret := "test-tenant-secret-at-least-32-bytes"
 
 	srv := newTestServer(t,
 		map[string]map[string]any{
@@ -358,7 +358,7 @@ func TestE2E_Casbin_MultiTenant(t *testing.T) {
 
 // TestE2E_Casbin_MiddlewarePreset tests using casbin.enforce via middleware presets.
 func TestE2E_Casbin_MiddlewarePreset(t *testing.T) {
-	secret := "test-preset-secret"
+	secret := "test-preset-secret-at-least-32-bytes"
 
 	srv := newTestServer(t,
 		map[string]map[string]any{

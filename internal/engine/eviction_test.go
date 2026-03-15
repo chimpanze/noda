@@ -31,7 +31,7 @@ func TestEviction_AfterLastDependent(t *testing.T) {
 	tracker := NewEvictionTracker(graph, execCtx)
 
 	// After B completes, A has one consumer (B), so A should be evicted
-	tracker.NodeCompleted("b", graph)
+	tracker.NodeCompleted("b")
 	_, ok := execCtx.GetOutput("a")
 	assert.False(t, ok, "a should be evicted after b completes")
 
@@ -40,7 +40,7 @@ func TestEviction_AfterLastDependent(t *testing.T) {
 	assert.True(t, ok, "b should not be evicted yet")
 
 	// After C completes, B should be evicted
-	tracker.NodeCompleted("c", graph)
+	tracker.NodeCompleted("c")
 	_, ok = execCtx.GetOutput("b")
 	assert.False(t, ok, "b should be evicted after c completes")
 }
@@ -68,12 +68,12 @@ func TestEviction_ParallelBranches(t *testing.T) {
 	tracker := NewEvictionTracker(graph, execCtx)
 
 	// After B completes, A still needed by C
-	tracker.NodeCompleted("b", graph)
+	tracker.NodeCompleted("b")
 	_, ok := execCtx.GetOutput("a")
 	assert.True(t, ok, "a should not be evicted — c still needs it")
 
 	// After C completes, A can be evicted
-	tracker.NodeCompleted("c", graph)
+	tracker.NodeCompleted("c")
 	_, ok = execCtx.GetOutput("a")
 	assert.False(t, ok, "a should be evicted after both b and c complete")
 }
@@ -98,7 +98,7 @@ func TestEviction_AsAlias(t *testing.T) {
 
 	tracker := NewEvictionTracker(graph, execCtx)
 
-	tracker.NodeCompleted("b", graph)
+	tracker.NodeCompleted("b")
 	// Should evict under the alias key
 	_, ok := execCtx.GetOutput("a")
 	assert.False(t, ok, "aliased output should be evicted after dependent completes")

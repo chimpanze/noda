@@ -29,7 +29,7 @@ func ExecuteGraph(
 	defer func() { trace.EndWorkflowSpan(workflowSpan, workflowErr) }()
 
 	startTime := time.Now()
-	execCtx.EmitTrace("workflow:started", "", "", "", "", nil)
+	execCtx.EmitTrace(string(trace.EventWorkflowStarted), "", "", "", "", nil)
 	execCtx.Log("info", "workflow started", map[string]any{
 		"trigger_type": execCtx.Trigger().Type,
 	})
@@ -144,12 +144,12 @@ func ExecuteGraph(
 			}
 
 			// Evict upstream outputs that are no longer needed
-			evictionTracker.NodeCompleted(nodeID, graph)
+			evictionTracker.NodeCompleted(nodeID)
 
 			// Follow outbound edges for the fired output
 			targets := graph.Adjacency[nodeID][output]
 			for _, targetID := range targets {
-				execCtx.EmitTrace("edge:followed", "", "", output, "", map[string]any{
+				execCtx.EmitTrace(string(trace.EventEdgeFollowed), "", "", output, "", map[string]any{
 					"from": nodeID,
 					"to":   targetID,
 				})
@@ -189,11 +189,11 @@ func ExecuteGraph(
 			"duration": duration.String(),
 		})
 		workflowErr = errVal.(error)
-		execCtx.EmitTrace("workflow:failed", "", "", "", workflowErr.Error(), nil)
+		execCtx.EmitTrace(string(trace.EventWorkflowFailed), "", "", "", workflowErr.Error(), nil)
 		return workflowErr
 	}
 
-	execCtx.EmitTrace("workflow:completed", "", "", "", "", map[string]any{"duration": duration.String()})
+	execCtx.EmitTrace(string(trace.EventWorkflowCompleted), "", "", "", "", map[string]any{"duration": duration.String()})
 	execCtx.Log("info", "workflow completed", map[string]any{
 		"status":   "success",
 		"duration": duration.String(),

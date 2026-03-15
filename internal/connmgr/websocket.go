@@ -108,7 +108,7 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 
 	// Extract params from the path
 	params := extractFiberParams(ws, h.paramNames)
-	userID := fiberLocal[string](ws, "jwt_user_id")
+	userID := fiberLocal[string](ws, api.LocalJWTUserID)
 
 	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID, h.logger)
 
@@ -225,6 +225,22 @@ func extractFiberParams(ws *websocket.Conn, paramNames []string) map[string]stri
 	}
 	for _, name := range paramNames {
 		if v := ws.Params(name); v != "" {
+			params[name] = v
+		}
+	}
+	return params
+}
+
+// extractFiberParamsFromCtx extracts route params from a Fiber context
+// using the param names parsed from the route path pattern.
+// This is the shared helper used by both SSE and WebSocket handlers.
+func extractFiberParamsFromCtx(c fiber.Ctx, paramNames []string) map[string]string {
+	params := make(map[string]string)
+	if p := c.Params("*"); p != "" {
+		params["*"] = p
+	}
+	for _, name := range paramNames {
+		if v := c.Params(name); v != "" {
 			params[name] = v
 		}
 	}

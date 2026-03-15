@@ -49,8 +49,6 @@ func (m *mockStreamService) Publish(_ context.Context, topic string, payload any
 	return "mock-id-1", nil
 }
 
-func (m *mockStreamService) Ack(_ context.Context, _, _, _ string) error { return nil }
-
 // mockPubSubService implements api.PubSubService for testing.
 type mockPubSubService struct {
 	published []struct {
@@ -75,8 +73,6 @@ type failingStreamService struct {
 func (f *failingStreamService) Publish(_ context.Context, _ string, _ any) (string, error) {
 	return "", f.err
 }
-
-func (f *failingStreamService) Ack(_ context.Context, _, _, _ string) error { return nil }
 
 // failingPubSubService always returns an error on Publish.
 type failingPubSubService struct {
@@ -392,8 +388,4 @@ func (s *realStreamService) Publish(ctx context.Context, topic string, payload a
 		Stream: topic,
 		Values: map[string]any{"payload": "test"},
 	}).Result()
-}
-
-func (s *realStreamService) Ack(ctx context.Context, topic, group, msgID string) error {
-	return s.client.XAck(ctx, topic, group, msgID).Err()
 }

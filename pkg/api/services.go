@@ -21,7 +21,6 @@ type CacheService interface {
 // StreamService provides durable message streaming (Redis Streams).
 type StreamService interface {
 	Publish(ctx context.Context, topic string, payload any) (string, error) // returns message ID
-	Ack(ctx context.Context, topic string, group string, messageID string) error
 }
 
 // PubSubService provides real-time fan-out messaging (Redis PubSub).

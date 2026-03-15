@@ -44,7 +44,7 @@ func dispatchNode(
 
 	// Start OTel node span
 	ctx, nodeSpan := trace.StartNodeSpan(ctx, execCtx.Tracer(), node.ID, node.Type)
-	execCtx.EmitTrace("node:entered", node.ID, node.Type, "", "", nil)
+	execCtx.EmitTrace(string(trace.EventNodeEntered), node.ID, node.Type, "", "", nil)
 
 	// Set current node for logging context
 	execCtx.SetCurrentNode(node.ID)
@@ -72,11 +72,11 @@ func dispatchNode(
 			}
 			execCtx.SetOutput(node.ID, errorData)
 			trace.EndNodeSpan(nodeSpan, "error", nil)
-			execCtx.EmitTrace("node:completed", node.ID, node.Type, "error", execErr.Error(), errorData)
+			execCtx.EmitTrace(string(trace.EventNodeCompleted), node.ID, node.Type, "error", execErr.Error(), errorData)
 			return "error", nil
 		}
 		trace.EndNodeSpan(nodeSpan, "", execErr)
-		execCtx.EmitTrace("node:failed", node.ID, node.Type, "", execErr.Error(), map[string]any{
+		execCtx.EmitTrace(string(trace.EventNodeFailed), node.ID, node.Type, "", execErr.Error(), map[string]any{
 			"available_nodes": availableNodes,
 		})
 		return "", &NodeExecutionError{
@@ -100,11 +100,11 @@ func dispatchNode(
 	if !containsString(node.Outputs, output) {
 		execErr := fmt.Errorf("node %q returned undeclared output %q", node.ID, output)
 		trace.EndNodeSpan(nodeSpan, "", execErr)
-		execCtx.EmitTrace("node:failed", node.ID, node.Type, "", execErr.Error(), nil)
+		execCtx.EmitTrace(string(trace.EventNodeFailed), node.ID, node.Type, "", execErr.Error(), nil)
 		return "", execErr
 	}
 
 	trace.EndNodeSpan(nodeSpan, output, nil)
-	execCtx.EmitTrace("node:completed", node.ID, node.Type, output, "", data)
+	execCtx.EmitTrace(string(trace.EventNodeCompleted), node.ID, node.Type, output, "", data)
 	return output, nil
 }

@@ -152,7 +152,7 @@ func (s *Server) validateAndWriteResponse(c fiber.Ctx, resp *api.HTTPResponse, r
 	}
 
 	// Default mode ("") only validates in dev mode
-	if rv.mode == "" && s.traceHub == nil {
+	if rv.mode == "" && !s.devMode {
 		return writeHTTPResponse(c, resp)
 	}
 
@@ -308,7 +308,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		case wfErr := <-workflowDone:
 			// Workflow completed — check if a response was sent before returning
 			if wfErr != nil {
-				status, errResp := MapErrorToHTTP(wfErr, traceID, s.traceHub != nil)
+				status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
 				return writeErrorResponse(c, status, errResp)
 			}
 			// Drain responseCh: the response node may have fired just before

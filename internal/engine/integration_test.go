@@ -372,12 +372,12 @@ func TestIntegration_OutputEviction(t *testing.T) {
 
 	// Simulate execution with eviction
 	execCtx.SetOutput("a", map[string]any{"data": "from-a"})
-	tracker.NodeCompleted("b", graph) // a consumed by b
+	tracker.NodeCompleted("b") // a consumed by b
 	_, ok := execCtx.GetOutput("a")
 	assert.False(t, ok, "a should be evicted after b")
 
 	execCtx.SetOutput("b", map[string]any{"data": "from-b"})
-	tracker.NodeCompleted("c", graph)
+	tracker.NodeCompleted("c")
 	_, ok = execCtx.GetOutput("b")
 	assert.False(t, ok, "b should be evicted after c")
 }

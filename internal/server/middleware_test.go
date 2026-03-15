@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -153,7 +154,7 @@ func TestBuildMiddleware_JWT_RejectsInvalidToken(t *testing.T) {
 	h, err := BuildMiddleware("auth.jwt", map[string]any{
 		"security": map[string]any{
 			"jwt": map[string]any{
-				"secret": "test-secret-key",
+				"secret": "test-secret-key-that-is-at-least-32-bytes-long",
 			},
 		},
 	})
@@ -179,7 +180,7 @@ func TestBuildMiddleware_JWT_RejectsInvalidToken(t *testing.T) {
 }
 
 func TestBuildMiddleware_JWT_ValidToken(t *testing.T) {
-	secret := "test-secret-key"
+	secret := "test-secret-key-that-is-at-least-32-bytes-long"
 
 	app := fiber.New()
 	h, err := BuildMiddleware("auth.jwt", map[string]any{
@@ -193,8 +194,8 @@ func TestBuildMiddleware_JWT_ValidToken(t *testing.T) {
 
 	app.Use(h)
 	app.Get("/protected", func(c fiber.Ctx) error {
-		claims := c.Locals(LocalJWTClaims)
-		userID := c.Locals(LocalJWTUserID)
+		claims := c.Locals(api.LocalJWTClaims)
+		userID := c.Locals(api.LocalJWTUserID)
 		return c.JSON(map[string]any{
 			"claims":  claims,
 			"user_id": userID,

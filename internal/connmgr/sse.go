@@ -27,11 +27,12 @@ type SSEConfig struct {
 
 // SSEHandler manages a single SSE endpoint.
 type SSEHandler struct {
-	config   SSEConfig
-	manager  *Manager
-	runner   api.WorkflowRunner
-	compiler *expr.Compiler
-	logger   *slog.Logger
+	config     SSEConfig
+	manager    *Manager
+	runner     api.WorkflowRunner
+	compiler   *expr.Compiler
+	logger     *slog.Logger
+	paramNames []string // route param names extracted from path pattern
 }
 
 // NewSSEHandler creates a handler for an SSE endpoint.
@@ -46,11 +47,12 @@ func NewSSEHandler(cfg SSEConfig, mgr *Manager, runner api.WorkflowRunner, compi
 		compiler = expr.NewCompiler()
 	}
 	return &SSEHandler{
-		config:   cfg,
-		manager:  mgr,
-		runner:   runner,
-		compiler: compiler,
-		logger:   logger,
+		config:     cfg,
+		manager:    mgr,
+		runner:     runner,
+		compiler:   compiler,
+		logger:     logger,
+		paramNames: extractParamNamesFromPath(cfg.Path),
 	}
 }
 
@@ -75,13 +77,10 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 
 	connID := uuid.New().String()
 
-	// Extract params
-	params := make(map[string]string)
-	for _, p := range c.Route().Params {
-		params[p] = c.Params(p)
-	}
+	// Extract params (shared logic with WebSocket handler)
+	params := extractFiberParamsFromCtx(c, h.paramNames)
 	userID := ""
-	if uid, ok := c.Locals("jwt_user_id").(string); ok {
+	if uid, ok := c.Locals(api.LocalJWTUserID).(string); ok {
 		userID = uid
 	}
 

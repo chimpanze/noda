@@ -86,7 +86,7 @@ func NewEvictionTracker(graph *CompiledGraph, execCtx *ExecutionContextImpl) *Ev
 // NodeCompleted is called after a node finishes executing.
 // It decrements reference counts for all outputs the node consumed
 // (both via direct edges and expression references).
-func (t *EvictionTracker) NodeCompleted(nodeID string, graph *CompiledGraph) {
+func (t *EvictionTracker) NodeCompleted(nodeID string) {
 	for _, outputKey := range t.consumers[nodeID] {
 		if ref, ok := t.refs[outputKey]; ok {
 			if ref.Add(-1) == 0 {

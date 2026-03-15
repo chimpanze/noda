@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
 )
@@ -132,13 +133,9 @@ func (e *RunExecutor) executeWithTransaction(ctx context.Context, workflowID str
 	}
 
 	// Get database service
-	dbSvc, ok := services["database"]
-	if !ok {
-		return "", nil, fmt.Errorf("workflow.run: transaction requires a database service")
-	}
-	db, ok := dbSvc.(*gorm.DB)
-	if !ok {
-		return "", nil, fmt.Errorf("workflow.run: database service is not a *gorm.DB")
+	db, err := plugin.GetService[*gorm.DB](services, "database")
+	if err != nil {
+		return "", nil, fmt.Errorf("workflow.run: transaction requires a database service: %w", err)
 	}
 
 	var (

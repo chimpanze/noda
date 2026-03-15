@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
 	"github.com/gofiber/fiber/v3/middleware/cors"
@@ -87,6 +88,17 @@ func BuildMiddleware(name string, rootConfig map[string]any) (fiber.Handler, err
 	return factory(mwConfig, rootConfig)
 }
 
+// middlewareConfigPaths maps middleware names to alternative config lookup paths.
+// Each path is a sequence of nested keys in the root config.
+// The "middleware" section is always checked first for all middleware.
+var middlewareConfigPaths = map[string][]string{
+	"security.cors":    {"security", "cors"},
+	"security.headers": {"security", "headers"},
+	"security.csrf":    {"security", "csrf"},
+	"auth.jwt":         {"security", "jwt"},
+	"casbin.enforce":   {"security", "casbin"},
+}
+
 // extractMiddlewareConfig extracts the config block for a specific middleware.
 func extractMiddlewareConfig(name string, rootConfig map[string]any) map[string]any {
 	// Try middleware section first
@@ -95,30 +107,17 @@ func extractMiddlewareConfig(name string, rootConfig map[string]any) map[string]
 			return cfg
 		}
 	}
-	// Try security section for security.* middleware
-	if strings.HasPrefix(name, "security.") {
-		if sec, ok := rootConfig["security"].(map[string]any); ok {
-			shortName := strings.TrimPrefix(name, "security.")
-			if cfg, ok := sec[shortName].(map[string]any); ok {
-				return cfg
+	// Try alternative config path
+	if path, ok := middlewareConfigPaths[name]; ok {
+		cfg := rootConfig
+		for _, key := range path {
+			next, ok := cfg[key].(map[string]any)
+			if !ok {
+				return nil
 			}
+			cfg = next
 		}
-	}
-	// JWT config under security.jwt
-	if name == "auth.jwt" {
-		if sec, ok := rootConfig["security"].(map[string]any); ok {
-			if cfg, ok := sec["jwt"].(map[string]any); ok {
-				return cfg
-			}
-		}
-	}
-	// Casbin config under security.casbin
-	if name == "casbin.enforce" {
-		if sec, ok := rootConfig["security"].(map[string]any); ok {
-			if cfg, ok := sec["casbin"].(map[string]any); ok {
-				return cfg
-			}
-		}
+		return cfg
 	}
 	return nil
 }
@@ -217,7 +216,7 @@ func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, 
 		}
 	}
 	if limiterCfg.Max == 0 {
-		slog.Warn("limiter middleware has max=0, defaulting to library default")
+		return nil, fmt.Errorf("limiter: max=0 is not allowed; set an explicit max request count")
 	}
 	return limiter.New(limiterCfg), nil
 }
@@ -258,9 +257,9 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 		return nil, fmt.Errorf("auth.jwt: secret is required")
 	}
 
-	// Warn about potentially weak secrets
+	// Reject weak secrets
 	if len(secret) < 32 {
-		slog.Warn("auth.jwt: secret is shorter than 32 bytes; consider using a stronger secret")
+		return nil, fmt.Errorf("auth.jwt: secret is shorter than 32 bytes; use a stronger secret")
 	}
 
 	algorithm, _ := cfg["algorithm"].(string)
@@ -309,9 +308,9 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 		}
 
 		// Store claims in Fiber locals for trigger mapping to access
-		c.Locals(LocalJWTClaims, map[string]any(claims))
+		c.Locals(api.LocalJWTClaims, map[string]any(claims))
 		if sub, ok := claims["sub"].(string); ok {
-			c.Locals(LocalJWTUserID, sub)
+			c.Locals(api.LocalJWTUserID, sub)
 		}
 		if roles, ok := claims["roles"].([]any); ok {
 			roleStrs := make([]string, 0, len(roles))
@@ -320,7 +319,7 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 					roleStrs = append(roleStrs, s)
 				}
 			}
-			c.Locals(LocalJWTRoles, roleStrs)
+			c.Locals(api.LocalJWTRoles, roleStrs)
 		}
 
 		return c.Next()

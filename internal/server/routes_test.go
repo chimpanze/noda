@@ -322,7 +322,7 @@ func TestRoute_WorkflowError_MappedResponse(t *testing.T) {
 }
 
 func TestRoute_JWTAuth_ClaimsAvailable(t *testing.T) {
-	secret := "test-jwt-secret"
+	secret := "test-jwt-secret-at-least-32-bytes-long!"
 	srv := newTestServer(t,
 		map[string]map[string]any{
 			"protected": {

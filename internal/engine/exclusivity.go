@@ -48,8 +48,8 @@ func ValidateOutputExclusivity(graph *CompiledGraph) error {
 // by finding their common conditional ancestor.
 func areMutuallyExclusive(graph *CompiledGraph, nodeA, nodeB string) bool {
 	// Get all ancestors for both nodes
-	ancestorsA := traceAncestorsWithPaths(graph, nodeA)
-	ancestorsB := traceAncestorsWithPaths(graph, nodeB)
+	ancestorsA := traceAncestors(graph, nodeA)
+	ancestorsB := traceAncestors(graph, nodeB)
 
 	// Find common ancestors
 	for ancestor := range ancestorsA {
@@ -73,23 +73,6 @@ func areMutuallyExclusive(graph *CompiledGraph, nodeA, nodeB string) bool {
 	}
 
 	return false
-}
-
-// traceAncestorsWithPaths returns all ancestors of a node.
-func traceAncestorsWithPaths(graph *CompiledGraph, node string) map[string]bool {
-	visited := make(map[string]bool)
-	queue := []string{node}
-	for len(queue) > 0 {
-		cur := queue[0]
-		queue = queue[1:]
-		for _, parent := range graph.Reverse[cur] {
-			if !visited[parent] {
-				visited[parent] = true
-				queue = append(queue, parent)
-			}
-		}
-	}
-	return visited
 }
 
 // findOutputLeadingTo finds which output of ancestor eventually leads to target.

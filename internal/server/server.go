@@ -23,6 +23,7 @@ type Server struct {
 	nodes        *registry.NodeRegistry
 	workflows    *engine.WorkflowCache
 	traceHub     *trace.EventHub
+	devMode      bool
 	connManagers *connmgr.ManagerGroup
 	port         int
 	logger       *slog.Logger
@@ -50,7 +51,10 @@ func WithWorkflowCache(c *engine.WorkflowCache) ServerOption {
 // When set, every workflow execution emits trace events to connected
 // editor clients via the /ws/trace WebSocket.
 func WithTraceHub(hub *trace.EventHub) ServerOption {
-	return func(s *Server) { s.traceHub = hub }
+	return func(s *Server) {
+		s.traceHub = hub
+		s.devMode = true
+	}
 }
 
 // NewServer creates a Fiber app from the resolved config.

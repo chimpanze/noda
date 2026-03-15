@@ -3,7 +3,6 @@ package server
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 	"time"
@@ -98,14 +97,14 @@ func buildRawRequestContext(c fiber.Ctx) map[string]any {
 	}
 
 	// Include auth claims so trigger mappings can reference {{ auth.sub }}
-	if claims, _ := c.Locals(LocalJWTClaims).(map[string]any); claims != nil {
+	if claims, _ := c.Locals(api.LocalJWTClaims).(map[string]any); claims != nil {
 		authMap := map[string]any{
 			"claims": claims,
 		}
-		if userID, ok := c.Locals(LocalJWTUserID).(string); ok {
+		if userID, ok := c.Locals(api.LocalJWTUserID).(string); ok {
 			authMap["sub"] = userID
 		}
-		if roles, ok := c.Locals(LocalJWTRoles).([]string); ok {
+		if roles, ok := c.Locals(api.LocalJWTRoles).([]string); ok {
 			authMap["roles"] = roles
 		}
 		ctx["auth"] = authMap
@@ -191,7 +190,7 @@ func parseHeaders(c fiber.Ctx) map[string]any {
 
 // extractAuth reads JWT claims from Fiber locals (set by JWT middleware).
 func extractAuth(c fiber.Ctx) *api.AuthData {
-	claims, _ := c.Locals(LocalJWTClaims).(map[string]any)
+	claims, _ := c.Locals(api.LocalJWTClaims).(map[string]any)
 	if claims == nil {
 		return nil
 	}
@@ -199,10 +198,10 @@ func extractAuth(c fiber.Ctx) *api.AuthData {
 	auth := &api.AuthData{
 		Claims: claims,
 	}
-	if userID, ok := c.Locals(LocalJWTUserID).(string); ok {
+	if userID, ok := c.Locals(api.LocalJWTUserID).(string); ok {
 		auth.UserID = userID
 	}
-	if roles, ok := c.Locals(LocalJWTRoles).([]string); ok {
+	if roles, ok := c.Locals(api.LocalJWTRoles).([]string); ok {
 		auth.Roles = roles
 	}
 
@@ -220,11 +219,6 @@ func getFileFields(triggerConfig map[string]any) map[string]bool {
 		}
 	}
 	return fields
-}
-
-// ReadRawBody reads and returns the raw body bytes for webhook signature verification.
-func ReadRawBody(c fiber.Ctx) ([]byte, error) {
-	return io.ReadAll(c.Request().BodyStream())
 }
 
 // coerceNumeric attempts to convert string values to numeric types.

@@ -5,21 +5,21 @@ import (
 	"strings"
 )
 
-// IsStatic returns true if the string contains no {{ }} delimiters.
-func IsStatic(value string) bool {
+// isStatic returns true if the string contains no {{ }} delimiters.
+func isStatic(value string) bool {
 	return !strings.Contains(value, "{{")
 }
 
-// ValidateStaticFields checks that the specified fields in a config map
+// validateStaticFields checks that the specified fields in a config map
 // do not contain expressions. Returns errors for any fields that are expressions.
-func ValidateStaticFields(config map[string]any, staticFields []string) []error {
+func validateStaticFields(config map[string]any, staticFields []string) []error {
 	var errs []error
 	for _, field := range staticFields {
 		val, ok := getNestedString(config, field)
 		if !ok {
 			continue // field not present or not a string — skip
 		}
-		if !IsStatic(val) {
+		if !isStatic(val) {
 			errs = append(errs, fmt.Errorf("field %q must be a static value, not an expression", field))
 		}
 	}
@@ -52,7 +52,7 @@ func getNestedString(m map[string]any, path string) (string, bool) {
 func ValidateExpressions(compiler *Compiler, config map[string]any) []error {
 	var errs []error
 	walkConfigExpressions(config, "", func(path, value string) {
-		if !IsStatic(value) {
+		if !isStatic(value) {
 			if _, err := compiler.Compile(value); err != nil {
 				errs = append(errs, fmt.Errorf("expression error at %s: %w", path, err))
 			}

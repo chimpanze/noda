@@ -102,6 +102,11 @@ func TestResolveMiddlewareChain_Deduplication(t *testing.T) {
 		"middleware_presets": map[string]any{
 			"base": []any{"recover", "requestid"},
 		},
+		"middleware": map[string]any{
+			"limiter": map[string]any{
+				"max": float64(100),
+			},
+		},
 		"route_groups": map[string]any{
 			"/api": map[string]any{
 				"middleware_preset": "base",

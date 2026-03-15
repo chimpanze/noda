@@ -6,6 +6,7 @@ import (
 
 	"github.com/casbin/casbin/v2"
 	casbinmodel "github.com/casbin/casbin/v2/model"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -66,7 +67,7 @@ func newCasbinMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, e
 
 // extractSubject gets the user identity from JWT locals (set by auth.jwt middleware).
 func extractSubject(c fiber.Ctx) string {
-	if uid, ok := c.Locals(LocalJWTUserID).(string); ok && uid != "" {
+	if uid, ok := c.Locals(api.LocalJWTUserID).(string); ok && uid != "" {
 		return uid
 	}
 	return ""

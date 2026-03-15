@@ -37,11 +37,6 @@ type DeadLetterConfig struct {
 	After int
 }
 
-// WorkflowRunner executes a compiled workflow graph.
-type WorkflowRunner interface {
-	RunWorkflow(ctx context.Context, workflowID string, execCtx *engine.ExecutionContextImpl) error
-}
-
 // Runtime manages worker consumers that process messages from Redis Streams.
 type Runtime struct {
 	workers       []WorkerConfig
