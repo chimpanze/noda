@@ -3,7 +3,7 @@ import { groupByFolder } from "./schemaUtils";
 import type { SchemaInfo } from "@/types";
 
 function schema(path: string): SchemaInfo {
-  return { path, name: path.split("/").pop()! } as SchemaInfo;
+  return { path, schema: {} } as SchemaInfo;
 }
 
 describe("groupByFolder", () => {

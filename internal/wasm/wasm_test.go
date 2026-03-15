@@ -2943,7 +2943,7 @@ func TestReconnectLoop_MaxAttempts(t *testing.T) {
 
 func TestReconnectLoop_Success(t *testing.T) {
 	server := startTestWSServer(t, func(conn *websocket.Conn) {
-		defer conn.Close()
+		defer func() { _ = conn.Close() }()
 		for {
 			_, _, err := conn.ReadMessage()
 			if err != nil {
