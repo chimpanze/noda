@@ -46,11 +46,11 @@ func TestEndpointService_Send(t *testing.T) {
 	mgr := NewManager()
 	var received []byte
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch1",
 		SendFn:  func(data []byte) error { received = data; return nil },
-	})
+	}))
 
 	svc := NewEndpointService(mgr, "my-endpoint")
 	err := svc.Send(context.Background(), "ch1", "hello")
@@ -62,7 +62,7 @@ func TestEndpointService_SendSSE(t *testing.T) {
 	mgr := NewManager()
 	var gotEvent, gotData, gotID string
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "sse-ch",
 		SSEFn: func(event, data, id string) error {
@@ -71,7 +71,7 @@ func TestEndpointService_SendSSE(t *testing.T) {
 			gotID = id
 			return nil
 		},
-	})
+	}))
 
 	svc := NewEndpointService(mgr, "sse-endpoint")
 	err := svc.SendSSE(context.Background(), "sse-ch", "update", "payload", "evt1")
@@ -335,7 +335,7 @@ func TestMarshalDataString_Unmarshalable(t *testing.T) {
 func TestGetConnection_Found(t *testing.T) {
 	mgr := NewManager()
 	conn := &Conn{ID: "c1", Channel: "ch"}
-	mgr.Register(conn)
+	require.NoError(t, mgr.Register(conn))
 
 	got := mgr.GetConnection("c1")
 	require.NotNil(t, got)
@@ -358,8 +358,8 @@ func TestChannelCount_EmptyChannel(t *testing.T) {
 
 func TestChannelCount_AfterAllUnregistered(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{ID: "c1", Channel: "ch"})
-	mgr.Register(&Conn{ID: "c2", Channel: "ch"})
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ch"}))
+	require.NoError(t, mgr.Register(&Conn{ID: "c2", Channel: "ch"}))
 	assert.Equal(t, 2, mgr.ChannelCount("ch"))
 
 	mgr.Unregister("c1")
@@ -377,7 +377,7 @@ func TestUnregister_NonexistentID(t *testing.T) {
 
 func TestUnregister_Twice(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{ID: "c1", Channel: "ch"})
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ch"}))
 	mgr.Unregister("c1")
 	mgr.Unregister("c1")
 	assert.Equal(t, int64(0), mgr.Count())
@@ -387,7 +387,7 @@ func TestUnregister_Twice(t *testing.T) {
 
 func TestSend_NilSendFn_NoError(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{ID: "c1", Channel: "ch"})
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ch"}))
 
 	err := mgr.Send(context.Background(), "ch", "msg")
 	assert.NoError(t, err)
@@ -395,7 +395,7 @@ func TestSend_NilSendFn_NoError(t *testing.T) {
 
 func TestSendSSE_NilSSEFn_NoError(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{ID: "c1", Channel: "ch"})
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ch"}))
 
 	err := mgr.SendSSE(context.Background(), "ch", "event", "data", "1")
 	assert.NoError(t, err)
@@ -407,11 +407,11 @@ func TestSend_MapData(t *testing.T) {
 	mgr := NewManager()
 	var received []byte
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch",
 		SendFn:  func(data []byte) error { received = data; return nil },
-	})
+	}))
 
 	err := mgr.Send(context.Background(), "ch", map[string]any{"msg": "hi"})
 	require.NoError(t, err)
@@ -422,11 +422,11 @@ func TestSend_ByteData(t *testing.T) {
 	mgr := NewManager()
 	var received []byte
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch",
 		SendFn:  func(data []byte) error { received = data; return nil },
-	})
+	}))
 
 	err := mgr.Send(context.Background(), "ch", []byte("raw"))
 	require.NoError(t, err)
@@ -435,11 +435,11 @@ func TestSend_ByteData(t *testing.T) {
 
 func TestSend_MarshalError(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch",
 		SendFn:  func(data []byte) error { return nil },
-	})
+	}))
 
 	err := mgr.Send(context.Background(), "ch", make(chan int))
 	assert.Error(t, err)
@@ -449,11 +449,11 @@ func TestSendSSE_MapData(t *testing.T) {
 	mgr := NewManager()
 	var gotData string
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch",
 		SSEFn:   func(event, data, id string) error { gotData = data; return nil },
-	})
+	}))
 
 	err := mgr.SendSSE(context.Background(), "ch", "evt", map[string]any{"k": "v"}, "1")
 	require.NoError(t, err)
@@ -464,11 +464,11 @@ func TestSendSSE_ByteData(t *testing.T) {
 	mgr := NewManager()
 	var gotData string
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch",
 		SSEFn:   func(event, data, id string) error { gotData = data; return nil },
-	})
+	}))
 
 	err := mgr.SendSSE(context.Background(), "ch", "evt", []byte("raw"), "1")
 	require.NoError(t, err)
@@ -477,11 +477,11 @@ func TestSendSSE_ByteData(t *testing.T) {
 
 func TestSendSSE_MarshalError(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "ch",
 		SSEFn:   func(event, data, id string) error { return nil },
-	})
+	}))
 
 	err := mgr.SendSSE(context.Background(), "ch", "evt", make(chan int), "1")
 	assert.Error(t, err)
@@ -493,12 +493,12 @@ func TestSend_Wildcard_MixedSendFn(t *testing.T) {
 	mgr := NewManager()
 	var called bool
 
-	mgr.Register(&Conn{ID: "c1", Channel: "ns.a"})
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ns.a"}))
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c2",
 		Channel: "ns.b",
 		SendFn:  func(data []byte) error { called = true; return nil },
-	})
+	}))
 
 	err := mgr.Send(context.Background(), "ns.*", "msg")
 	require.NoError(t, err)
@@ -511,16 +511,16 @@ func TestSendSSE_Wildcard(t *testing.T) {
 	mgr := NewManager()
 	var count int
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "feed.a",
 		SSEFn:   func(event, data, id string) error { count++; return nil },
-	})
-	mgr.Register(&Conn{
+	}))
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c2",
 		Channel: "feed.b",
 		SSEFn:   func(event, data, id string) error { count++; return nil },
-	})
+	}))
 
 	err := mgr.SendSSE(context.Background(), "feed.*", "update", "payload", "")
 	require.NoError(t, err)
@@ -1044,12 +1044,12 @@ func TestSendSSE_Wildcard_MixedSSEFn(t *testing.T) {
 	mgr := NewManager()
 	var called bool
 
-	mgr.Register(&Conn{ID: "c1", Channel: "ns.a"})
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ns.a"}))
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c2",
 		Channel: "ns.b",
 		SSEFn:   func(event, data, id string) error { called = true; return nil },
-	})
+	}))
 
 	err := mgr.SendSSE(context.Background(), "ns.*", "evt", "data", "")
 	require.NoError(t, err)
@@ -1118,8 +1118,8 @@ func TestResolveChannelPattern_SingleBraceOnly(t *testing.T) {
 
 func TestChannelCleanup_LastConnection(t *testing.T) {
 	mgr := NewManager()
-	mgr.Register(&Conn{ID: "c1", Channel: "ch-a"})
-	mgr.Register(&Conn{ID: "c2", Channel: "ch-b"})
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ch-a"}))
+	require.NoError(t, mgr.Register(&Conn{ID: "c2", Channel: "ch-b"}))
 
 	assert.Equal(t, 1, mgr.ChannelCount("ch-a"))
 	assert.Equal(t, 1, mgr.ChannelCount("ch-b"))

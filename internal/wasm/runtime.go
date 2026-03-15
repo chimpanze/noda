@@ -33,8 +33,24 @@ func NewRuntime(services *registry.ServiceRegistry, runner api.WorkflowRunner, l
 	}
 }
 
+// DefaultMaxModuleSize is the default maximum Wasm module file size (50MB).
+const DefaultMaxModuleSize int64 = 50 * 1024 * 1024
+
 // LoadModule loads a Wasm module from config and registers it.
 func (r *Runtime) LoadModule(ctx context.Context, cfg ModuleConfig) (*Module, error) {
+	// Check file size before loading
+	maxSize := cfg.MaxModuleSize
+	if maxSize <= 0 {
+		maxSize = DefaultMaxModuleSize
+	}
+	info, err := os.Stat(cfg.ModulePath)
+	if err != nil {
+		return nil, fmt.Errorf("stat wasm file %q: %w", cfg.ModulePath, err)
+	}
+	if info.Size() > maxSize {
+		return nil, fmt.Errorf("wasm module %q exceeds size limit: %d bytes > %d bytes max", cfg.ModulePath, info.Size(), maxSize)
+	}
+
 	// Load wasm binary
 	wasmBytes, err := os.ReadFile(cfg.ModulePath)
 	if err != nil {

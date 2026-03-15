@@ -118,7 +118,10 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 		},
 	}
 
-	h.manager.Register(conn)
+	if err := h.manager.Register(conn); err != nil {
+		h.logger.Warn("sse connection rejected", "channel", channel, "error", err)
+		return c.Status(503).SendString("connection limit reached")
+	}
 
 	// Fire on_connect lifecycle
 	if h.config.OnConnect != "" && h.runner != nil {

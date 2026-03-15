@@ -24,7 +24,7 @@ func TestRegisterAndSend(t *testing.T) {
 		},
 	}
 
-	mgr.Register(conn)
+	require.NoError(t, mgr.Register(conn))
 	assert.Equal(t, int64(1), mgr.Count())
 
 	err := mgr.Send(context.Background(), "chat.room1", "hello")
@@ -45,7 +45,7 @@ func TestUnregister_NoDelivery(t *testing.T) {
 		},
 	}
 
-	mgr.Register(conn)
+	require.NoError(t, mgr.Register(conn))
 	mgr.Unregister("c1")
 	assert.Equal(t, int64(0), mgr.Count())
 
@@ -57,16 +57,16 @@ func TestWildcard_StarDot(t *testing.T) {
 	mgr := NewManager()
 	var received1, received2 []byte
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "user.123",
 		SendFn:  func(data []byte) error { received1 = data; return nil },
-	})
-	mgr.Register(&Conn{
+	}))
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c2",
 		Channel: "user.456",
 		SendFn:  func(data []byte) error { received2 = data; return nil },
-	})
+	}))
 
 	err := mgr.Send(context.Background(), "user.*", "broadcast")
 	require.NoError(t, err)
@@ -80,11 +80,11 @@ func TestWildcard_Star_MatchesAll(t *testing.T) {
 
 	for i := 0; i < 5; i++ {
 		id := string(rune('a' + i))
-		mgr.Register(&Conn{
+		require.NoError(t, mgr.Register(&Conn{
 			ID:      id,
 			Channel: "ch." + id,
 			SendFn:  func(data []byte) error { count.Add(1); return nil },
-		})
+		}))
 	}
 
 	err := mgr.Send(context.Background(), "*", "all")
@@ -96,11 +96,11 @@ func TestWildcard_NoMatch(t *testing.T) {
 	mgr := NewManager()
 	var called bool
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "user.123",
 		SendFn:  func(data []byte) error { called = true; return nil },
-	})
+	}))
 
 	_ = mgr.Send(context.Background(), "admin.*", "msg")
 	assert.False(t, called)
@@ -116,11 +116,11 @@ func TestConcurrentRegisterUnregister(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			id := string(rune(i))
-			mgr.Register(&Conn{
+			require.NoError(t, mgr.Register(&Conn{
 				ID:      id,
 				Channel: "ch",
 				SendFn:  func(data []byte) error { return nil },
-			})
+			}))
 		}(i)
 	}
 	wg.Wait()
@@ -144,7 +144,7 @@ func TestSendSSE(t *testing.T) {
 	mgr := NewManager()
 	var gotEvent, gotData, gotID string
 
-	mgr.Register(&Conn{
+	require.NoError(t, mgr.Register(&Conn{
 		ID:      "c1",
 		Channel: "updates",
 		SSEFn: func(event, data, id string) error {
@@ -153,7 +153,7 @@ func TestSendSSE(t *testing.T) {
 			gotID = id
 			return nil
 		},
-	})
+	}))
 
 	err := mgr.SendSSE(context.Background(), "updates", "message", "hello world", "1")
 	require.NoError(t, err)
@@ -168,11 +168,11 @@ func TestMultipleConnectionsSameChannel(t *testing.T) {
 
 	for i := 0; i < 3; i++ {
 		id := string(rune('a' + i))
-		mgr.Register(&Conn{
+		require.NoError(t, mgr.Register(&Conn{
 			ID:      id,
 			Channel: "shared",
 			SendFn:  func(data []byte) error { count.Add(1); return nil },
-		})
+		}))
 	}
 
 	assert.Equal(t, 3, mgr.ChannelCount("shared"))
@@ -237,4 +237,34 @@ func TestNoClients_NoError(t *testing.T) {
 	mgr := NewManager()
 	err := mgr.Send(context.Background(), "empty-channel", "msg")
 	assert.NoError(t, err)
+}
+
+func TestMaxTotalConnections(t *testing.T) {
+	mgr := NewManager(ManagerConfig{MaxTotalConnections: 2})
+
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "ch1", SendFn: func([]byte) error { return nil }}))
+	require.NoError(t, mgr.Register(&Conn{ID: "c2", Channel: "ch2", SendFn: func([]byte) error { return nil }}))
+
+	err := mgr.Register(&Conn{ID: "c3", Channel: "ch3", SendFn: func([]byte) error { return nil }})
+	assert.ErrorIs(t, err, ErrMaxConnectionsReached)
+	assert.Equal(t, int64(2), mgr.Count())
+
+	// After unregister, should be able to register again
+	mgr.Unregister("c1")
+	require.NoError(t, mgr.Register(&Conn{ID: "c3", Channel: "ch3", SendFn: func([]byte) error { return nil }}))
+	assert.Equal(t, int64(2), mgr.Count())
+}
+
+func TestMaxConnectionsPerChannel(t *testing.T) {
+	mgr := NewManager(ManagerConfig{MaxConnectionsPerChannel: 2})
+
+	require.NoError(t, mgr.Register(&Conn{ID: "c1", Channel: "room1", SendFn: func([]byte) error { return nil }}))
+	require.NoError(t, mgr.Register(&Conn{ID: "c2", Channel: "room1", SendFn: func([]byte) error { return nil }}))
+
+	err := mgr.Register(&Conn{ID: "c3", Channel: "room1", SendFn: func([]byte) error { return nil }})
+	assert.ErrorIs(t, err, ErrMaxChannelConnectionsReached)
+
+	// Different channel should still work
+	require.NoError(t, mgr.Register(&Conn{ID: "c4", Channel: "room2", SendFn: func([]byte) error { return nil }}))
+	assert.Equal(t, int64(3), mgr.Count())
 }

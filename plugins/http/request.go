@@ -48,7 +48,7 @@ func (e *requestExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *requestExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, "client")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("http.request: %w", err)
 	}
 	return doRequest(ctx, nCtx, config, svc, "")
 }

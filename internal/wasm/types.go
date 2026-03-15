@@ -4,16 +4,17 @@ import "time"
 
 // ModuleConfig configures a Wasm module runtime.
 type ModuleConfig struct {
-	Name        string         // Module name (key in wasm_runtimes)
-	ModulePath  string         // Path to .wasm binary
-	TickRate    int            // Ticks per second (Hz), 1-120
-	Encoding    string         // "json" (default) or "msgpack"
-	Services    []string       // Allowed service instance names
-	Connections []string       // Allowed connection endpoint names
-	AllowHTTP   []string       // Whitelisted HTTP hosts
-	AllowWS     []string       // Whitelisted WebSocket hosts
-	Config      map[string]any // Opaque config passed to initialize
-	MemoryPages uint32         // Max memory pages (0 = default)
+	Name          string         // Module name (key in wasm_runtimes)
+	ModulePath    string         // Path to .wasm binary
+	TickRate      int            // Ticks per second (Hz), 1-120
+	Encoding      string         // "json" (default) or "msgpack"
+	Services      []string       // Allowed service instance names
+	Connections   []string       // Allowed connection endpoint names
+	AllowHTTP     []string       // Whitelisted HTTP hosts
+	AllowWS       []string       // Whitelisted WebSocket hosts
+	Config        map[string]any // Opaque config passed to initialize
+	MemoryPages   uint32         // Max memory pages (0 = default)
+	MaxModuleSize int64          // Max .wasm file size in bytes (0 = 50MB default)
 }
 
 // TickInput is the data passed to a module's tick export.

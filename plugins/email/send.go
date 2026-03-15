@@ -45,7 +45,7 @@ func (e *sendExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *sendExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, "mailer")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("email.send: %w", err)
 	}
 
 	to, err := resolveRecipients(nCtx, config, "to")

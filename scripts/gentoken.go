@@ -15,7 +15,7 @@ func main() {
 		"exp": time.Now().Add(time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signed, err := token.SignedString([]byte("dev-secret-change-in-production"))
+	signed, err := token.SignedString([]byte("dev-secret-change-in-production!"))
 	if err != nil {
 		panic(err)
 	}

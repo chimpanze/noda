@@ -42,7 +42,7 @@ func (e *getExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *getExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[api.CacheService](services, "cache")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("cache.get: %w", err)
 	}
 
 	key, err := plugin.ResolveString(nCtx, config, "key")

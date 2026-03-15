@@ -3,6 +3,7 @@ package connmgr
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"sync"
@@ -20,26 +21,59 @@ type Conn struct {
 	SSEFn    func(event, data, id string) error // for SSE
 }
 
+// ErrMaxConnectionsReached is returned when the total connection limit is exceeded.
+var ErrMaxConnectionsReached = fmt.Errorf("maximum total connections reached")
+
+// ErrMaxChannelConnectionsReached is returned when the per-channel connection limit is exceeded.
+var ErrMaxChannelConnectionsReached = fmt.Errorf("maximum connections per channel reached")
+
+// ManagerConfig configures connection limits for a Manager.
+type ManagerConfig struct {
+	MaxTotalConnections      int // 0 = unlimited
+	MaxConnectionsPerChannel int // 0 = unlimited
+}
+
 // Manager tracks open connections and provides channel-based delivery.
 type Manager struct {
 	mu          sync.RWMutex
 	connections map[string]*Conn           // connID → Conn
 	channels    map[string]map[string]bool // channel → set of connIDs
 	connCount   atomic.Int64
+	config      ManagerConfig
 }
 
-// NewManager creates a new connection manager.
-func NewManager() *Manager {
+// NewManager creates a new connection manager with optional limits.
+func NewManager(configs ...ManagerConfig) *Manager {
+	var cfg ManagerConfig
+	if len(configs) > 0 {
+		cfg = configs[0]
+	}
 	return &Manager{
 		connections: make(map[string]*Conn),
 		channels:    make(map[string]map[string]bool),
+		config:      cfg,
 	}
 }
 
-// Register adds a connection to the manager.
-func (m *Manager) Register(conn *Conn) {
+// Register adds a connection to the manager. Returns an error if connection
+// limits would be exceeded.
+func (m *Manager) Register(conn *Conn) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Check total connection limit
+	if m.config.MaxTotalConnections > 0 && len(m.connections) >= m.config.MaxTotalConnections {
+		return ErrMaxConnectionsReached
+	}
+
+	// Check per-channel limit
+	if m.config.MaxConnectionsPerChannel > 0 {
+		if channelConns, ok := m.channels[conn.Channel]; ok {
+			if len(channelConns) >= m.config.MaxConnectionsPerChannel {
+				return ErrMaxChannelConnectionsReached
+			}
+		}
+	}
 
 	m.connections[conn.ID] = conn
 	if _, ok := m.channels[conn.Channel]; !ok {
@@ -47,6 +81,7 @@ func (m *Manager) Register(conn *Conn) {
 	}
 	m.channels[conn.Channel][conn.ID] = true
 	m.connCount.Add(1)
+	return nil
 }
 
 // Unregister removes a connection from the manager.

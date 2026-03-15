@@ -32,8 +32,17 @@ func (s *Server) registerConnections() error {
 				continue
 			}
 
-			// Create a manager per endpoint
-			mgr := connmgr.NewManager()
+			// Create a manager per endpoint with optional limits
+			mgrCfg := connmgr.ManagerConfig{}
+			if v, ok := ep["max_connections"].(float64); ok && v > 0 {
+				mgrCfg.MaxTotalConnections = int(v)
+			}
+			if channels, ok := ep["channels"].(map[string]any); ok {
+				if v, ok := channels["max_per_channel"].(float64); ok && v > 0 {
+					mgrCfg.MaxConnectionsPerChannel = int(v)
+				}
+			}
+			mgr := connmgr.NewManager(mgrCfg)
 			s.connManagers.Add(mgr)
 			svc := connmgr.NewEndpointService(mgr, name)
 
@@ -68,12 +77,6 @@ func (s *Server) registerConnections() error {
 				if v, _ := ep["ping_interval"].(string); v != "" {
 					if d, err := time.ParseDuration(v); err == nil {
 						cfg.PingInterval = d
-					}
-				}
-
-				if channels, ok := ep["channels"].(map[string]any); ok {
-					if v, ok := channels["max_per_channel"].(float64); ok {
-						cfg.MaxPerChannel = int(v)
 					}
 				}
 

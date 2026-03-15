@@ -46,7 +46,7 @@ func (e *deleteExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *deleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	db, err := plugin.GetService[*gorm.DB](services, "database")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("db.delete: %w", err)
 	}
 
 	table, err := plugin.ResolveString(nCtx, config, "table")

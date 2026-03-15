@@ -10,19 +10,16 @@
       },
       "mocks": {
         "fetch": {
-          "output": [{ "id": "task-1", "title": "My Task", "status": "todo" }]
+          "output": { "id": "task-1", "title": "My Task", "status": "todo" }
         },
-        "found": {
+        "respond": {
           "output": { "status": 200 }
-        },
-        "notfound": {
-          "output": { "status": 404 }
         }
       },
       "expect": {
         "status": "success",
         "output": {
-          "found.status": 200
+          "respond.status": 200
         }
       }
     },
@@ -34,20 +31,11 @@
       },
       "mocks": {
         "fetch": {
-          "output": []
-        },
-        "found": {
-          "output": { "status": 200 }
-        },
-        "notfound": {
-          "output": { "status": 404, "message": "Task not found" }
+          "error": { "message": "record not found" }
         }
       },
       "expect": {
-        "status": "success",
-        "output": {
-          "notfound.status": 404
-        }
+        "status": "error"
       }
     }
   ]

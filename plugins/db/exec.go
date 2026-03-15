@@ -49,7 +49,7 @@ func (e *execExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *execExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	db, err := plugin.GetService[*gorm.DB](services, "database")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("db.exec: %w", err)
 	}
 
 	query, err := plugin.ResolveString(nCtx, config, "query")

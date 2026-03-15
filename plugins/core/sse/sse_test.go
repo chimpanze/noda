@@ -108,7 +108,7 @@ func TestSseSend(t *testing.T) {
 	mgr := connmgr.NewManager()
 	var gotEvent, gotData, gotID string
 
-	mgr.Register(&connmgr.Conn{
+	require.NoError(t, mgr.Register(&connmgr.Conn{
 		ID:      "c1",
 		Channel: "updates",
 		SSEFn: func(event, data, id string) error {
@@ -117,7 +117,7 @@ func TestSseSend(t *testing.T) {
 			gotID = id
 			return nil
 		},
-	})
+	}))
 
 	svc := connmgr.NewEndpointService(mgr, "sse-test")
 	services := map[string]any{"connections": svc}
@@ -163,7 +163,7 @@ func TestSseSend_WithoutOptionalFields(t *testing.T) {
 	mgr := connmgr.NewManager()
 	var gotEvent, gotData, gotID string
 
-	mgr.Register(&connmgr.Conn{
+	require.NoError(t, mgr.Register(&connmgr.Conn{
 		ID:      "c1",
 		Channel: "alerts",
 		SSEFn: func(event, data, id string) error {
@@ -172,7 +172,7 @@ func TestSseSend_WithoutOptionalFields(t *testing.T) {
 			gotID = id
 			return nil
 		},
-	})
+	}))
 
 	svc := connmgr.NewEndpointService(mgr, "sse-test")
 	services := map[string]any{"connections": svc}
@@ -252,14 +252,14 @@ func TestSseSend_Wildcard(t *testing.T) {
 	var count int
 
 	for _, ch := range []string{"room.1", "room.2", "room.3"} {
-		mgr.Register(&connmgr.Conn{
+		require.NoError(t, mgr.Register(&connmgr.Conn{
 			ID:      ch,
 			Channel: ch,
 			SSEFn: func(event, data, id string) error {
 				count++
 				return nil
 			},
-		})
+		}))
 	}
 
 	svc := connmgr.NewEndpointService(mgr, "sse-test")

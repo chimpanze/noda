@@ -36,10 +36,10 @@ clean:
 	rm -rf dist/ coverage.out coverage.html editorfs/dist/
 
 migrate-up:
-	@echo "not yet implemented"
+	go run ./cmd/noda migrate up
 
 migrate-down:
-	@echo "not yet implemented"
+	go run ./cmd/noda migrate down
 
 # Benchmarks
 BENCH_COUNT ?= 3

@@ -1,0 +1,7 @@
+services:
+  noda:
+    build: ../..
+    volumes:
+      - .:/app/config
+    environment:
+      DISCORD_TOKEN: ${DISCORD_TOKEN}

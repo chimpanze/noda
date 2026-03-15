@@ -77,7 +77,7 @@ func TestE2E_WebSocketSendReceive(t *testing.T) {
 
 	// Simulate a WebSocket client by registering directly with the manager
 	received := make(chan []byte, 1)
-	mgr.Register(&connmgr.Conn{
+	require.NoError(t, mgr.Register(&connmgr.Conn{
 		ID:       "test-conn",
 		Channel:  "room.42",
 		Endpoint: "ws-test",
@@ -85,7 +85,7 @@ func TestE2E_WebSocketSendReceive(t *testing.T) {
 			received <- data
 			return nil
 		},
-	})
+	}))
 
 	// POST to push-message endpoint
 	payload, _ := json.Marshal(map[string]any{
@@ -167,7 +167,7 @@ func TestE2E_SSESendReceive(t *testing.T) {
 
 	// Simulate an SSE client by registering directly with the manager
 	received := make(chan sseTestEvent, 1)
-	mgr.Register(&connmgr.Conn{
+	require.NoError(t, mgr.Register(&connmgr.Conn{
 		ID:       "sse-conn",
 		Channel:  "feed.main",
 		Endpoint: "sse-test",
@@ -175,7 +175,7 @@ func TestE2E_SSESendReceive(t *testing.T) {
 			received <- sseTestEvent{Event: event, Data: data, ID: id}
 			return nil
 		},
-	})
+	}))
 
 	// POST to push the SSE event
 	payload, _ := json.Marshal(map[string]any{
@@ -263,7 +263,7 @@ func TestE2E_WebSocketWildcardBroadcast(t *testing.T) {
 	// Register 3 clients on different rooms
 	received := make(chan string, 3)
 	for _, ch := range []string{"room.1", "room.2", "room.3"} {
-		mgr.Register(&connmgr.Conn{
+		require.NoError(t, mgr.Register(&connmgr.Conn{
 			ID:       "conn-" + ch,
 			Channel:  ch,
 			Endpoint: "ws-broadcast",
@@ -271,7 +271,7 @@ func TestE2E_WebSocketWildcardBroadcast(t *testing.T) {
 				received <- string(data)
 				return nil
 			},
-		})
+		}))
 	}
 
 	payload, _ := json.Marshal(map[string]any{"message": "broadcast!"})

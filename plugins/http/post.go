@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -40,7 +41,7 @@ func (e *postExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *postExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, "client")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("http.post: %w", err)
 	}
 	return doRequest(ctx, nCtx, config, svc, "POST")
 }

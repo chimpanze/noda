@@ -128,7 +128,7 @@ const sampleRoute = `{
   "trigger": {
     "workflow": "hello",
     "input": {
-      "name": "{{ request.params.name }}"
+      "name": "{{ params.name }}"
     }
   }
 }

@@ -56,7 +56,7 @@ func (e *findExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *findExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	db, err := plugin.GetService[*gorm.DB](services, "database")
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("db.find: %w", err)
 	}
 
 	table, err := plugin.ResolveString(nCtx, config, "table")

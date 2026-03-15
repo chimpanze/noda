@@ -102,11 +102,11 @@ func TestWsSend(t *testing.T) {
 	mgr := connmgr.NewManager()
 	var received []byte
 
-	mgr.Register(&connmgr.Conn{
+	require.NoError(t, mgr.Register(&connmgr.Conn{
 		ID:      "c1",
 		Channel: "room.42",
 		SendFn:  func(data []byte) error { received = data; return nil },
-	})
+	}))
 
 	svc := connmgr.NewEndpointService(mgr, "ws-test")
 	services := map[string]any{"connections": svc}
@@ -146,11 +146,11 @@ func TestWsSend_Wildcard(t *testing.T) {
 	var count int
 
 	for _, ch := range []string{"room.1", "room.2", "room.3"} {
-		mgr.Register(&connmgr.Conn{
+		require.NoError(t, mgr.Register(&connmgr.Conn{
 			ID:      ch,
 			Channel: ch,
 			SendFn:  func(data []byte) error { count++; return nil },
-		})
+		}))
 	}
 
 	svc := connmgr.NewEndpointService(mgr, "ws-test")
@@ -227,11 +227,11 @@ func TestWsSend_MapData_JSONSerialized(t *testing.T) {
 	mgr := connmgr.NewManager()
 	var received []byte
 
-	mgr.Register(&connmgr.Conn{
+	require.NoError(t, mgr.Register(&connmgr.Conn{
 		ID:      "c1",
 		Channel: "room.1",
 		SendFn:  func(data []byte) error { received = data; return nil },
-	})
+	}))
 
 	svc := connmgr.NewEndpointService(mgr, "ws-test")
 	services := map[string]any{"connections": svc}

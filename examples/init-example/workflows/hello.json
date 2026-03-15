@@ -1,5 +1,25 @@
 {
-  "edges": [],
   "id": "hello",
-  "nodes": {}
+  "nodes": {
+    "greet": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "message": "Hello, {{ input.name }}!"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "greeting": "{{ nodes.greet.message }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "greet", "to": "respond", "output": "success" }
+  ]
 }

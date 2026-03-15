@@ -112,12 +112,6 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 
 	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID, h.logger)
 
-	// Check max per channel
-	if h.config.MaxPerChannel > 0 && h.manager.ChannelCount(channel) >= h.config.MaxPerChannel {
-		h.logger.Warn("channel full", "channel", channel, "max", h.config.MaxPerChannel)
-		return
-	}
-
 	conn := &Conn{
 		ID:       connID,
 		Channel:  channel,
@@ -131,7 +125,10 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 		},
 	}
 
-	h.manager.Register(conn)
+	if err := h.manager.Register(conn); err != nil {
+		h.logger.Warn("connection rejected", "channel", channel, "error", err)
+		return
+	}
 	defer func() {
 		h.manager.Unregister(connID)
 		h.fireLifecycle(h.config.OnDisconnect, conn)

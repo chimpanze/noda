@@ -1,0 +1,7 @@
+services:
+  noda:
+    build: ../..
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app/config
