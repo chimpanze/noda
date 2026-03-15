@@ -1038,17 +1038,19 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 			}
 		}
 	}
-	if v, ok := m["allow_http"].([]any); ok {
-		for _, s := range v {
-			if str, ok := s.(string); ok {
-				cfg.AllowHTTP = append(cfg.AllowHTTP, str)
+	if outbound, ok := m["allow_outbound"].(map[string]any); ok {
+		if v, ok := outbound["http"].([]any); ok {
+			for _, s := range v {
+				if str, ok := s.(string); ok {
+					cfg.AllowHTTP = append(cfg.AllowHTTP, str)
+				}
 			}
 		}
-	}
-	if v, ok := m["allow_ws"].([]any); ok {
-		for _, s := range v {
-			if str, ok := s.(string); ok {
-				cfg.AllowWS = append(cfg.AllowWS, str)
+		if v, ok := outbound["ws"].([]any); ok {
+			for _, s := range v {
+				if str, ok := s.(string); ok {
+					cfg.AllowWS = append(cfg.AllowWS, str)
+				}
 			}
 		}
 	}

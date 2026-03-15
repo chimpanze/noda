@@ -23,6 +23,7 @@ func ResolveRefs(rc *RawConfig) []error {
 		rc.Schedules,
 		rc.Connections,
 		rc.Tests,
+		rc.Models,
 	}
 
 	for _, section := range sections {

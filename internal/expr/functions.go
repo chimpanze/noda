@@ -275,7 +275,7 @@ func NewFunctionRegistryWithVars(vars map[string]string) *FunctionRegistry {
 // NewCompilerWithVars creates a compiler with built-in functions and $var() bound to the given vars map.
 func NewCompilerWithVars(vars map[string]string) *Compiler {
 	reg := NewFunctionRegistryWithVars(vars)
-	return NewCompiler(WithExprOptions(reg.ExprOptions()...))
+	return NewCompiler(WithExprOptions(reg.ExprOptions()...), WithMaxCacheSize(10000))
 }
 
 // NewCompilerWithFunctions creates a compiler with the built-in function registry.

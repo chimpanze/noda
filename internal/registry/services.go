@@ -72,6 +72,9 @@ func (r *ServiceRegistry) GetPrefix(name string) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	if entry.plugin == nil {
+		return "", false
+	}
 	return entry.plugin.Prefix(), true
 }
 

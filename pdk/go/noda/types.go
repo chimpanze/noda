@@ -1,7 +1,5 @@
 package noda
 
-import "encoding/json"
-
 // InitInput is the input provided to the initialize export.
 type InitInput struct {
 	Encoding string                     `json:"encoding" msgpack:"encoding"`
@@ -29,26 +27,32 @@ type TickInput struct {
 
 // ClientMessage represents a message from a connected client.
 type ClientMessage struct {
-	ClientID string          `json:"client_id" msgpack:"client_id"`
-	Data     json.RawMessage `json:"data" msgpack:"data"`
+	Endpoint string `json:"endpoint" msgpack:"endpoint"`
+	Channel  string `json:"channel" msgpack:"channel"`
+	UserID   string `json:"user_id" msgpack:"user_id"`
+	Data     any    `json:"data" msgpack:"data"`
 }
 
 // IncomingWSMsg represents a message received on a managed WebSocket connection.
 type IncomingWSMsg struct {
-	Connection string          `json:"connection" msgpack:"connection"`
-	Data       json.RawMessage `json:"data" msgpack:"data"`
+	Connection string `json:"connection" msgpack:"connection"`
+	Data       any    `json:"data" msgpack:"data"`
 }
 
 // ConnectionEvent represents a WebSocket connection lifecycle event.
 type ConnectionEvent struct {
-	Connection string `json:"connection" msgpack:"connection"`
-	Event      string `json:"event" msgpack:"event"` // "connected", "disconnected", "error"
-	Error      string `json:"error,omitempty" msgpack:"error,omitempty"`
+	Endpoint   string `json:"endpoint,omitempty" msgpack:"endpoint,omitempty"`
+	Channel    string `json:"channel,omitempty" msgpack:"channel,omitempty"`
+	UserID     string `json:"user_id,omitempty" msgpack:"user_id,omitempty"`
+	Connection string `json:"connection,omitempty" msgpack:"connection,omitempty"`
+	Event      string `json:"event" msgpack:"event"`
+	Reason     string `json:"reason,omitempty" msgpack:"reason,omitempty"`
 }
 
 // Command represents a command sent to the module via wasm.send.
 type Command struct {
-	Data json.RawMessage `json:"data" msgpack:"data"`
+	Source string `json:"source" msgpack:"source"`
+	Data   any    `json:"data" msgpack:"data"`
 }
 
 // AsyncResponse is the result of a prior CallAsync, keyed by label.
@@ -65,8 +69,9 @@ func (r *AsyncResponse) OK() bool {
 
 // AsyncError contains error details from a failed async call.
 type AsyncError struct {
-	Code    string `json:"code" msgpack:"code"`
-	Message string `json:"message" msgpack:"message"`
+	Code      string `json:"code" msgpack:"code"`
+	Message   string `json:"message" msgpack:"message"`
+	Operation string `json:"operation,omitempty" msgpack:"operation,omitempty"`
 }
 
 // hostCallRequest is the wire format for noda_call and noda_call_async.

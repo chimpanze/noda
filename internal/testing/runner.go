@@ -249,14 +249,3 @@ func extractErrorNode(errMsg string) string {
 	}
 	return ""
 }
-
-// ParseWorkflowFromConfig is exported for testing.
-func ParseWorkflowFromConfig(workflowID string, rc *config.ResolvedConfig) (engine.WorkflowConfig, error) {
-	return parseWorkflowConfig(workflowID, rc)
-}
-
-// WorkflowConfigFromJSON converts raw workflow JSON data to engine.WorkflowConfig.
-func WorkflowConfigFromJSON(data map[string]any) (engine.WorkflowConfig, error) {
-	id, _ := data["id"].(string)
-	return engine.ParseWorkflowFromMap(id, data)
-}

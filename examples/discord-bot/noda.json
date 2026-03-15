@@ -7,8 +7,10 @@
       "config": {
         "token": "{{ $env('DISCORD_BOT_TOKEN') }}"
       },
-      "allow_ws": ["gateway.discord.gg"],
-      "allow_http": ["discord.com"]
+      "allow_outbound": {
+        "ws": ["gateway.discord.gg"],
+        "http": ["discord.com"]
+      }
     }
   }
 }
