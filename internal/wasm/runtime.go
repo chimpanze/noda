@@ -113,8 +113,8 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 			var req HostCallRequest
 			codec := &jsonCodec{}
 			if err := codec.Unmarshal(input, &req); err != nil {
-				_, _ = p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
-				stack[0] = 0
+				offset, _ := p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
+				stack[0] = offset
 				return
 			}
 
@@ -125,8 +125,8 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 					"code":    "INTERNAL_ERROR",
 					"message": err.Error(),
 				})
-				_, _ = p.WriteBytes(errMsg) // write error as output so PDK can read it
-				stack[0] = 0
+				offset, _ := p.WriteBytes(errMsg) // write error as output so PDK can read it
+				stack[0] = offset
 				return
 			}
 

@@ -2,6 +2,7 @@ package migrate
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -236,6 +237,7 @@ func findMigrations(dir string) ([]Migration, error) {
 		base := strings.TrimSuffix(name, ".up.sql")
 		parts := strings.SplitN(base, "_", 2)
 		if len(parts) != 2 {
+			slog.Warn("skipping malformed migration file", "file", name, "expected", "YYYYMMDDHHMMSS_name.up.sql")
 			continue
 		}
 
@@ -243,6 +245,7 @@ func findMigrations(dir string) ([]Migration, error) {
 		migName := parts[1]
 
 		if seen[version] {
+			slog.Warn("skipping duplicate migration version", "version", version, "file", name)
 			continue
 		}
 		seen[version] = true

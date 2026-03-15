@@ -1,6 +1,9 @@
 package config
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // ValidateCrossRefs validates references between config files.
 func ValidateCrossRefs(rc *RawConfig) []ValidationError {
@@ -54,6 +57,25 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 						JSONPath: "/trigger/workflow",
 						Message:  fmt.Sprintf("references non-existent workflow %q", wfID),
 					})
+				}
+			}
+		}
+	}
+
+	// Schedule → lock TTL vs timeout validation
+	for filePath, schedule := range rc.Schedules {
+		if lock, ok := schedule["lock"].(map[string]any); ok {
+			if ttlStr, ok := lock["ttl"].(string); ok {
+				if timeoutStr, ok := schedule["timeout"].(string); ok {
+					ttl, ttlErr := time.ParseDuration(ttlStr)
+					tout, toutErr := time.ParseDuration(timeoutStr)
+					if ttlErr == nil && toutErr == nil && ttl < tout {
+						errs = append(errs, ValidationError{
+							FilePath: filePath,
+							JSONPath: "/lock/ttl",
+							Message:  fmt.Sprintf("lock TTL (%s) is less than job timeout (%s) — lock may expire before the job finishes", ttlStr, timeoutStr),
+						})
+					}
 				}
 			}
 		}
@@ -164,6 +186,51 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 
 	// Detect circular workflow references
 	errs = append(errs, detectWorkflowCycles(wfGraph)...)
+
+	// Validate duration fields in routes
+	for filePath, route := range rc.Routes {
+		if v, ok := route["response_timeout"].(string); ok {
+			if _, err := time.ParseDuration(v); err != nil {
+				errs = append(errs, ValidationError{
+					FilePath: filePath,
+					JSONPath: "/response_timeout",
+					Message:  fmt.Sprintf("invalid duration %q: %v", v, err),
+				})
+			}
+		}
+	}
+
+	// Validate duration fields in server config
+	if rc.Root != nil {
+		if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
+			for _, field := range []string{"read_timeout", "write_timeout", "response_timeout"} {
+				if v, ok := serverCfg[field].(string); ok {
+					if _, err := time.ParseDuration(v); err != nil {
+						errs = append(errs, ValidationError{
+							FilePath: "noda.json",
+							JSONPath: fmt.Sprintf("/server/%s", field),
+							Message:  fmt.Sprintf("invalid duration %q: %v", v, err),
+						})
+					}
+				}
+			}
+		}
+	}
+
+	// Validate global_middleware entries are strings
+	if rc.Root != nil {
+		if mw, ok := rc.Root["global_middleware"].([]any); ok {
+			for i, v := range mw {
+				if _, ok := v.(string); !ok {
+					errs = append(errs, ValidationError{
+						FilePath: "noda.json",
+						JSONPath: fmt.Sprintf("/global_middleware/%d", i),
+						Message:  fmt.Sprintf("expected string, got %T", v),
+					})
+				}
+			}
+		}
+	}
 
 	return errs
 }

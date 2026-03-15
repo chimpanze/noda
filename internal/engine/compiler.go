@@ -133,6 +133,9 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 
 	// Compile nodes
 	for id, nc := range wf.Nodes {
+		if nc.Type == "" {
+			return nil, fmt.Errorf("node %q has empty type", id)
+		}
 		var outputs []string
 		if car, ok := resolver.(ConfigAwareResolver); ok {
 			outputs, _ = car.OutputsForTypeWithConfig(nc.Type, nc.Config)
@@ -224,6 +227,11 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 
 	// Compute join types
 	computeJoinTypes(g)
+
+	// Validate output exclusivity (compile-time check)
+	if err := ValidateOutputExclusivity(g); err != nil {
+		return nil, err
+	}
 
 	return g, nil
 }

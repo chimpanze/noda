@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "table": { "type": "string" },
+    "columns": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "primary_key": { "type": "boolean" },
+          "not_null": { "type": "boolean" },
+          "default": { "type": "string" },
+          "enum": { "type": "array", "items": { "type": "string" } },
+          "max_length": { "type": "integer", "minimum": 1 },
+          "precision": { "type": "integer" },
+          "scale": { "type": "integer" }
+        },
+        "required": ["type"]
+      }
+    },
+    "relations": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string", "enum": ["belongsTo", "hasMany", "manyToMany"] },
+          "table": { "type": "string" },
+          "foreign_key": { "type": "string" },
+          "on_delete": { "type": "string" },
+          "junction": { "type": "string" },
+          "local_key": { "type": "string" }
+        },
+        "required": ["type", "table", "foreign_key"]
+      }
+    },
+    "indexes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "columns": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+          "unique": { "type": "boolean" }
+        },
+        "required": ["columns"]
+      }
+    },
+    "timestamps": { "type": "boolean" },
+    "soft_delete": { "type": "boolean" }
+  },
+  "required": ["table", "columns"]
+}

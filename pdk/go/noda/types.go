@@ -11,6 +11,7 @@ type InitInput struct {
 
 // ServiceManifest describes an available service and its operations.
 type ServiceManifest struct {
+	Type       string   `json:"type" msgpack:"type"`
 	Operations []string `json:"operations" msgpack:"operations"`
 }
 

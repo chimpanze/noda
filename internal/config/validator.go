@@ -64,6 +64,11 @@ func Validate(rc *RawConfig) []ValidationError {
 		errs = append(errs, validateAgainstSchema("test.json", filePath, data)...)
 	}
 
+	// Validate models
+	for filePath, data := range rc.Models {
+		errs = append(errs, validateAgainstSchema("model.json", filePath, data)...)
+	}
+
 	return errs
 }
 

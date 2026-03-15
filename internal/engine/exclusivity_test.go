@@ -61,6 +61,13 @@ func TestExclusivity_SwitchCases_Valid(t *testing.T) {
 }
 
 func TestExclusivity_ParallelBranches_Invalid(t *testing.T) {
+	resolver := &mapResolver{
+		types: map[string][]string{
+			"workflow.output": {},
+		},
+		fallback: []string{"success", "error"},
+	}
+
 	wf := WorkflowConfig{
 		ID: "excl-parallel",
 		Nodes: map[string]NodeConfig{
@@ -75,13 +82,21 @@ func TestExclusivity_ParallelBranches_Invalid(t *testing.T) {
 		},
 	}
 
-	graph := compileForExclusivity(t, wf)
-	err := ValidateOutputExclusivity(graph)
+	// Compile now catches exclusivity violations at compile time
+	_, err := Compile(wf, resolver)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not mutually exclusive")
 }
 
 func TestExclusivity_DuplicateNames_Invalid(t *testing.T) {
+	resolver := &mapResolver{
+		types: map[string][]string{
+			"control.if":      {"then", "else", "error"},
+			"workflow.output": {},
+		},
+		fallback: []string{"success", "error"},
+	}
+
 	wf := WorkflowConfig{
 		ID: "excl-dup",
 		Nodes: map[string]NodeConfig{
@@ -95,8 +110,8 @@ func TestExclusivity_DuplicateNames_Invalid(t *testing.T) {
 		},
 	}
 
-	graph := compileForExclusivity(t, wf)
-	err := ValidateOutputExclusivity(graph)
+	// Compile now catches duplicate output names at compile time
+	_, err := Compile(wf, resolver)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "duplicate")
 }

@@ -89,7 +89,8 @@ type InitializeInput struct {
 
 // ServiceManifest describes a service available to the module.
 type ServiceManifest struct {
-	Type string `json:"type" msgpack:"type"`
+	Type       string   `json:"type" msgpack:"type"`
+	Operations []string `json:"operations,omitempty" msgpack:"operations,omitempty"`
 }
 
 // GatewayConfig configures an outbound WebSocket connection.

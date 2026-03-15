@@ -3,6 +3,7 @@ package connmgr
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -94,8 +95,9 @@ func (m *Manager) Send(_ context.Context, channel string, data any) error {
 
 	for _, conn := range conns {
 		if conn.SendFn != nil {
-			// Best effort, non-blocking
-			_ = conn.SendFn(payload)
+			if err := conn.SendFn(payload); err != nil {
+				slog.Debug("ws send failed", "channel", channel, "conn", conn.ID, "error", err)
+			}
 		}
 	}
 	return nil
@@ -114,7 +116,9 @@ func (m *Manager) SendSSE(_ context.Context, channel string, event string, data 
 
 	for _, conn := range conns {
 		if conn.SSEFn != nil {
-			_ = conn.SSEFn(event, dataStr, id)
+			if err := conn.SSEFn(event, dataStr, id); err != nil {
+				slog.Debug("sse send failed", "channel", channel, "conn", conn.ID, "error", err)
+			}
 		}
 	}
 	return nil

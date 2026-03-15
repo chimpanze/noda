@@ -14,10 +14,25 @@ import (
 	"net/http/httptest"
 
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// stubPlugin implements api.Plugin for service registry tests.
+type stubPlugin struct {
+	name   string
+	prefix string
+}
+
+func (p *stubPlugin) Name() string                                     { return p.name }
+func (p *stubPlugin) Prefix() string                                   { return p.prefix }
+func (p *stubPlugin) Nodes() []api.NodeRegistration                    { return nil }
+func (p *stubPlugin) HasServices() bool                                { return false }
+func (p *stubPlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
+func (p *stubPlugin) HealthCheck(service any) error                    { return nil }
+func (p *stubPlugin) Shutdown(service any) error                       { return nil }
 
 // mockPlugin implements PluginInstance for testing.
 type mockPlugin struct {
@@ -1716,16 +1731,45 @@ func TestModule_BuildServiceManifest(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{
 		Name:        "test",
 		TickRate:    1,
-		Services:    []string{"cache", "storage"},
+		Services:    []string{"my-cache", "my-storage"},
 		Connections: []string{"game-ws"},
 	}, dispatcher, testLogger())
 	require.NoError(t, err)
 
+	// Without registered services, types default to "service" / "ws"
 	manifest := m.buildServiceManifest()
-	assert.Equal(t, "service", manifest["cache"].Type)
-	assert.Equal(t, "service", manifest["storage"].Type)
-	assert.Equal(t, "connection", manifest["game-ws"].Type)
+	assert.Equal(t, "service", manifest["my-cache"].Type)
+	assert.Nil(t, manifest["my-cache"].Operations)
+	assert.Equal(t, "service", manifest["my-storage"].Type)
+	assert.Equal(t, "ws", manifest["game-ws"].Type)
+	assert.Equal(t, []string{"send"}, manifest["game-ws"].Operations)
 	assert.Len(t, manifest, 3)
+}
+
+func TestModule_BuildServiceManifest_WithRegisteredServices(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+
+	// Register services with known prefixes
+	cachePlugin := &stubPlugin{name: "cache-plugin", prefix: "cache"}
+	storagePlugin := &stubPlugin{name: "storage-plugin", prefix: "storage"}
+	require.NoError(t, svcReg.Register("my-cache", "instance", cachePlugin))
+	require.NoError(t, svcReg.Register("my-storage", "instance", storagePlugin))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 1,
+		Services: []string{"my-cache", "my-storage"},
+	}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	manifest := m.buildServiceManifest()
+	assert.Equal(t, "cache", manifest["my-cache"].Type)
+	assert.Equal(t, []string{"get", "set", "del", "exists"}, manifest["my-cache"].Operations)
+	assert.Equal(t, "storage", manifest["my-storage"].Type)
+	assert.Equal(t, []string{"read", "write", "delete", "list"}, manifest["my-storage"].Operations)
 }
 
 // --- Encoding: unsupported encoding in NewModule ---

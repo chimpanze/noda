@@ -405,8 +405,16 @@ func (r *Runtime) moveToDeadLetter(ctx context.Context, client *redis.Client, w 
 		"dead_lettered_at":    time.Now().UTC().Format(time.RFC3339),
 	}
 
-	data, _ := json.Marshal(dlPayload)
-	err := client.XAdd(ctx, &redis.XAddArgs{
+	data, err := json.Marshal(dlPayload)
+	if err != nil {
+		r.logger.Error("worker dead letter marshal failed",
+			"worker_id", w.ID,
+			"message_id", msg.ID,
+			"error", err.Error(),
+		)
+		return
+	}
+	err = client.XAdd(ctx, &redis.XAddArgs{
 		Stream: w.DeadLetter.Topic,
 		Values: map[string]any{"payload": string(data)},
 	}).Err()

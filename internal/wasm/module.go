@@ -374,10 +374,38 @@ func (m *Module) callWithTimeout(name string, data []byte, timeout time.Duration
 func (m *Module) buildServiceManifest() map[string]ServiceManifest {
 	manifest := make(map[string]ServiceManifest)
 	for _, s := range m.Config.Services {
-		manifest[s] = ServiceManifest{Type: "service"}
+		svcType := "service"
+		var ops []string
+		if prefix, ok := m.dispatcher.services.GetPrefix(s); ok {
+			svcType = prefix
+			ops = operationsForPrefix(prefix)
+		}
+		manifest[s] = ServiceManifest{Type: svcType, Operations: ops}
 	}
 	for _, c := range m.Config.Connections {
-		manifest[c] = ServiceManifest{Type: "connection"}
+		cType := "ws"
+		if prefix, ok := m.dispatcher.services.GetPrefix(c); ok {
+			cType = prefix
+		}
+		manifest[c] = ServiceManifest{Type: cType, Operations: operationsForPrefix(cType)}
 	}
 	return manifest
+}
+
+// operationsForPrefix returns the supported operations for a service prefix.
+func operationsForPrefix(prefix string) []string {
+	switch prefix {
+	case "storage":
+		return []string{"read", "write", "delete", "list"}
+	case "cache":
+		return []string{"get", "set", "del", "exists"}
+	case "stream":
+		return []string{"publish"}
+	case "pubsub":
+		return []string{"publish"}
+	case "ws", "sse":
+		return []string{"send"}
+	default:
+		return nil
+	}
 }

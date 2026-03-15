@@ -152,7 +152,9 @@ func newValidateCmd() *cobra.Command {
 
 			// Plugin/service/node startup validation (dry-run: no database connections)
 			plugins := registry.NewPluginRegistry()
-			registerCorePlugins(plugins)
+			if err := registerCorePlugins(plugins); err != nil {
+				return err
+			}
 			_, bootstrapErrs := registry.Bootstrap(rc, plugins, registry.BootstrapOptions{DryRun: true})
 			if len(bootstrapErrs) > 0 {
 				var errMsgs []string
@@ -218,7 +220,10 @@ func newTestCmd() *cobra.Command {
 			}
 
 			// Build core node registry
-			coreNodeReg := buildCoreNodeRegistry()
+			coreNodeReg, err := buildCoreNodeRegistry()
+			if err != nil {
+				return err
+			}
 
 			// Run all suites
 			var suiteResults []nodatesting.SuiteResult
@@ -295,7 +300,9 @@ func newStartCmd() *cobra.Command {
 
 			// Bootstrap plugins and services
 			plugins := registry.NewPluginRegistry()
-			registerCorePlugins(plugins)
+			if err := registerCorePlugins(plugins); err != nil {
+				return err
+			}
 			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
 			if len(bootstrapErrs) > 0 {
 				var errMsgs []string
@@ -481,7 +488,9 @@ func newDevCmd() *cobra.Command {
 
 			// Bootstrap plugins and services
 			plugins := registry.NewPluginRegistry()
-			registerCorePlugins(plugins)
+			if err := registerCorePlugins(plugins); err != nil {
+				return err
+			}
 			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
 			if len(bootstrapErrs) > 0 {
 				var errMsgs []string
@@ -888,21 +897,28 @@ func serviceOnlyPlugins() []api.Plugin {
 	}
 }
 
-func buildCoreNodeRegistry() *registry.NodeRegistry {
+func buildCoreNodeRegistry() (*registry.NodeRegistry, error) {
 	nodeReg := registry.NewNodeRegistry()
 	for _, p := range corePlugins() {
-		_ = nodeReg.RegisterFromPlugin(p)
+		if err := nodeReg.RegisterFromPlugin(p); err != nil {
+			return nil, fmt.Errorf("register nodes from %q: %w", p.Name(), err)
+		}
 	}
-	return nodeReg
+	return nodeReg, nil
 }
 
-func registerCorePlugins(plugins *registry.PluginRegistry) {
+func registerCorePlugins(plugins *registry.PluginRegistry) error {
 	for _, p := range corePlugins() {
-		_ = plugins.Register(p)
+		if err := plugins.Register(p); err != nil {
+			return fmt.Errorf("register plugin %q: %w", p.Name(), err)
+		}
 	}
 	for _, p := range serviceOnlyPlugins() {
-		_ = plugins.Register(p)
+		if err := plugins.Register(p); err != nil {
+			return fmt.Errorf("register plugin %q: %w", p.Name(), err)
+		}
 	}
+	return nil
 }
 
 func newScheduleCmd() *cobra.Command {

@@ -17,14 +17,18 @@ func newPluginCmd() *cobra.Command {
 	listCmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all registered plugins with prefixes and node counts",
-		Run: func(_ *cobra.Command, _ []string) {
+		RunE: func(_ *cobra.Command, _ []string) error {
 			// Build a real plugin registry from all core and service-only plugins
 			pluginReg := registry.NewPluginRegistry()
-			registerCorePlugins(pluginReg)
+			if err := registerCorePlugins(pluginReg); err != nil {
+				return err
+			}
 
 			nodeReg := registry.NewNodeRegistry()
 			for _, p := range pluginReg.All() {
-				_ = nodeReg.RegisterFromPlugin(p)
+				if err := nodeReg.RegisterFromPlugin(p); err != nil {
+					return fmt.Errorf("register nodes from %q: %w", p.Name(), err)
+				}
 			}
 
 			type pluginInfo struct {
@@ -55,6 +59,7 @@ func newPluginCmd() *cobra.Command {
 				total += p.nodes
 			}
 			fmt.Printf("\n%d plugins, %d node types\n", len(infos), total)
+			return nil
 		},
 	}
 
