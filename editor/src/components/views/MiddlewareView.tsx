@@ -73,6 +73,9 @@ export function MiddlewareView() {
       if (name === "casbin.enforce") {
         return { ...((sec?.casbin as Record<string, unknown>) ?? {}) };
       }
+      if (name === "livekit.webhook") {
+        return { ...((sec?.livekit as Record<string, unknown>) ?? {}) };
+      }
       return { ...((mw?.[name] as Record<string, unknown>) ?? {}) };
     },
     [rootConfig],
@@ -343,6 +346,14 @@ export function MiddlewareView() {
           sec.casbin = cleanConfig;
         } else {
           delete sec.casbin;
+        }
+        updated.security = Object.keys(sec).length > 0 ? sec : undefined;
+      } else if (selectedMw === "livekit.webhook") {
+        const sec = (updated.security ?? {}) as Record<string, unknown>;
+        if (hasValues) {
+          sec.livekit = cleanConfig;
+        } else {
+          delete sec.livekit;
         }
         updated.security = Object.keys(sec).length > 0 ? sec : undefined;
       } else {

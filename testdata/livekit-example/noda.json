@@ -1,0 +1,15 @@
+{
+  "server": {
+    "port": 3000
+  },
+  "services": {
+    "lk": {
+      "plugin": "lk",
+      "config": {
+        "url": "wss://example.livekit.cloud",
+        "api_key": "devkey",
+        "api_secret": "devsecret"
+      }
+    }
+  }
+}

@@ -129,6 +129,7 @@ var pluginDescriptions = map[string]string{
 	"image":   "Image processing — resize, crop, watermark, convert, thumbnail",
 	"http":    "Outbound HTTP client — GET, POST, and custom requests",
 	"email":   "Email sending via SMTP",
+	"lk":      "LiveKit — real-time video/audio rooms, recording, and streaming",
 }
 
 // listPlugins returns all loaded plugins with their prefixes and node counts.
@@ -229,6 +230,10 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 		{Name: "requestid", Description: "Generates a unique X-Request-ID for each request", ConfigFields: []configField{}},
 		{Name: "compress", Description: "Response compression (gzip, deflate, brotli)", ConfigFields: []configField{}},
 		{Name: "etag", Description: "ETag-based response caching", ConfigFields: []configField{}},
+		{Name: "livekit.webhook", Description: "LiveKit webhook signature verification", ConfigFields: []configField{
+			{Key: "api_key", Type: "string", Description: "LiveKit API key (falls back to lk service config)"},
+			{Key: "api_secret", Type: "string", Description: "LiveKit API secret (falls back to lk service config)"},
+		}},
 	}
 
 	// Extract presets from resolved config

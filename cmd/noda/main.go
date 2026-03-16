@@ -44,6 +44,7 @@ import (
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
+	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
@@ -896,6 +897,7 @@ func corePlugins() []api.Plugin {
 		&corews.Plugin{},
 		&coresse.Plugin{},
 		&corewasm.Plugin{},
+		&livekitplugin.Plugin{},
 	}
 }
 
