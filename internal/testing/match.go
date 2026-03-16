@@ -1,6 +1,7 @@
 package testing
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -31,6 +32,18 @@ func MatchExpectation(expected TestExpectation, actual TestActualResult) (bool, 
 		}
 	}
 
+	// Match outputs (partial deep match against node outputs)
+	if len(expected.Outputs) > 0 {
+		// JSON round-trip to normalize structs (e.g. *api.HTTPResponse) into map[string]any
+		normalized, err := normalizeToMap(actual.Outputs)
+		if err != nil {
+			return false, fmt.Sprintf("failed to normalize outputs: %v", err)
+		}
+		if ok, msg := partialMatch("outputs", expected.Outputs, normalized); !ok {
+			return false, msg
+		}
+	}
+
 	return true, ""
 }
 
@@ -53,6 +66,48 @@ func extractPath(data map[string]any, path string) (any, error) {
 	}
 
 	return current, nil
+}
+
+// partialMatch checks that every key in expected exists in actual with a matching value.
+// For nested maps, it recurses (partial match). For other values, it uses deepEqual.
+func partialMatch(path string, expected, actual any) (bool, string) {
+	expectedMap, eIsMap := expected.(map[string]any)
+	actualMap, aIsMap := actual.(map[string]any)
+
+	if eIsMap {
+		if !aIsMap {
+			return false, fmt.Sprintf("at %s: expected object, got %T", path, actual)
+		}
+		for k, ev := range expectedMap {
+			av, exists := actualMap[k]
+			if !exists {
+				return false, fmt.Sprintf("at %s: field %q not found", path, k)
+			}
+			if ok, msg := partialMatch(path+"."+k, ev, av); !ok {
+				return false, msg
+			}
+		}
+		return true, ""
+	}
+
+	if !deepEqual(expected, actual) {
+		return false, fmt.Sprintf("at %s: expected %v (%T), got %v (%T)", path, expected, expected, actual, actual)
+	}
+	return true, ""
+}
+
+// normalizeToMap converts a value to map[string]any via JSON round-trip,
+// so Go structs (like *api.HTTPResponse) become plain maps for comparison.
+func normalizeToMap(v any) (map[string]any, error) {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var m map[string]any
+	if err := json.Unmarshal(b, &m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // deepEqual compares two values, handling JSON number type mismatches.

@@ -20,6 +20,11 @@ type CRUDResult struct {
 	Files map[string]map[string]any // relative path -> JSON content
 }
 
+// expr wraps a value in {{ }} expression syntax.
+func expr(s string) string {
+	return "{{ " + s + " }}"
+}
+
 // GenerateCRUD produces route, workflow, and schema files for a model.
 func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 	table, _ := model["table"].(string)
@@ -71,12 +76,24 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 		case "create":
 			wfName := "create-" + singular
 			if artifactSet["routes"] {
+				// Map body fields to workflow input
+				inputMap := map[string]any{}
+				for _, col := range columns {
+					if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
+						continue
+					}
+					inputMap[col.Name] = expr("body." + col.Name)
+				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
-					"method":   "POST",
-					"path":     opts.BasePath,
-					"workflow": wfName,
+					"id":     wfName + "-route",
+					"method": "POST",
+					"path":   opts.BasePath,
+					"trigger": map[string]any{
+						"workflow": wfName,
+						"input":    inputMap,
+					},
 					"body": map[string]any{
-						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/%s.json#/Create%s", capitalize(singular), capitalize(singular))},
+						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/Create%s", capitalize(singular))},
 					},
 					"summary": fmt.Sprintf("Create a new %s", singular),
 					"tags":    []any{table},
@@ -90,11 +107,21 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 			wfName := "list-" + table
 			if artifactSet["routes"] {
 				result.Files["routes/"+wfName+".json"] = map[string]any{
-					"method":   "GET",
-					"path":     opts.BasePath,
-					"workflow": wfName,
-					"summary":  fmt.Sprintf("List %s", table),
-					"tags":     []any{table},
+					"id":     wfName + "-route",
+					"method": "GET",
+					"path":   opts.BasePath,
+					"query": map[string]any{
+						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/%sListQuery", capitalize(singular))},
+					},
+					"trigger": map[string]any{
+						"workflow": wfName,
+						"input": map[string]any{
+							"limit":  expr("query.limit ?? '20'"),
+							"offset": expr("query.offset ?? '0'"),
+						},
+					},
+					"summary": fmt.Sprintf("List %s", table),
+					"tags":    []any{table},
 				}
 			}
 			if artifactSet["workflows"] {
@@ -105,11 +132,20 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 			wfName := "get-" + singular
 			if artifactSet["routes"] {
 				result.Files["routes/"+wfName+".json"] = map[string]any{
-					"method":   "GET",
-					"path":     opts.BasePath + "/:id",
-					"workflow": wfName,
-					"summary":  fmt.Sprintf("Get a %s by ID", singular),
-					"tags":     []any{table},
+					"id":     wfName + "-route",
+					"method": "GET",
+					"path":   opts.BasePath + "/:id",
+					"params": map[string]any{
+						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/%sIdParams", capitalize(singular))},
+					},
+					"trigger": map[string]any{
+						"workflow": wfName,
+						"input": map[string]any{
+							"id": expr("params.id"),
+						},
+					},
+					"summary": fmt.Sprintf("Get a %s by ID", singular),
+					"tags":    []any{table},
 				}
 			}
 			if artifactSet["workflows"] {
@@ -119,12 +155,29 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 		case "update":
 			wfName := "update-" + singular
 			if artifactSet["routes"] {
+				// Map body fields + path param to workflow input
+				inputMap := map[string]any{
+					"id": expr("params.id"),
+				}
+				for _, col := range columns {
+					if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
+						continue
+					}
+					inputMap[col.Name] = expr("body." + col.Name)
+				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
-					"method":   "PUT",
-					"path":     opts.BasePath + "/:id",
-					"workflow": wfName,
+					"id":     wfName + "-route",
+					"method": "PUT",
+					"path":   opts.BasePath + "/:id",
+					"params": map[string]any{
+						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/%sIdParams", capitalize(singular))},
+					},
+					"trigger": map[string]any{
+						"workflow": wfName,
+						"input":    inputMap,
+					},
 					"body": map[string]any{
-						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/%s.json#/Update%s", capitalize(singular), capitalize(singular))},
+						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/Update%s", capitalize(singular))},
 					},
 					"summary": fmt.Sprintf("Update a %s", singular),
 					"tags":    []any{table},
@@ -138,11 +191,20 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 			wfName := "delete-" + singular
 			if artifactSet["routes"] {
 				result.Files["routes/"+wfName+".json"] = map[string]any{
-					"method":   "DELETE",
-					"path":     opts.BasePath + "/:id",
-					"workflow": wfName,
-					"summary":  fmt.Sprintf("Delete a %s", singular),
-					"tags":     []any{table},
+					"id":     wfName + "-route",
+					"method": "DELETE",
+					"path":   opts.BasePath + "/:id",
+					"params": map[string]any{
+						"schema": map[string]any{"$ref": fmt.Sprintf("schemas/models/%sIdParams", capitalize(singular))},
+					},
+					"trigger": map[string]any{
+						"workflow": wfName,
+						"input": map[string]any{
+							"id": expr("params.id"),
+						},
+					},
+					"summary": fmt.Sprintf("Delete a %s", singular),
+					"tags":    []any{table},
 				}
 			}
 			if artifactSet["workflows"] {
@@ -234,6 +296,20 @@ func generateModelSchemas(singular string, columns []colInfo) map[string]any {
 	return map[string]any{
 		"Create" + capitalize(singular): createSchema,
 		"Update" + capitalize(singular): updateSchema,
+		capitalize(singular) + "IdParams": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"id": map[string]any{"type": "string", "minLength": 1},
+			},
+			"required": []any{"id"},
+		},
+		capitalize(singular) + "ListQuery": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"limit":  map[string]any{"type": "string"},
+				"offset": map[string]any{"type": "string"},
+			},
+		},
 	}
 }
 
@@ -256,8 +332,8 @@ func generateCreateWorkflow(table, singular string, columns []colInfo, opts CRUD
 		nodes["gen_id"] = map[string]any{
 			"type": "transform.set",
 			"config": map[string]any{
-				"values": map[string]any{
-					"id": "$uuid()",
+				"fields": map[string]any{
+					"id": expr("$uuid()"),
 				},
 			},
 		}
@@ -268,7 +344,7 @@ func generateCreateWorkflow(table, singular string, columns []colInfo, opts CRUD
 	data := map[string]any{}
 	for _, col := range columns {
 		if col.PrimaryKey && hasUUIDPK {
-			data["id"] = "nodes.gen_id.id"
+			data["id"] = expr("nodes.gen_id.id")
 			continue
 		}
 		if col.PrimaryKey {
@@ -277,10 +353,10 @@ func generateCreateWorkflow(table, singular string, columns []colInfo, opts CRUD
 		if col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
 			continue
 		}
-		data[col.Name] = fmt.Sprintf("input.%s", col.Name)
+		data[col.Name] = expr(fmt.Sprintf("input.%s", col.Name))
 	}
 	if opts.ScopeCol != "" && opts.ScopeParam != "" {
-		data[opts.ScopeCol] = fmt.Sprintf("trigger.params.%s", opts.ScopeParam)
+		data[opts.ScopeCol] = expr(fmt.Sprintf("input.%s", opts.ScopeParam))
 	}
 
 	createConfig := map[string]any{
@@ -291,24 +367,24 @@ func generateCreateWorkflow(table, singular string, columns []colInfo, opts CRUD
 	nodes["create"] = map[string]any{
 		"type":     "db.create",
 		"config":   createConfig,
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	if prevNode != "" {
-		edges = append(edges, map[string]any{"from": prevNode, "to": "create"})
+		edges = append(edges, map[string]any{"from": prevNode, "to": "create", "output": "success"})
 	}
 
 	nodes["respond"] = map[string]any{
 		"type": "response.json",
 		"config": map[string]any{
 			"status": 201,
-			"body":   "nodes.create",
+			"body":   expr("nodes.create"),
 		},
 	}
-	edges = append(edges, map[string]any{"from": "create", "to": "respond"})
+	edges = append(edges, map[string]any{"from": "create", "to": "respond", "output": "success"})
 
 	return map[string]any{
-		"name":  "create-" + singular,
+		"id":    "create-" + singular,
 		"nodes": nodes,
 		"edges": edges,
 	}
@@ -320,13 +396,13 @@ func generateListWorkflow(table string, columns []colInfo, opts CRUDOptions) map
 
 	where := map[string]any{}
 	if opts.ScopeCol != "" && opts.ScopeParam != "" {
-		where[opts.ScopeCol] = fmt.Sprintf("trigger.params.%s", opts.ScopeParam)
+		where[opts.ScopeCol] = expr(fmt.Sprintf("input.%s", opts.ScopeParam))
 	}
 
 	findConfig := map[string]any{
 		"table":  table,
-		"limit":  "input.limit ?? 20",
-		"offset": "input.offset ?? 0",
+		"limit":  expr("input.limit ?? 20"),
+		"offset": expr("input.offset ?? 0"),
 	}
 	if len(where) > 0 {
 		findConfig["where"] = where
@@ -335,7 +411,7 @@ func generateListWorkflow(table string, columns []colInfo, opts CRUDOptions) map
 	nodes["find"] = map[string]any{
 		"type":     "db.find",
 		"config":   findConfig,
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	countConfig := map[string]any{
@@ -348,24 +424,24 @@ func generateListWorkflow(table string, columns []colInfo, opts CRUDOptions) map
 	nodes["count"] = map[string]any{
 		"type":     "db.count",
 		"config":   countConfig,
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	nodes["respond"] = map[string]any{
 		"type": "response.json",
 		"config": map[string]any{
 			"body": map[string]any{
-				"data":  "nodes.find",
-				"total": "nodes.count.count",
+				"data":  expr("nodes.find"),
+				"total": expr("nodes.count.count"),
 			},
 		},
 	}
 
-	edges = append(edges, map[string]any{"from": "find", "to": "respond"})
-	edges = append(edges, map[string]any{"from": "count", "to": "respond"})
+	edges = append(edges, map[string]any{"from": "find", "to": "respond", "output": "success"})
+	edges = append(edges, map[string]any{"from": "count", "to": "respond", "output": "success"})
 
 	return map[string]any{
-		"name":  "list-" + table,
+		"id":    "list-" + table,
 		"nodes": nodes,
 		"edges": edges,
 	}
@@ -376,10 +452,10 @@ func generateGetWorkflow(table, singular string, opts CRUDOptions) map[string]an
 	edges := []any{}
 
 	where := map[string]any{
-		"id": "trigger.params.id",
+		"id": expr("input.id"),
 	}
 	if opts.ScopeCol != "" && opts.ScopeParam != "" {
-		where[opts.ScopeCol] = fmt.Sprintf("trigger.params.%s", opts.ScopeParam)
+		where[opts.ScopeCol] = expr(fmt.Sprintf("input.%s", opts.ScopeParam))
 	}
 
 	nodes["find_one"] = map[string]any{
@@ -389,20 +465,20 @@ func generateGetWorkflow(table, singular string, opts CRUDOptions) map[string]an
 			"where":    where,
 			"required": true,
 		},
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	nodes["respond"] = map[string]any{
 		"type": "response.json",
 		"config": map[string]any{
-			"body": "nodes.find_one",
+			"body": expr("nodes.find_one"),
 		},
 	}
 
-	edges = append(edges, map[string]any{"from": "find_one", "to": "respond"})
+	edges = append(edges, map[string]any{"from": "find_one", "to": "respond", "output": "success"})
 
 	return map[string]any{
-		"name":  "get-" + singular,
+		"id":    "get-" + singular,
 		"nodes": nodes,
 		"edges": edges,
 	}
@@ -413,10 +489,10 @@ func generateUpdateWorkflow(table, singular string, opts CRUDOptions) map[string
 	edges := []any{}
 
 	where := map[string]any{
-		"id": "trigger.params.id",
+		"id": expr("input.id"),
 	}
 	if opts.ScopeCol != "" && opts.ScopeParam != "" {
-		where[opts.ScopeCol] = fmt.Sprintf("trigger.params.%s", opts.ScopeParam)
+		where[opts.ScopeCol] = expr(fmt.Sprintf("input.%s", opts.ScopeParam))
 	}
 
 	nodes["find_one"] = map[string]any{
@@ -426,7 +502,7 @@ func generateUpdateWorkflow(table, singular string, opts CRUDOptions) map[string
 			"where":    where,
 			"required": true,
 		},
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	nodes["update"] = map[string]any{
@@ -434,23 +510,23 @@ func generateUpdateWorkflow(table, singular string, opts CRUDOptions) map[string
 		"config": map[string]any{
 			"table": table,
 			"where": where,
-			"data":  "input",
+			"data":  expr("input"),
 		},
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	nodes["respond"] = map[string]any{
 		"type": "response.json",
 		"config": map[string]any{
-			"body": "nodes.update",
+			"body": expr("nodes.update"),
 		},
 	}
 
-	edges = append(edges, map[string]any{"from": "find_one", "to": "update"})
-	edges = append(edges, map[string]any{"from": "update", "to": "respond"})
+	edges = append(edges, map[string]any{"from": "find_one", "to": "update", "output": "success"})
+	edges = append(edges, map[string]any{"from": "update", "to": "respond", "output": "success"})
 
 	return map[string]any{
-		"name":  "update-" + singular,
+		"id":    "update-" + singular,
 		"nodes": nodes,
 		"edges": edges,
 	}
@@ -461,10 +537,10 @@ func generateDeleteWorkflow(table, singular string, opts CRUDOptions) map[string
 	edges := []any{}
 
 	where := map[string]any{
-		"id": "trigger.params.id",
+		"id": expr("input.id"),
 	}
 	if opts.ScopeCol != "" && opts.ScopeParam != "" {
-		where[opts.ScopeCol] = fmt.Sprintf("trigger.params.%s", opts.ScopeParam)
+		where[opts.ScopeCol] = expr(fmt.Sprintf("input.%s", opts.ScopeParam))
 	}
 
 	nodes["delete"] = map[string]any{
@@ -473,7 +549,7 @@ func generateDeleteWorkflow(table, singular string, opts CRUDOptions) map[string
 			"table": table,
 			"where": where,
 		},
-		"services": map[string]any{"db": opts.Service},
+		"services": map[string]any{"database": opts.Service},
 	}
 
 	nodes["respond"] = map[string]any{
@@ -483,10 +559,10 @@ func generateDeleteWorkflow(table, singular string, opts CRUDOptions) map[string
 		},
 	}
 
-	edges = append(edges, map[string]any{"from": "delete", "to": "respond"})
+	edges = append(edges, map[string]any{"from": "delete", "to": "respond", "output": "success"})
 
 	return map[string]any{
-		"name":  "delete-" + singular,
+		"id":    "delete-" + singular,
 		"nodes": nodes,
 		"edges": edges,
 	}

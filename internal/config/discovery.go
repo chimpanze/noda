@@ -88,6 +88,10 @@ func scanJSONFiles(dir string) ([]string, error) {
 		if info.IsDir() {
 			return nil
 		}
+		name := filepath.Base(path)
+		if strings.HasPrefix(name, ".") {
+			return nil // skip dot-prefixed files (e.g. .snapshot.json)
+		}
 		if strings.ToLower(filepath.Ext(path)) == ".json" {
 			files = append(files, path)
 		}

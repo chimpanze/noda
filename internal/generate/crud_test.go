@@ -138,7 +138,7 @@ func TestGenerateCRUD_WithScope(t *testing.T) {
 	findConfig, _ := findNode["config"].(map[string]any)
 	where, _ := findConfig["where"].(map[string]any)
 
-	if where["workspace_id"] != "trigger.params.workspace_id" {
+	if where["workspace_id"] != "{{ input.workspace_id }}" {
 		t.Errorf("expected scope in where clause, got %v", where)
 	}
 }

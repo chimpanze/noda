@@ -1,5 +1,12 @@
 import { useState, useCallback } from "react";
-import { Trash2, Plus, ChevronDown, ChevronRight, Pencil } from "lucide-react";
+import {
+  Trash2,
+  Plus,
+  ChevronDown,
+  ChevronRight,
+  Pencil,
+  Settings2,
+} from "lucide-react";
 
 const PROPERTY_TYPES = [
   "string",
@@ -270,6 +277,38 @@ function SchemaSection({
   );
 }
 
+/** Constraint definitions per property type */
+const CONSTRAINTS: Record<
+  string,
+  { key: string; label: string; type: "number" | "text" }[]
+> = {
+  string: [
+    { key: "minLength", label: "Min length", type: "number" },
+    { key: "maxLength", label: "Max length", type: "number" },
+    { key: "pattern", label: "Pattern", type: "text" },
+    { key: "format", label: "Format", type: "text" },
+  ],
+  number: [
+    { key: "minimum", label: "Minimum", type: "number" },
+    { key: "maximum", label: "Maximum", type: "number" },
+    { key: "multipleOf", label: "Multiple of", type: "number" },
+  ],
+  integer: [
+    { key: "minimum", label: "Minimum", type: "number" },
+    { key: "maximum", label: "Maximum", type: "number" },
+    { key: "multipleOf", label: "Multiple of", type: "number" },
+  ],
+  array: [
+    { key: "minItems", label: "Min items", type: "number" },
+    { key: "maxItems", label: "Max items", type: "number" },
+  ],
+};
+
+function hasConstraints(prop: PropertyDef): boolean {
+  const defs = CONSTRAINTS[prop.type ?? ""] ?? [];
+  return defs.some((c) => prop[c.key] !== undefined);
+}
+
 function PropertyRow({
   name,
   prop,
@@ -289,6 +328,9 @@ function PropertyRow({
 }) {
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(name);
+  const [showConstraints, setShowConstraints] = useState(
+    () => hasConstraints(prop),
+  );
 
   const commitName = () => {
     setEditingName(false);
@@ -300,100 +342,153 @@ function PropertyRow({
   const enumStr =
     prop.type === "string" && prop.enum ? prop.enum.join(", ") : "";
 
+  const constraintDefs = CONSTRAINTS[prop.type ?? ""] ?? [];
+
+  const updateConstraint = (key: string, value: string) => {
+    const next = { ...prop };
+    if (value === "") {
+      delete next[key];
+    } else {
+      const def = constraintDefs.find((c) => c.key === key);
+      next[key] = def?.type === "number" ? Number(value) : value;
+    }
+    onUpdate(next);
+  };
+
   return (
-    <tr className="border-t border-gray-100">
-      <td className="py-1 pr-2">
-        {editingName ? (
-          <input
-            type="text"
-            value={nameDraft}
-            onChange={(e) => setNameDraft(e.target.value)}
-            onBlur={commitName}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") commitName();
-              if (e.key === "Escape") {
-                setEditingName(false);
+    <>
+      <tr className="border-t border-gray-100">
+        <td className="py-1 pr-2">
+          {editingName ? (
+            <input
+              type="text"
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitName}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitName();
+                if (e.key === "Escape") {
+                  setEditingName(false);
+                  setNameDraft(name);
+                }
+              }}
+              className="w-full text-xs font-mono bg-white border border-blue-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
+              autoFocus
+            />
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
                 setNameDraft(name);
-              }
+                setEditingName(true);
+              }}
+              className="text-xs font-mono text-gray-800 hover:text-blue-600 text-left"
+            >
+              {name}
+            </button>
+          )}
+        </td>
+        <td className="py-1 pr-2">
+          <select
+            value={prop.type ?? "string"}
+            onChange={(e) => {
+              const newType = e.target.value;
+              const next: PropertyDef = { ...prop, type: newType };
+              // Clear enum if switching away from string
+              if (newType !== "string" && next.enum) delete next.enum;
+              // Clear constraints from previous type
+              const oldDefs = CONSTRAINTS[prop.type ?? ""] ?? [];
+              for (const c of oldDefs) delete next[c.key];
+              onUpdate(next);
             }}
-            className="w-full text-xs font-mono bg-white border border-blue-300 rounded px-1 py-0.5 focus:outline-none focus:ring-1 focus:ring-blue-400"
-            autoFocus
+            className="w-full text-xs border border-gray-200 rounded px-1 py-0.5 bg-white"
+          >
+            {PROPERTY_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </td>
+        <td className="py-1 text-center">
+          <input
+            type="checkbox"
+            checked={isRequired}
+            onChange={onToggleRequired}
+            className="rounded border-gray-300"
           />
-        ) : (
+        </td>
+        <td className="py-1 pr-2">
+          {prop.type === "string" && (
+            <input
+              type="text"
+              value={enumStr}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (!val.trim()) {
+                  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                  const { enum: _enum, ...rest } = prop;
+                  onUpdate(rest);
+                } else {
+                  onUpdate({
+                    ...prop,
+                    enum: val
+                      .split(",")
+                      .map((s) => s.trim())
+                      .filter(Boolean),
+                  });
+                }
+              }}
+              className="w-full text-xs border border-gray-200 rounded px-1 py-0.5 font-mono"
+              placeholder="val1, val2, ..."
+            />
+          )}
+        </td>
+        <td className="py-1 text-right flex items-center justify-end gap-1">
+          {constraintDefs.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowConstraints(!showConstraints)}
+              className={`${showConstraints || hasConstraints(prop) ? "text-blue-500" : "text-gray-300"} hover:text-blue-600`}
+              title="Constraints"
+            >
+              <Settings2 size={12} />
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => {
-              setNameDraft(name);
-              setEditingName(true);
-            }}
-            className="text-xs font-mono text-gray-800 hover:text-blue-600 text-left"
+            onClick={onRemove}
+            className="text-red-400 hover:text-red-600"
           >
-            {name}
+            <Trash2 size={12} />
           </button>
-        )}
-      </td>
-      <td className="py-1 pr-2">
-        <select
-          value={prop.type ?? "string"}
-          onChange={(e) => {
-            const newType = e.target.value;
-            const next: PropertyDef = { ...prop, type: newType };
-            // Clear enum if switching away from string
-            if (newType !== "string" && next.enum) delete next.enum;
-            onUpdate(next);
-          }}
-          className="w-full text-xs border border-gray-200 rounded px-1 py-0.5 bg-white"
-        >
-          {PROPERTY_TYPES.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </td>
-      <td className="py-1 text-center">
-        <input
-          type="checkbox"
-          checked={isRequired}
-          onChange={onToggleRequired}
-          className="rounded border-gray-300"
-        />
-      </td>
-      <td className="py-1 pr-2">
-        {prop.type === "string" && (
-          <input
-            type="text"
-            value={enumStr}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (!val.trim()) {
-                // eslint-disable-next-line @typescript-eslint/no-unused-vars
-                const { enum: _enum, ...rest } = prop;
-                onUpdate(rest);
-              } else {
-                onUpdate({
-                  ...prop,
-                  enum: val
-                    .split(",")
-                    .map((s) => s.trim())
-                    .filter(Boolean),
-                });
-              }
-            }}
-            className="w-full text-xs border border-gray-200 rounded px-1 py-0.5 font-mono"
-            placeholder="val1, val2, ..."
-          />
-        )}
-      </td>
-      <td className="py-1 text-right">
-        <button
-          type="button"
-          onClick={onRemove}
-          className="text-red-400 hover:text-red-600"
-        >
-          <Trash2 size={12} />
-        </button>
-      </td>
-    </tr>
+        </td>
+      </tr>
+      {showConstraints && constraintDefs.length > 0 && (
+        <tr className="bg-gray-50/50">
+          <td colSpan={5} className="py-1.5 px-2">
+            <div className="flex flex-wrap gap-3">
+              {constraintDefs.map((c) => (
+                <label
+                  key={c.key}
+                  className="flex items-center gap-1.5 text-[11px] text-gray-500"
+                >
+                  <span className="whitespace-nowrap">{c.label}</span>
+                  <input
+                    type={c.type}
+                    value={
+                      prop[c.key] !== undefined ? String(prop[c.key]) : ""
+                    }
+                    onChange={(e) => updateConstraint(c.key, e.target.value)}
+                    className="w-20 text-xs border border-gray-200 rounded px-1 py-0.5 font-mono bg-white"
+                    placeholder="-"
+                  />
+                </label>
+              ))}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

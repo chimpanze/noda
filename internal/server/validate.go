@@ -24,6 +24,7 @@ func newBodyValidator(schema map[string]any) *bodyValidator {
 	}
 
 	c := jsonschema.NewCompiler()
+	c.AssertFormat()
 
 	schemaBytes, err := json.Marshal(schema)
 	if err != nil {

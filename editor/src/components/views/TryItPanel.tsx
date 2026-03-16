@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { Play, Loader2 } from "lucide-react";
 import Editor from "@monaco-editor/react";
 import type { RouteConfig } from "./RouteFormPanel";
@@ -16,6 +16,40 @@ interface TryItResponse {
   traceId?: string;
 }
 
+/** Extract path parameter names from a route path like /api/tasks/:id */
+function extractPathParams(path: string): string[] {
+  const matches = path.match(/:(\w+)/g);
+  if (!matches) return [];
+  return matches.map((m) => m.slice(1));
+}
+
+/** Extract query parameter names from the route's query schema or trigger input */
+function extractQueryParams(route: RouteConfig): string[] {
+  // Try inline schema properties first
+  const schema = route.query?.schema as Record<string, unknown> | undefined;
+  if (schema) {
+    const props = schema.properties as Record<string, unknown> | undefined;
+    if (props) return Object.keys(props);
+  }
+
+  // Fallback: extract query.* references from trigger input mappings
+  if (route.trigger?.input) {
+    const params = new Set<string>();
+    for (const v of Object.values(route.trigger.input)) {
+      const matches = String(v).match(/query\.(\w+)/g);
+      if (matches) {
+        for (const m of matches) {
+          params.add(m.replace("query.", ""));
+        }
+      }
+    }
+    if (params.size > 0) return [...params];
+  }
+
+  // If route has a query schema ref, show nothing (we can't resolve refs client-side)
+  return [];
+}
+
 export function TryItPanel({ route }: TryItPanelProps) {
   const [headers, setHeaders] = useState<string>(
     '{\n  "Content-Type": "application/json"\n}',
@@ -24,6 +58,12 @@ export function TryItPanel({ route }: TryItPanelProps) {
   const [response, setResponse] = useState<TryItResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const pathParams = useMemo(() => extractPathParams(route.path), [route.path]);
+  const queryParams = useMemo(() => extractQueryParams(route), [route]);
+
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [queryValues, setQueryValues] = useState<Record<string, string>>({});
 
   const hasBody = ["POST", "PUT", "PATCH"].includes(route.method);
 
@@ -55,8 +95,19 @@ export function TryItPanel({ route }: TryItPanelProps) {
         opts.body = body;
       }
 
-      // Determine URL - use the route path, replace path params with placeholders
-      const url = route.path.replace(/:(\w+)/g, (_, p) => `{${p}}`);
+      // Replace path params with entered values (empty if not filled)
+      let url = route.path.replace(/:(\w+)/g, (_, p) => {
+        return paramValues[p]?.trim() || "";
+      });
+
+      // Append query params
+      const qParts: string[] = [];
+      for (const [k, v] of Object.entries(queryValues)) {
+        if (v.trim()) qParts.push(`${encodeURIComponent(k)}=${encodeURIComponent(v)}`);
+      }
+      if (qParts.length > 0) {
+        url += "?" + qParts.join("&");
+      }
 
       const resp = await fetch(url, opts);
       const duration = Math.round(performance.now() - startTime);
@@ -106,7 +157,7 @@ export function TryItPanel({ route }: TryItPanelProps) {
     } finally {
       setLoading(false);
     }
-  }, [route.method, route.path, headers, body, hasBody]);
+  }, [route.method, route.path, headers, body, hasBody, paramValues, queryValues]);
 
   const statusColor = response
     ? response.status < 300
@@ -142,6 +193,66 @@ export function TryItPanel({ route }: TryItPanelProps) {
           <span className="font-semibold text-blue-600">{route.method}</span>
           <span className="text-gray-700">{route.path}</span>
         </div>
+
+        {/* Path parameters */}
+        {pathParams.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
+              Path Parameters
+            </label>
+            <div className="space-y-1.5">
+              {pathParams.map((param) => (
+                <div key={param} className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-gray-500 w-20 shrink-0">
+                    :{param}
+                  </span>
+                  <input
+                    type="text"
+                    value={paramValues[param] ?? ""}
+                    onChange={(e) =>
+                      setParamValues((prev) => ({
+                        ...prev,
+                        [param]: e.target.value,
+                      }))
+                    }
+                    placeholder={param}
+                    className="flex-1 text-sm font-mono border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Query parameters */}
+        {queryParams.length > 0 && (
+          <div>
+            <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
+              Query Parameters
+            </label>
+            <div className="space-y-1.5">
+              {queryParams.map((param) => (
+                <div key={param} className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-gray-500 w-20 shrink-0">
+                    {param}
+                  </span>
+                  <input
+                    type="text"
+                    value={queryValues[param] ?? ""}
+                    onChange={(e) =>
+                      setQueryValues((prev) => ({
+                        ...prev,
+                        [param]: e.target.value,
+                      }))
+                    }
+                    placeholder={param}
+                    className="flex-1 text-sm font-mono border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div>
           <label className="text-xs font-medium text-gray-400 uppercase block mb-1">

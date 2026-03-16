@@ -412,8 +412,8 @@ function DefinedTab() {
               >
                 <option value="">Select plugin...</option>
                 {servicePlugins.map((p) => (
-                  <option key={p.prefix} value={p.prefix}>
-                    {p.prefix} ({p.name})
+                  <option key={p.name} value={p.name}>
+                    {p.name} ({p.prefix}.*)
                     {p.description ? ` — ${p.description}` : ""}
                   </option>
                 ))}

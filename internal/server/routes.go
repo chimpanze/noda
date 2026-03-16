@@ -84,6 +84,22 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		}
 	}
 
+	// Build params validator if route has params.schema
+	var paramsValidator *bodyValidator
+	if paramsCfg, ok := route["params"].(map[string]any); ok {
+		if schema, ok := paramsCfg["schema"].(map[string]any); ok {
+			paramsValidator = newBodyValidator(schema)
+		}
+	}
+
+	// Build query validator if route has query.schema
+	var queryValidator *bodyValidator
+	if queryCfg, ok := route["query"].(map[string]any); ok {
+		if schema, ok := queryCfg["schema"].(map[string]any); ok {
+			queryValidator = newBodyValidator(schema)
+		}
+	}
+
 	// Build response validator if route has response schemas
 	var respValidator *responseValidator
 	if respCfg, ok := route["response"].(map[string]any); ok {
@@ -113,7 +129,7 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 	// Build handler with route-level middleware composed inline.
 	// This ensures middleware only applies to this specific method+path,
 	// not to all methods on the same path.
-	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig, validator, respValidator, routeTimeout)
+	routeHandler := s.buildRouteHandler(routeID, workflowID, triggerConfig, validator, paramsValidator, queryValidator, respValidator, routeTimeout)
 
 	// Build handler chain: middleware first, then the route handler.
 	// Fiber v3 executes handlers in registration order, calling c.Next() to advance.
@@ -191,12 +207,60 @@ func (s *Server) validateAndWriteResponse(c fiber.Ctx, resp *api.HTTPResponse, r
 }
 
 // buildRouteHandler creates the Fiber handler that runs trigger mapping → workflow → response.
-func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any, validator *bodyValidator, respValidator *responseValidator, routeTimeout time.Duration) fiber.Handler {
+func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map[string]any, validator *bodyValidator, paramsValidator *bodyValidator, queryValidator *bodyValidator, respValidator *responseValidator, routeTimeout time.Duration) fiber.Handler {
 	return func(c fiber.Ctx) error {
 		// Generate trace ID early so it's available for all error paths
 		traceID := uuid.New().String()
 
-		// 0. Body schema validation (before trigger mapping)
+		// 0a. Params schema validation
+		if paramsValidator != nil {
+			params := parseParams(c)
+			if err := paramsValidator.Validate(params); err != nil {
+				if bve, ok := err.(*bodyValidationError); ok {
+					errors := make([]map[string]any, len(bve.Errors))
+					for i, e := range bve.Errors {
+						errors[i] = map[string]any{
+							"field":   e.Field,
+							"message": e.Message,
+						}
+					}
+					return writeErrorResponse(c, 400, ErrorResponse{
+						Error: api.ErrorData{
+							Code:    "VALIDATION_ERROR",
+							Message: "Path parameter validation failed",
+							Details: map[string]any{"errors": errors},
+							TraceID: traceID,
+						},
+					})
+				}
+			}
+		}
+
+		// 0b. Query schema validation
+		if queryValidator != nil {
+			query := parseQuery(c)
+			if err := queryValidator.Validate(query); err != nil {
+				if bve, ok := err.(*bodyValidationError); ok {
+					errors := make([]map[string]any, len(bve.Errors))
+					for i, e := range bve.Errors {
+						errors[i] = map[string]any{
+							"field":   e.Field,
+							"message": e.Message,
+						}
+					}
+					return writeErrorResponse(c, 400, ErrorResponse{
+						Error: api.ErrorData{
+							Code:    "VALIDATION_ERROR",
+							Message: "Query parameter validation failed",
+							Details: map[string]any{"errors": errors},
+							TraceID: traceID,
+						},
+					})
+				}
+			}
+		}
+
+		// 0c. Body schema validation (before trigger mapping)
 		if validator != nil {
 			body := parseBody(c)
 			if err := validator.Validate(body); err != nil {

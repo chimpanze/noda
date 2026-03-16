@@ -727,7 +727,7 @@ func newMigrateCmd() *cobra.Command {
 		Short: "Run database migrations",
 	}
 
-	cmd.PersistentFlags().String("service", "main-db", "database service name from config")
+	cmd.PersistentFlags().String("service", "db", "database service name from config")
 
 	createCmd := &cobra.Command{
 		Use:   "create [name]",

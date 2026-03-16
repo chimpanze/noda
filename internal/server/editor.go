@@ -33,8 +33,12 @@ func NewEditorAPI(
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
 ) *EditorAPI {
+	absDir, err := filepath.Abs(configDir)
+	if err != nil {
+		absDir = configDir
+	}
 	return &EditorAPI{
-		configDir: configDir,
+		configDir: absDir,
 		envFlag:   envFlag,
 		reloader:  reloader,
 		plugins:   plugins,
@@ -54,8 +58,12 @@ func NewEditorAPIReadOnly(
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
 ) *EditorAPI {
+	absDir, err := filepath.Abs(configDir)
+	if err != nil {
+		absDir = configDir
+	}
 	return &EditorAPI{
-		configDir: configDir,
+		configDir: absDir,
 		envFlag:   envFlag,
 		rc:        rc,
 		plugins:   plugins,
