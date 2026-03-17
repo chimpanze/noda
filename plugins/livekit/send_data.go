@@ -21,11 +21,11 @@ func (d *sendDataDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"room":                     map[string]any{"type": "string", "description": "Room name"},
-			"data":                     map[string]any{"description": "Data to send (string or object, serialized as JSON)"},
-			"kind":                     map[string]any{"type": "string", "description": "Delivery kind: reliable or lossy (default: reliable)"},
-			"destination_identities":   map[string]any{"type": "array", "description": "Target participant identities", "items": map[string]any{"type": "string"}},
-			"topic":                    map[string]any{"type": "string", "description": "Optional topic for the data message"},
+			"room":                   map[string]any{"type": "string", "description": "Room name"},
+			"data":                   map[string]any{"description": "Data to send (string or object, serialized as JSON)"},
+			"kind":                   map[string]any{"type": "string", "description": "Delivery kind: reliable or lossy (default: reliable)"},
+			"destination_identities": map[string]any{"type": "array", "description": "Target participant identities", "items": map[string]any{"type": "string"}},
+			"topic":                  map[string]any{"type": "string", "description": "Optional topic for the data message"},
 		},
 		"required": []any{"room", "data"},
 	}
@@ -85,7 +85,7 @@ func (e *sendDataExecutor) Execute(ctx context.Context, nCtx api.ExecutionContex
 
 	if identities, err := plugin.ResolveOptionalArray(nCtx, config, "destination_identities"); err != nil {
 		return "", nil, fmt.Errorf("lk.sendData: %w", err)
-	} else if identities != nil {
+	} else {
 		for _, id := range identities {
 			if s, ok := id.(string); ok {
 				req.DestinationIdentities = append(req.DestinationIdentities, s)

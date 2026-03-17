@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/chimpanze/noda/pkg/api"
-	lksdk "github.com/livekit/server-sdk-go/v2"
 	lkproto "github.com/livekit/protocol/livekit"
+	lksdk "github.com/livekit/server-sdk-go/v2"
 )
 
 // Plugin implements the LiveKit plugin for Noda.

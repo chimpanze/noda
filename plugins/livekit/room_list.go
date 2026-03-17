@@ -47,7 +47,7 @@ func (e *roomListExecutor) Execute(ctx context.Context, nCtx api.ExecutionContex
 
 	if names, err := plugin.ResolveOptionalArray(nCtx, config, "names"); err != nil {
 		return "", nil, fmt.Errorf("lk.roomList: %w", err)
-	} else if names != nil {
+	} else {
 		for _, n := range names {
 			if s, ok := n.(string); ok {
 				req.Names = append(req.Names, s)

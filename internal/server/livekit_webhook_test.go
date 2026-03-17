@@ -26,10 +26,10 @@ func signWebhookBody(body []byte, apiKey, apiSecret string) string {
 	hash := base64.StdEncoding.EncodeToString(sum[:])
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"iss":  apiKey,
+		"iss":    apiKey,
 		"sha256": hash,
-		"nbf":  time.Now().Add(-5 * time.Minute).Unix(),
-		"exp":  time.Now().Add(5 * time.Minute).Unix(),
+		"nbf":    time.Now().Add(-5 * time.Minute).Unix(),
+		"exp":    time.Now().Add(5 * time.Minute).Unix(),
 	})
 	tokenStr, _ := token.SignedString([]byte(apiSecret))
 	return tokenStr

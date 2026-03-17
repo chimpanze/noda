@@ -89,7 +89,7 @@ func (e *participantUpdateExecutor) Execute(ctx context.Context, nCtx api.Execut
 			perm.Hidden = v
 		}
 		if v, ok := perms["recorder"].(bool); ok {
-			perm.Recorder = v
+			perm.Recorder = v //nolint:staticcheck // no replacement available in ParticipantPermission; ParticipantInfo.kind is not settable here
 		}
 		req.Permission = perm
 	}

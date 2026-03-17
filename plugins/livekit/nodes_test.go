@@ -41,16 +41,16 @@ func identityResolve(expr string) (any, error) {
 // --- Mock Room Client ---
 
 type mockRoomClient struct {
-	createRoomFn          func(ctx context.Context, req *lkproto.CreateRoomRequest) (*lkproto.Room, error)
-	listRoomsFn           func(ctx context.Context, req *lkproto.ListRoomsRequest) (*lkproto.ListRoomsResponse, error)
-	deleteRoomFn          func(ctx context.Context, req *lkproto.DeleteRoomRequest) (*lkproto.DeleteRoomResponse, error)
-	listParticipantsFn    func(ctx context.Context, req *lkproto.ListParticipantsRequest) (*lkproto.ListParticipantsResponse, error)
-	getParticipantFn      func(ctx context.Context, req *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error)
-	removeParticipantFn   func(ctx context.Context, req *lkproto.RoomParticipantIdentity) (*lkproto.RemoveParticipantResponse, error)
-	mutePublishedTrackFn  func(ctx context.Context, req *lkproto.MuteRoomTrackRequest) (*lkproto.MuteRoomTrackResponse, error)
-	updateParticipantFn   func(ctx context.Context, req *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error)
-	updateRoomMetadataFn  func(ctx context.Context, req *lkproto.UpdateRoomMetadataRequest) (*lkproto.Room, error)
-	sendDataFn            func(ctx context.Context, req *lkproto.SendDataRequest) (*lkproto.SendDataResponse, error)
+	createRoomFn         func(ctx context.Context, req *lkproto.CreateRoomRequest) (*lkproto.Room, error)
+	listRoomsFn          func(ctx context.Context, req *lkproto.ListRoomsRequest) (*lkproto.ListRoomsResponse, error)
+	deleteRoomFn         func(ctx context.Context, req *lkproto.DeleteRoomRequest) (*lkproto.DeleteRoomResponse, error)
+	listParticipantsFn   func(ctx context.Context, req *lkproto.ListParticipantsRequest) (*lkproto.ListParticipantsResponse, error)
+	getParticipantFn     func(ctx context.Context, req *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error)
+	removeParticipantFn  func(ctx context.Context, req *lkproto.RoomParticipantIdentity) (*lkproto.RemoveParticipantResponse, error)
+	mutePublishedTrackFn func(ctx context.Context, req *lkproto.MuteRoomTrackRequest) (*lkproto.MuteRoomTrackResponse, error)
+	updateParticipantFn  func(ctx context.Context, req *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error)
+	updateRoomMetadataFn func(ctx context.Context, req *lkproto.UpdateRoomMetadataRequest) (*lkproto.Room, error)
+	sendDataFn           func(ctx context.Context, req *lkproto.SendDataRequest) (*lkproto.SendDataResponse, error)
 }
 
 func (m *mockRoomClient) CreateRoom(ctx context.Context, req *lkproto.CreateRoomRequest) (*lkproto.Room, error) {

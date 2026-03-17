@@ -36,9 +36,9 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 	"timeout":          newTimeoutMiddleware,
 	"compress":         newCompressMiddleware,
 	"etag":             newETagMiddleware,
-	"auth.jwt":          newJWTMiddleware,
-	"casbin.enforce":    newCasbinMiddleware,
-	"livekit.webhook":   newLiveKitWebhookMiddleware,
+	"auth.jwt":         newJWTMiddleware,
+	"casbin.enforce":   newCasbinMiddleware,
+	"livekit.webhook":  newLiveKitWebhookMiddleware,
 }
 
 // ParseMiddlewareName splits a middleware name into its base type and instance.
