@@ -37,6 +37,7 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 	"compress":         newCompressMiddleware,
 	"etag":             newETagMiddleware,
 	"auth.jwt":         newJWTMiddleware,
+	"auth.oidc":        newOIDCMiddleware,
 	"casbin.enforce":   newCasbinMiddleware,
 	"livekit.webhook":  newLiveKitWebhookMiddleware,
 }
@@ -97,6 +98,7 @@ var middlewareConfigPaths = map[string][]string{
 	"security.headers": {"security", "headers"},
 	"security.csrf":    {"security", "csrf"},
 	"auth.jwt":         {"security", "jwt"},
+	"auth.oidc":        {"security", "oidc"},
 	"casbin.enforce":   {"security", "casbin"},
 	"livekit.webhook":  {"security", "livekit"},
 }
