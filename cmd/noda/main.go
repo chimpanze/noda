@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
-	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/devmode"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/lifecycle"
 	nodamcp "github.com/chimpanze/noda/internal/mcp"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/registry"
@@ -416,33 +416,53 @@ func newStartCmd() *cobra.Command {
 				}
 			}
 
+			// Build lifecycle manager for ordered shutdown.
+			lc := lifecycle.New(logger)
+
+			// Install signal handler early — before any runtimes start.
+			// Components registered to lc after this point will still be
+			// stopped because StopAll uses lc.started at call time.
+			deadline := parseShutdownDeadline(rc, 30*time.Second)
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sigCh
+				slog.Info("shutting down")
+				lc.StopAll(deadline)
+				os.Exit(0)
+			}()
+
+			// Register components in dependency order (shutdown is reverse).
+			if srv != nil {
+				lc.Register(lifecycle.ServerComponent(srv))
+			}
+			if workerRuntime != nil {
+				lc.Register(lifecycle.WorkerComponent(workerRuntime))
+			}
+			if schedulerRuntime != nil {
+				lc.Register(lifecycle.SchedulerComponent(schedulerRuntime))
+			}
+			if wasmRuntime != nil {
+				lc.Register(lifecycle.WasmComponent(wasmRuntime))
+			}
+			if srv != nil {
+				lc.Register(lifecycle.ConnManagerComponent(srv.ConnManagers()))
+			}
+			lc.Register(lifecycle.ServiceRegistryComponent(bootstrap.Services))
+			if traceProvider != nil {
+				lc.Register(lifecycle.TracerComponent(traceProvider))
+			}
+
+			// Start lifecycle-managed components (most adapters have no-op Start
+			// since the real runtimes were started above; this sets l.started
+			// so StopAll knows which components to tear down).
+			if err := lc.StartAll(context.Background()); err != nil {
+				return fmt.Errorf("lifecycle start: %w", err)
+			}
+
 			// Mark ready
 			server.SetReady()
 			slog.Info("noda ready")
-
-			// Handle graceful shutdown
-			go func() {
-				sigCh := make(chan os.Signal, 1)
-				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-				<-sigCh
-				slog.Info("shutting down")
-
-				deadline := 30 * time.Second
-				if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-					if d, ok := serverCfg["shutdown_deadline"].(string); ok {
-						if parsed, err := time.ParseDuration(d); err == nil {
-							deadline = parsed
-						}
-					}
-				}
-
-				var connMgr *connmgr.ManagerGroup
-				if srv != nil {
-					connMgr = srv.ConnManagers()
-				}
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, workerRuntime, wasmRuntime, nil, connMgr, bootstrap.Services, traceProvider)
-				os.Exit(0)
-			}()
 
 			if srv != nil {
 				slog.Info("server starting", "port", srv.Port())
@@ -624,32 +644,46 @@ func newDevCmd() *cobra.Command {
 			if err := watcher.WatchDir(configDir); err != nil {
 				logger.Warn("failed to watch config directory", "error", err.Error())
 			}
-			watcher.Start()
+
+			// Build lifecycle manager for ordered shutdown.
+			lc := lifecycle.New(logger)
+
+			// Install signal handler early.
+			deadline := parseShutdownDeadline(rc, 30*time.Second)
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+			go func() {
+				<-sigCh
+				slog.Info("shutting down")
+				lc.StopAll(deadline)
+				os.Exit(0)
+			}()
+
+			// Register components in dependency order (shutdown is reverse).
+			lc.Register(lifecycle.ServerComponent(srv))
+			if schedulerRuntime != nil {
+				lc.Register(lifecycle.SchedulerComponent(schedulerRuntime))
+			}
+			if wasmRuntime != nil {
+				lc.Register(lifecycle.WasmComponent(wasmRuntime))
+			}
+			lc.Register(lifecycle.WatcherComponent(watcher))
+			lc.Register(lifecycle.ConnManagerComponent(srv.ConnManagers()))
+			lc.Register(lifecycle.ServiceRegistryComponent(bootstrap.Services))
+			if traceProvider != nil {
+				lc.Register(lifecycle.TracerComponent(traceProvider))
+			}
+
+			// Start lifecycle-managed components (the watcher's Start is
+			// real; the rest are no-ops that mark them for shutdown).
 			slog.Info("watching for changes", "dir", configDir)
+			if err := lc.StartAll(context.Background()); err != nil {
+				return fmt.Errorf("lifecycle start: %w", err)
+			}
 
 			// Mark server as ready
 			server.SetReady()
 			slog.Info("noda ready")
-
-			// Handle graceful shutdown
-			go func() {
-				sigCh := make(chan os.Signal, 1)
-				signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-				<-sigCh
-				slog.Info("shutting down")
-
-				deadline := 30 * time.Second
-				if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-					if d, ok := serverCfg["shutdown_deadline"].(string); ok {
-						if parsed, err := time.ParseDuration(d); err == nil {
-							deadline = parsed
-						}
-					}
-				}
-
-				devmode.ShutdownSequence(logger, deadline, srv, schedulerRuntime, nil, wasmRuntime, watcher, srv.ConnManagers(), bootstrap.Services, traceProvider)
-				os.Exit(0)
-			}()
 
 			slog.Info("dev server starting", "port", srv.Port())
 			slog.Info("trace websocket available", "path", "/ws/trace")
@@ -977,6 +1011,18 @@ func newScheduleCmd() *cobra.Command {
 
 	cmd.AddCommand(statusCmd)
 	return cmd
+}
+
+// parseShutdownDeadline reads the shutdown_deadline from server config, falling back to defaultVal.
+func parseShutdownDeadline(rc *config.ResolvedConfig, defaultVal time.Duration) time.Duration {
+	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
+		if d, ok := serverCfg["shutdown_deadline"].(string); ok {
+			if parsed, err := time.ParseDuration(d); err == nil {
+				return parsed
+			}
+		}
+	}
+	return defaultVal
 }
 
 // loadDotEnv loads .env files from the config directory and working directory.

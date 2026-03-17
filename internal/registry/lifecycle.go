@@ -3,6 +3,8 @@ package registry
 import (
 	"fmt"
 	"log/slog"
+	"sort"
+	"time"
 )
 
 // InitializeServices creates service instances from the root config's "services" map.
@@ -11,7 +13,15 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 	registry := NewServiceRegistry()
 	var errs []error
 
-	for name, raw := range servicesConfig {
+	// Sort service names for deterministic initialization order.
+	names := make([]string, 0, len(servicesConfig))
+	for name := range servicesConfig {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	for _, name := range names {
+		raw := servicesConfig[name]
 		cfg, ok := raw.(map[string]any)
 		if !ok {
 			errs = append(errs, fmt.Errorf("service %q: config must be a map", name))
@@ -41,9 +51,28 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 			pluginCfg = inner
 		}
 
-		instance, err := plugin.CreateService(pluginCfg)
-		if err != nil {
-			errs = append(errs, fmt.Errorf("service %q: create failed: %w", name, err))
+		// Create service with timeout to fail fast if external dependencies are unreachable.
+		const createTimeout = 30 * time.Second
+		type createResult struct {
+			instance any
+			err      error
+		}
+		resultCh := make(chan createResult, 1)
+		go func() {
+			inst, err := plugin.CreateService(pluginCfg)
+			resultCh <- createResult{inst, err}
+		}()
+
+		var instance any
+		select {
+		case res := <-resultCh:
+			if res.err != nil {
+				errs = append(errs, fmt.Errorf("service %q: create failed: %w", name, res.err))
+				continue
+			}
+			instance = res.instance
+		case <-time.After(createTimeout):
+			errs = append(errs, fmt.Errorf("service %q: creation timed out after %s", name, createTimeout))
 			continue
 		}
 
@@ -85,6 +114,9 @@ func (r *ServiceRegistry) ShutdownAll() []error {
 	for i := len(r.order) - 1; i >= 0; i-- {
 		name := r.order[i]
 		entry := r.services[name]
+		if entry.plugin == nil {
+			continue
+		}
 		if err := entry.plugin.Shutdown(entry.instance); err != nil {
 			errs = append(errs, fmt.Errorf("service %q shutdown failed: %w", name, err))
 		}

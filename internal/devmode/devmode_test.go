@@ -1,7 +1,6 @@
 package devmode
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"os"
@@ -234,66 +233,6 @@ func TestReloader_Config_ThreadSafe(t *testing.T) {
 }
 
 // --- Shutdown tests ---
-
-type mockServer struct {
-	stopped atomic.Bool
-}
-
-func (m *mockServer) Stop() error {
-	m.stopped.Store(true)
-	return nil
-}
-
-type mockScheduler struct {
-	stopped atomic.Bool
-}
-
-func (m *mockScheduler) Stop(ctx context.Context) error {
-	m.stopped.Store(true)
-	return nil
-}
-
-type mockWasm struct {
-	stopped atomic.Bool
-}
-
-func (m *mockWasm) StopAll(_ context.Context) {
-	m.stopped.Store(true)
-}
-
-type mockTracer struct {
-	shutdown atomic.Bool
-}
-
-func (m *mockTracer) Shutdown(_ context.Context) error {
-	m.shutdown.Store(true)
-	return nil
-}
-
-func TestShutdownSequence_AllComponentsStopped(t *testing.T) {
-	srv := &mockServer{}
-	sched := &mockScheduler{}
-	wasm := &mockWasm{}
-	tracer := &mockTracer{}
-
-	dir := t.TempDir()
-	watcher, err := NewWatcher(func(_ string) {}, slog.Default())
-	require.NoError(t, err)
-	_ = watcher.WatchDir(dir)
-	watcher.Start()
-
-	ShutdownSequence(slog.Default(), 5*time.Second, srv, sched, nil, wasm, watcher, nil, nil, tracer)
-
-	assert.True(t, srv.stopped.Load())
-	assert.True(t, sched.stopped.Load())
-	assert.True(t, wasm.stopped.Load())
-	assert.True(t, tracer.shutdown.Load())
-}
-
-func TestShutdownSequence_NilComponents(t *testing.T) {
-	// Should not panic with nil components
-	ShutdownSequence(slog.Default(), 5*time.Second, nil, nil, nil, nil, nil, nil, nil, nil)
-}
 
 // --- helpers ---
 

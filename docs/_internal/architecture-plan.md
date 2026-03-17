@@ -1638,16 +1638,23 @@ If any step fails, the application logs clear error messages (with file paths an
 
 ## 26. Graceful Shutdown
 
-When Noda receives a shutdown signal (SIGTERM/SIGINT), it shuts down in order:
+Startup and shutdown are managed by a `Lifecycle` manager (`internal/lifecycle/`). Components register in dependency order; shutdown runs in reverse. A signal handler (SIGTERM/SIGINT) is installed early — before runtimes start — so a signal during startup still cleans up whatever has been started so far.
 
-1. **Stop accepting new connections** — HTTP server stops accepting, workers stop consuming, scheduler stops firing
-2. **Drain in-flight work** — HTTP requests in progress are given a configurable deadline to complete. Workers finish processing their current message.
-3. **Shutdown Wasm modules** — call `shutdown()` on each Wasm module, giving them a deadline to save state and close connections
-4. **Close service connections** — close database pools, Redis connections, storage handles
-5. **Flush telemetry** — ensure all OpenTelemetry spans and logs are exported
-6. **Exit**
+**Shutdown order** (reverse of registration):
 
-The shutdown deadline is configurable (default: 30 seconds). After the deadline, any remaining in-flight work is force-terminated.
+1. **Stop HTTP server** — stop accepting new connections, drain in-flight requests
+2. **Stop workers** — drain in-flight messages
+3. **Stop scheduler** — stop firing jobs
+4. **Stop Wasm modules** — call `shutdown()` on each module, giving them a deadline to save state
+5. **Stop file watcher** — dev mode only
+6. **Close WebSocket/SSE connections** — via the connection manager
+7. **Close service connections** — close database pools, Redis connections, storage handles
+8. **Flush telemetry** — ensure all OpenTelemetry spans and logs are exported
+9. **Exit**
+
+The shutdown deadline is configurable (default: 30 seconds). Each component gets an equal share of the total deadline. Unused budget from fast-stopping components rolls forward to the next.
+
+**Service initialization** is deterministic: service names are sorted alphabetically before creation. Each `CreateService` call has a 30-second timeout to fail fast if external dependencies (Postgres, Redis) are unreachable.
 
 ---
 

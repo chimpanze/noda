@@ -28,6 +28,7 @@ internal/
   trace/                               ← tracing, dev mode trace WebSocket
   testing/                             ← workflow test runner
   migrate/                             ← database migration management
+  lifecycle/                           ← startup/shutdown lifecycle manager
   devmode/                             ← dev mode with hot reload
 plugins/
   db/                                  ← PostgreSQL plugin
