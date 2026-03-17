@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { Trash2, Plus, X } from "lucide-react";
+import { Field } from "@/components/ui/Field";
 import type { SchemaInfo } from "@/types";
 import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
 import { SchemaSelect } from "@/components/widgets/SchemaSelect";
@@ -551,23 +552,6 @@ export function RouteFormPanel({
 }
 
 // --- Shared sub-components ---
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
 
 function TagInput({
   label,

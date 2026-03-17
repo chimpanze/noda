@@ -7,6 +7,7 @@ import {
   CheckCircle,
 } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import type { EnvVarInfo } from "@/api/client";
@@ -175,7 +176,7 @@ export function ServerSettingsView() {
               Server
             </h4>
             <div className="space-y-4">
-              <FieldLabel label="Port">
+              <Field label="Port">
                 <input
                   type="number"
                   value={server.port ?? ""}
@@ -188,10 +189,10 @@ export function ServerSettingsView() {
                   className="input-field"
                   placeholder="3000"
                 />
-              </FieldLabel>
+              </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <FieldLabel label="Read Timeout">
+                <Field label="Read Timeout">
                   <input
                     type="text"
                     value={server.read_timeout ?? ""}
@@ -204,8 +205,8 @@ export function ServerSettingsView() {
                     className="input-field font-mono"
                     placeholder="10s"
                   />
-                </FieldLabel>
-                <FieldLabel label="Write Timeout">
+                </Field>
+                <Field label="Write Timeout">
                   <input
                     type="text"
                     value={server.write_timeout ?? ""}
@@ -218,11 +219,11 @@ export function ServerSettingsView() {
                     className="input-field font-mono"
                     placeholder="10s"
                   />
-                </FieldLabel>
+                </Field>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <FieldLabel label="Response Timeout">
+                <Field label="Response Timeout">
                   <input
                     type="text"
                     value={server.response_timeout ?? ""}
@@ -235,8 +236,8 @@ export function ServerSettingsView() {
                     className="input-field font-mono"
                     placeholder="30s"
                   />
-                </FieldLabel>
-                <FieldLabel label="Body Limit">
+                </Field>
+                <Field label="Body Limit">
                   <input
                     type="number"
                     value={server.body_limit ?? ""}
@@ -251,7 +252,7 @@ export function ServerSettingsView() {
                     className="input-field"
                     placeholder="4194304"
                   />
-                </FieldLabel>
+                </Field>
               </div>
             </div>
           </div>
@@ -474,19 +475,3 @@ export function ServerSettingsView() {
   );
 }
 
-function FieldLabel({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}

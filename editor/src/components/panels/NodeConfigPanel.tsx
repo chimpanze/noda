@@ -45,6 +45,7 @@ const fields = {
 export function NodeConfigPanel() {
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
+  const validationErrors = useEditorStore((s) => s.validationErrors);
   const updateNodeConfig = useEditorStore((s) => s.updateNodeConfig);
   const updateNodeServices = useEditorStore((s) => s.updateNodeServices);
   const renameNode = useEditorStore((s) => s.renameNode);
@@ -252,6 +253,7 @@ export function NodeConfigPanel() {
                 ObjectFieldTemplate: StyledObjectFieldTemplate,
                 FieldTemplate: StyledFieldTemplate,
               }}
+              formContext={{ validationErrors }}
               liveValidate
               showErrorList={false}
             >

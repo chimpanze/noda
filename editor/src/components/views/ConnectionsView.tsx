@@ -1,7 +1,10 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, ExternalLink, Wifi, Radio } from "lucide-react";
+import { ExternalLink, Wifi, Radio } from "lucide-react";
+import { ConfigListDetail } from "@/components/ui/ConfigListDetail";
 import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
+import { DetailHeader } from "@/components/ui/DetailHeader";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/utils/toast";
@@ -244,58 +247,38 @@ export function ConnectionsView() {
         title="Connections"
         subtitle="WebSocket and SSE real-time connection endpoints"
       />
-      <div className="flex-1 flex min-h-0">
-        {/* Endpoint list */}
-        <div className="w-80 border-r border-gray-200 overflow-y-auto">
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">
-              Connections ({entries.length})
-            </h2>
-            <button
-              onClick={startNew}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-            >
-              <Plus size={14} />
-              New
-            </button>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {entries.map((entry, index) => (
-              <button
-                key={`${entry.filePath}-${entry.name}`}
-                onClick={() => selectEndpoint(index)}
-                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                  selectedIndex === index && !isNew ? "bg-blue-50" : ""
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  {entry.endpoint.type === "websocket" ? (
-                    <Wifi size={12} className="text-violet-500 shrink-0" />
-                  ) : (
-                    <Radio size={12} className="text-teal-500 shrink-0" />
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-800 truncate">
-                      {entry.name}
-                    </div>
-                    <div className="text-xs text-gray-400 truncate font-mono">
-                      {entry.endpoint.path}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
-            {entries.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">
-                No connections configured.
-              </div>
+      <ConfigListDetail
+        items={entries}
+        getKey={(e) => `${e.filePath}-${e.name}`}
+        selectedKey={
+          isNew ? null : (selectedIndex !== null ? `${entries[selectedIndex]?.filePath}-${entries[selectedIndex]?.name}` : null)
+        }
+        onSelect={(key) => {
+          const idx = entries.findIndex((e) => `${e.filePath}-${e.name}` === key);
+          if (idx >= 0) selectEndpoint(idx);
+        }}
+        renderItem={(entry) => (
+          <div className="flex items-center gap-2">
+            {entry.endpoint.type === "websocket" ? (
+              <Wifi size={12} className="text-violet-500 shrink-0" />
+            ) : (
+              <Radio size={12} className="text-teal-500 shrink-0" />
             )}
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-800 truncate">
+                {entry.name}
+              </div>
+              <div className="text-xs text-gray-400 truncate font-mono">
+                {entry.endpoint.path}
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Endpoint editor */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {editEndpoint ? (
+        )}
+        title={`Connections (${entries.length})`}
+        onNew={startNew}
+        emptyMessage="No connections configured."
+      >
+        {editEndpoint ? (
             <div className="max-w-2xl space-y-5">
               {/* Cross-Instance Sync */}
               {connFiles.length > 0 && (
@@ -334,29 +317,14 @@ export function ConnectionsView() {
                 </div>
               )}
 
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {isNew ? "New Endpoint" : editName}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!isNew && (
-                    <button
-                      onClick={handleDelete}
-                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                    >
-                      <Trash2 size={14} className="inline mr-1" />
-                      Delete
-                    </button>
-                  )}
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !editName}
-                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
+              <DetailHeader
+                title={isNew ? "New Endpoint" : editName}
+                isNew={isNew}
+                saving={saving}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                saveDisabled={!editName}
+              />
 
               {/* Name */}
               <Field label="Name">
@@ -646,25 +614,7 @@ export function ConnectionsView() {
               Select an endpoint to edit or click "New" to create one.
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
+      </ConfigListDetail>
     </div>
   );
 }

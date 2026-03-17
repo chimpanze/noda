@@ -9,6 +9,8 @@ import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/utils/toast";
 import type { ModelInfo, ModelDefinition } from "@/types";
+import { MigrationPreviewDialog } from "./MigrationPreviewDialog";
+import { CRUDGenerationDialog } from "./CRUDGenerationDialog";
 
 type EditorTab = "editor" | "diagram" | "json";
 
@@ -482,221 +484,38 @@ export function ModelsView() {
         </div>
       </div>
 
-      {/* Migration preview dialog */}
       {showMigration && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[80vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Migration Preview
-              </h3>
-              <button
-                onClick={() => setShowMigration(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                x
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">
-                  Up Migration
-                </h4>
-                <pre className="p-3 bg-gray-50 rounded text-xs text-gray-700 overflow-x-auto border border-gray-200 whitespace-pre-wrap">
-                  {migrationUp}
-                </pre>
-              </div>
-              <div>
-                <h4 className="text-xs font-medium text-gray-500 uppercase mb-1">
-                  Down Migration
-                </h4>
-                <pre className="p-3 bg-gray-50 rounded text-xs text-gray-700 overflow-x-auto border border-gray-200 whitespace-pre-wrap">
-                  {migrationDown}
-                </pre>
-              </div>
-            </div>
-            <div className="px-6 py-3 border-t border-gray-200 flex justify-end gap-2">
-              <button
-                onClick={() => setShowMigration(false)}
-                className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleGenerateMigration(true)}
-                className="px-3 py-1.5 text-sm text-white bg-indigo-500 rounded hover:bg-indigo-600"
-              >
-                Create Migration Files
-              </button>
-            </div>
-          </div>
-        </div>
+        <MigrationPreviewDialog
+          migrationUp={migrationUp}
+          migrationDown={migrationDown}
+          onClose={() => setShowMigration(false)}
+          onConfirm={() => handleGenerateMigration(true)}
+        />
       )}
 
-      {/* CRUD generation dialog */}
       {showCRUD && selected && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-[700px] max-h-[80vh] flex flex-col">
-            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Generate CRUD for {parsedModel?.table}
-              </h3>
-              <button
-                onClick={() => {
-                  setShowCRUD(false);
-                  setCrudPreview(null);
-                }}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                x
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto p-6 space-y-4">
-              {!crudPreview ? (
-                <>
-                  {/* Operations */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Operations
-                    </h4>
-                    <div className="flex gap-3 flex-wrap">
-                      {["create", "list", "get", "update", "delete"].map(
-                        (op) => (
-                          <label
-                            key={op}
-                            className="flex items-center gap-1.5 text-sm text-gray-700"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={crudOps.includes(op)}
-                              onChange={() => toggleCrudOp(op)}
-                              className="rounded"
-                            />
-                            {op}
-                          </label>
-                        ),
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Artifacts */}
-                  <div>
-                    <h4 className="text-xs font-medium text-gray-500 uppercase mb-2">
-                      Artifacts
-                    </h4>
-                    <div className="flex gap-3 flex-wrap">
-                      {["routes", "workflows", "schemas"].map((a) => (
-                        <label
-                          key={a}
-                          className="flex items-center gap-1.5 text-sm text-gray-700"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={crudArtifacts.includes(a)}
-                            onChange={() => toggleCrudArtifact(a)}
-                            className="rounded"
-                          />
-                          {a}
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Options */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-gray-500">Service</label>
-                      <input
-                        type="text"
-                        value={crudService}
-                        onChange={(e) => setCrudService(e.target.value)}
-                        className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500">Base Path</label>
-                      <input
-                        type="text"
-                        value={crudBasePath}
-                        onChange={(e) => setCrudBasePath(e.target.value)}
-                        className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono"
-                        placeholder={`/api/${parsedModel?.table ?? "..."}`}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500">
-                        Scope Column (optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={crudScopeCol}
-                        onChange={(e) => setCrudScopeCol(e.target.value)}
-                        className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono"
-                        placeholder="e.g. workspace_id"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-gray-500">
-                        Scope Param (optional)
-                      </label>
-                      <input
-                        type="text"
-                        value={crudScopeParam}
-                        onChange={(e) => setCrudScopeParam(e.target.value)}
-                        className="w-full mt-1 px-2 py-1 text-sm border border-gray-300 rounded font-mono"
-                        placeholder="e.g. workspace_id"
-                      />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                /* Preview */
-                <div className="space-y-3">
-                  <h4 className="text-xs font-medium text-gray-500 uppercase">
-                    Files to create ({Object.keys(crudPreview).length})
-                  </h4>
-                  {Object.entries(crudPreview).map(([path, content]) => (
-                    <div key={path}>
-                      <div className="text-xs font-mono text-blue-600 mb-1">
-                        {path}
-                      </div>
-                      <pre className="p-2 bg-gray-50 rounded text-xs text-gray-700 overflow-x-auto border border-gray-200 max-h-32 whitespace-pre-wrap">
-                        {JSON.stringify(content, null, 2)}
-                      </pre>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <div className="px-6 py-3 border-t border-gray-200 flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowCRUD(false);
-                  setCrudPreview(null);
-                }}
-                className="px-3 py-1.5 text-sm text-gray-600 border border-gray-300 rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              {!crudPreview ? (
-                <button
-                  onClick={() => handleGenerateCRUD(false)}
-                  disabled={crudOps.length === 0}
-                  className="px-3 py-1.5 text-sm text-white bg-indigo-500 rounded hover:bg-indigo-600 disabled:opacity-40"
-                >
-                  Preview
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleGenerateCRUD(true)}
-                  className="px-3 py-1.5 text-sm text-white bg-indigo-500 rounded hover:bg-indigo-600"
-                >
-                  Create Files
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+        <CRUDGenerationDialog
+          tableName={parsedModel?.table ?? ""}
+          operations={crudOps}
+          artifacts={crudArtifacts}
+          service={crudService}
+          basePath={crudBasePath}
+          scopeCol={crudScopeCol}
+          scopeParam={crudScopeParam}
+          preview={crudPreview}
+          onToggleOp={toggleCrudOp}
+          onToggleArtifact={toggleCrudArtifact}
+          onServiceChange={setCrudService}
+          onBasePathChange={setCrudBasePath}
+          onScopeColChange={setCrudScopeCol}
+          onScopeParamChange={setCrudScopeParam}
+          onPreview={() => handleGenerateCRUD(false)}
+          onConfirm={() => handleGenerateCRUD(true)}
+          onClose={() => {
+            setShowCRUD(false);
+            setCrudPreview(null);
+          }}
+        />
       )}
     </div>
   );

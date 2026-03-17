@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2 } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
+import { DetailHeader } from "@/components/ui/DetailHeader";
+import { ConfigListDetail } from "@/components/ui/ConfigListDetail";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/utils/toast";
@@ -118,172 +120,117 @@ export function VarsView() {
         title="Variables"
         subtitle="Shared values referenced across config files with {{ $var('NAME') }}"
       />
-      <div className="flex-1 flex min-h-0">
-        {/* Variable list */}
-        <div className="w-80 border-r border-gray-200 overflow-y-auto">
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">
-              Variables ({allVars.length})
-            </h2>
-            <button
-              onClick={startNew}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-            >
-              <Plus size={14} />
-              New
-            </button>
-          </div>
-          <div className="px-4 py-2 border-b border-gray-100">
-            <input
-              type="text"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-              className="input-field text-sm"
-              placeholder="Filter variables..."
+      <ConfigListDetail
+        items={filtered}
+        getKey={(v) => v.name}
+        selectedKey={isNew ? null : selectedName}
+        onSelect={(key) => {
+          const v = allVars.find((x) => x.name === key);
+          if (v) selectVar(v);
+        }}
+        renderItem={(v) => (
+          <>
+            <div className="text-sm font-medium text-gray-800 font-mono truncate">
+              {v.name}
+            </div>
+            <div className="text-xs text-gray-400 font-mono truncate">
+              {v.value || "—"}
+            </div>
+          </>
+        )}
+        title={`Variables (${allVars.length})`}
+        onNew={startNew}
+        emptyMessage={
+          allVars.length === 0
+            ? "No variables defined. Create vars.json to get started."
+            : "No matching variables."
+        }
+        filter={{
+          value: filter,
+          onChange: setFilter,
+          placeholder: "Filter variables...",
+        }}
+      >
+        {isNew || selectedName ? (
+          <div className="max-w-2xl space-y-5">
+            <DetailHeader
+              title={isNew ? "New Variable" : editName}
+              isNew={isNew}
+              saving={saving}
+              onSave={handleSave}
+              onDelete={handleDelete}
+              saveDisabled={!editName.trim()}
             />
-          </div>
-          <div className="divide-y divide-gray-100">
-            {filtered.map((v) => (
-              <button
-                key={v.name}
-                onClick={() => selectVar(v)}
-                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                  selectedName === v.name && !isNew ? "bg-blue-50" : ""
-                }`}
-              >
-                <div className="text-sm font-medium text-gray-800 font-mono truncate">
-                  {v.name}
-                </div>
-                <div className="text-xs text-gray-400 font-mono truncate">
-                  {v.value || "—"}
-                </div>
-              </button>
-            ))}
-            {filtered.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">
-                {allVars.length === 0
-                  ? "No variables defined. Create vars.json to get started."
-                  : "No matching variables."}
+
+            <Field label="Name">
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) =>
+                  setEditName(
+                    e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"),
+                  )
+                }
+                className="input-field font-mono"
+                placeholder="e.g. MAIN_DB"
+              />
+            </Field>
+
+            <Field label="Value">
+              <input
+                type="text"
+                value={editValue}
+                onChange={(e) => setEditValue(e.target.value)}
+                className="input-field font-mono"
+                placeholder="e.g. main-db"
+              />
+            </Field>
+
+            <Field label="Reference">
+              <div className="flex items-center gap-2">
+                <code className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-sm font-mono text-gray-700 select-all">
+                  {"{{ $var('" + editName + "') }}"}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(
+                      `{{ $var('${editName}') }}`,
+                    );
+                    showToast({
+                      type: "success",
+                      message: "Copied to clipboard",
+                    });
+                  }}
+                  className="text-xs text-blue-500 hover:text-blue-700"
+                >
+                  Copy
+                </button>
+              </div>
+            </Field>
+
+            {usages.length > 0 && (
+              <div className="border-t border-gray-200 pt-4">
+                <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
+                  Used In ({usages.length} file
+                  {usages.length !== 1 ? "s" : ""})
+                </h4>
+                <ul className="space-y-1">
+                  {usages.map((u) => (
+                    <li key={u} className="text-sm text-gray-600 font-mono">
+                      {u}
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
           </div>
-        </div>
-
-        {/* Variable editor */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {isNew || selectedName ? (
-            <div className="max-w-2xl space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {isNew ? "New Variable" : editName}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!isNew && (
-                    <button
-                      onClick={handleDelete}
-                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                    >
-                      <Trash2 size={14} className="inline mr-1" />
-                      Delete
-                    </button>
-                  )}
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !editName.trim()}
-                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
-
-              <Field label="Name">
-                <input
-                  type="text"
-                  value={editName}
-                  onChange={(e) =>
-                    setEditName(
-                      e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g, "_"),
-                    )
-                  }
-                  className="input-field font-mono"
-                  placeholder="e.g. MAIN_DB"
-                />
-              </Field>
-
-              <Field label="Value">
-                <input
-                  type="text"
-                  value={editValue}
-                  onChange={(e) => setEditValue(e.target.value)}
-                  className="input-field font-mono"
-                  placeholder="e.g. main-db"
-                />
-              </Field>
-
-              <Field label="Reference">
-                <div className="flex items-center gap-2">
-                  <code className="px-3 py-1.5 bg-gray-50 border border-gray-200 rounded text-sm font-mono text-gray-700 select-all">
-                    {"{{ $var('" + editName + "') }}"}
-                  </code>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigator.clipboard.writeText(
-                        `{{ $var('${editName}') }}`,
-                      );
-                      showToast({
-                        type: "success",
-                        message: "Copied to clipboard",
-                      });
-                    }}
-                    className="text-xs text-blue-500 hover:text-blue-700"
-                  >
-                    Copy
-                  </button>
-                </div>
-              </Field>
-
-              {usages.length > 0 && (
-                <div className="border-t border-gray-200 pt-4">
-                  <h4 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">
-                    Used In ({usages.length} file
-                    {usages.length !== 1 ? "s" : ""})
-                  </h4>
-                  <ul className="space-y-1">
-                    {usages.map((u) => (
-                      <li key={u} className="text-sm text-gray-600 font-mono">
-                        {u}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-sm text-gray-400">
-              Select a variable to edit or click "New" to create one.
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
+        ) : (
+          <div className="text-sm text-gray-400">
+            Select a variable to edit or click "New" to create one.
+          </div>
+        )}
+      </ConfigListDetail>
     </div>
   );
 }

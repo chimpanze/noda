@@ -1,8 +1,11 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, ExternalLink, X } from "lucide-react";
-import { ExpressionAutocomplete } from "@/components/widgets/ExpressionAutocomplete";
+import { ExternalLink, X } from "lucide-react";
+import { ConfigListDetail } from "@/components/ui/ConfigListDetail";
 import { VarPickerButton } from "@/components/widgets/VarPickerButton";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
+import { DetailHeader } from "@/components/ui/DetailHeader";
+import { KeyValueEditor } from "@/components/ui/KeyValueEditor";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/utils/toast";
@@ -189,74 +192,41 @@ export function WorkersView() {
         title="Workers"
         subtitle="Background workers subscribing to streams and topics"
       />
-      <div className="flex-1 flex min-h-0">
-        {/* Worker list */}
-        <div className="w-80 border-r border-gray-200 overflow-y-auto">
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">
-              Workers ({entries.length})
-            </h2>
-            <button
-              onClick={startNew}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-            >
-              <Plus size={14} />
-              New
-            </button>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {entries.map((entry, index) => (
-              <button
-                key={entry.filePath}
-                onClick={() => selectWorker(index)}
-                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                  selectedIndex === index && !isNew ? "bg-blue-50" : ""
-                }`}
-              >
-                <div className="text-sm font-medium text-gray-800 truncate">
-                  {entry.worker.id}
-                </div>
-                <div className="text-xs text-gray-400 truncate">
-                  {entry.worker.subscribe?.topic ?? "—"} &middot; concurrency{" "}
-                  {entry.worker.concurrency ?? 1}
-                </div>
-              </button>
-            ))}
-            {entries.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">
-                No workers configured.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Worker editor */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {editWorker ? (
+      <ConfigListDetail
+        items={entries}
+        getKey={(e) => e.filePath}
+        selectedKey={
+          isNew ? null : (selectedIndex !== null ? entries[selectedIndex]?.filePath ?? null : null)
+        }
+        onSelect={(key) => {
+          const idx = entries.findIndex((e) => e.filePath === key);
+          if (idx >= 0) selectWorker(idx);
+        }}
+        renderItem={(entry) => (
+          <>
+            <div className="text-sm font-medium text-gray-800 truncate">
+              {entry.worker.id}
+            </div>
+            <div className="text-xs text-gray-400 truncate">
+              {entry.worker.subscribe?.topic ?? "—"} &middot; concurrency{" "}
+              {entry.worker.concurrency ?? 1}
+            </div>
+          </>
+        )}
+        title={`Workers (${entries.length})`}
+        onNew={startNew}
+        emptyMessage="No workers configured."
+      >
+        {editWorker ? (
             <div className="max-w-2xl space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {isNew ? "New Worker" : editWorker.id}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!isNew && (
-                    <button
-                      onClick={handleDelete}
-                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                    >
-                      <Trash2 size={14} className="inline mr-1" />
-                      Delete
-                    </button>
-                  )}
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !editWorker.id}
-                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
+              <DetailHeader
+                title={isNew ? "New Worker" : editWorker.id}
+                isNew={isNew}
+                saving={saving}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                saveDisabled={!editWorker.id}
+              />
 
               {/* ID */}
               <Field label="ID">
@@ -545,105 +515,8 @@ export function WorkersView() {
               Select a worker to edit or click "New" to create one.
             </div>
           )}
-        </div>
-      </div>
+      </ConfigListDetail>
     </div>
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
-function KeyValueEditor({
-  entries,
-  onChange,
-  workflow,
-}: {
-  entries: Record<string, string>;
-  onChange: (entries: Record<string, string>) => void;
-  workflow?: string;
-}) {
-  const pairs = Object.entries(entries);
-
-  return (
-    <>
-      <div className="space-y-1">
-        {pairs.map(([key, val]) => (
-          <div key={key} className="flex items-center gap-1">
-            <input
-              type="text"
-              value={key}
-              onChange={(e) => {
-                const next: Record<string, string> = {};
-                for (const [k, v] of pairs)
-                  next[k === key ? e.target.value : k] = v;
-                onChange(next);
-              }}
-              className="shrink-0 input-field !w-1/3 font-mono"
-              placeholder="key"
-            />
-            <span className="text-gray-400 text-xs">:</span>
-            {workflow ? (
-              <div className="flex-1 min-w-0">
-                <ExpressionAutocomplete
-                  value={val}
-                  onChange={(v) => onChange({ ...entries, [key]: v })}
-                  workflow={workflow}
-                  className="input-field !w-auto font-mono"
-                  placeholder="{{ message.payload.field }}"
-                />
-              </div>
-            ) : (
-              <input
-                type="text"
-                value={val}
-                onChange={(e) =>
-                  onChange({ ...entries, [key]: e.target.value })
-                }
-                className="flex-1 min-w-0 input-field !w-auto font-mono"
-                placeholder="{{ message.payload.field }}"
-              />
-            )}
-            <button
-              type="button"
-              onClick={() => {
-                const next = { ...entries };
-                delete next[key];
-                onChange(next);
-              }}
-              className="px-1 text-red-400 hover:text-red-600 text-sm"
-            >
-              &times;
-            </button>
-          </div>
-        ))}
-      </div>
-      <button
-        type="button"
-        onClick={() => {
-          let k = "key";
-          let i = 1;
-          while (k in entries) k = `key${i++}`;
-          onChange({ ...entries, [k]: "" });
-        }}
-        className="mt-1 text-xs text-blue-500 hover:text-blue-700"
-      >
-        + Add field
-      </button>
-    </>
-  );
-}

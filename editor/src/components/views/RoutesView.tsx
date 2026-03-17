@@ -1,16 +1,16 @@
 import { useEffect, useState, useCallback, useMemo } from "react";
-import {
-  ExternalLink,
-  Plus,
-  ChevronRight,
-  ChevronDown,
-  Copy,
-  Shield,
-  Download,
-  FileJson,
-} from "lucide-react";
+import { Plus, Copy, FileJson } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
 import Editor from "@monaco-editor/react";
+import {
+  type RouteFileEntry,
+  type TreeNode,
+  buildTree,
+  collapseTree,
+  TreeNodeView,
+  RouteItem,
+} from "./RouteTree";
+import { OpenApiTab } from "./OpenApiTab";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { RouteFormPanel, type RouteConfig } from "./RouteFormPanel";
@@ -19,86 +19,7 @@ import { TryItPanel } from "./TryItPanel";
 import { showToast } from "@/utils/toast";
 import type { SchemaInfo, RouteGroupConfig } from "@/types";
 
-const methodColors: Record<string, string> = {
-  GET: "bg-green-100 text-green-800",
-  POST: "bg-blue-100 text-blue-800",
-  PUT: "bg-yellow-100 text-yellow-800",
-  PATCH: "bg-orange-100 text-orange-800",
-  DELETE: "bg-red-100 text-red-800",
-  HEAD: "bg-gray-100 text-gray-700",
-  OPTIONS: "bg-purple-100 text-purple-800",
-};
-
-interface RouteFileEntry {
-  filePath: string;
-  route: RouteConfig;
-}
-
 type TabType = "editor" | "tryit" | "json" | "openapi";
-
-// --- Path tree types ---
-interface TreeNode {
-  segment: string;
-  fullPath: string;
-  children: Map<string, TreeNode>;
-  routes: RouteFileEntry[];
-}
-
-function buildTree(entries: RouteFileEntry[]): TreeNode {
-  const root: TreeNode = {
-    segment: "",
-    fullPath: "",
-    children: new Map(),
-    routes: [],
-  };
-
-  for (const entry of entries) {
-    const parts = entry.route.path.split("/").filter(Boolean);
-    let node = root;
-    let path = "";
-    for (const part of parts) {
-      path += "/" + part;
-      if (!node.children.has(part)) {
-        node.children.set(part, {
-          segment: part,
-          fullPath: path,
-          children: new Map(),
-          routes: [],
-        });
-      }
-      node = node.children.get(part)!;
-    }
-    node.routes.push(entry);
-  }
-
-  return root;
-}
-
-// Collapse single-child interior nodes
-function collapseTree(node: TreeNode): TreeNode {
-  // Recursively collapse children first
-  const collapsedChildren = new Map<string, TreeNode>();
-  for (const [key, child] of node.children) {
-    collapsedChildren.set(key, collapseTree(child));
-  }
-  node.children = collapsedChildren;
-
-  // If this node has exactly one child and no routes, merge with child
-  // Don't collapse the virtual root node (segment === "")
-  if (node.segment !== "" && node.children.size === 1 && node.routes.length === 0) {
-    const [, child] = [...node.children.entries()][0];
-    return {
-      segment: node.segment
-        ? node.segment + "/" + child.segment
-        : child.segment,
-      fullPath: child.fullPath,
-      children: child.children,
-      routes: child.routes,
-    };
-  }
-
-  return node;
-}
 
 export function RoutesView() {
   const files = useEditorStore((s) => s.files);
@@ -497,7 +418,6 @@ export function RoutesView() {
                     routeEntries={routeEntries}
                     selectRoute={selectRoute}
                     goToWorkflow={goToWorkflow}
-                    methodColors={methodColors}
                     routeGroups={routeGroups}
                     selectedGroup={selectedGroup}
                     onSelectGroup={selectGroup}
@@ -514,7 +434,6 @@ export function RoutesView() {
                       selected={selectedIndex === idx && !isNew}
                       onSelect={selectRoute}
                       goToWorkflow={goToWorkflow}
-                      methodColors={methodColors}
                     />
                   );
                 })}
@@ -529,74 +448,7 @@ export function RoutesView() {
         {/* Route editor / Group editor / OpenAPI */}
         <div className="flex-1 flex flex-col min-h-0">
           {activeTab === "openapi" ? (
-            <div className="flex-1 overflow-y-auto p-6">
-              <div className="max-w-4xl space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-semibold text-gray-900">
-                    OpenAPI Specification
-                  </h3>
-                  {openApiSpec && (
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          navigator.clipboard.writeText(openApiSpec);
-                          showToast({
-                            type: "success",
-                            message: "Copied to clipboard",
-                          });
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
-                      >
-                        <Copy size={12} />
-                        Copy
-                      </button>
-                      <button
-                        onClick={() => {
-                          const blob = new Blob([openApiSpec], {
-                            type: "application/json",
-                          });
-                          const url = URL.createObjectURL(blob);
-                          const a = document.createElement("a");
-                          a.href = url;
-                          a.download = "openapi.json";
-                          a.click();
-                          URL.revokeObjectURL(url);
-                        }}
-                        className="flex items-center gap-1 px-2 py-1 text-xs text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded"
-                      >
-                        <Download size={12} />
-                        Download
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {openApiLoading ? (
-                  <div className="text-sm text-gray-400">
-                    Generating OpenAPI spec...
-                  </div>
-                ) : openApiSpec ? (
-                  <div className="border border-gray-200 rounded overflow-hidden">
-                    <Editor
-                      height="600px"
-                      language="json"
-                      value={openApiSpec}
-                      options={{
-                        minimap: { enabled: false },
-                        fontSize: 13,
-                        scrollBeyondLastLine: false,
-                        lineNumbers: "on",
-                        readOnly: true,
-                        wordWrap: "on",
-                      }}
-                    />
-                  </div>
-                ) : (
-                  <div className="text-sm text-gray-400">
-                    Failed to load OpenAPI spec.
-                  </div>
-                )}
-              </div>
-            </div>
+            <OpenApiTab spec={openApiSpec} loading={openApiLoading} />
           ) : selectedGroup !== null && editGroup ? (
             <div className="flex-1 overflow-y-auto p-6">
               <RouteGroupFormPanel
@@ -715,197 +567,3 @@ export function RoutesView() {
   );
 }
 
-// --- Tree rendering components ---
-
-function TreeNodeView({
-  node,
-  depth,
-  expanded,
-  toggleExpand,
-  selectedIndex,
-  isNew,
-  routeEntries,
-  selectRoute,
-  goToWorkflow,
-  methodColors,
-  routeGroups,
-  selectedGroup,
-  onSelectGroup,
-}: {
-  node: TreeNode;
-  depth: number;
-  expanded: Set<string>;
-  toggleExpand: (path: string) => void;
-  selectedIndex: number | null;
-  isNew: boolean;
-  routeEntries: RouteFileEntry[];
-  selectRoute: (index: number) => void;
-  goToWorkflow: (workflowId: string) => void;
-  methodColors: Record<string, string>;
-  routeGroups: Record<string, RouteGroupConfig>;
-  selectedGroup: string | null;
-  onSelectGroup: (fullPath: string) => void;
-}) {
-  const hasChildren = node.children.size > 0 || node.routes.length > 0;
-  const isExpanded = expanded.has(node.fullPath);
-  const isGroup = node.children.size > 0 || node.routes.length > 1;
-
-  if (!isGroup && node.routes.length === 1) {
-    // Leaf: single route
-    const entry = node.routes[0];
-    const idx = routeEntries.indexOf(entry);
-    return (
-      <RouteItem
-        key={`${entry.filePath}-${entry.route.id}`}
-        entry={entry}
-        index={idx}
-        selected={selectedIndex === idx && !isNew}
-        onSelect={selectRoute}
-        goToWorkflow={goToWorkflow}
-        methodColors={methodColors}
-        indent={depth}
-      />
-    );
-  }
-
-  const hasGroup = !!routeGroups[node.fullPath];
-  const isGroupSelected = selectedGroup === node.fullPath;
-
-  return (
-    <div>
-      {/* Group header */}
-      <div
-        className={`w-full flex items-center gap-1.5 px-4 py-1.5 text-xs font-medium text-gray-500 hover:bg-gray-50 ${
-          isGroupSelected ? "bg-blue-50" : ""
-        }`}
-        style={{ paddingLeft: `${16 + depth * 12}px` }}
-      >
-        <button
-          onClick={() => toggleExpand(node.fullPath)}
-          className="shrink-0"
-        >
-          {hasChildren ? (
-            isExpanded ? (
-              <ChevronDown size={12} />
-            ) : (
-              <ChevronRight size={12} />
-            )
-          ) : null}
-        </button>
-        <button
-          onClick={() => onSelectGroup(node.fullPath)}
-          className="flex items-center gap-1.5 min-w-0"
-        >
-          <span className="font-mono text-gray-600">/{node.segment}</span>
-          {hasGroup && <Shield size={12} className="text-blue-500 shrink-0" />}
-          <span className="text-gray-400 ml-1">({countRoutes(node)})</span>
-        </button>
-      </div>
-
-      {/* Children */}
-      {isExpanded && (
-        <>
-          {node.routes.map((entry) => {
-            const idx = routeEntries.indexOf(entry);
-            return (
-              <RouteItem
-                key={`${entry.filePath}-${entry.route.id}`}
-                entry={entry}
-                index={idx}
-                selected={selectedIndex === idx && !isNew}
-                onSelect={selectRoute}
-                goToWorkflow={goToWorkflow}
-                methodColors={methodColors}
-                indent={depth + 1}
-              />
-            );
-          })}
-          {[...node.children.values()].map((child) => (
-            <TreeNodeView
-              key={child.fullPath}
-              node={child}
-              depth={depth + 1}
-              expanded={expanded}
-              toggleExpand={toggleExpand}
-              selectedIndex={selectedIndex}
-              isNew={isNew}
-              routeEntries={routeEntries}
-              selectRoute={selectRoute}
-              goToWorkflow={goToWorkflow}
-              methodColors={methodColors}
-              routeGroups={routeGroups}
-              selectedGroup={selectedGroup}
-              onSelectGroup={onSelectGroup}
-            />
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-function RouteItem({
-  entry,
-  index,
-  selected,
-  onSelect,
-  goToWorkflow,
-  methodColors,
-  indent = 0,
-}: {
-  entry: RouteFileEntry;
-  index: number;
-  selected: boolean;
-  onSelect: (index: number) => void;
-  goToWorkflow: (workflowId: string) => void;
-  methodColors: Record<string, string>;
-  indent?: number;
-}) {
-  return (
-    <button
-      onClick={() => onSelect(index)}
-      className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 ${
-        selected ? "bg-blue-50" : ""
-      }`}
-      style={{ paddingLeft: `${16 + indent * 12}px` }}
-    >
-      <span
-        className={`px-2 py-0.5 text-xs font-mono font-medium rounded shrink-0 ${
-          methodColors[entry.route.method] ?? "bg-gray-100 text-gray-700"
-        }`}
-      >
-        {entry.route.method}
-      </span>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-gray-800 truncate">
-          {entry.route.path}
-        </div>
-        {entry.route.summary && (
-          <div className="text-xs text-gray-400 truncate">
-            {entry.route.summary}
-          </div>
-        )}
-      </div>
-      {entry.route.trigger?.workflow && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            goToWorkflow(entry.route.trigger!.workflow);
-          }}
-          className="text-blue-400 hover:text-blue-600 shrink-0"
-          title="Open workflow"
-        >
-          <ExternalLink size={12} />
-        </button>
-      )}
-    </button>
-  );
-}
-
-function countRoutes(node: TreeNode): number {
-  let count = node.routes.length;
-  for (const child of node.children.values()) {
-    count += countRoutes(child);
-  }
-  return count;
-}

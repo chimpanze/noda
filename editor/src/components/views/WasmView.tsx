@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { Plus, Trash2, Cpu } from "lucide-react";
+import { Cpu } from "lucide-react";
+import { ConfigListDetail } from "@/components/ui/ConfigListDetail";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
+import { DetailHeader } from "@/components/ui/DetailHeader";
 import Editor from "@monaco-editor/react";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
@@ -227,78 +230,39 @@ export function WasmView() {
         title="Wasm"
         subtitle="WebAssembly module configuration and management"
       />
-      <div className="flex-1 flex min-h-0">
-        {/* Runtime list */}
-        <div className="w-72 border-r border-gray-200 overflow-y-auto">
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-800">
-              Wasm Runtimes ({entries.length})
-            </h2>
-            <button
-              onClick={startNew}
-              className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-            >
-              <Plus size={14} />
-              New
-            </button>
-          </div>
-          <div className="divide-y divide-gray-100">
-            {entries.map(([name, rt]) => (
-              <button
-                key={name}
-                onClick={() => selectRuntime(name)}
-                className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                  selectedName === name && !isNew ? "bg-blue-50" : ""
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Cpu size={12} className="text-emerald-500 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-gray-800 truncate">
-                      {name}
-                    </div>
-                    <div className="text-xs text-gray-400 truncate">
-                      {rt.tick_rate}Hz &middot; {rt.encoding ?? "json"}
-                    </div>
-                  </div>
-                </div>
-              </button>
-            ))}
-            {entries.length === 0 && (
-              <div className="p-4 text-sm text-gray-400">
-                No Wasm runtimes configured.
+      <ConfigListDetail
+        items={entries}
+        getKey={([name]) => name}
+        selectedKey={isNew ? null : selectedName}
+        onSelect={(key) => selectRuntime(key)}
+        renderItem={([name, rt]) => (
+          <div className="flex items-center gap-2">
+            <Cpu size={12} className="text-emerald-500 shrink-0" />
+            <div className="min-w-0">
+              <div className="text-sm font-medium text-gray-800 truncate">
+                {name}
               </div>
-            )}
+              <div className="text-xs text-gray-400 truncate">
+                {rt.tick_rate}Hz &middot; {rt.encoding ?? "json"}
+              </div>
+            </div>
           </div>
-        </div>
-
-        {/* Runtime editor */}
-        <div className="flex-1 overflow-y-auto p-6">
-          {editRuntime ? (
+        )}
+        title={`Wasm Runtimes (${entries.length})`}
+        onNew={startNew}
+        sidebarWidth="w-72"
+        emptyMessage="No Wasm runtimes configured."
+      >
+        {editRuntime ? (
             <div className="max-w-2xl space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {isNew ? "New Wasm Runtime" : editName}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!isNew && (
-                    <button
-                      onClick={handleDelete}
-                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                    >
-                      <Trash2 size={14} className="inline mr-1" />
-                      Delete
-                    </button>
-                  )}
-                  <button
-                    onClick={handleSave}
-                    disabled={saving || !editName || !editRuntime.module}
-                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
+              <DetailHeader
+                title={isNew ? "New Wasm Runtime" : editName}
+                isNew={isNew}
+                saving={saving}
+                onSave={handleSave}
+                onDelete={handleDelete}
+                saveDisabled={!editName || !editRuntime.module}
+              />
 
               {/* Name */}
               <Field label="Name">
@@ -442,25 +406,7 @@ export function WasmView() {
               Select a Wasm runtime to edit or click "New" to create one.
             </div>
           )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
+      </ConfigListDetail>
     </div>
   );
 }

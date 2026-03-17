@@ -1,4 +1,5 @@
 import { useEditorStore } from "@/stores/editor";
+import { Field } from "@/components/ui/Field";
 
 export function WorkflowPropertiesPanel() {
   const activeWorkflowPath = useEditorStore((s) => s.activeWorkflowPath);
@@ -63,19 +64,3 @@ export function WorkflowPropertiesPanel() {
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}

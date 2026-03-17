@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { Field } from "@/components/ui/Field";
 import {
   Circle,
   Plus,
@@ -634,19 +635,3 @@ function JsonField({
   );
 }
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}

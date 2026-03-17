@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Trash2, X, Plus } from "lucide-react";
+import { Field } from "@/components/ui/Field";
 import type { RouteGroupConfig } from "@/types";
 
 interface RouteGroupFormPanelProps {
@@ -52,14 +53,14 @@ export function RouteGroupFormPanel({
       </div>
 
       {/* Path Prefix */}
-      <FieldLabel label="Path Prefix">
+      <Field label="Path Prefix">
         <div className="input-field bg-gray-50 text-gray-600 font-mono">
           {prefix}
         </div>
-      </FieldLabel>
+      </Field>
 
       {/* Middleware Preset */}
-      <FieldLabel label="Middleware Preset">
+      <Field label="Middleware Preset">
         <select
           value={group.middleware_preset ?? ""}
           onChange={(e) =>
@@ -77,10 +78,10 @@ export function RouteGroupFormPanel({
             </option>
           ))}
         </select>
-      </FieldLabel>
+      </Field>
 
       {/* Middleware */}
-      <FieldLabel label="Middleware">
+      <Field label="Middleware">
         <div className="flex flex-wrap gap-1.5 mb-1.5">
           {(group.middleware ?? []).map((mw) => (
             <span
@@ -127,7 +128,7 @@ export function RouteGroupFormPanel({
               </option>
             ))}
         </select>
-      </FieldLabel>
+      </Field>
 
       {/* Tags */}
       <TagInput
@@ -138,23 +139,6 @@ export function RouteGroupFormPanel({
         }
         placeholder="Add tag..."
       />
-    </div>
-  );
-}
-
-function FieldLabel({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
     </div>
   );
 }
@@ -181,7 +165,7 @@ function TagInput({
   };
 
   return (
-    <FieldLabel label={label}>
+    <Field label={label}>
       <div className="flex flex-wrap gap-1.5 mb-1.5">
         {values.map((v) => (
           <span
@@ -222,6 +206,6 @@ function TagInput({
           <Plus size={14} />
         </button>
       </div>
-    </FieldLabel>
+    </Field>
   );
 }

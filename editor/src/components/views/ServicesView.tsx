@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useConfigSection } from "@/hooks/useConfigSection";
 import {
   CheckCircle,
   XCircle,
@@ -8,8 +9,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
+import { DetailHeader } from "@/components/ui/DetailHeader";
+import { ConfigListDetail } from "@/components/ui/ConfigListDetail";
 import * as api from "@/api/client";
-import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/utils/toast";
 import type { ServiceInfo, PluginInfo } from "@/types";
 
@@ -185,12 +188,16 @@ interface DefinedService {
 }
 
 function DefinedTab() {
-  const files = useEditorStore((s) => s.files);
+  const {
+    data: services,
+    loading,
+    set: setService,
+    remove: removeService,
+    replace: replaceServices,
+    reload,
+  } = useConfigSection<Record<string, DefinedService>>({ path: "services" });
 
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
-  const [rootConfig, setRootConfig] = useState<Record<string, unknown>>({});
-  const [rootPath, setRootPath] = useState("");
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Selection
@@ -204,31 +211,9 @@ function DefinedTab() {
     { key: string; value: string }[]
   >([]);
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [plg, rootData] = await Promise.all([
-        api.listPlugins(),
-        files?.root
-          ? (api.readFile(files.root) as Promise<Record<string, unknown>>)
-          : Promise.resolve({}),
-      ]);
-      setPlugins(plg);
-      setRootConfig(rootData);
-      if (files?.root) setRootPath(files.root);
-    } finally {
-      setLoading(false);
-    }
-  }, [files?.root]);
-
   useEffect(() => {
-    reload();
-  }, [reload]);
-
-  const services = useMemo(
-    () => (rootConfig.services ?? {}) as Record<string, DefinedService>,
-    [rootConfig.services],
-  );
+    api.listPlugins().then(setPlugins);
+  }, []);
   const serviceNames = Object.keys(services);
   const servicePlugins = plugins.filter((p) => p.has_services);
 
@@ -258,29 +243,29 @@ function DefinedTab() {
   }, []);
 
   const saveService = useCallback(async () => {
-    if (!editName || !editPlugin || !rootPath) return;
+    if (!editName || !editPlugin) return;
     setSaving(true);
     try {
-      const updated = structuredClone(rootConfig);
-      const svcs = (updated.services ?? {}) as Record<string, unknown>;
-
-      // If renaming, remove old
-      if (!isNew && selectedName && selectedName !== editName) {
-        delete svcs[selectedName];
-      }
-
       const config: Record<string, string> = {};
       for (const row of editConfigRows) {
         if (row.key.trim()) config[row.key.trim()] = row.value;
       }
 
-      svcs[editName] = {
+      const svcValue = {
         plugin: editPlugin,
         ...(Object.keys(config).length > 0 ? { config } : {}),
       };
-      updated.services = svcs;
 
-      await api.writeFile(rootPath, updated);
+      if (!isNew && selectedName && selectedName !== editName) {
+        // Rename: atomic remove old + add new
+        const updated = { ...services };
+        delete updated[selectedName];
+        updated[editName] = svcValue;
+        await replaceServices(updated);
+      } else {
+        await setService(editName, svcValue);
+      }
+
       showToast({ type: "success", message: `Service "${editName}" saved` });
       setIsNew(false);
       await reload();
@@ -294,23 +279,19 @@ function DefinedTab() {
     editName,
     editPlugin,
     editConfigRows,
-    rootPath,
-    rootConfig,
     isNew,
     selectedName,
+    services,
+    replaceServices,
+    setService,
     reload,
   ]);
 
   const deleteService = useCallback(async () => {
-    if (!selectedName || !rootPath) return;
+    if (!selectedName) return;
     if (!confirm(`Delete service "${selectedName}"?`)) return;
     try {
-      const updated = structuredClone(rootConfig);
-      const svcs = (updated.services ?? {}) as Record<string, unknown>;
-      delete svcs[selectedName];
-      updated.services = Object.keys(svcs).length > 0 ? svcs : undefined;
-
-      await api.writeFile(rootPath, updated);
+      await removeService(selectedName);
       showToast({ type: "success", message: "Service deleted" });
       setSelectedName(null);
       setIsNew(false);
@@ -321,7 +302,7 @@ function DefinedTab() {
     } catch (err) {
       showToast({ type: "error", message: `Failed to delete: ${err}` });
     }
-  }, [selectedName, rootPath, rootConfig, reload]);
+  }, [selectedName, removeService, reload]);
 
   if (loading) {
     return <div className="p-6 text-sm text-gray-400">Loading services...</div>;
@@ -330,71 +311,36 @@ function DefinedTab() {
   const showEditor = selectedName !== null || isNew;
 
   return (
-    <div className="flex-1 flex min-h-0">
-      {/* Left sidebar */}
-      <div className="w-72 border-r border-gray-200 overflow-y-auto">
-        <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-800">Services</h2>
-          <button
-            onClick={startNew}
-            className="flex items-center gap-1 px-2 py-1 text-xs text-blue-600 hover:bg-blue-50 rounded"
-          >
-            <Plus size={14} />
-            New
-          </button>
-        </div>
-        <div className="divide-y divide-gray-100">
-          {serviceNames.map((name) => (
-            <button
-              key={name}
-              onClick={() => selectService(name)}
-              className={`w-full text-left px-4 py-2.5 hover:bg-gray-50 ${
-                selectedName === name && !isNew ? "bg-blue-50" : ""
-              }`}
-            >
-              <div className="text-sm font-medium text-gray-800">{name}</div>
-              <div className="text-xs text-gray-400">
-                plugin: {services[name].plugin}
-              </div>
-            </button>
-          ))}
-          {serviceNames.length === 0 && (
-            <div className="p-4 text-xs text-gray-400">
-              No services defined.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Right panel */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {showEditor ? (
+    <ConfigListDetail
+      items={serviceNames}
+      getKey={(name) => name}
+      selectedKey={isNew ? null : selectedName}
+      onSelect={(key) => selectService(key)}
+      renderItem={(name) => (
+        <>
+          <div className="text-sm font-medium text-gray-800">{name}</div>
+          <div className="text-xs text-gray-400">
+            plugin: {services[name].plugin}
+          </div>
+        </>
+      )}
+      title="Services"
+      onNew={startNew}
+      sidebarWidth="w-72"
+      emptyMessage="No services defined."
+    >
+      {showEditor ? (
           <div className="max-w-2xl space-y-5">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900">
-                {isNew ? "New Service" : editName}
-              </h3>
-              <div className="flex items-center gap-2">
-                {!isNew && (
-                  <button
-                    onClick={deleteService}
-                    className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                  >
-                    <Trash2 size={14} className="inline mr-1" />
-                    Delete
-                  </button>
-                )}
-                <button
-                  onClick={saveService}
-                  disabled={saving || !editName || !editPlugin}
-                  className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                >
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </div>
-            </div>
+            <DetailHeader
+              title={isNew ? "New Service" : editName}
+              isNew={isNew}
+              saving={saving}
+              onSave={saveService}
+              onDelete={deleteService}
+              saveDisabled={!editName || !editPlugin}
+            />
 
-            <FieldLabel label="Name">
+            <Field label="Name">
               <input
                 type="text"
                 value={editName}
@@ -402,9 +348,9 @@ function DefinedTab() {
                 className="input-field font-mono"
                 placeholder="e.g. main-db"
               />
-            </FieldLabel>
+            </Field>
 
-            <FieldLabel label="Plugin">
+            <Field label="Plugin">
               <select
                 value={editPlugin}
                 onChange={(e) => setEditPlugin(e.target.value)}
@@ -418,9 +364,9 @@ function DefinedTab() {
                   </option>
                 ))}
               </select>
-            </FieldLabel>
+            </Field>
 
-            <FieldLabel label="Config">
+            <Field label="Config">
               <div className="space-y-2">
                 {editConfigRows.map((row, i) => (
                   <div key={i} className="flex items-center gap-2">
@@ -471,36 +417,18 @@ function DefinedTab() {
                   Add field
                 </button>
               </div>
-            </FieldLabel>
+            </Field>
           </div>
         ) : (
           <div className="text-sm text-gray-400">
             Select a service to edit, or create a new one.
           </div>
         )}
-      </div>
-    </div>
+    </ConfigListDetail>
   );
 }
 
 /* ─── Shared components ─── */
-
-function FieldLabel({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
 
 function HealthIcon({ health }: { health: string }) {
   switch (health) {

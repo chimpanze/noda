@@ -1,6 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, X, Eye, EyeOff } from "lucide-react";
 import { ViewHeader } from "@/components/layout/ViewHeader";
+import { Field } from "@/components/ui/Field";
+import { DetailHeader } from "@/components/ui/DetailHeader";
+import {
+  extractMiddlewareConfig,
+  writeMiddlewareConfig,
+} from "@/utils/middlewareConfigPaths";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
 import { showToast } from "@/utils/toast";
@@ -57,27 +63,9 @@ export function MiddlewareView() {
     (d) => d.config_fields.length > 0,
   );
 
-  // Extract raw (unresolved) middleware config from rootConfig file,
-  // mirroring the Go-side extractMiddlewareConfig lookup paths.
   const extractRawMwConfig = useCallback(
-    (name: string): Record<string, unknown> => {
-      const sec = rootConfig.security as Record<string, unknown> | undefined;
-      const mw = rootConfig.middleware as Record<string, unknown> | undefined;
-      if (name.startsWith("security.")) {
-        const shortName = name.replace("security.", "");
-        return { ...((sec?.[shortName] as Record<string, unknown>) ?? {}) };
-      }
-      if (name === "auth.jwt") {
-        return { ...((sec?.jwt as Record<string, unknown>) ?? {}) };
-      }
-      if (name === "casbin.enforce") {
-        return { ...((sec?.casbin as Record<string, unknown>) ?? {}) };
-      }
-      if (name === "livekit.webhook") {
-        return { ...((sec?.livekit as Record<string, unknown>) ?? {}) };
-      }
-      return { ...((mw?.[name] as Record<string, unknown>) ?? {}) };
-    },
+    (name: string): Record<string, unknown> =>
+      extractMiddlewareConfig(rootConfig, name),
     [rootConfig],
   );
 
@@ -313,59 +301,13 @@ export function MiddlewareView() {
     if (!selectedMw || !rootPath) return;
     setSaving(true);
     try {
-      const updated = structuredClone(rootConfig);
-
-      // Determine where to save based on middleware name
       const cleanConfig = Object.fromEntries(
         Object.entries(editConfig).filter(
           ([, v]) => v !== "" && v !== undefined,
         ),
       );
-      const hasValues = Object.keys(cleanConfig).length > 0;
 
-      if (selectedMw.startsWith("security.")) {
-        const shortName = selectedMw.replace("security.", "");
-        const sec = (updated.security ?? {}) as Record<string, unknown>;
-        if (hasValues) {
-          sec[shortName] = cleanConfig;
-        } else {
-          delete sec[shortName];
-        }
-        updated.security = Object.keys(sec).length > 0 ? sec : undefined;
-      } else if (selectedMw === "auth.jwt") {
-        const sec = (updated.security ?? {}) as Record<string, unknown>;
-        if (hasValues) {
-          sec.jwt = cleanConfig;
-        } else {
-          delete sec.jwt;
-        }
-        updated.security = Object.keys(sec).length > 0 ? sec : undefined;
-      } else if (selectedMw === "casbin.enforce") {
-        const sec = (updated.security ?? {}) as Record<string, unknown>;
-        if (hasValues) {
-          sec.casbin = cleanConfig;
-        } else {
-          delete sec.casbin;
-        }
-        updated.security = Object.keys(sec).length > 0 ? sec : undefined;
-      } else if (selectedMw === "livekit.webhook") {
-        const sec = (updated.security ?? {}) as Record<string, unknown>;
-        if (hasValues) {
-          sec.livekit = cleanConfig;
-        } else {
-          delete sec.livekit;
-        }
-        updated.security = Object.keys(sec).length > 0 ? sec : undefined;
-      } else {
-        const mw = (updated.middleware ?? {}) as Record<string, unknown>;
-        if (hasValues) {
-          mw[selectedMw] = cleanConfig;
-        } else {
-          delete mw[selectedMw];
-        }
-        updated.middleware = Object.keys(mw).length > 0 ? mw : undefined;
-      }
-
+      const updated = writeMiddlewareConfig(rootConfig, selectedMw, cleanConfig);
       await api.writeFile(rootPath, updated);
       showToast({
         type: "success",
@@ -515,31 +457,16 @@ export function MiddlewareView() {
         <div className="flex-1 overflow-y-auto p-6">
           {showPresetEditor ? (
             <div className="max-w-2xl space-y-5">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  {isNewPreset ? "New Preset" : editPresetName}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {!isNewPreset && (
-                    <button
-                      onClick={deletePreset}
-                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded hover:bg-red-50"
-                    >
-                      <Trash2 size={14} className="inline mr-1" />
-                      Delete
-                    </button>
-                  )}
-                  <button
-                    onClick={savePreset}
-                    disabled={saving || !editPresetName}
-                    className="px-4 py-1.5 text-sm text-white bg-blue-500 rounded hover:bg-blue-600 disabled:opacity-50"
-                  >
-                    {saving ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </div>
+              <DetailHeader
+                title={isNewPreset ? "New Preset" : editPresetName}
+                isNew={isNewPreset}
+                saving={saving}
+                onSave={savePreset}
+                onDelete={deletePreset}
+                saveDisabled={!editPresetName}
+              />
 
-              <FieldLabel label="Name">
+              <Field label="Name">
                 <input
                   type="text"
                   value={editPresetName}
@@ -547,9 +474,9 @@ export function MiddlewareView() {
                   className="input-field font-mono"
                   placeholder="e.g. authenticated"
                 />
-              </FieldLabel>
+              </Field>
 
-              <FieldLabel label="Middleware">
+              <Field label="Middleware">
                 <div className="flex flex-wrap gap-1.5 mb-1.5">
                   {editPresetMws.map((mw) => (
                     <span
@@ -604,7 +531,7 @@ export function MiddlewareView() {
                     </optgroup>
                   )}
                 </select>
-              </FieldLabel>
+              </Field>
             </div>
           ) : showConfigEditor && selectedDescriptor ? (
             <div className="max-w-2xl space-y-5">
@@ -740,7 +667,7 @@ export function MiddlewareView() {
                   </div>
                 )}
 
-              <FieldLabel label="Type">
+              <Field label="Type">
                 <select
                   value={
                     showResolved && selectedInstance
@@ -763,9 +690,9 @@ export function MiddlewareView() {
                       </option>
                     ))}
                 </select>
-              </FieldLabel>
+              </Field>
 
-              <FieldLabel label="Name">
+              <Field label="Name">
                 <input
                   type="text"
                   value={editInstanceName}
@@ -782,7 +709,7 @@ export function MiddlewareView() {
                     </span>
                   </div>
                 )}
-              </FieldLabel>
+              </Field>
 
               {instanceTypeDescriptor &&
                 instanceTypeDescriptor.config_fields.length > 0 && (
@@ -829,23 +756,6 @@ export function MiddlewareView() {
   );
 }
 
-function FieldLabel({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="text-xs font-medium text-gray-400 uppercase block mb-1">
-        {label}
-      </label>
-      {children}
-    </div>
-  );
-}
-
 function ConfigFieldInput({
   field,
   value,
@@ -863,7 +773,7 @@ function ConfigFieldInput({
   switch (field.type) {
     case "string":
       return (
-        <FieldLabel label={label}>
+        <Field label={label}>
           <input
             type="text"
             value={(value as string) ?? ""}
@@ -875,11 +785,11 @@ function ConfigFieldInput({
           {!readOnly && field.required && !value && (
             <span className="text-xs text-red-400 mt-0.5 block">Required</span>
           )}
-        </FieldLabel>
+        </Field>
       );
     case "number":
       return (
-        <FieldLabel label={label}>
+        <Field label={label}>
           <input
             type="number"
             value={(value as number) ?? ""}
@@ -891,7 +801,7 @@ function ConfigFieldInput({
             placeholder={field.placeholder}
             readOnly={readOnly}
           />
-        </FieldLabel>
+        </Field>
       );
     case "boolean":
       return (
@@ -912,7 +822,7 @@ function ConfigFieldInput({
       );
     case "select":
       return (
-        <FieldLabel label={label}>
+        <Field label={label}>
           <select
             value={(value as string) ?? (field.default as string) ?? ""}
             onChange={(e) => onChange(e.target.value || undefined)}
@@ -926,11 +836,11 @@ function ConfigFieldInput({
               </option>
             ))}
           </select>
-        </FieldLabel>
+        </Field>
       );
     case "text":
       return (
-        <FieldLabel label={label}>
+        <Field label={label}>
           <textarea
             value={(value as string) ?? ""}
             onChange={(e) => onChange(e.target.value || undefined)}
@@ -941,7 +851,7 @@ function ConfigFieldInput({
           {!readOnly && field.required && !value && (
             <span className="text-xs text-red-400 mt-0.5 block">Required</span>
           )}
-        </FieldLabel>
+        </Field>
       );
   }
 }
