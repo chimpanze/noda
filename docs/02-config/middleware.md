@@ -14,7 +14,7 @@ Named collections of middleware for reuse across routes and route groups. Define
 }
 ```
 
-Available middleware: `auth.jwt`, `auth.casbin`, `cors`, `rate_limit`, `helmet`, `compress`, `etag`, `livekit.webhook`.
+Available middleware: `auth.jwt`, `auth.oidc`, `auth.casbin`, `cors`, `rate_limit`, `helmet`, `compress`, `etag`, `livekit.webhook`.
 
 ## Route Groups
 
@@ -29,6 +29,82 @@ Apply middleware presets to URL path prefixes. Defined in `noda.json` under `rou
     "/api": {
       "middleware_preset": "authenticated"
     }
+  }
+}
+```
+
+## auth.oidc
+
+Validates OIDC ID tokens from external identity providers (Google, Keycloak, Auth0, Okta, etc.). Uses OIDC discovery to fetch provider configuration and JWKS keys automatically. Populates the same authentication locals as `auth.jwt`, so Casbin authorization and trigger input mapping work identically.
+
+Configure in `noda.json`:
+
+```json
+{
+  "security": {
+    "oidc": {
+      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
+      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
+      "user_id_claim": "sub",
+      "roles_claim": "roles",
+      "required_scopes": ["openid", "profile"]
+    }
+  }
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `issuer_url` | string | yes | OIDC provider issuer URL (e.g. `https://accounts.google.com`) |
+| `client_id` | string | yes | OAuth2 client ID — used as the expected audience |
+| `user_id_claim` | string | no | Claim to extract as user ID (default: `sub`) |
+| `roles_claim` | string | no | Claim to extract as roles (default: `roles`) |
+| `required_scopes` | string[] | no | Scopes that must be present in the token |
+
+Use on routes the same way as `auth.jwt`:
+
+```json
+{
+  "id": "get-profile",
+  "method": "GET",
+  "path": "/api/profile",
+  "middleware": ["auth.oidc"]
+}
+```
+
+### Multiple Providers
+
+Use middleware instances to support multiple OIDC providers simultaneously:
+
+```json
+{
+  "middleware_instances": {
+    "auth.oidc:google": {
+      "type": "auth.oidc",
+      "config": {
+        "issuer_url": "https://accounts.google.com",
+        "client_id": "{{ $env('GOOGLE_CLIENT_ID') }}"
+      }
+    },
+    "auth.oidc:keycloak": {
+      "type": "auth.oidc",
+      "config": {
+        "issuer_url": "{{ $env('KEYCLOAK_ISSUER_URL') }}",
+        "client_id": "{{ $env('KEYCLOAK_CLIENT_ID') }}"
+      }
+    }
+  }
+}
+```
+
+### Casbin Compatibility
+
+`auth.oidc` works with `casbin.enforce` the same way `auth.jwt` does — the user ID and roles from the OIDC token are used as the Casbin subject:
+
+```json
+{
+  "middleware_presets": {
+    "oidc-admin": ["auth.oidc", "casbin.enforce"]
   }
 }
 ```

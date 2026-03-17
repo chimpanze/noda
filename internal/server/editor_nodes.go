@@ -198,6 +198,13 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 			{Key: "secret", Type: "string", Description: "JWT signing secret or key", Required: true},
 			{Key: "algorithm", Type: "select", Description: "Signing algorithm", Options: []string{"HS256", "HS384", "HS512"}, Default: "HS256"},
 		}},
+		{Name: "auth.oidc", Description: "OpenID Connect token validation via external identity providers", ConfigFields: []configField{
+			{Key: "issuer_url", Type: "string", Description: "OIDC provider issuer URL", Required: true},
+			{Key: "client_id", Type: "string", Description: "OAuth2 client ID (audience)", Required: true},
+			{Key: "user_id_claim", Type: "string", Description: "Claim to use as user ID", Default: "sub"},
+			{Key: "roles_claim", Type: "string", Description: "Claim to use as roles", Default: "roles"},
+			{Key: "required_scopes", Type: "string", Description: "Required scopes (comma-separated)"},
+		}},
 		{Name: "security.cors", Description: "Cross-Origin Resource Sharing headers", ConfigFields: []configField{
 			{Key: "allow_origins", Type: "string", Description: "Allowed origins (comma-separated or *)"},
 			{Key: "allow_methods", Type: "string", Description: "Allowed HTTP methods"},

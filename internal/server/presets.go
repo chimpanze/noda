@@ -180,7 +180,7 @@ func dedupe(items []string) []string {
 // middlewareOrderRules defines ordering constraints: the key middleware
 // must appear after all listed prerequisites in the chain.
 var middlewareOrderRules = map[string][]string{
-	"casbin.enforce": {"auth.jwt"},
+	"casbin.enforce": {"auth.jwt", "auth.oidc"},
 }
 
 // ValidateMiddlewareOrder checks that middleware ordering constraints are satisfied.

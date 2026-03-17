@@ -31,6 +31,7 @@ import (
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
+	coreoidc "github.com/chimpanze/noda/plugins/core/oidc"
 	"github.com/chimpanze/noda/plugins/core/response"
 	coresse "github.com/chimpanze/noda/plugins/core/sse"
 	corestorage "github.com/chimpanze/noda/plugins/core/storage"
@@ -897,6 +898,7 @@ func corePlugins() []api.Plugin {
 		&corews.Plugin{},
 		&coresse.Plugin{},
 		&corewasm.Plugin{},
+		&coreoidc.Plugin{},
 		&livekitplugin.Plugin{},
 	}
 }
