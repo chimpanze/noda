@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Rooms</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f0f0f; color: #e0e0e0; min-height: 100vh; }
+
+    /* Lobby */
+    #lobby { max-width: 560px; margin: 60px auto; padding: 0 20px; }
+    #lobby h1 { font-size: 1.5rem; margin-bottom: 24px; }
+    label { display: block; font-size: 0.85rem; color: #999; margin-bottom: 4px; }
+    input { width: 100%; padding: 10px 12px; border: 1px solid #333; border-radius: 6px; background: #1a1a1a; color: #e0e0e0; font-size: 0.95rem; outline: none; }
+    input:focus { border-color: #5b8def; }
+    .section { margin-bottom: 28px; }
+    .create-row { display: flex; gap: 8px; }
+    .create-row input { flex: 1; }
+    button { padding: 10px 18px; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; background: #5b8def; color: #fff; white-space: nowrap; }
+    button:hover { background: #4a7de0; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    .room-list { list-style: none; }
+    .room-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #1a1a1a; border-radius: 8px; margin-bottom: 8px; }
+    .room-info { flex: 1; min-width: 0; }
+    .room-name { font-weight: 600; }
+    .room-participants { font-size: 0.8rem; color: #888; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .room-item button { flex-shrink: 0; margin-left: 12px; padding: 6px 16px; font-size: 0.85rem; }
+    .empty { color: #666; font-size: 0.9rem; padding: 16px 0; }
+
+    /* Room view */
+    #room-view { display: none; height: 100vh; flex-direction: column; }
+    #room-header { padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; background: #161616; border-bottom: 1px solid #222; }
+    #room-header h2 { font-size: 1.1rem; }
+    #video-grid { flex: 1; display: grid; gap: 8px; padding: 8px; overflow: hidden; grid-template-columns: 1fr; align-content: center; }
+    .tile { position: relative; background: #1a1a1a; border-radius: 10px; overflow: hidden; aspect-ratio: 16/9; }
+    .tile video { width: 100%; height: 100%; object-fit: cover; }
+    .tile-name { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.65); padding: 3px 10px; border-radius: 4px; font-size: 0.8rem; }
+    .tile-screen { border: 2px solid #5b8def; }
+    #toolbar { display: flex; justify-content: center; gap: 12px; padding: 14px; background: #161616; border-top: 1px solid #222; }
+    #toolbar button { width: 48px; height: 48px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; background: #2a2a2a; font-size: 1.2rem; }
+    #toolbar button:hover { background: #3a3a3a; }
+    #toolbar button.active { background: #5b8def; }
+    #toolbar button.danger { background: #d9534f; }
+    #toolbar button.danger:hover { background: #c9302c; }
+  </style>
+</head>
+<body>
+
+<div id="lobby">
+  <h1>Video Rooms</h1>
+  <div class="section">
+    <label for="server-url">Server URL</label>
+    <input id="server-url" value="http://localhost:8080" autocomplete="off">
+  </div>
+  <div class="section">
+    <label for="display-name">Display name</label>
+    <input id="display-name" placeholder="Enter your name" autocomplete="off">
+  </div>
+  <div class="section">
+    <label>Create a room</label>
+    <div class="create-row">
+      <input id="new-room-name" placeholder="Room name" autocomplete="off">
+      <button id="btn-create">Create</button>
+    </div>
+  </div>
+  <div class="section">
+    <label>Rooms</label>
+    <ul class="room-list" id="room-list"><li class="empty">Loading...</li></ul>
+  </div>
+</div>
+
+<div id="room-view">
+  <div id="room-header">
+    <h2 id="room-title"></h2>
+    <span id="participant-count" style="color:#888;font-size:0.85rem;"></span>
+  </div>
+  <div id="video-grid"></div>
+  <div id="toolbar">
+    <button id="btn-mic" class="active" title="Toggle microphone">&#x1F3A4;</button>
+    <button id="btn-cam" class="active" title="Toggle camera">&#x1F4F7;</button>
+    <button id="btn-screen" title="Share screen">&#x1F5A5;</button>
+    <button id="btn-leave" class="danger" title="Leave room">&#x274C;</button>
+  </div>
+</div>
+
+<script type="module">
+  import {
+    Room,
+    RoomEvent,
+    Track,
+    VideoPresets,
+    createLocalTracks,
+  } from 'https://esm.sh/livekit-client@2';
+
+  const serverUrlInput = document.getElementById('server-url');
+  function API() { return serverUrlInput.value.replace(/\/+$/, '') + '/api'; }
+
+  // DOM refs
+  const lobbyEl = document.getElementById('lobby');
+  const roomViewEl = document.getElementById('room-view');
+  const roomListEl = document.getElementById('room-list');
+  const displayNameInput = document.getElementById('display-name');
+  const newRoomInput = document.getElementById('new-room-name');
+  const btnCreate = document.getElementById('btn-create');
+  const videoGrid = document.getElementById('video-grid');
+  const roomTitle = document.getElementById('room-title');
+  const participantCount = document.getElementById('participant-count');
+  const btnMic = document.getElementById('btn-mic');
+  const btnCam = document.getElementById('btn-cam');
+  const btnScreen = document.getElementById('btn-screen');
+  const btnLeave = document.getElementById('btn-leave');
+
+  let room = null;
+  let refreshTimer = null;
+  let micEnabled = true;
+  let camEnabled = true;
+  let screenTrack = null;
+
+  // --- Lobby ---
+
+  async function fetchRooms() {
+    try {
+      const res = await fetch(`${API()}/rooms`);
+      const data = await res.json();
+      return data.rooms || [];
+    } catch { return []; }
+  }
+
+  async function fetchParticipants(roomName) {
+    try {
+      const res = await fetch(`${API()}/rooms/${encodeURIComponent(roomName)}/participants`);
+      const data = await res.json();
+      return data.participants || [];
+    } catch { return []; }
+  }
+
+  async function refreshRoomList() {
+    const rooms = await fetchRooms();
+    if (rooms.length === 0) {
+      roomListEl.innerHTML = '<li class="empty">No rooms yet</li>';
+      return;
+    }
+
+    const parts = await Promise.all(rooms.map(r => fetchParticipants(r.name)));
+    roomListEl.innerHTML = rooms.map((r, i) => {
+      const names = parts[i].map(p => p.name || p.identity).join(', ');
+      return `
+        <li class="room-item">
+          <div class="room-info">
+            <div class="room-name">${esc(r.name)}</div>
+            <div class="room-participants">${r.num_participants || 0} participant${r.num_participants === 1 ? '' : 's'}${names ? ' — ' + esc(names) : ''}</div>
+          </div>
+          <button onclick="window._joinRoom('${esc(r.name)}')">Join</button>
+        </li>`;
+    }).join('');
+  }
+
+  function startLobby() {
+    lobbyEl.style.display = '';
+    roomViewEl.style.display = 'none';
+    refreshRoomList();
+    refreshTimer = setInterval(refreshRoomList, 5000);
+  }
+
+  btnCreate.addEventListener('click', async () => {
+    const name = newRoomInput.value.trim();
+    if (!name) return;
+    btnCreate.disabled = true;
+    try {
+      await fetch(`${API()}/rooms`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      newRoomInput.value = '';
+      await refreshRoomList();
+    } finally { btnCreate.disabled = false; }
+  });
+
+  // --- Join ---
+
+  window._joinRoom = async function(roomName) {
+    const displayName = displayNameInput.value.trim();
+    if (!displayName) { displayNameInput.focus(); alert('Enter a display name first'); return; }
+
+    clearInterval(refreshTimer);
+    lobbyEl.style.display = 'none';
+    roomViewEl.style.display = 'flex';
+    roomTitle.textContent = roomName;
+
+    const res = await fetch(`${API()}/rooms/${encodeURIComponent(roomName)}/join`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: displayName }),
+    });
+    const data = await res.json();
+
+    room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      videoCaptureDefaults: { resolution: VideoPresets.h720.resolution },
+    });
+
+    // Krisp noise cancellation — best-effort, loaded once before connecting
+    let KrispNoiseFilter = null;
+    try {
+      const mod = await import('https://esm.sh/@livekit/krisp-noise-filter');
+      if (!mod.isKrispNoiseFilterSupported || mod.isKrispNoiseFilterSupported()) {
+        KrispNoiseFilter = mod.KrispNoiseFilter;
+      }
+    } catch (e) {
+      console.warn('Krisp noise filter not available, continuing without it:', e.message);
+    }
+
+    room.on(RoomEvent.TrackSubscribed, (track, pub, participant) => {
+      attachTrack(track, participant);
+    });
+    room.on(RoomEvent.TrackUnsubscribed, (track, pub, participant) => {
+      detachTrack(track, participant);
+    });
+    room.on(RoomEvent.ParticipantConnected, () => updateParticipantCount());
+    room.on(RoomEvent.ParticipantDisconnected, (participant) => {
+      removeTiles(participant.identity);
+      updateParticipantCount();
+    });
+    room.on(RoomEvent.LocalTrackPublished, async (pub) => {
+      if (pub.track) attachTrack(pub.track, room.localParticipant);
+      if (KrispNoiseFilter && pub.source === Track.Source.Microphone && pub.track) {
+        await pub.track.setProcessor(KrispNoiseFilter()).catch(e =>
+          console.warn('Failed to apply Krisp processor:', e.message)
+        );
+      }
+    });
+    room.on(RoomEvent.LocalTrackUnpublished, (pub) => {
+      if (pub.track) detachTrack(pub.track, room.localParticipant);
+    });
+    room.on(RoomEvent.Disconnected, () => leaveRoom());
+
+    await room.connect(data.url, data.token);
+    await room.localParticipant.enableCameraAndMicrophone();
+    micEnabled = true; camEnabled = true;
+    btnMic.classList.add('active');
+    btnCam.classList.add('active');
+    updateParticipantCount();
+  };
+
+  // --- Video grid ---
+
+  function tileId(identity, trackSource) {
+    return `tile-${identity}-${trackSource}`;
+  }
+
+  function attachTrack(track, participant) {
+    if (track.kind !== Track.Kind.Video && track.kind !== Track.Kind.Audio) return;
+    const id = tileId(participant.identity, track.source);
+
+    if (track.kind === Track.Kind.Audio) {
+      // Attach audio elements (not for local participant)
+      if (participant.identity === room.localParticipant.identity) return;
+      let el = document.getElementById(id);
+      if (!el) {
+        el = track.attach();
+        el.id = id;
+        el.style.display = 'none';
+        videoGrid.appendChild(el);
+      }
+      return;
+    }
+
+    let tile = document.getElementById(id);
+    if (!tile) {
+      tile = document.createElement('div');
+      tile.id = id;
+      tile.className = 'tile' + (track.source === Track.Source.ScreenShare ? ' tile-screen' : '');
+      const label = document.createElement('div');
+      label.className = 'tile-name';
+      label.textContent = (participant.name || participant.identity) + (track.source === Track.Source.ScreenShare ? ' (screen)' : '');
+      tile.appendChild(label);
+      videoGrid.appendChild(tile);
+    }
+
+    const existing = tile.querySelector('video');
+    if (existing) existing.remove();
+    const el = track.attach();
+    el.style.width = '100%';
+    el.style.height = '100%';
+    el.style.objectFit = 'cover';
+    tile.prepend(el);
+    updateGridLayout();
+  }
+
+  function detachTrack(track, participant) {
+    const id = tileId(participant.identity, track.source);
+    const el = document.getElementById(id);
+    if (el) { track.detach(); el.remove(); updateGridLayout(); }
+  }
+
+  function removeTiles(identity) {
+    videoGrid.querySelectorAll(`[id^="tile-${identity}-"]`).forEach(el => el.remove());
+    updateGridLayout();
+  }
+
+  function updateGridLayout() {
+    const count = videoGrid.querySelectorAll('.tile').length;
+    if (count <= 1) videoGrid.style.gridTemplateColumns = '1fr';
+    else if (count <= 4) videoGrid.style.gridTemplateColumns = 'repeat(2, 1fr)';
+    else if (count <= 9) videoGrid.style.gridTemplateColumns = 'repeat(3, 1fr)';
+    else videoGrid.style.gridTemplateColumns = 'repeat(4, 1fr)';
+  }
+
+  function updateParticipantCount() {
+    if (!room) return;
+    const n = room.numParticipants + 1; // includes local
+    participantCount.textContent = `${n} participant${n === 1 ? '' : 's'}`;
+  }
+
+  // --- Toolbar ---
+
+  btnMic.addEventListener('click', async () => {
+    micEnabled = !micEnabled;
+    await room.localParticipant.setMicrophoneEnabled(micEnabled);
+    btnMic.classList.toggle('active', micEnabled);
+  });
+
+  btnCam.addEventListener('click', async () => {
+    camEnabled = !camEnabled;
+    await room.localParticipant.setCameraEnabled(camEnabled);
+    btnCam.classList.toggle('active', camEnabled);
+  });
+
+  btnScreen.addEventListener('click', async () => {
+    if (!screenTrack) {
+      try {
+        await room.localParticipant.setScreenShareEnabled(true);
+        screenTrack = true;
+        btnScreen.classList.add('active');
+      } catch {}
+    } else {
+      await room.localParticipant.setScreenShareEnabled(false);
+      screenTrack = null;
+      btnScreen.classList.remove('active');
+    }
+  });
+
+  btnLeave.addEventListener('click', () => leaveRoom());
+
+  async function leaveRoom() {
+    if (room) { await room.disconnect(); room = null; }
+    screenTrack = null;
+    videoGrid.innerHTML = '';
+    startLobby();
+  }
+
+  // --- Utils ---
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  // --- Init ---
+  startLobby();
+</script>
+
+</body>
+</html>

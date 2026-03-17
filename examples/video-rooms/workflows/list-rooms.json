@@ -1,0 +1,27 @@
+{
+  "edges": [
+    {
+      "from": "get_rooms",
+      "to": "respond"
+    }
+  ],
+  "id": "list-rooms",
+  "name": "List Rooms",
+  "nodes": {
+    "get_rooms": {
+      "services": {
+        "livekit": "lk"
+      },
+      "type": "lk.roomList"
+    },
+    "respond": {
+      "config": {
+        "body": {
+          "rooms": "{{ nodes.get_rooms.rooms }}"
+        },
+        "status": 200
+      },
+      "type": "response.json"
+    }
+  }
+}

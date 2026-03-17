@@ -1,0 +1,31 @@
+{
+  "middleware_presets": {
+    "public": [
+      "security.cors"
+    ]
+  },
+  "route_groups": {
+    "/api": {
+      "middleware_preset": "public"
+    }
+  },
+  "security": {
+    "cors": {
+      "allow_methods": "GET, POST, OPTIONS, HEAD, PUT, DELETE",
+      "allow_origins": "*"
+    }
+  },
+  "server": {
+    "port": 8080
+  },
+  "services": {
+    "lk": {
+      "config": {
+        "api_key": "{{ $env('LIVEKIT_API_KEY') }}",
+        "api_secret": "{{ $env('LIVEKIT_API_SECRET') }}",
+        "url": "{{ $env('LIVEKIT_URL') }}"
+      },
+      "plugin": "livekit"
+    }
+  }
+}

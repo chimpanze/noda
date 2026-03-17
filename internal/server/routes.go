@@ -52,7 +52,7 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 	}
 
 	// Resolve middleware chain for this route
-	middlewareHandlers, err := s.ResolveMiddlewareChain(route)
+	middlewareNames, middlewareHandlers, err := s.resolveMiddlewareChainFull(route)
 	if err != nil {
 		return err
 	}
@@ -153,6 +153,20 @@ func (s *Server) registerRoute(routeID string, route map[string]any) error {
 		s.app.Delete(path, allHandlers[0], allHandlers[1:]...)
 	default:
 		return fmt.Errorf("unsupported HTTP method: %s", method)
+	}
+
+	// Auto-register an OPTIONS handler for CORS preflight when security.cors is in the
+	// middleware chain. Browsers send OPTIONS before cross-origin POST/PUT/DELETE/PATCH
+	// requests; without an OPTIONS route the request hits a 404 before CORS headers
+	// are ever written.
+	if strings.ToUpper(method) != "OPTIONS" {
+		for i, name := range middlewareNames {
+			base, _ := ParseMiddlewareName(name)
+			if base == "security.cors" {
+				s.app.Options(path, middlewareHandlers[i])
+				break
+			}
+		}
 	}
 
 	s.logger.Info("route registered", "id", routeID, "method", method, "path", path)

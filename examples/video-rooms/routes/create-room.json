@@ -1,0 +1,16 @@
+{
+  "id": "create-room",
+  "method": "POST",
+  "path": "/api/rooms",
+  "summary": "Create a new room",
+  "tags": ["rooms"],
+  "body": {
+    "schema": { "$ref": "schemas/CreateRoom" }
+  },
+  "trigger": {
+    "workflow": "create-room",
+    "input": {
+      "name": "{{ body.name }}"
+    }
+  }
+}

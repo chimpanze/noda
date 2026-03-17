@@ -1,0 +1,56 @@
+{
+  "edges": [
+    {
+      "from": "gen_identity",
+      "to": "create_token"
+    },
+    {
+      "from": "create_token",
+      "to": "respond"
+    }
+  ],
+  "id": "join-room",
+  "name": "Join Room",
+  "nodes": {
+    "create_token": {
+      "config": {
+        "grants": {
+          "canPublish": true,
+          "canPublishData": true,
+          "canSubscribe": true,
+          "canUpdateOwnMetadata": true,
+          "roomJoin": true
+        },
+        "identity": "{{ nodes.gen_identity.identity }}",
+        "name": "{{ input.name }}",
+        "room": "{{ input.room }}"
+      },
+      "services": {
+        "livekit": "lk"
+      },
+      "type": "lk.token"
+    },
+    "gen_identity": {
+      "config": {
+        "fields": {
+          "identity": "{{ $uuid() }}"
+        }
+      },
+      "type": "transform.set"
+    },
+    "respond": {
+      "config": {
+        "body": {
+          "identity": "{{ nodes.gen_identity.identity }}",
+          "name": "{{ input.name }}",
+          "room": "{{ input.room }}",
+          "token": "{{ nodes.create_token.token }}",
+          "url": "{{ env.LIVEKIT_URL }}"
+        },
+        "headers": {},
+        "status": 200
+      },
+      "type": "response.json"
+    }
+  }
+}

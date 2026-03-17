@@ -1,0 +1,25 @@
+{
+  "CreateRoom": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^[a-zA-Z0-9_-]+$"
+      }
+    },
+    "required": ["name"]
+  },
+  "JoinRoom": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64
+      }
+    },
+    "required": ["name"]
+  }
+}
