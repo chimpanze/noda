@@ -37,7 +37,7 @@ export function pasteNodes(): {
   // Build ID mapping: old → new
   const idMap = new Map<string, string>();
   for (const node of clipboard.nodes) {
-    idMap.set(node.id, `${node.id}-copy-${pasteCounter}`);
+    idMap.set(node.id, `${node.id}_copy_${pasteCounter}`);
   }
 
   const nodes: WorkflowNode[] = clipboard.nodes.map((n) => ({

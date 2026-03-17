@@ -80,11 +80,15 @@ const nodaJSON = `{
   "services": {
     "db": {
       "plugin": "postgres",
-      "dsn": "${DATABASE_URL}"
+      "config": {
+        "url": "{{ $env('DATABASE_URL') }}"
+      }
     },
     "cache": {
-      "plugin": "redis",
-      "url": "${REDIS_URL}"
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
     }
   }
 }
@@ -123,12 +127,15 @@ volumes:
 
 const sampleRoute = `{
   "id": "hello-route",
-  "method": "GET",
-  "path": "/api/hello/:name",
+  "method": "POST",
+  "path": "/api/hello",
+  "body": {
+    "schema": { "$ref": "schemas/greeting" }
+  },
   "trigger": {
     "workflow": "hello",
     "input": {
-      "name": "{{ params.name }}"
+      "name": "{{ body.name }}"
     }
   }
 }
@@ -162,15 +169,17 @@ const sampleWorkflow = `{
 `
 
 const sampleSchema = `{
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 100
-    }
-  },
-  "required": ["name"]
+  "greeting": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "required": ["name"]
+  }
 }
 `
 
@@ -183,8 +192,12 @@ const sampleTest = `{
       "input": { "name": "World" },
       "expect": {
         "status": "success",
-        "output": {
-          "greeting": "Hello, World!"
+        "outputs": {
+          "respond": {
+            "Body": {
+              "greeting": "Hello, World!"
+            }
+          }
         }
       }
     }

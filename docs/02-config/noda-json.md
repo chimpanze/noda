@@ -39,7 +39,7 @@ Map of service instance name to service config. Each service connects to an exte
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `plugin` | string | yes | Plugin identifier: `db`, `cache`, `storage`, `stream`, `pubsub`, `http`, `email` |
+| `plugin` | string | yes | Plugin identifier: `db`, `cache`, `storage`, `stream`, `pubsub`, `http`, `email`, `lk` |
 | `config` | object | yes | Plugin-specific configuration |
 
 ### Database Service (`plugin: "db"`)
@@ -130,6 +130,31 @@ Map of service instance name to service config. Each service connects to an exte
 | `base_url` | string | no | Base URL prepended to all requests |
 | `timeout` | string | no | Default request timeout |
 | `headers` | object | no | Default headers for all requests |
+
+### LiveKit Service (`plugin: "lk"`)
+
+| Config Field | Type | Required | Description |
+|-------------|------|----------|-------------|
+| `url` | string | yes | LiveKit server URL (e.g., `wss://myapp.livekit.cloud`) |
+| `api_key` | string | yes | LiveKit API key |
+| `api_secret` | string | yes | LiveKit API secret |
+
+```json
+{
+  "services": {
+    "lk": {
+      "plugin": "lk",
+      "config": {
+        "url": "{{ $env('LIVEKIT_URL') }}",
+        "api_key": "{{ $env('LIVEKIT_API_KEY') }}",
+        "api_secret": "{{ $env('LIVEKIT_API_SECRET') }}"
+      }
+    }
+  }
+}
+```
+
+Noda acts as the **control plane only** — token generation, room management, egress/ingress orchestration, and webhook handling. Clients connect to LiveKit directly for media transport (WebRTC).
 
 ### Email Service (`plugin: "email"`)
 

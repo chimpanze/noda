@@ -1,0 +1,30 @@
+{
+  "id": "on-livekit-event",
+  "trigger": "http",
+  "nodes": [
+    {
+      "id": "log-event",
+      "type": "util.log",
+      "config": {
+        "level": "info",
+        "message": "LiveKit event received",
+        "fields": {
+          "event": "{{ input.event }}"
+        }
+      },
+      "outputs": {
+        "success": "respond"
+      }
+    },
+    {
+      "id": "respond",
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "received": true
+        }
+      }
+    }
+  ]
+}

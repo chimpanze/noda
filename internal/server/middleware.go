@@ -38,6 +38,7 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 	"etag":             newETagMiddleware,
 	"auth.jwt":         newJWTMiddleware,
 	"casbin.enforce":   newCasbinMiddleware,
+	"livekit.webhook":  newLiveKitWebhookMiddleware,
 }
 
 // ParseMiddlewareName splits a middleware name into its base type and instance.
@@ -97,6 +98,7 @@ var middlewareConfigPaths = map[string][]string{
 	"security.csrf":    {"security", "csrf"},
 	"auth.jwt":         {"security", "jwt"},
 	"casbin.enforce":   {"security", "casbin"},
+	"livekit.webhook":  {"security", "livekit"},
 }
 
 // extractMiddlewareConfig extracts the config block for a specific middleware.

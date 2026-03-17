@@ -10,13 +10,19 @@ import (
 // ResolveMiddlewareChain resolves the full middleware chain for a route.
 // Order: group → route-specific. Global middleware is applied via app.Use().
 func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, error) {
+	_, handlers, err := s.resolveMiddlewareChainFull(route)
+	return handlers, err
+}
+
+// resolveMiddlewareChainFull returns both the resolved middleware names and their handlers.
+func (s *Server) resolveMiddlewareChainFull(route map[string]any) ([]string, []fiber.Handler, error) {
 	var middlewareNames []string
 
 	// 1. Group middleware (based on route path matching route_groups)
 	routePath, _ := route["path"].(string)
 	groupMW, err := s.getGroupMiddleware(routePath)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	middlewareNames = append(middlewareNames, groupMW...)
 
@@ -24,7 +30,7 @@ func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, 
 	if preset, ok := route["middleware_preset"].(string); ok && preset != "" {
 		expanded, err := s.expandPreset(preset)
 		if err != nil {
-			return nil, fmt.Errorf("route %v: %w", route["id"], err)
+			return nil, nil, fmt.Errorf("route %v: %w", route["id"], err)
 		}
 		middlewareNames = append(middlewareNames, expanded...)
 	}
@@ -41,7 +47,7 @@ func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, 
 
 	// Validate ordering constraints (e.g., auth.jwt must precede casbin.enforce)
 	if err := ValidateMiddlewareOrder(middlewareNames); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Build handlers
@@ -49,12 +55,12 @@ func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, 
 	for _, name := range middlewareNames {
 		h, err := BuildMiddleware(name, s.config.Root)
 		if err != nil {
-			return nil, fmt.Errorf("middleware %q: %w", name, err)
+			return nil, nil, fmt.Errorf("middleware %q: %w", name, err)
 		}
 		handlers = append(handlers, h)
 	}
 
-	return handlers, nil
+	return middlewareNames, handlers, nil
 }
 
 // ValidatePresets checks that all preset names referenced in routes and groups exist.

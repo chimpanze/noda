@@ -84,7 +84,8 @@ function collapseTree(node: TreeNode): TreeNode {
   node.children = collapsedChildren;
 
   // If this node has exactly one child and no routes, merge with child
-  if (node.children.size === 1 && node.routes.length === 0) {
+  // Don't collapse the virtual root node (segment === "")
+  if (node.segment !== "" && node.children.size === 1 && node.routes.length === 0) {
     const [, child] = [...node.children.entries()][0];
     return {
       segment: node.segment

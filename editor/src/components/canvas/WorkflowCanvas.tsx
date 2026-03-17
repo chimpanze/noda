@@ -46,15 +46,15 @@ function computeNodeOutputs(
 }
 
 function generateNodeId(nodeType: string, existingIds: string[]): string {
-  const prefix = nodeType.replace(/\./g, "-");
+  const prefix = nodeType.replace(/\./g, "_");
   let max = 0;
   for (const id of existingIds) {
-    if (id.startsWith(prefix + "-")) {
+    if (id.startsWith(prefix + "_")) {
       const num = parseInt(id.slice(prefix.length + 1), 10);
       if (!isNaN(num) && num > max) max = num;
     }
   }
-  return `${prefix}-${max + 1}`;
+  return `${prefix}_${max + 1}`;
 }
 
 export function WorkflowCanvas() {

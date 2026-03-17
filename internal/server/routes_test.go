@@ -847,3 +847,61 @@ func TestResponseValidation_ValidResponse_PassesThrough(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &result))
 	assert.Equal(t, "Widget", result["name"])
 }
+
+// TestRoute_CORS_Preflight verifies that an OPTIONS preflight request to a path
+// whose route uses security.cors receives the Access-Control-Allow-Origin header.
+// Without auto-registration of the OPTIONS handler the browser's preflight would
+// hit a 404 and the CORS headers would never be written.
+func TestRoute_CORS_Preflight(t *testing.T) {
+	root := map[string]any{
+		"middleware_presets": map[string]any{
+			"public": []any{"security.cors"},
+		},
+		"route_groups": map[string]any{
+			"/api": map[string]any{
+				"middleware_preset": "public",
+			},
+		},
+		"security": map[string]any{
+			"cors": map[string]any{
+				"allow_origins": "*",
+				"allow_methods": "GET, POST, OPTIONS",
+			},
+		},
+	}
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"create-room": {
+				"method": "POST",
+				"path":   "/api/rooms",
+				"trigger": map[string]any{
+					"workflow": "noop",
+					"input":    map[string]any{},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"noop": {
+				"nodes": map[string]any{
+					"respond": map[string]any{
+						"type": "response.json",
+						"config": map[string]any{
+							"status": "200",
+							"body":   map[string]any{},
+						},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+		root,
+	)
+
+	req := httptest.NewRequest("OPTIONS", "/api/rooms", nil)
+	req.Header.Set("Origin", "http://localhost:63342")
+	req.Header.Set("Access-Control-Request-Method", "POST")
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.NotEqual(t, 404, resp.StatusCode)
+	assert.NotEmpty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+}

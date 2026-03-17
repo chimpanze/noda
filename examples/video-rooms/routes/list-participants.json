@@ -1,0 +1,13 @@
+{
+  "id": "list-participants",
+  "method": "GET",
+  "path": "/api/rooms/:room/participants",
+  "summary": "List participants in a room",
+  "tags": ["rooms"],
+  "trigger": {
+    "workflow": "list-participants",
+    "input": {
+      "room": "{{ params.room }}"
+    }
+  }
+}

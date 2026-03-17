@@ -1,0 +1,10 @@
+{
+  "id": "list-rooms",
+  "method": "GET",
+  "path": "/api/rooms",
+  "summary": "List all rooms",
+  "tags": ["rooms"],
+  "trigger": {
+    "workflow": "list-rooms"
+  }
+}

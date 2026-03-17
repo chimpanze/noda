@@ -1,0 +1,26 @@
+{
+  "id": "create-room",
+  "name": "Create Room",
+  "nodes": {
+    "create": {
+      "type": "lk.roomCreate",
+      "services": { "livekit": "lk" },
+      "config": {
+        "name": "{{ input.name }}",
+        "empty_timeout": 600
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "room": "{{ nodes.create }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "create", "to": "respond" }
+  ]
+}

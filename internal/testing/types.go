@@ -42,6 +42,7 @@ type MockError struct {
 type TestExpectation struct {
 	Status    string         `json:"status"`     // "success" or "error"
 	Output    map[string]any `json:"output"`     // dot-path → expected value
+	Outputs   map[string]any `json:"outputs"`    // partial deep match against node outputs
 	ErrorNode string         `json:"error_node"` // if status="error", which node should fail
 }
 

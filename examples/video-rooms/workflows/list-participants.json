@@ -1,0 +1,25 @@
+{
+  "id": "list-participants",
+  "name": "List Participants",
+  "nodes": {
+    "get_participants": {
+      "type": "lk.participantList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "participants": "{{ nodes.get_participants.participants }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "get_participants", "to": "respond" }
+  ]
+}

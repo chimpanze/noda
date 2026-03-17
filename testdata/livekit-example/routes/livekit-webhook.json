@@ -1,0 +1,14 @@
+{
+  "path": "/webhooks/livekit",
+  "method": "POST",
+  "middleware": ["livekit.webhook"],
+  "trigger": {
+    "raw_body": true,
+    "workflow": "on-livekit-event",
+    "input": {
+      "event": "{{ body.event }}",
+      "room": "{{ body.room }}",
+      "participant": "{{ body.participant }}"
+    }
+  }
+}

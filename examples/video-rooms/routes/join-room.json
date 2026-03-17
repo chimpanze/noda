@@ -1,0 +1,19 @@
+{
+  "body": {
+    "validate": false
+  },
+  "id": "join-room",
+  "method": "POST",
+  "path": "/api/rooms/:room/join",
+  "summary": "Join a room and get a LiveKit token",
+  "tags": [
+    "rooms"
+  ],
+  "trigger": {
+    "input": {
+      "name": "{{ body.name }}",
+      "room": "{{ params.room }}"
+    },
+    "workflow": "join-room"
+  }
+}
