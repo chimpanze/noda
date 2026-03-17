@@ -6,6 +6,7 @@ import (
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm/clause"
 )
 
 // --- Descriptor tests for coverage ---
@@ -243,4 +244,199 @@ func TestDeleteNode_MissingService(t *testing.T) {
 func TestGetDB_MissingService(t *testing.T) {
 	_, err := plugin.GetService[any](map[string]any{}, "database")
 	require.Error(t, err)
+}
+
+// --- Descriptor Description and OutputDescriptions coverage ---
+
+func TestDescriptors_Description(t *testing.T) {
+	descriptors := []struct {
+		name string
+		desc interface{ Description() string }
+	}{
+		{"query", &queryDescriptor{}},
+		{"exec", &execDescriptor{}},
+		{"create", &createDescriptor{}},
+		{"update", &updateDescriptor{}},
+		{"delete", &deleteDescriptor{}},
+		{"find", &findDescriptor{}},
+		{"findOne", &findOneDescriptor{}},
+		{"count", &countDescriptor{}},
+		{"upsert", &upsertDescriptor{}},
+	}
+	for _, tt := range descriptors {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.NotEmpty(t, tt.desc.Description())
+		})
+	}
+}
+
+func TestDescriptors_OutputDescriptions(t *testing.T) {
+	descriptors := []struct {
+		name string
+		desc interface{ OutputDescriptions() map[string]string }
+	}{
+		{"query", &queryDescriptor{}},
+		{"exec", &execDescriptor{}},
+		{"create", &createDescriptor{}},
+		{"update", &updateDescriptor{}},
+		{"delete", &deleteDescriptor{}},
+		{"find", &findDescriptor{}},
+		{"findOne", &findOneDescriptor{}},
+		{"count", &countDescriptor{}},
+		{"upsert", &upsertDescriptor{}},
+	}
+	for _, tt := range descriptors {
+		t.Run(tt.name, func(t *testing.T) {
+			od := tt.desc.OutputDescriptions()
+			assert.NotEmpty(t, od)
+			assert.Contains(t, od, "success")
+			assert.Contains(t, od, "error")
+		})
+	}
+}
+
+// --- Invalid table identifier tests ---
+
+func TestCreateNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &createExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{
+		"table": "1invalid",
+		"data":  map[string]any{"title": "test"},
+	}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestUpdateNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &updateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{
+		"table": "my table",
+		"data":  map[string]any{"status": "done"},
+		"where": map[string]any{"id": "1"},
+	}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestDeleteNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &deleteExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{
+		"table": "drop;table",
+		"where": map[string]any{"id": "1"},
+	}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestCountNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &countExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{"table": "1bad"}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestFindNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &findExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{"table": "1bad"}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestFindOneNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &findOneExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{"table": "1bad"}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestUpsertNode_InvalidTableName(t *testing.T) {
+	db := newTestDB(t)
+	exec := &upsertExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	config := map[string]any{
+		"table":    "1bad",
+		"data":     map[string]any{"title": "T"},
+		"conflict": "id",
+	}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+// --- Upsert resolveConflictColumns / resolveUpdateSpec coverage ---
+
+func TestResolveConflictColumns_InvalidItemType(t *testing.T) {
+	config := map[string]any{"conflict": []any{"id", 123}}
+	_, err := resolveConflictColumns(config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string")
+}
+
+func TestResolveConflictColumns_InvalidType(t *testing.T) {
+	config := map[string]any{"conflict": 123}
+	_, err := resolveConflictColumns(config)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string or array")
+}
+
+func TestResolveUpdateSpec_MapFormat(t *testing.T) {
+	config := map[string]any{
+		"update": map[string]any{
+			"status": "active",
+		},
+	}
+	onConflict := &clause.OnConflict{}
+	err := resolveUpdateSpec(config, map[string]any{"title": "T", "status": "old"}, nil, onConflict)
+	require.NoError(t, err)
+	assert.NotEmpty(t, onConflict.DoUpdates)
+}
+
+func TestResolveUpdateSpec_InvalidType(t *testing.T) {
+	config := map[string]any{"update": 123}
+	onConflict := &clause.OnConflict{}
+	err := resolveUpdateSpec(config, map[string]any{}, nil, onConflict)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be an array or object")
+}
+
+func TestResolveUpdateSpec_ArrayInvalidItem(t *testing.T) {
+	config := map[string]any{"update": []any{"status", 123}}
+	onConflict := &clause.OnConflict{}
+	err := resolveUpdateSpec(config, map[string]any{}, nil, onConflict)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string")
+}
+
+func TestResolveUpdateSpec_DefaultAllNonConflict(t *testing.T) {
+	config := map[string]any{}
+	onConflict := &clause.OnConflict{}
+	cols := []clause.Column{{Name: "id"}}
+	err := resolveUpdateSpec(config, map[string]any{"id": 1, "name": "test", "status": "active"}, cols, onConflict)
+	require.NoError(t, err)
+	assert.NotEmpty(t, onConflict.DoUpdates)
 }

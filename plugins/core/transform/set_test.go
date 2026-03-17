@@ -109,3 +109,42 @@ func TestSet_MissingFields(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fields is required")
 }
+
+func TestSet_NonStringFieldValue(t *testing.T) {
+	executor := newSetExecutor(nil)
+	execCtx := engine.NewExecutionContext()
+
+	config := map[string]any{
+		"fields": map[string]any{
+			"literal_int":   42,
+			"literal_bool":  true,
+			"literal_slice": []any{1, 2, 3},
+		},
+	}
+
+	output, data, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+
+	result := data.(map[string]any)
+	assert.Equal(t, 42, result["literal_int"])
+	assert.Equal(t, true, result["literal_bool"])
+	assert.Equal(t, []any{1, 2, 3}, result["literal_slice"])
+}
+
+func TestSet_Outputs(t *testing.T) {
+	executor := newSetExecutor(nil)
+	assert.Equal(t, []string{"success", "error"}, executor.Outputs())
+}
+
+func TestSet_Descriptor(t *testing.T) {
+	d := &setDescriptor{}
+	assert.Equal(t, "set", d.Name())
+	assert.NotEmpty(t, d.Description())
+	assert.Nil(t, d.ServiceDeps())
+	schema := d.ConfigSchema()
+	assert.NotNil(t, schema)
+	outputs := d.OutputDescriptions()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}

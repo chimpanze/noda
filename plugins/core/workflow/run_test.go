@@ -79,3 +79,103 @@ func TestRun_DynamicOutputs(t *testing.T) {
 	executor.SetOutputs([]string{"approved", "rejected", "error"})
 	assert.Equal(t, []string{"approved", "rejected", "error"}, executor.Outputs())
 }
+
+func TestRun_InputResolveError(t *testing.T) {
+	runner := &mockRunner{outputName: "success"}
+	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+
+	execCtx := engine.NewExecutionContext()
+	config := map[string]any{
+		"workflow": "sub-wf",
+		"input": map[string]any{
+			"bad": "{{ invalid..expr }}",
+		},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "resolve input")
+}
+
+func TestRun_InputNonStringValues(t *testing.T) {
+	runner := &mockRunner{outputName: "success", outputData: "ok"}
+	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+
+	execCtx := engine.NewExecutionContext()
+	config := map[string]any{
+		"workflow": "sub-wf",
+		"input": map[string]any{
+			"count":  42,
+			"active": true,
+		},
+	}
+
+	output, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+
+	inputMap := runner.lastInput.(map[string]any)
+	assert.Equal(t, 42, inputMap["count"])
+	assert.Equal(t, true, inputMap["active"])
+}
+
+func TestRun_DepthTrackingExceeded(t *testing.T) {
+	runner := &mockRunner{outputName: "success"}
+	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+
+	execCtx := engine.NewExecutionContext()
+	// Exhaust recursion depth by calling CheckAndIncrementDepth until it fails
+	for i := 0; i < 64; i++ {
+		err := execCtx.CheckAndIncrementDepth()
+		require.NoError(t, err)
+	}
+
+	config := map[string]any{"workflow": "sub-wf"}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "depth")
+}
+
+func TestRun_DepthTrackingSuccess(t *testing.T) {
+	runner := &mockRunner{outputName: "success", outputData: "ok"}
+	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+
+	execCtx := engine.NewExecutionContext()
+	config := map[string]any{"workflow": "sub-wf"}
+
+	output, data, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	assert.Equal(t, "ok", data)
+}
+
+func TestRun_NoInputMap(t *testing.T) {
+	runner := &mockRunner{outputName: "success", outputData: "done"}
+	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+
+	execCtx := engine.NewExecutionContext()
+	config := map[string]any{"workflow": "sub-wf"}
+
+	output, data, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	assert.Equal(t, "done", data)
+	assert.Nil(t, runner.lastInput)
+}
+
+func TestRunDescriptor_Metadata(t *testing.T) {
+	desc := &runDescriptor{}
+	assert.Equal(t, "run", desc.Name())
+	assert.Contains(t, desc.Description(), "sub-workflow")
+
+	outputs := desc.OutputDescriptions()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}
+
+func TestNewRunExecutor_Factory(t *testing.T) {
+	executor := newRunExecutor(map[string]any{"workflow": "test"})
+	require.NotNil(t, executor)
+	assert.Equal(t, []string{"success", "error"}, executor.Outputs())
+}

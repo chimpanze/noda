@@ -117,3 +117,45 @@ func TestFilter_ExpressionFailure(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transform.filter")
 }
+
+func TestFilter_CollectionResolveError(t *testing.T) {
+	executor := newFilterExecutor(nil)
+	execCtx := engine.NewExecutionContext()
+
+	config := map[string]any{
+		"collection": "{{ nonexistent.field }}",
+		"expression": "{{ $item }}",
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transform.filter: collection")
+}
+
+func TestFilter_CollectionNotArray(t *testing.T) {
+	executor := newFilterExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"data": "not an array",
+	}))
+
+	config := map[string]any{
+		"collection": "{{ input.data }}",
+		"expression": "{{ $item }}",
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "collection must be an array")
+}
+
+func TestFilter_Descriptor(t *testing.T) {
+	d := &filterDescriptor{}
+	assert.Equal(t, "filter", d.Name())
+	assert.NotEmpty(t, d.Description())
+	assert.Nil(t, d.ServiceDeps())
+	schema := d.ConfigSchema()
+	assert.NotNil(t, schema)
+	outputs := d.OutputDescriptions()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}

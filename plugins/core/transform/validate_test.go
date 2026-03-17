@@ -130,6 +130,94 @@ func TestValidate_MultipleErrors(t *testing.T) {
 	assert.NotEmpty(t, valErr.Errors)
 }
 
+func TestValidate_MissingSchema(t *testing.T) {
+	config := map[string]any{
+		"data": "{{ input }}",
+	}
+
+	executor := newValidateExecutor(config)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{"name": "Alice"}))
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing required field")
+}
+
+func TestValidate_DefaultDataExpression(t *testing.T) {
+	config := map[string]any{
+		"schema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+		},
+	}
+
+	executor := newValidateExecutor(config)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"name": "Alice",
+	}))
+
+	output, data, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	assert.NotNil(t, data)
+}
+
+func TestValidate_DataResolveError(t *testing.T) {
+	config := map[string]any{
+		"data": "{{ nonexistent.field }}",
+		"schema": map[string]any{
+			"type": "object",
+		},
+	}
+
+	executor := newValidateExecutor(config)
+	execCtx := engine.NewExecutionContext()
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transform.validate: data")
+}
+
+func TestValidate_SingleErrorMessage(t *testing.T) {
+	config := map[string]any{
+		"data": "{{ input }}",
+		"schema": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"name": map[string]any{"type": "string"},
+			},
+			"required": []any{"name"},
+		},
+	}
+
+	executor := newValidateExecutor(config)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+
+	var valErr *validationResultError
+	require.ErrorAs(t, err, &valErr)
+	assert.Len(t, valErr.Errors, 1)
+	// Single error should format with field:message
+	assert.Contains(t, valErr.Error(), "validation failed:")
+	assert.Contains(t, valErr.Error(), valErr.Errors[0].Field)
+}
+
+func TestValidate_Descriptor(t *testing.T) {
+	d := &validateDescriptor{}
+	assert.Equal(t, "validate", d.Name())
+	assert.NotEmpty(t, d.Description())
+	assert.Nil(t, d.ServiceDeps())
+	schema := d.ConfigSchema()
+	assert.NotNil(t, schema)
+	outputs := d.OutputDescriptions()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}
+
 func TestValidate_NestedSchema(t *testing.T) {
 	config := map[string]any{
 		"data": "{{ input }}",

@@ -192,3 +192,155 @@ func TestEventHub_SubscriberCount(t *testing.T) {
 	unsub2()
 	assert.Equal(t, 0, hub.SubscriberCount())
 }
+
+func TestParseConfig_NoTracing(t *testing.T) {
+	// observability key present but no tracing sub-key
+	cfg := ParseConfig(map[string]any{
+		"observability": map[string]any{
+			"metrics": map[string]any{"enabled": true},
+		},
+	})
+	assert.False(t, cfg.Enabled)
+	assert.Empty(t, cfg.Exporter)
+}
+
+func TestParseConfig_PartialFields(t *testing.T) {
+	// Only some fields set
+	cfg := ParseConfig(map[string]any{
+		"observability": map[string]any{
+			"tracing": map[string]any{
+				"enabled": true,
+			},
+		},
+	})
+	assert.True(t, cfg.Enabled)
+	assert.Empty(t, cfg.Exporter)
+	assert.Empty(t, cfg.Endpoint)
+	assert.False(t, cfg.Insecure)
+}
+
+func TestParseConfig_WrongTypes(t *testing.T) {
+	// Wrong types for fields — should be silently ignored
+	cfg := ParseConfig(map[string]any{
+		"observability": map[string]any{
+			"tracing": map[string]any{
+				"enabled":  "yes",  // string instead of bool
+				"exporter": 42,     // int instead of string
+				"endpoint": true,   // bool instead of string
+				"insecure": "true", // string instead of bool
+			},
+		},
+	})
+	assert.False(t, cfg.Enabled)
+	assert.Empty(t, cfg.Exporter)
+	assert.Empty(t, cfg.Endpoint)
+	assert.False(t, cfg.Insecure)
+}
+
+func TestEventHub_EmitPreservesExistingTimestamp(t *testing.T) {
+	hub := NewEventHub()
+
+	var received Event
+	unsub := hub.Subscribe(func(data []byte) {
+		_ = json.Unmarshal(data, &received)
+	})
+	defer unsub()
+
+	hub.Emit(Event{
+		Type:      EventWorkflowStarted,
+		Timestamp: "2025-01-01T00:00:00Z",
+	})
+	assert.Equal(t, "2025-01-01T00:00:00Z", received.Timestamp)
+}
+
+func TestEventHub_EmitNoSubscribers(t *testing.T) {
+	hub := NewEventHub()
+	// Should not panic
+	hub.Emit(Event{Type: EventWorkflowStarted, TraceID: "t1"})
+}
+
+func TestEventHub_EmitAllFields(t *testing.T) {
+	hub := NewEventHub()
+
+	var received Event
+	unsub := hub.Subscribe(func(data []byte) {
+		_ = json.Unmarshal(data, &received)
+	})
+	defer unsub()
+
+	hub.Emit(Event{
+		Type:       EventNodeCompleted,
+		TraceID:    "t1",
+		WorkflowID: "wf1",
+		NodeID:     "n1",
+		NodeType:   "transform.set",
+		Output:     "success",
+		Duration:   "15ms",
+		FromNode:   "n0",
+		ToNode:     "n1",
+		Data:       map[string]any{"key": "val"},
+	})
+
+	assert.Equal(t, EventNodeCompleted, received.Type)
+	assert.Equal(t, "t1", received.TraceID)
+	assert.Equal(t, "wf1", received.WorkflowID)
+	assert.Equal(t, "n1", received.NodeID)
+	assert.Equal(t, "transform.set", received.NodeType)
+	assert.Equal(t, "success", received.Output)
+	assert.Equal(t, "15ms", received.Duration)
+	assert.Equal(t, "n0", received.FromNode)
+	assert.Equal(t, "n1", received.ToNode)
+	assert.NotEmpty(t, received.Timestamp)
+}
+
+func TestEventHub_ConcurrentEmitAndSubscribe(t *testing.T) {
+	hub := NewEventHub()
+
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	count := 0
+
+	unsub := hub.Subscribe(func(data []byte) {
+		mu.Lock()
+		count++
+		mu.Unlock()
+	})
+	defer unsub()
+
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			hub.Emit(Event{Type: EventNodeEntered})
+		}()
+	}
+	wg.Wait()
+
+	mu.Lock()
+	assert.Equal(t, 50, count)
+	mu.Unlock()
+}
+
+func TestNewProvider_OTLP_WithEndpoint(t *testing.T) {
+	// Test OTLP with endpoint but not insecure
+	p, err := NewProvider(context.Background(), TracerConfig{
+		Enabled:  true,
+		Exporter: "otlp",
+		Endpoint: "localhost:14318",
+	}, slog.Default())
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.NotNil(t, p.Tracer())
+	assert.NoError(t, p.Shutdown(context.Background()))
+}
+
+func TestNewProvider_OTLP_NoEndpoint(t *testing.T) {
+	// Test OTLP without endpoint (uses default)
+	p, err := NewProvider(context.Background(), TracerConfig{
+		Enabled:  true,
+		Exporter: "otlp",
+	}, slog.Default())
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.NoError(t, p.Shutdown(context.Background()))
+}

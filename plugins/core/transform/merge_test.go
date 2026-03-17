@@ -197,6 +197,187 @@ func TestMerge_MatchMoreThanTwoInputs(t *testing.T) {
 	assert.Contains(t, err.Error(), "exactly 2 inputs")
 }
 
+func TestMerge_EmptyInputs(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext()
+
+	config := map[string]any{
+		"mode":   "append",
+		"inputs": []any{},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "inputs is required")
+}
+
+func TestMerge_NonStringInput(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext()
+
+	config := map[string]any{
+		"mode":   "append",
+		"inputs": []any{42},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be a string expression")
+}
+
+func TestMerge_InputResolveError(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext()
+
+	config := map[string]any{
+		"mode":   "append",
+		"inputs": []any{"{{ nonexistent.field }}"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transform.merge: input 0")
+}
+
+func TestMerge_InputNotArray(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"data": "not an array",
+	}))
+
+	config := map[string]any{
+		"mode":   "append",
+		"inputs": []any{"{{ input.data }}"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must be an array")
+}
+
+func TestMerge_UnknownMode(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": []any{1},
+	}))
+
+	config := map[string]any{
+		"mode":   "invalid",
+		"inputs": []any{"{{ input.a }}"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown mode")
+}
+
+func TestMerge_MatchMissingConfig(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": []any{1},
+		"b": []any{2},
+	}))
+
+	config := map[string]any{
+		"mode":   "match",
+		"inputs": []any{"{{ input.a }}", "{{ input.b }}"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "match config is required")
+}
+
+func TestMerge_MatchMissingFields(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": []any{1},
+		"b": []any{2},
+	}))
+
+	config := map[string]any{
+		"mode":   "match",
+		"inputs": []any{"{{ input.a }}", "{{ input.b }}"},
+		"match":  map[string]any{"type": "inner"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "match.fields is required")
+}
+
+func TestMerge_MatchMissingLeftRight(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": []any{1},
+		"b": []any{2},
+	}))
+
+	config := map[string]any{
+		"mode":   "match",
+		"inputs": []any{"{{ input.a }}", "{{ input.b }}"},
+		"match": map[string]any{
+			"type":   "inner",
+			"fields": map[string]any{"left": "id"},
+		},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "match.fields.left and match.fields.right are required")
+}
+
+func TestMerge_MatchUnknownType(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": []any{map[string]any{"id": 1}},
+		"b": []any{map[string]any{"id": 1}},
+	}))
+
+	config := map[string]any{
+		"mode":   "match",
+		"inputs": []any{"{{ input.a }}", "{{ input.b }}"},
+		"match": map[string]any{
+			"type":   "invalid",
+			"fields": map[string]any{"left": "id", "right": "id"},
+		},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown match type")
+}
+
+func TestMerge_AppendEmptyArrays(t *testing.T) {
+	executor := newMergeExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"a": []any{},
+		"b": []any{},
+	}))
+
+	config := map[string]any{
+		"mode":   "append",
+		"inputs": []any{"{{ input.a }}", "{{ input.b }}"},
+	}
+
+	output, data, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	assert.Equal(t, []any{}, data)
+}
+
+func TestMerge_Descriptor(t *testing.T) {
+	d := &mergeDescriptor{}
+	assert.Equal(t, "merge", d.Name())
+	assert.NotEmpty(t, d.Description())
+	assert.Nil(t, d.ServiceDeps())
+	schema := d.ConfigSchema()
+	assert.NotNil(t, schema)
+	outputs := d.OutputDescriptions()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}
+
 func TestMerge_AppendExceedsMaxItems(t *testing.T) {
 	executor := newMergeExecutor(nil)
 

@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -3273,4 +3275,202 @@ func TestEditorAPI_ListServicesWithHealth(t *testing.T) {
 	require.NoError(t, json.Unmarshal(body, &result))
 	services := result["services"].([]any)
 	assert.Len(t, services, 3)
+}
+
+func TestEditorAPI_ListMiddleware(t *testing.T) {
+	app := setupEditorApp(t)
+
+	req := httptest.NewRequest("GET", "/_noda/middleware", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	mw, ok := result["middleware"].([]any)
+	require.True(t, ok)
+	assert.NotEmpty(t, mw)
+	assert.NotNil(t, result["presets"])
+	assert.NotNil(t, result["config"])
+	assert.NotNil(t, result["instances"])
+}
+
+func TestEditorAPI_ListMiddleware_WithPresets(t *testing.T) {
+	app := fiber.New()
+	nodeReg := buildTestNodeRegistry()
+	svcReg := registry.NewServiceRegistry()
+	pluginReg := registry.NewPluginRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"middleware_presets": map[string]any{
+				"secure": []any{"security.cors", "security.headers"},
+			},
+			"middleware": map[string]any{
+				"limiter": map[string]any{"max": float64(100)},
+			},
+		},
+	}
+
+	editorAPI := NewEditorAPIReadOnly(t.TempDir(), "", rc, pluginReg, nodeReg, svcReg, nil)
+	editorAPI.Register(app)
+
+	req := httptest.NewRequest("GET", "/_noda/middleware", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	presets := result["presets"].(map[string]any)
+	assert.Contains(t, presets, "secure")
+}
+
+func TestEditorAPI_ListEnvVars(t *testing.T) {
+	app := fiber.New()
+	nodeReg := buildTestNodeRegistry()
+	svcReg := registry.NewServiceRegistry()
+	pluginReg := registry.NewPluginRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"database_url": "$env(DATABASE_URL)",
+		},
+		Routes: map[string]map[string]any{
+			"routes.json": {"url": "$env(API_URL)"},
+		},
+		Workflows: map[string]map[string]any{
+			"wf.json": {"secret": "$env(SECRET)"},
+		},
+	}
+
+	editorAPI := NewEditorAPIReadOnly(t.TempDir(), "", rc, pluginReg, nodeReg, svcReg, nil)
+	editorAPI.Register(app)
+
+	req := httptest.NewRequest("GET", "/_noda/env", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.NotNil(t, result["variables"])
+}
+
+func TestEditorAPI_ListVars(t *testing.T) {
+	// Create a minimal config directory with noda.json so Discover succeeds
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "noda.json"), []byte(`{"port": 8080}`), 0o644)
+
+	app := fiber.New()
+	nodeReg := buildTestNodeRegistry()
+	svcReg := registry.NewServiceRegistry()
+	pluginReg := registry.NewPluginRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root:   map[string]any{},
+		Routes: map[string]map[string]any{},
+		Workflows: map[string]map[string]any{
+			"wf.json": {"url": "{{ $var('api_base') }}/endpoint"},
+		},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Vars:        map[string]string{"api_base": "https://api.example.com"},
+	}
+
+	editorAPI := NewEditorAPIReadOnly(dir, "", rc, pluginReg, nodeReg, svcReg, nil)
+	editorAPI.Register(app)
+
+	req := httptest.NewRequest("GET", "/_noda/vars", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.NotNil(t, result["variables"])
+}
+
+func TestEditorAPI_ValidateAll(t *testing.T) {
+	dir := t.TempDir()
+	app := fiber.New()
+	nodeReg := buildTestNodeRegistry()
+	svcReg := registry.NewServiceRegistry()
+	pluginReg := registry.NewPluginRegistry()
+
+	editorAPI := NewEditorAPIReadOnly(dir, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI.Register(app)
+
+	req := httptest.NewRequest("POST", "/_noda/validate/all", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.NotNil(t, result["valid"])
+}
+
+func TestEditorAPI_ValidateFile(t *testing.T) {
+	dir := t.TempDir()
+	app := fiber.New()
+	nodeReg := buildTestNodeRegistry()
+	svcReg := registry.NewServiceRegistry()
+	pluginReg := registry.NewPluginRegistry()
+
+	editorAPI := NewEditorAPIReadOnly(dir, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI.Register(app)
+
+	body := `{"path": "noda.json", "content": {"port": 8080}}`
+	req := httptest.NewRequest("POST", "/_noda/validate", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result))
+	assert.NotNil(t, result["valid"])
+}
+
+func TestEditorAPI_ValidateFile_BadRequest(t *testing.T) {
+	dir := t.TempDir()
+	app := fiber.New()
+	nodeReg := buildTestNodeRegistry()
+	svcReg := registry.NewServiceRegistry()
+	pluginReg := registry.NewPluginRegistry()
+
+	editorAPI := NewEditorAPIReadOnly(dir, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI.Register(app)
+
+	req := httptest.NewRequest("POST", "/_noda/validate", strings.NewReader("not json"))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 400, resp.StatusCode)
+}
+
+func TestEditorAPI_ListModels(t *testing.T) {
+	app := setupEditorApp(t)
+
+	req := httptest.NewRequest("GET", "/_noda/models", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+func TestEditorAPI_OpenAPISpec(t *testing.T) {
+	app := setupEditorApp(t)
+
+	req := httptest.NewRequest("GET", "/_noda/openapi", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
 }

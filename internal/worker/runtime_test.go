@@ -9,6 +9,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/util"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
@@ -366,3 +367,284 @@ func (m *trackingMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
 		return err
 	}
 }
+
+func TestDeserializePayload_JSONString(t *testing.T) {
+	values := map[string]any{
+		"payload": `{"key":"value","num":42}`,
+	}
+	result := deserializePayload(values)
+	m, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "value", m["key"])
+	assert.Equal(t, float64(42), m["num"])
+}
+
+func TestDeserializePayload_InvalidJSON(t *testing.T) {
+	values := map[string]any{
+		"payload": "not-json-at-all",
+	}
+	result := deserializePayload(values)
+	// Falls back to the raw string
+	assert.Equal(t, "not-json-at-all", result)
+}
+
+func TestDeserializePayload_NonStringPayload(t *testing.T) {
+	values := map[string]any{
+		"payload": 12345,
+	}
+	result := deserializePayload(values)
+	// Returns the whole values map when payload is not a string
+	m, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 12345, m["payload"])
+}
+
+func TestDeserializePayload_NoPayloadKey(t *testing.T) {
+	values := map[string]any{
+		"other": "data",
+	}
+	result := deserializePayload(values)
+	m, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "data", m["other"])
+}
+
+func TestResolveInput_NilMap(t *testing.T) {
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	result, err := rt.resolveInput(nil, map[string]any{})
+	require.NoError(t, err)
+	assert.NotNil(t, result)
+	assert.Empty(t, result)
+}
+
+func TestResolveInput_NonStringValues(t *testing.T) {
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	inputMap := map[string]any{
+		"count":  42,
+		"active": true,
+	}
+	result, err := rt.resolveInput(inputMap, map[string]any{})
+	require.NoError(t, err)
+	assert.Equal(t, 42, result["count"])
+	assert.Equal(t, true, result["active"])
+}
+
+func TestResolveInput_ExpressionResolution(t *testing.T) {
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	inputMap := map[string]any{
+		"email": "{{ message.payload.email }}",
+	}
+	messageCtx := map[string]any{
+		"message": map[string]any{
+			"payload": map[string]any{
+				"email": "test@example.com",
+			},
+		},
+	}
+	result, err := rt.resolveInput(inputMap, messageCtx)
+	require.NoError(t, err)
+	assert.Equal(t, "test@example.com", result["email"])
+}
+
+func TestParseWorkerConfigs_TimeoutParsing(t *testing.T) {
+	raw := map[string]map[string]any{
+		"w1": {
+			"id":      "timeout-worker",
+			"timeout": "30s",
+			"trigger": map[string]any{
+				"workflow": "wf1",
+			},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	assert.Equal(t, 30*time.Second, configs[0].Timeout)
+}
+
+func TestParseWorkerConfigs_IntConcurrency(t *testing.T) {
+	raw := map[string]map[string]any{
+		"w1": {
+			"id":          "int-conc-worker",
+			"concurrency": 4,
+			"trigger": map[string]any{
+				"workflow": "wf1",
+			},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	assert.Equal(t, 4, configs[0].Concurrency)
+}
+
+func TestParseWorkerConfigs_IntDeadLetterAfter(t *testing.T) {
+	raw := map[string]map[string]any{
+		"w1": {
+			"id": "dl-int-worker",
+			"dead_letter": map[string]any{
+				"topic": "dl-topic",
+				"after": 5,
+			},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	require.NotNil(t, configs[0].DeadLetter)
+	assert.Equal(t, 5, configs[0].DeadLetter.After)
+	assert.Equal(t, "dl-topic", configs[0].DeadLetter.Topic)
+}
+
+func TestParseWorkerConfigs_MinimalConfig(t *testing.T) {
+	raw := map[string]map[string]any{
+		"w1": {
+			"id": "minimal-worker",
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	assert.Equal(t, "minimal-worker", configs[0].ID)
+	assert.Empty(t, configs[0].StreamSvc)
+	assert.Empty(t, configs[0].Topic)
+	assert.Equal(t, 0, configs[0].Concurrency)
+	assert.Nil(t, configs[0].DeadLetter)
+	assert.Nil(t, configs[0].Middleware)
+}
+
+func TestParseWorkerConfigs_InvalidTimeout(t *testing.T) {
+	raw := map[string]map[string]any{
+		"w1": {
+			"id":      "bad-timeout-worker",
+			"timeout": "not-a-duration",
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	assert.Equal(t, time.Duration(0), configs[0].Timeout)
+}
+
+func TestRuntime_MaxConcurrencyExceeded(t *testing.T) {
+	_, svcReg, nodeReg, _ := newTestSetup(t)
+
+	rt := NewRuntime(
+		[]WorkerConfig{{
+			ID:          "max-conc-worker",
+			StreamSvc:   "main-stream",
+			Topic:       "max-conc-topic",
+			Group:       "max-conc-group",
+			Concurrency: maxConcurrency + 1,
+			WorkflowID:  "wf",
+		}},
+		svcReg, nodeReg, nil,
+		nil, nil, nil, nil,
+	)
+
+	err := rt.Start(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceeds maximum")
+}
+
+func TestRuntime_NonRedisClientProvider(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	nodeReg := registry.NewNodeRegistry()
+
+	// Register a service that does NOT implement RedisClientProvider
+	fakeSvc := &fakeService{}
+	err := svcReg.Register("fake-svc", fakeSvc, &fakePlugin{})
+	require.NoError(t, err)
+
+	rt := NewRuntime(
+		[]WorkerConfig{{
+			ID:         "bad-provider-worker",
+			StreamSvc:  "fake-svc",
+			Topic:      "t",
+			Group:      "g",
+			WorkflowID: "wf",
+		}},
+		svcReg, nodeReg, nil,
+		nil, nil, nil, nil,
+	)
+
+	err = rt.Start(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "does not implement RedisClientProvider")
+}
+
+func TestRuntime_StopWithoutStart(t *testing.T) {
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	err := rt.Stop(context.Background())
+	assert.NoError(t, err)
+}
+
+func TestRuntime_StopWithContextTimeout(t *testing.T) {
+	_, svcReg, nodeReg, _ := newTestSetup(t)
+
+	workflows := map[string]map[string]any{
+		"test-workflow": {
+			"nodes": map[string]any{
+				"log": map[string]any{
+					"type":   "util.log",
+					"config": map[string]any{"message": "ok", "level": "info"},
+				},
+			},
+			"edges": []any{},
+		},
+	}
+
+	rt := NewRuntime(
+		[]WorkerConfig{{
+			ID:         "timeout-stop-worker",
+			StreamSvc:  "main-stream",
+			Topic:      "timeout-stop-topic",
+			Group:      "timeout-stop-group",
+			WorkflowID: "test-workflow",
+		}},
+		svcReg, nodeReg, workflows,
+		nil, nil, nil, nil,
+	)
+
+	err := rt.Start(context.Background())
+	require.NoError(t, err)
+
+	// Stop with a generous timeout should succeed
+	stopCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = rt.Stop(stopCtx)
+	assert.NoError(t, err)
+}
+
+func TestNewRuntime_NilLoggerAndCompiler(t *testing.T) {
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	assert.NotNil(t, rt)
+	assert.NotNil(t, rt.compiler)
+	assert.NotNil(t, rt.logger)
+}
+
+func TestParseWorkerConfigs_EmptyMap(t *testing.T) {
+	configs := ParseWorkerConfigs(map[string]map[string]any{})
+	assert.Empty(t, configs)
+}
+
+func TestDeserializePayload_JSONArray(t *testing.T) {
+	values := map[string]any{
+		"payload": `[1,2,3]`,
+	}
+	result := deserializePayload(values)
+	arr, ok := result.([]any)
+	require.True(t, ok)
+	assert.Len(t, arr, 3)
+}
+
+// fakeService is a service that does not implement RedisClientProvider.
+type fakeService struct{}
+
+func (f *fakeService) Close() error { return nil }
+
+// fakePlugin satisfies the api.Plugin interface.
+type fakePlugin struct{}
+
+func (f *fakePlugin) Name() string                                  { return "fake" }
+func (f *fakePlugin) Prefix() string                                { return "fake" }
+func (f *fakePlugin) Nodes() []api.NodeRegistration                 { return nil }
+func (f *fakePlugin) HasServices() bool                             { return true }
+func (f *fakePlugin) CreateService(config map[string]any) (any, error) { return &fakeService{}, nil }
+func (f *fakePlugin) HealthCheck(service any) error                 { return nil }
+func (f *fakePlugin) Shutdown(service any) error                    { return nil }

@@ -109,3 +109,43 @@ func TestDelete_NestedObject(t *testing.T) {
 	assert.Len(t, result, 1)
 	assert.Equal(t, "Alice", result["name"])
 }
+
+func TestDelete_DataResolveError(t *testing.T) {
+	executor := newDeleteExecutor(nil)
+	execCtx := engine.NewExecutionContext()
+
+	config := map[string]any{
+		"data":   "{{ nonexistent.field }}",
+		"fields": []any{"a"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transform.delete: data")
+}
+
+func TestDelete_DataNotObject(t *testing.T) {
+	executor := newDeleteExecutor(nil)
+	execCtx := engine.NewExecutionContext(engine.WithInput("not an object"))
+
+	config := map[string]any{
+		"data":   "{{ input }}",
+		"fields": []any{"a"},
+	}
+
+	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "data must be an object")
+}
+
+func TestDelete_Descriptor(t *testing.T) {
+	d := &deleteDescriptor{}
+	assert.Equal(t, "delete", d.Name())
+	assert.NotEmpty(t, d.Description())
+	assert.Nil(t, d.ServiceDeps())
+	schema := d.ConfigSchema()
+	assert.NotNil(t, schema)
+	outputs := d.OutputDescriptions()
+	assert.Contains(t, outputs, "success")
+	assert.Contains(t, outputs, "error")
+}

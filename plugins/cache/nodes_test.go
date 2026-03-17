@@ -364,3 +364,131 @@ func TestResolveInt_Variants(t *testing.T) {
 	_, err = plugin.ResolveRawInt(nCtx, true)
 	require.Error(t, err)
 }
+
+// --- Descriptor and factory tests ---
+
+func TestDescriptors(t *testing.T) {
+	descriptors := []struct {
+		name        string
+		d           api.NodeDescriptor
+		factory     func(map[string]any) api.NodeExecutor
+		outputs     []string
+	}{
+		{"get", &getDescriptor{}, newGetExecutor, api.DefaultOutputs()},
+		{"set", &setDescriptor{}, newSetExecutor, api.DefaultOutputs()},
+		{"del", &delDescriptor{}, newDelExecutor, api.DefaultOutputs()},
+		{"exists", &existsDescriptor{}, newExistsExecutor, api.DefaultOutputs()},
+	}
+	for _, tt := range descriptors {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.name, tt.d.Name())
+			assert.NotEmpty(t, tt.d.Description())
+			assert.NotNil(t, tt.d.ConfigSchema())
+			assert.NotNil(t, tt.d.OutputDescriptions())
+			assert.Contains(t, tt.d.OutputDescriptions(), "success")
+
+			exec := tt.factory(nil)
+			require.NotNil(t, exec)
+			assert.Equal(t, tt.outputs, exec.Outputs())
+		})
+	}
+}
+
+// --- Service.Client() test ---
+
+func TestService_Client(t *testing.T) {
+	svc, _ := newTestService(t)
+	assert.NotNil(t, svc.Client())
+}
+
+// --- Service.Get non-JSON string fallback ---
+
+func TestService_Get_NonJSONString(t *testing.T) {
+	svc, mr := newTestService(t)
+	// Set a raw non-JSON string directly in miniredis
+	mr.Set("raw-key", "not-json-{broken")
+
+	val, err := svc.Get(context.Background(), "raw-key")
+	require.NoError(t, err)
+	assert.Equal(t, "not-json-{broken", val)
+}
+
+// --- Missing service error paths ---
+
+func TestDelNode_MissingService(t *testing.T) {
+	exec := &delExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"key": "k"}, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cache.del")
+}
+
+func TestDelNode_MissingKey(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	exec := &delExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{}, testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cache.del")
+}
+
+func TestExistsNode_MissingService(t *testing.T) {
+	exec := &existsExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"key": "k"}, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cache.exists")
+}
+
+func TestExistsNode_MissingKey(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	exec := &existsExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{}, testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cache.exists")
+}
+
+func TestSetNode_MissingService(t *testing.T) {
+	exec := &setExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"key": "k", "value": "v"}, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not configured")
+}
+
+func TestSetNode_MissingKey(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	exec := &setExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"value": "v"}, testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cache.set")
+}
+
+func TestSetNode_InvalidTTL(t *testing.T) {
+	svc, _ := newTestService(t)
+
+	exec := &setExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"key": "k", "value": "v", "ttl": true}, testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "ttl")
+}
