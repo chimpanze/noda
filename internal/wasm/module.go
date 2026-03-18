@@ -257,13 +257,24 @@ func (m *Module) SendCommand(data any) {
 			return
 		}
 		// Queue as a query-like request to serialize with ticks (with timeout)
+		m.outstandingCalls.Add(1)
 		go func() {
+			defer m.outstandingCalls.Done()
 			req := queryRequest{data: cmdData, result: make(chan queryResponse, 1)}
 			select {
 			case m.queryCh <- req:
-				<-req.result // wait for completion
+				select {
+				case <-req.result:
+					// processed successfully
+				case <-time.After(wasmCallTimeout):
+					m.Logger.Error("command result timed out", "module", m.Name)
+				case <-m.stopCh:
+					// module stopping, abandon
+				}
 			case <-time.After(wasmCallTimeout):
 				m.Logger.Error("command queue timed out", "module", m.Name)
+			case <-m.stopCh:
+				// module stopping, abandon
 			}
 		}()
 		return
