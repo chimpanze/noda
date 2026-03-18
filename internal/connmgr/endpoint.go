@@ -1,6 +1,12 @@
 package connmgr
 
-import "context"
+import (
+	"context"
+
+	"github.com/chimpanze/noda/pkg/api"
+)
+
+var _ api.ConnectionService = (*EndpointService)(nil)
 
 // EndpointService wraps a Manager for a specific endpoint and implements api.ConnectionService.
 type EndpointService struct {
