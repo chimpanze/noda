@@ -7,9 +7,8 @@ import {
   type TreeNode,
   buildTree,
   collapseTree,
-  TreeNodeView,
-  RouteItem,
-} from "./RouteTree";
+} from "./route-tree-utils";
+import { TreeNodeView, RouteItem } from "./RouteTree";
 import { OpenApiTab } from "./OpenApiTab";
 import * as api from "@/api/client";
 import { useEditorStore } from "@/stores/editor";
