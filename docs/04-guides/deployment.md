@@ -67,24 +67,17 @@ volumes:
 
 ### Dockerfile
 
-Noda's multi-stage Dockerfile builds the editor frontend, compiles the Go binary, and produces a minimal runtime image with libvips for image processing:
+Noda's multi-stage Dockerfile compiles the Go binary and produces a minimal runtime image with libvips for image processing. The visual editor is only available in dev mode (`noda dev`) and is not included in production builds:
 
 ```dockerfile
-# Stage 1: Build editor
-FROM node:20-alpine AS editor
-WORKDIR /app/editor
-COPY editor/ .
-RUN npm ci && npm run build
-
-# Stage 2: Build binary
+# Stage 1: Build binary
 FROM golang:1.25-alpine AS builder
 RUN apk add --no-cache vips-dev gcc musl-dev
 WORKDIR /app
 COPY . .
-COPY --from=editor /app/editor/dist ./editorfs/dist
 RUN go build -o noda ./cmd/noda
 
-# Stage 3: Runtime
+# Stage 2: Runtime
 FROM alpine:3.19
 RUN apk add --no-cache vips ca-certificates
 COPY --from=builder /app/noda /usr/local/bin/noda

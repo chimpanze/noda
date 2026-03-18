@@ -1,12 +1,3 @@
-# Editor build stage
-FROM node:22-slim AS editor
-WORKDIR /editor
-COPY editor/package.json editor/package-lock.json ./
-RUN npm ci --silent
-COPY editor/ .
-COPY docs/ ../docs/
-RUN npm run build
-
 # Go builder stage
 FROM golang:1.25-bookworm AS builder
 
@@ -22,10 +13,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY go.mod go.sum ./
 RUN go mod download
 
-# Copy source and embed editor assets
+# Copy source and build
 COPY . .
-COPY --from=editor /editor/dist editorfs/dist
-RUN CGO_ENABLED=1 go build -tags embed_editor -o /noda ./cmd/noda
+RUN CGO_ENABLED=1 go build -o /noda ./cmd/noda
 
 # Runtime stage
 FROM debian:bookworm-slim

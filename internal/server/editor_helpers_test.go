@@ -142,19 +142,6 @@ func TestNewEditorAPI_Constructor(t *testing.T) {
 	assert.NotEmpty(t, api.root.String())
 }
 
-func TestNewEditorAPIReadOnly_Constructor(t *testing.T) {
-	root, err := pathutil.NewRoot(t.TempDir())
-	require.NoError(t, err)
-	plugins := registry.NewPluginRegistry()
-	nodes := registry.NewNodeRegistry()
-	services := registry.NewServiceRegistry()
-	compiler := expr.NewCompiler()
-
-	api := NewEditorAPIReadOnly(root, "", nil, plugins, nodes, services, compiler, nil)
-	require.NotNil(t, api)
-	assert.Nil(t, api.reloader)
-}
-
 // --- ServerOption tests ---
 
 func TestWithCompiler_Option(t *testing.T) {

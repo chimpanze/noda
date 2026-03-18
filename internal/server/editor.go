@@ -10,14 +10,12 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// EditorAPI provides endpoints for the visual editor.
-// In dev mode all endpoints are available (including write/delete).
-// In production mode only read-only endpoints are registered.
+// EditorAPI provides endpoints for the visual editor (dev mode only).
 type EditorAPI struct {
 	root     pathutil.Root
 	envFlag  string
-	reloader *devmode.Reloader // nil in production mode
-	rc       *config.ResolvedConfig
+	reloader *devmode.Reloader
+	rc       *config.ResolvedConfig // static fallback for tests
 	plugins  *registry.PluginRegistry
 	nodes    *registry.NodeRegistry
 	services *registry.ServiceRegistry
@@ -25,7 +23,7 @@ type EditorAPI struct {
 	secrets  *secrets.Manager
 }
 
-// NewEditorAPI creates the editor API handler for dev mode (all endpoints).
+// NewEditorAPI creates the editor API handler for dev mode.
 func NewEditorAPI(
 	root pathutil.Root,
 	envFlag string,
@@ -48,35 +46,11 @@ func NewEditorAPI(
 	}
 }
 
-// NewEditorAPIReadOnly creates the editor API handler for production mode.
-// Write and delete endpoints are not registered.
-func NewEditorAPIReadOnly(
-	root pathutil.Root,
-	envFlag string,
-	rc *config.ResolvedConfig,
-	plugins *registry.PluginRegistry,
-	nodes *registry.NodeRegistry,
-	services *registry.ServiceRegistry,
-	compiler *nodaexpr.Compiler,
-	sm *secrets.Manager,
-) *EditorAPI {
-	return &EditorAPI{
-		root:     root,
-		envFlag:  envFlag,
-		rc:       rc,
-		plugins:  plugins,
-		nodes:    nodes,
-		services: services,
-		compiler: compiler,
-		secrets:  sm,
-	}
-}
-
 // Register mounts all editor API routes on the Fiber app.
 func (e *EditorAPI) Register(app *fiber.App) {
 	api := app.Group("/_noda")
 
-	// File operations (read always available)
+	// File operations
 	api.Get("/files", e.listFiles)
 	api.Get("/files/*", e.readFile)
 
@@ -122,7 +96,7 @@ func (e *EditorAPI) Register(app *fiber.App) {
 }
 
 // resolvedConfig returns the current resolved config, preferring the
-// reloader's live config in dev mode, falling back to the static config.
+// reloader's live config in dev mode, falling back to a static config.
 func (e *EditorAPI) resolvedConfig() *config.ResolvedConfig {
 	if e.reloader != nil {
 		return e.reloader.Config()

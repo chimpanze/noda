@@ -347,15 +347,6 @@ func newStartCmd() *cobra.Command {
 				if err := srv.RegisterOpenAPIRoutes(); err != nil {
 					logger.Warn("OpenAPI generation failed", "error", err.Error())
 				}
-
-				// Serve embedded editor UI and read-only API (production mode)
-				srv.RegisterEditorUI()
-				root, err := pathutil.NewRoot(configDir)
-				if err != nil {
-					return fmt.Errorf("resolving config directory: %w", err)
-				}
-				editorAPI := server.NewEditorAPIReadOnly(root, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler, sm)
-				editorAPI.Register(srv.App())
 			}
 
 			// Start workers if configured and requested
