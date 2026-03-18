@@ -345,3 +345,43 @@ For production workloads, tune `pool_size` based on your concurrency needs. A go
 - [ ] Set up log aggregation (stdout/stderr to your logging platform)
 - [ ] Configure backup strategy for PostgreSQL and Redis
 - [ ] Use TLS termination at the load balancer
+- [ ] Apply rate limiting to authentication endpoints (see Security Hardening below)
+- [ ] Enable CSRF protection on state-changing endpoints if serving browser clients
+
+## Security Hardening
+
+### Rate Limiting on Auth Endpoints
+
+Authentication endpoints (login, token refresh, registration) are prime targets for brute-force and credential-stuffing attacks. Apply strict rate limiting to these routes using middleware presets:
+
+```json
+{
+  "middleware_presets": {
+    "auth_rate_limited": ["limiter.strict", "auth.jwt"]
+  },
+  "routes": [
+    {
+      "path": "/auth/login",
+      "method": "POST",
+      "middleware": "auth_rate_limited",
+      "workflow": "auth.login"
+    }
+  ]
+}
+```
+
+If you use `auth.jwt` or `auth.oidc` middleware without any `limiter` middleware on the same routes, consider adding one. The `limiter.strict` preset defaults to 10 requests per minute per IP.
+
+### CSRF Protection
+
+For applications that serve browser clients with cookie-based sessions, enable CSRF protection on state-changing endpoints (POST, PUT, DELETE):
+
+```json
+{
+  "middleware_presets": {
+    "protected": ["security.csrf", "auth.jwt"]
+  }
+}
+```
+
+CSRF protection is not enabled by default because API-only deployments (mobile apps, service-to-service) use token-based auth where CSRF is not applicable. If your API is consumed exclusively by non-browser clients, CSRF middleware is unnecessary.
