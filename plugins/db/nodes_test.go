@@ -912,3 +912,57 @@ func TestResolveString_Missing(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required field")
 }
+
+func TestDB_ConcurrentQueries(t *testing.T) {
+	// Use shared-cache in-memory SQLite so all connections see the same data.
+	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	require.NoError(t, err)
+
+	sqlDB, err := db.DB()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	_, err = sqlDB.Exec(`CREATE TABLE tasks (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		title TEXT NOT NULL,
+		description TEXT,
+		status TEXT DEFAULT 'pending',
+		user_id TEXT,
+		created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	)`)
+	require.NoError(t, err)
+
+	// Constrain pool to expose contention
+	sqlDB.SetMaxOpenConns(5)
+	sqlDB.SetMaxIdleConns(2)
+
+	// Seed data
+	for i := range 20 {
+		db.Exec("INSERT INTO tasks (title, user_id) VALUES (?, ?)", fmt.Sprintf("task-%d", i), "user1")
+	}
+
+	exec := &queryExecutor{}
+	config := map[string]any{
+		"query":  "SELECT title FROM tasks WHERE user_id = ?",
+		"params": []any{"user1"},
+	}
+	services := testServices(db)
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	// Run 100 concurrent queries
+	const goroutines = 100
+	errs := make(chan error, goroutines)
+	for range goroutines {
+		go func() {
+			_, _, err := exec.Execute(context.Background(), nCtx, config, services)
+			errs <- err
+		}()
+	}
+
+	for range goroutines {
+		err := <-errs
+		assert.NoError(t, err)
+	}
+}
