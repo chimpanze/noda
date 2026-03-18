@@ -1,6 +1,7 @@
 package devmode
 
 import (
+	"context"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -65,11 +66,20 @@ func (w *Watcher) Start() {
 	go w.loop()
 }
 
-// Stop shuts down the watcher and waits for cleanup.
-func (w *Watcher) Stop() {
+// Stop shuts down the watcher and waits for cleanup, respecting the context deadline.
+func (w *Watcher) Stop(ctx context.Context) error {
 	close(w.done)
 	_ = w.watcher.Close()
-	w.wg.Wait()
+
+	ch := make(chan struct{})
+	go func() { w.wg.Wait(); close(ch) }()
+
+	select {
+	case <-ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func (w *Watcher) loop() {

@@ -107,7 +107,6 @@ func (c *watcherComponent) Start(_ context.Context) error {
 	c.w.Start()
 	return nil
 }
-func (c *watcherComponent) Stop(_ context.Context) error {
-	c.w.Stop()
-	return nil
+func (c *watcherComponent) Stop(ctx context.Context) error {
+	return c.w.Stop(ctx)
 }
