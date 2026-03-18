@@ -219,6 +219,21 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 		}
 	}
 
+	// Warn if CORS middleware is used but no allow_origins is configured
+	if corsUsed(rc) {
+		if rc.Root != nil {
+			security, _ := rc.Root["security"].(map[string]any)
+			corsCfg, _ := security["cors"].(map[string]any)
+			if corsCfg == nil || corsCfg["allow_origins"] == nil || corsCfg["allow_origins"] == "" {
+				errs = append(errs, ValidationError{
+					FilePath: "noda.json",
+					JSONPath: "/security/cors/allow_origins",
+					Message:  "warning: CORS middleware is active but allow_origins is not configured; will default to localhost only",
+				})
+			}
+		}
+	}
+
 	// Validate global_middleware entries are strings
 	if rc.Root != nil {
 		if mw, ok := rc.Root["global_middleware"].([]any); ok {
@@ -382,6 +397,46 @@ func detectWorkflowCycles(graph map[string][]string) []ValidationError {
 	}
 
 	return errs
+}
+
+// corsUsed returns true if security.cors appears in any middleware chain
+// (global_middleware, middleware_presets, or route middleware).
+func corsUsed(rc *RawConfig) bool {
+	if rc.Root != nil {
+		// Check global_middleware
+		if mw, ok := rc.Root["global_middleware"].([]any); ok {
+			for _, v := range mw {
+				if s, ok := v.(string); ok && s == "security.cors" {
+					return true
+				}
+			}
+		}
+		// Check middleware_presets
+		if presets, ok := rc.Root["middleware_presets"].(map[string]any); ok {
+			for _, v := range presets {
+				if arr, ok := v.([]any); ok {
+					for _, item := range arr {
+						if s, ok := item.(string); ok && s == "security.cors" {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	// Check route middleware
+	for _, route := range rc.Routes {
+		if mw, ok := route["middleware"].([]any); ok {
+			for _, item := range mw {
+				if m, ok := item.(map[string]any); ok {
+					if use, ok := m["use"].(string); ok && use == "security.cors" {
+						return true
+					}
+				}
+			}
+		}
+	}
+	return false
 }
 
 func formatCycle(ids []string) string {

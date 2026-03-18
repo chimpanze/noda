@@ -154,6 +154,17 @@ func newCORSMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, err
 			corsCfg.AllowCredentials = v
 		}
 	}
+	// Default to localhost-only when no origins are configured to avoid
+	// overly permissive CORS defaults.
+	if len(corsCfg.AllowOrigins) == 0 {
+		slog.Warn("CORS: no allow_origins configured, defaulting to localhost only")
+		corsCfg.AllowOriginsFunc = func(origin string) bool {
+			return strings.HasPrefix(origin, "http://localhost:") ||
+				strings.HasPrefix(origin, "https://localhost:") ||
+				origin == "http://localhost" ||
+				origin == "https://localhost"
+		}
+	}
 	// Reject wildcard origin with credentials — browsers ignore this combination
 	// and it may indicate a misconfiguration.
 	for _, origin := range corsCfg.AllowOrigins {
