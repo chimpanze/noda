@@ -934,6 +934,12 @@ At startup, the engine:
 
 If validation fails, the application does not start.
 
+### 13.7 Dual-Plugin Prefixes
+
+Some capabilities use two plugins that share a prefix:
+
+- **`storage`**: The `storage` plugin (`plugins/storage/`) manages Afero service instances (connections to local/S3 filesystems). The `core.storage` plugin (`plugins/core/storage/`) provides workflow nodes (`storage.read`, `storage.write`, `storage.delete`, `storage.list`). This works because the service plugin has `HasServices=true, Nodes=nil` and the core plugin has `HasServices=false, Nodes=[4]` — the registry distinguishes them by role.
+
 ---
 
 ## 14. Database
