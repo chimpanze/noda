@@ -94,6 +94,11 @@
             "type": "array",
             "items": { "type": "string" }
           },
+          "allowed_workflows": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Workflow IDs this module is allowed to trigger. Empty list denies all."
+          },
           "allow_outbound": {
             "type": "object",
             "properties": {

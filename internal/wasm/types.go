@@ -10,8 +10,9 @@ type ModuleConfig struct {
 	Encoding      string         // "json" (default) or "msgpack"
 	Services      []string       // Allowed service instance names
 	Connections   []string       // Allowed connection endpoint names
-	AllowHTTP     []string       // Whitelisted HTTP hosts
-	AllowWS       []string       // Whitelisted WebSocket hosts
+	AllowHTTP        []string       // Whitelisted HTTP hosts
+	AllowWS          []string       // Whitelisted WebSocket hosts
+	AllowedWorkflows []string       // Whitelisted workflow IDs for trigger_workflow
 	Config        map[string]any // Opaque config passed to initialize
 	MemoryPages   uint32         // Max memory pages (0 = default)
 	MaxModuleSize int64          // Max .wasm file size in bytes (0 = 50MB default)

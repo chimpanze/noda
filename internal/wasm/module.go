@@ -330,6 +330,17 @@ func (m *Module) RegisterAsyncLabel(label string) error {
 	return nil
 }
 
+// IsWorkflowAllowed checks if the module can trigger a workflow.
+// Returns false if AllowedWorkflows is empty (deny by default).
+func (m *Module) IsWorkflowAllowed(workflowID string) bool {
+	for _, w := range m.Config.AllowedWorkflows {
+		if w == workflowID {
+			return true
+		}
+	}
+	return false
+}
+
 // IsServiceAllowed checks if the module can access a service.
 func (m *Module) IsServiceAllowed(service string) bool {
 	if service == "" {

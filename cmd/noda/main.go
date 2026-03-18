@@ -1128,6 +1128,13 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 			cfg.TickTimeout = d
 		}
 	}
+	if v, ok := m["allowed_workflows"].([]any); ok {
+		for _, s := range v {
+			if str, ok := s.(string); ok {
+				cfg.AllowedWorkflows = append(cfg.AllowedWorkflows, str)
+			}
+		}
+	}
 	if outbound, ok := m["allow_outbound"].(map[string]any); ok {
 		if v, ok := outbound["http"].([]any); ok {
 			for _, s := range v {

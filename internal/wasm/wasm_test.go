@@ -528,7 +528,7 @@ func TestHostDispatcher_TriggerWorkflow(t *testing.T) {
 
 	dispatcher := NewHostDispatcher(svcReg, runner, testLogger())
 	plugin := newMockPlugin()
-	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1, AllowedWorkflows: []string{"ban-user"}}, dispatcher, testLogger())
 
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
@@ -1805,7 +1805,7 @@ func TestHostDispatcher_TriggerWorkflow_NilRunner(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger()) // nil runner
 	plugin := newMockPlugin()
-	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1, AllowedWorkflows: []string{"some-wf"}}, dispatcher, testLogger())
 
 	result, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
@@ -2456,7 +2456,7 @@ func TestHostDispatcher_TriggerWorkflow_NilInput(t *testing.T) {
 
 	dispatcher := NewHostDispatcher(svcReg, runner, testLogger())
 	plugin := newMockPlugin()
-	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1, AllowedWorkflows: []string{"test-wf"}}, dispatcher, testLogger())
 
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
@@ -3101,4 +3101,54 @@ func TestModule_Tick_BudgetWarningStillWorksWithTimeout(t *testing.T) {
 	// Tick should have completed (not timed out) — calls should exist
 	calls := plugin.getCalls("tick")
 	assert.NotEmpty(t, calls, "tick should complete within timeout even if over budget")
+}
+
+// --- trigger_workflow access control ---
+
+func TestHostDispatcher_TriggerWorkflow_PermissionDenied(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+	// AllowedWorkflows only includes "allowed-wf", not "admin-wf"
+	_, _ = NewModule("test", plugin, ModuleConfig{
+		Name:             "test",
+		TickRate:         1,
+		AllowedWorkflows: []string{"allowed-wf"},
+	}, dispatcher, testLogger())
+
+	_, err := dispatcher.Call(context.Background(), HostCallRequest{
+		Service:   "",
+		Operation: "trigger_workflow",
+		Payload:   map[string]any{"workflow": "admin-wf"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PERMISSION_DENIED")
+	assert.Contains(t, err.Error(), "admin-wf")
+}
+
+func TestHostDispatcher_TriggerWorkflow_EmptyAllowlistDeniesAll(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+	// No AllowedWorkflows — should deny all
+	_, _ = NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
+
+	_, err := dispatcher.Call(context.Background(), HostCallRequest{
+		Service:   "",
+		Operation: "trigger_workflow",
+		Payload:   map[string]any{"workflow": "any-wf"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "PERMISSION_DENIED")
+}
+
+func TestModule_IsWorkflowAllowed(t *testing.T) {
+	m := &Module{Config: ModuleConfig{AllowedWorkflows: []string{"wf-a", "wf-b"}}}
+	assert.True(t, m.IsWorkflowAllowed("wf-a"))
+	assert.True(t, m.IsWorkflowAllowed("wf-b"))
+	assert.False(t, m.IsWorkflowAllowed("wf-c"))
+
+	// Empty list denies all
+	m2 := &Module{Config: ModuleConfig{}}
+	assert.False(t, m2.IsWorkflowAllowed("anything"))
 }

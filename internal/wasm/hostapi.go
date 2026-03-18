@@ -162,6 +162,9 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		if err != nil {
 			return nil, err
 		}
+		if !d.module.IsWorkflowAllowed(workflowID) {
+			return nil, fmt.Errorf("PERMISSION_DENIED: workflow %q not in allowed_workflows", workflowID)
+		}
 		input, _ := payload["input"].(map[string]any)
 		if d.runner != nil {
 			go func() { _ = d.runner(d.module.lifecycleCtx, workflowID, input) }()
