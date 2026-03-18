@@ -80,9 +80,9 @@ func (m *Module) executeTick() {
 		return
 	}
 
-	// Call tick
+	// Call tick with timeout to prevent hung modules from blocking the loop
 	start := time.Now()
-	exitCode, _, err := m.Plugin.Call("tick", data)
+	exitCode, _, err := m.callWithTimeout("tick", data, m.Config.TickTimeout)
 	elapsed := time.Since(start)
 
 	if err != nil {

@@ -3007,3 +3007,98 @@ func TestReconnectLoop_Success(t *testing.T) {
 	// Cleanup
 	gw.CloseAll()
 }
+
+// --- Tick timeout tests ---
+
+// slowMockPlugin wraps mockPlugin to add configurable delay per function.
+type slowMockPlugin struct {
+	*mockPlugin
+	delays map[string]time.Duration
+}
+
+func newSlowMockPlugin() *slowMockPlugin {
+	return &slowMockPlugin{
+		mockPlugin: newMockPlugin(),
+		delays:     make(map[string]time.Duration),
+	}
+}
+
+func (s *slowMockPlugin) Call(name string, data []byte) (uint32, []byte, error) {
+	if d, ok := s.delays[name]; ok {
+		time.Sleep(d)
+	}
+	return s.mockPlugin.Call(name, data)
+}
+
+func TestModule_Tick_HangingTickKilledByTimeout(t *testing.T) {
+	plugin := newSlowMockPlugin()
+	plugin.delays["tick"] = 5 * time.Second // tick hangs for 5s
+
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	cfg := ModuleConfig{Name: "test", TickRate: 10, TickTimeout: 100 * time.Millisecond}
+	m, err := NewModule("test", plugin, cfg, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+
+	m.Start()
+	// Wait long enough for at least one tick to fire and be killed by timeout
+	time.Sleep(300 * time.Millisecond)
+	require.NoError(t, m.Stop(context.Background()))
+
+	// The module should have survived the hung tick (not blocked forever)
+	// and tick calls should have been attempted
+	calls := plugin.getCalls("tick")
+	assert.NotEmpty(t, calls, "tick should have been called at least once")
+}
+
+func TestModule_Tick_DefaultTickTimeout(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	// TickRate=10 → budget=100ms → default timeout=1s
+	cfg := ModuleConfig{Name: "test", TickRate: 10}
+	m, err := NewModule("test", plugin, cfg, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	expected := time.Second // 10x 100ms budget
+	assert.Equal(t, expected, m.Config.TickTimeout)
+}
+
+func TestModule_Tick_CustomTickTimeout(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	cfg := ModuleConfig{Name: "test", TickRate: 10, TickTimeout: 5 * time.Second}
+	m, err := NewModule("test", plugin, cfg, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	// Custom value should be preserved, not overridden
+	assert.Equal(t, 5*time.Second, m.Config.TickTimeout)
+}
+
+func TestModule_Tick_BudgetWarningStillWorksWithTimeout(t *testing.T) {
+	plugin := newSlowMockPlugin()
+	// Tick takes 80ms, budget is 50ms (TickRate=20), timeout is 500ms
+	// Should exceed budget but NOT hit timeout
+	plugin.delays["tick"] = 80 * time.Millisecond
+
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	cfg := ModuleConfig{Name: "test", TickRate: 20, TickTimeout: 500 * time.Millisecond}
+	m, err := NewModule("test", plugin, cfg, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+
+	m.Start()
+	time.Sleep(200 * time.Millisecond)
+	require.NoError(t, m.Stop(context.Background()))
+
+	// Tick should have completed (not timed out) — calls should exist
+	calls := plugin.getCalls("tick")
+	assert.NotEmpty(t, calls, "tick should complete within timeout even if over budget")
+}

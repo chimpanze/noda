@@ -101,6 +101,12 @@ func NewModule(name string, plugin PluginInstance, cfg ModuleConfig, dispatcher 
 		tickRate = maxTickRate
 	}
 
+	// Compute default tick timeout: 10x the tick budget
+	if cfg.TickTimeout == 0 {
+		budget := time.Second / time.Duration(tickRate)
+		cfg.TickTimeout = budget * 10
+	}
+
 	m := &Module{
 		Name:          name,
 		Config:        cfg,

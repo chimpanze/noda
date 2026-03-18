@@ -164,7 +164,9 @@ During tick execution, the module processes events, updates internal state, and 
 
 **Return:** A status object or empty. A non-zero return code is logged as an error.
 
-**Tick budget:** If a tick exceeds its time budget (`1000 / tick_rate` milliseconds), Noda logs a warning with the actual duration. This helps module authors detect performance problems during development. Consecutive budget overruns are logged at increasing severity. Noda does not kill slow ticks — the next tick is simply delayed and receives a larger `dt`.
+**Tick budget:** If a tick exceeds its time budget (`1000 / tick_rate` milliseconds), Noda logs a warning with the actual duration. This helps module authors detect performance problems during development. Consecutive budget overruns are logged at increasing severity.
+
+**Tick timeout:** Each tick call must complete within `tick_timeout` (default: 10x the tick budget). If a tick exceeds this hard limit, Noda terminates the call with an error and continues the tick loop. This prevents a hung module from blocking the runtime indefinitely. The timeout is configurable per module in the `wasm_runtimes` config (e.g. `"tick_timeout": "5s"`).
 
 ### 3.4 Query
 
@@ -760,6 +762,7 @@ The module is configured in `noda.json` under `wasm_runtimes`:
 |---|---|---|---|
 | `module` | string | Yes | Path to the `.wasm` binary file |
 | `tick_rate` | int | Yes | Ticks per second (Hz). Range: 1-120 |
+| `tick_timeout` | string | No | Max duration for a single tick call (e.g. `"5s"`). Default: 10x tick budget |
 | `encoding` | string | No | Wire format: `"json"` (default) or `"msgpack"` |
 | `services` | []string | Yes | Service instance names the module can access |
 | `connections` | []string | No | Noda WebSocket/SSE endpoint names the module can push to |
@@ -777,5 +780,5 @@ The module is configured in `noda.json` under `wasm_runtimes`:
 - **No filesystem access** — all storage goes through `noda_call` to a storage service. No direct filesystem operations.
 - **No database access** — modules cannot access the database directly. For database operations, modules trigger workflows that contain database nodes. This keeps the database boundary clean and maintains GORM as the single database interface.
 - **Call serialization** — `tick`, `command`, and `query` are never called concurrently on the same instance, preventing data races.
-- **Resource limits** — Extism supports memory limits and execution timeouts per module. Noda configures these from the manifest.
+- **Resource limits** — Extism supports memory limits per module. Noda enforces a per-tick timeout (`tick_timeout`, default 10x tick budget) to prevent hung modules from blocking the runtime.
 - **Secret isolation** — environment variables are resolved by Noda in the config before passing to the module. Modules cannot read arbitrary environment variables — only values explicitly included in their config.

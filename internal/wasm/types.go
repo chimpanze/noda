@@ -15,6 +15,7 @@ type ModuleConfig struct {
 	Config        map[string]any // Opaque config passed to initialize
 	MemoryPages   uint32         // Max memory pages (0 = default)
 	MaxModuleSize int64          // Max .wasm file size in bytes (0 = 50MB default)
+	TickTimeout   time.Duration  // Max duration for a single tick call (0 = 10x tick budget)
 }
 
 // TickInput is the data passed to a module's tick export.

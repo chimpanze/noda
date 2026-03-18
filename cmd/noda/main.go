@@ -1123,6 +1123,11 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 			}
 		}
 	}
+	if v, ok := m["tick_timeout"].(string); ok {
+		if d, err := time.ParseDuration(v); err == nil {
+			cfg.TickTimeout = d
+		}
+	}
 	if outbound, ok := m["allow_outbound"].(map[string]any); ok {
 		if v, ok := outbound["http"].([]any); ok {
 			for _, s := range v {

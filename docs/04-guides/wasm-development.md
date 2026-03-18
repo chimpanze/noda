@@ -27,7 +27,7 @@ Output: { "ok": true } or { "error": "reason" }
 
 ### `tick` (required)
 
-Called at the configured `tick_rate` (default: 20 Hz). Receives accumulated events since the last tick.
+Called at the configured `tick_rate` (default: 20 Hz). Receives accumulated events since the last tick. Each tick call must complete within `tick_timeout` (default: 10x tick budget) or it will be terminated with an error.
 
 ```
 Input: {
@@ -189,6 +189,7 @@ Wasm runtimes are configured in `noda.json`:
 | `services` | Service instances the module can access |
 | `connections` | Connection endpoints the module can send to |
 | `allow_outbound` | Whitelisted hosts for outbound HTTP and WebSocket |
+| `tick_timeout` | Max duration for a single tick call (e.g. `"5s"`). Default: 10x tick budget. A tick that exceeds this is killed with an error |
 | `config` | Opaque config object passed to `initialize` |
 
 ## Example: Echo Module

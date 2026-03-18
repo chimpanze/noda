@@ -257,6 +257,7 @@ Apply middleware presets to URL path prefixes.
 | `connections` | array | no | Connection endpoints accessible from Wasm |
 | `allow_outbound` | object | no | Allowed outbound hosts |
 | `config` | object | no | Opaque config passed to module's `initialize` |
+| `tick_timeout` | string | no | Max duration for a single tick call (e.g. `"5s"`, `"500ms"`). Default: 10x tick budget |
 
 ```json
 {
@@ -264,6 +265,7 @@ Apply middleware presets to URL path prefixes.
     "game-server": {
       "module": "wasm/game.wasm",
       "tick_rate": 20,
+      "tick_timeout": "500ms",
       "encoding": "msgpack",
       "services": ["redis", "postgres"],
       "connections": ["game-ws"],
