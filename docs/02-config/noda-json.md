@@ -21,6 +21,7 @@ The root config file. All fields are optional except where noted.
 | `read_timeout` | string | `"30s"` | Read timeout (duration) |
 | `write_timeout` | string | `"30s"` | Write timeout (duration) |
 | `body_limit` | integer | `5242880` | Max request body size in bytes (5 MB) |
+| `expression_memory_budget` | integer | `1000000` | Memory budget for expression evaluation (in allocation units). Limits array, map, and range allocations. Expressions exceeding this budget return an error. `0` uses the default |
 
 ```json
 {
@@ -28,7 +29,8 @@ The root config file. All fields are optional except where noted.
     "port": 8080,
     "read_timeout": "60s",
     "write_timeout": "60s",
-    "body_limit": 10485760
+    "body_limit": 10485760,
+    "expression_memory_budget": 2000000
   }
 }
 ```

@@ -63,3 +63,15 @@ Some fields are **static** (never expressions): `mode`, `cases`, `workflow`, `me
 - **Runtime expression function** when used inside a larger expression (e.g., `{{ "prefix." + $var('TOPIC') }}`) — evaluated by the expression engine
 
 Both resolve values from `vars.json`. See [Variables](../02-config/variables.md) for details.
+
+## Limits
+
+Expressions are always terminating — the expression language does not allow infinite loops. Additionally, each expression evaluation enforces a memory budget (default: 1M allocation units) that limits array, map, and range allocations. Expressions that exceed the budget return an error.
+
+The memory budget can be configured in `noda.json`:
+
+```json
+{ "server": { "expression_memory_budget": 2000000 } }
+```
+
+See [noda.json](../02-config/noda-json.md) for all server settings.

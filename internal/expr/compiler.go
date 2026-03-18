@@ -19,7 +19,18 @@ type CompilerOption func(*compilerConfig)
 
 type compilerConfig struct {
 	exprOptions  []expr.Option
-	maxCacheSize int // 0 means unlimited
+	maxCacheSize int  // 0 means unlimited
+	memoryBudget uint // 0 means use expr default (1M)
+}
+
+// WithMemoryBudget sets the memory budget for expression evaluation.
+// The VM tracks allocations for arrays, maps, and ranges.
+// When the budget is exceeded, evaluation returns an error.
+// 0 means use the expr default (1M allocation units).
+func WithMemoryBudget(n uint) CompilerOption {
+	return func(c *compilerConfig) {
+		c.memoryBudget = n
+	}
 }
 
 // WithExprOptions adds expr.Option values to be used during compilation.

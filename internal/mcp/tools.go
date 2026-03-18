@@ -671,7 +671,7 @@ func resolveValue(v any, compiler *expr.Compiler, ctx map[string]any, pattern *r
 			if err != nil {
 				return val
 			}
-			evaluated, err := expr.Evaluate(compiled, ctx)
+			evaluated, err := compiler.Evaluate(compiled, ctx)
 			if err != nil {
 				return val
 			}

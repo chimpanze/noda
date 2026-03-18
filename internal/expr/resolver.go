@@ -23,7 +23,7 @@ func (r *Resolver) Resolve(expression string) (any, error) {
 	if err != nil {
 		return nil, fmt.Errorf("resolve %q: %w", expression, err)
 	}
-	return Evaluate(compiled, r.context)
+	return r.compiler.Evaluate(compiled, r.context)
 }
 
 // ResolveMap recursively walks a config map and resolves all string values

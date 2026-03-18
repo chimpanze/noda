@@ -4,20 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/expr-lang/expr"
+	"github.com/expr-lang/expr/vm"
 )
 
 // Evaluate runs a compiled expression against a context map and returns the result.
 // For simple expressions (entire string is one {{ }}), the result type is preserved.
 // For interpolated strings, all expression results are converted to strings and concatenated.
 // For literals, the original string value is returned.
-func Evaluate(compiled *CompiledExpression, context map[string]any) (any, error) {
+//
+// The memory budget from the compiler config is applied to the VM. If an expression
+// exceeds the budget, an error is returned instead of panicking.
+func (c *Compiler) Evaluate(compiled *CompiledExpression, context map[string]any) (any, error) {
 	if compiled.Parsed.IsLiteral {
 		return compiled.Parsed.Raw, nil
 	}
 
 	if compiled.Parsed.IsSimple {
-		result, err := expr.Run(compiled.Programs[0], context)
+		result, err := c.runWithBudget(compiled.Programs[0], context)
 		if err != nil {
 			return nil, fmt.Errorf("evaluation error in %q: %w", compiled.Parsed.Raw, err)
 		}
@@ -32,7 +35,7 @@ func Evaluate(compiled *CompiledExpression, context map[string]any) (any, error)
 			continue
 		}
 
-		result, err := expr.Run(compiled.Programs[i], context)
+		result, err := c.runWithBudget(compiled.Programs[i], context)
 		if err != nil {
 			return nil, fmt.Errorf("evaluation error in %q (segment %q): %w", compiled.Parsed.Raw, seg.Value, err)
 		}
@@ -41,4 +44,14 @@ func Evaluate(compiled *CompiledExpression, context map[string]any) (any, error)
 	}
 
 	return b.String(), nil
+}
+
+// runWithBudget executes a compiled program using the VM directly, applying the
+// configured memory budget. When the budget is exceeded, the VM returns an error.
+func (c *Compiler) runWithBudget(program *vm.Program, env map[string]any) (any, error) {
+	v := vm.VM{}
+	if c.opts.memoryBudget > 0 {
+		v.MemoryBudget = c.opts.memoryBudget
+	}
+	return v.Run(program, env)
 }

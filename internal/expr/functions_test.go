@@ -15,7 +15,7 @@ func compileAndEvalWithFunctions(t *testing.T, input string, ctx map[string]any)
 	c := NewCompilerWithFunctions()
 	compiled, err := c.Compile(input)
 	require.NoError(t, err)
-	result, err := Evaluate(compiled, ctx)
+	result, err := c.Evaluate(compiled, ctx)
 	require.NoError(t, err)
 	return result
 }
@@ -62,7 +62,7 @@ func TestFunction_UnknownFunction(t *testing.T) {
 	require.NoError(t, err) // compiles with AllowUndefinedVariables
 
 	// Fails at runtime
-	_, err = Evaluate(compiled, map[string]any{})
+	_, err = c.Evaluate(compiled, map[string]any{})
 	require.Error(t, err)
 }
 
@@ -71,7 +71,7 @@ func TestFunction_Var_ReturnsValue(t *testing.T) {
 	c := NewCompilerWithVars(vars)
 	compiled, err := c.Compile(`{{ $var('TOPIC') }}`)
 	require.NoError(t, err)
-	result, err := Evaluate(compiled, map[string]any{})
+	result, err := c.Evaluate(compiled, map[string]any{})
 	require.NoError(t, err)
 	assert.Equal(t, "events", result)
 }
@@ -81,7 +81,7 @@ func TestFunction_Var_InExpression(t *testing.T) {
 	c := NewCompilerWithVars(vars)
 	compiled, err := c.Compile(`{{ $var('TABLE') + "_archive" }}`)
 	require.NoError(t, err)
-	result, err := Evaluate(compiled, map[string]any{})
+	result, err := c.Evaluate(compiled, map[string]any{})
 	require.NoError(t, err)
 	assert.Equal(t, "users_archive", result)
 }
@@ -91,7 +91,7 @@ func TestFunction_Var_MissingKey(t *testing.T) {
 	c := NewCompilerWithVars(vars)
 	compiled, err := c.Compile(`{{ $var('MISSING') }}`)
 	require.NoError(t, err)
-	_, err = Evaluate(compiled, map[string]any{})
+	_, err = c.Evaluate(compiled, map[string]any{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "MISSING")
 }
@@ -108,7 +108,7 @@ func TestFunction_Var_NilVars(t *testing.T) {
 	c := NewCompilerWithVars(nil)
 	compiled, err := c.Compile(`{{ $var('KEY') }}`)
 	require.NoError(t, err)
-	_, err = Evaluate(compiled, map[string]any{})
+	_, err = c.Evaluate(compiled, map[string]any{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "KEY")
 	assert.Contains(t, err.Error(), "no vars defined")
@@ -164,7 +164,7 @@ func TestFunction_HMAC_InvalidAlgorithm(t *testing.T) {
 	c := NewCompilerWithFunctions()
 	compiled, err := c.Compile(`{{ hmac("hello", "secret", "md5") }}`)
 	require.NoError(t, err)
-	_, err = Evaluate(compiled, map[string]any{})
+	_, err = c.Evaluate(compiled, map[string]any{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported algorithm")
 }
@@ -292,7 +292,7 @@ func TestFunctionRegistry_CustomFunction(t *testing.T) {
 	compiled, err := c.Compile("{{ double(21) }}")
 	require.NoError(t, err)
 
-	result, err := Evaluate(compiled, map[string]any{})
+	result, err := c.Evaluate(compiled, map[string]any{})
 	require.NoError(t, err)
 	assert.Equal(t, 42, result)
 }

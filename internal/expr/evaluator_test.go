@@ -12,7 +12,7 @@ func compileAndEval(t *testing.T, input string, ctx map[string]any) any {
 	c := NewCompiler()
 	compiled, err := c.Compile(input)
 	require.NoError(t, err)
-	result, err := Evaluate(compiled, ctx)
+	result, err := c.Evaluate(compiled, ctx)
 	require.NoError(t, err)
 	return result
 }
@@ -127,7 +127,7 @@ func TestEvaluate_NilNestedAccess(t *testing.T) {
 	compiled, err := c.Compile("{{ missing.nested.value }}")
 	require.NoError(t, err) // compiles fine with AllowUndefinedVariables
 
-	_, err = Evaluate(compiled, map[string]any{})
+	_, err = c.Evaluate(compiled, map[string]any{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "evaluation error")
 }
@@ -137,7 +137,53 @@ func TestEvaluate_UndefinedTopLevel(t *testing.T) {
 	compiled, err := c.Compile("{{ missing }}")
 	require.NoError(t, err)
 
-	result, err := Evaluate(compiled, map[string]any{})
+	result, err := c.Evaluate(compiled, map[string]any{})
 	require.NoError(t, err)
 	assert.Nil(t, result) // undefined top-level returns nil
+}
+
+func TestEvaluate_MemoryBudgetExceeded(t *testing.T) {
+	// Use a very small budget so that a map allocation exceeds it
+	c := NewCompiler(WithMemoryBudget(1))
+	compiled, err := c.Compile(`{{ {"a": 1, "b": 2, "c": 3} }}`)
+	require.NoError(t, err)
+
+	_, err = c.Evaluate(compiled, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "memory budget exceeded")
+}
+
+func TestEvaluate_MemoryBudgetDefault(t *testing.T) {
+	// Default budget (1M) should handle small expressions fine
+	c := NewCompiler()
+	compiled, err := c.Compile(`{{ {"a": 1, "b": 2, "c": 3} }}`)
+	require.NoError(t, err)
+
+	result, err := c.Evaluate(compiled, map[string]any{})
+	require.NoError(t, err)
+	m, ok := result.(map[string]any)
+	require.True(t, ok)
+	assert.Len(t, m, 3)
+}
+
+func TestEvaluate_MemoryBudgetCustom(t *testing.T) {
+	// A generous budget allows larger allocations
+	c := NewCompilerWithFunctions(WithMemoryBudget(5_000_000))
+	compiled, err := c.Compile("{{ [1,2,3] | map(# * 2) }}")
+	require.NoError(t, err)
+
+	result, err := c.Evaluate(compiled, map[string]any{})
+	require.NoError(t, err)
+	assert.Equal(t, []any{2, 4, 6}, result)
+}
+
+func TestEvaluate_MemoryBudgetInterpolated(t *testing.T) {
+	// Budget enforcement also works in interpolated expressions
+	c := NewCompiler(WithMemoryBudget(1))
+	compiled, err := c.Compile(`result: {{ {"a": 1, "b": 2} }}`)
+	require.NoError(t, err)
+
+	_, err = c.Evaluate(compiled, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "memory budget exceeded")
 }

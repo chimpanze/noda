@@ -273,14 +273,17 @@ func NewFunctionRegistryWithVars(vars map[string]string) *FunctionRegistry {
 }
 
 // NewCompilerWithVars creates a compiler with built-in functions and $var() bound to the given vars map.
-func NewCompilerWithVars(vars map[string]string) *Compiler {
-	reg := NewFunctionRegistryWithVars(vars)
-	return NewCompiler(WithExprOptions(reg.ExprOptions()...), WithMaxCacheSize(10000))
+// Additional CompilerOption values are applied after the defaults.
+func NewCompilerWithVars(vars map[string]string, opts ...CompilerOption) *Compiler {
+	allOpts := []CompilerOption{WithExprOptions(NewFunctionRegistryWithVars(vars).ExprOptions()...), WithMaxCacheSize(10000)}
+	allOpts = append(allOpts, opts...)
+	return NewCompiler(allOpts...)
 }
 
 // NewCompilerWithFunctions creates a compiler with the built-in function registry.
-func NewCompilerWithFunctions() *Compiler {
-	return NewCompilerWithVars(nil)
+// Additional CompilerOption values are applied after the defaults.
+func NewCompilerWithFunctions(opts ...CompilerOption) *Compiler {
+	return NewCompilerWithVars(nil, opts...)
 }
 
 // coerceToInt converts a value to int. Handles string, float64, int, and json.Number.

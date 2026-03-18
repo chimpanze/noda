@@ -131,7 +131,7 @@ func BenchmarkEvaluate_FlatAccess(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = Evaluate(compiled, ctx)
+		_, _ = c.Evaluate(compiled, ctx)
 	}
 }
 
@@ -142,7 +142,7 @@ func BenchmarkEvaluate_DeepNesting(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = Evaluate(compiled, ctx)
+		_, _ = c.Evaluate(compiled, ctx)
 	}
 }
 
@@ -153,7 +153,7 @@ func BenchmarkEvaluate_Arithmetic(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = Evaluate(compiled, ctx)
+		_, _ = c.Evaluate(compiled, ctx)
 	}
 }
 
@@ -164,7 +164,7 @@ func BenchmarkEvaluate_Interpolated(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = Evaluate(compiled, ctx)
+		_, _ = c.Evaluate(compiled, ctx)
 	}
 }
 

@@ -70,7 +70,8 @@
         "write_timeout": { "type": "string" },
         "body_limit": { "type": "integer", "minimum": 0 },
         "response_timeout": { "type": "string" },
-        "shutdown_deadline": { "type": "string" }
+        "shutdown_deadline": { "type": "string" },
+        "expression_memory_budget": { "type": "integer", "minimum": 0 }
       }
     },
     "global_middleware": {

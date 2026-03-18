@@ -1,12 +1,33 @@
 package registry
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/expr"
 )
+
+// toUint converts a JSON number value to uint. Handles float64 (default JSON
+// unmarshalling), json.Number, and int.
+func toUint(v any) (uint, bool) {
+	switch n := v.(type) {
+	case float64:
+		if n >= 0 {
+			return uint(n), true
+		}
+	case json.Number:
+		if i, err := n.Int64(); err == nil && i >= 0 {
+			return uint(i), true
+		}
+	case int:
+		if n >= 0 {
+			return uint(n), true
+		}
+	}
+	return 0, false
+}
 
 // BootstrapResult holds all registries after startup initialization.
 type BootstrapResult struct {
@@ -63,7 +84,15 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 	slog.Info("services initialized", "count", services.Count())
 
 	// 4. Create shared expression compiler
-	compiler := expr.NewCompilerWithVars(rc.Vars)
+	var compilerOpts []expr.CompilerOption
+	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
+		if budget, ok := serverCfg["expression_memory_budget"]; ok {
+			if n, ok := toUint(budget); ok {
+				compilerOpts = append(compilerOpts, expr.WithMemoryBudget(n))
+			}
+		}
+	}
+	compiler := expr.NewCompilerWithVars(rc.Vars, compilerOpts...)
 
 	// 5. Run startup validation
 	if opt.DryRun {
