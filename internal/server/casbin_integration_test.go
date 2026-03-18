@@ -356,6 +356,73 @@ func TestE2E_Casbin_MultiTenant(t *testing.T) {
 	})
 }
 
+// TestCasbin_DeniedRoute verifies that a request without the required role is rejected with 403.
+func TestCasbin_DeniedRoute(t *testing.T) {
+	secret := "test-denied-secret-at-least-32-bytes!"
+
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"protected": {
+				"method":     "GET",
+				"path":       "/api/protected",
+				"middleware": []any{"auth.jwt", "casbin.enforce"},
+				"trigger": map[string]any{
+					"workflow": "respond-ok",
+					"input":    map[string]any{},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"respond-ok": {
+				"nodes": map[string]any{
+					"respond": map[string]any{
+						"type":   "response.json",
+						"config": map[string]any{"status": "200", "body": map[string]any{"ok": true}},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+		map[string]any{
+			"security": map[string]any{
+				"jwt": map[string]any{"secret": secret},
+				"casbin": map[string]any{
+					"model": e2eRBACModel,
+					"policies": []any{
+						[]any{"p", "admin", "/api/*", "GET"},
+					},
+					"role_links": []any{
+						[]any{"g", "admin-user", "admin"},
+					},
+				},
+			},
+		},
+	)
+
+	t.Run("valid token without required role returns 403", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+makeToken(t, secret, "unprivileged-user", nil))
+		resp, err := srv.App().Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, 403, resp.StatusCode)
+	})
+
+	t.Run("no token returns 401", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/protected", nil)
+		resp, err := srv.App().Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, 401, resp.StatusCode)
+	})
+
+	t.Run("authorized user returns 200", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/protected", nil)
+		req.Header.Set("Authorization", "Bearer "+makeToken(t, secret, "admin-user", nil))
+		resp, err := srv.App().Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+	})
+}
+
 // TestE2E_Casbin_MiddlewarePreset tests using casbin.enforce via middleware presets.
 func TestE2E_Casbin_MiddlewarePreset(t *testing.T) {
 	secret := "test-preset-secret-at-least-32-bytes"
