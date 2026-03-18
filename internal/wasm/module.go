@@ -179,12 +179,12 @@ func (m *Module) Stop(ctx context.Context) error {
 	close(m.stopCh)
 	m.mu.Unlock()
 
-	// Cancel lifecycle context to unblock pending calls
-	m.lifecycleCancel()
-
-	// Call shutdown
+	// Call shutdown with timeout to prevent hung exports from blocking lifecycle
 	data, _ := m.Codec.Marshal(map[string]any{})
-	_, _, err := m.Plugin.Call("shutdown", data)
+	_, _, err := m.callWithTimeout("shutdown", data, wasmCallTimeout)
+
+	// Cancel lifecycle context to unblock pending async calls
+	m.lifecycleCancel()
 
 	// Close gateway connections
 	m.gateway.CloseAll()
