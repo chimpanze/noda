@@ -24,7 +24,10 @@
               "y": { "type": "number" }
             }
           },
-          "config": { "type": "object" }
+          "config": {
+            "type": "object",
+            "description": "Node-specific config. Not validated here — each node type validates its own config via NodeDescriptor.ConfigSchema() at bootstrap time."
+          }
         },
         "required": ["type"]
       }
