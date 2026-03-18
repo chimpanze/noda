@@ -21,9 +21,9 @@ type serverComponent struct {
 	srv *server.Server
 }
 
-func ServerComponent(srv *server.Server) Component       { return &serverComponent{srv: srv} }
-func (c *serverComponent) Name() string                  { return "http-server" }
-func (c *serverComponent) Start(_ context.Context) error { return nil }
+func ServerComponent(srv *server.Server) Component        { return &serverComponent{srv: srv} }
+func (c *serverComponent) Name() string                   { return "http-server" }
+func (c *serverComponent) Start(_ context.Context) error  { return nil }
 func (c *serverComponent) Stop(ctx context.Context) error { return c.srv.Stop(ctx) }
 
 // workerComponent wraps *worker.Runtime.
@@ -31,8 +31,8 @@ type workerComponent struct {
 	rt *worker.Runtime
 }
 
-func WorkerComponent(rt *worker.Runtime) Component        { return &workerComponent{rt: rt} }
-func (c *workerComponent) Name() string                   { return "workers" }
+func WorkerComponent(rt *worker.Runtime) Component         { return &workerComponent{rt: rt} }
+func (c *workerComponent) Name() string                    { return "workers" }
 func (c *workerComponent) Start(ctx context.Context) error { return c.rt.Start(ctx) }
 func (c *workerComponent) Stop(ctx context.Context) error  { return c.rt.Stop(ctx) }
 
@@ -41,9 +41,9 @@ type schedulerComponent struct {
 	rt *scheduler.Runtime
 }
 
-func SchedulerComponent(rt *scheduler.Runtime) Component    { return &schedulerComponent{rt: rt} }
-func (c *schedulerComponent) Name() string                  { return "scheduler" }
-func (c *schedulerComponent) Start(_ context.Context) error { return c.rt.Start() }
+func SchedulerComponent(rt *scheduler.Runtime) Component     { return &schedulerComponent{rt: rt} }
+func (c *schedulerComponent) Name() string                   { return "scheduler" }
+func (c *schedulerComponent) Start(_ context.Context) error  { return c.rt.Start() }
 func (c *schedulerComponent) Stop(ctx context.Context) error { return c.rt.Stop(ctx) }
 
 // wasmComponent wraps *wasm.Runtime.
@@ -51,8 +51,8 @@ type wasmComponent struct {
 	rt *wasm.Runtime
 }
 
-func WasmComponent(rt *wasm.Runtime) Component          { return &wasmComponent{rt: rt} }
-func (c *wasmComponent) Name() string                   { return "wasm" }
+func WasmComponent(rt *wasm.Runtime) Component           { return &wasmComponent{rt: rt} }
+func (c *wasmComponent) Name() string                    { return "wasm" }
 func (c *wasmComponent) Start(ctx context.Context) error { return c.rt.StartAll(ctx) }
 func (c *wasmComponent) Stop(ctx context.Context) error {
 	c.rt.StopAll(ctx)
@@ -64,9 +64,9 @@ type connManagerComponent struct {
 	mg *connmgr.ManagerGroup
 }
 
-func ConnManagerComponent(mg *connmgr.ManagerGroup) Component { return &connManagerComponent{mg: mg} }
-func (c *connManagerComponent) Name() string                  { return "connections" }
-func (c *connManagerComponent) Start(_ context.Context) error { return nil }
+func ConnManagerComponent(mg *connmgr.ManagerGroup) Component  { return &connManagerComponent{mg: mg} }
+func (c *connManagerComponent) Name() string                   { return "connections" }
+func (c *connManagerComponent) Start(_ context.Context) error  { return nil }
 func (c *connManagerComponent) Stop(ctx context.Context) error { return c.mg.Stop(ctx) }
 
 // serviceRegistryComponent wraps *registry.ServiceRegistry.
@@ -91,9 +91,9 @@ type tracerComponent struct {
 	tp *trace.Provider
 }
 
-func TracerComponent(tp *trace.Provider) Component       { return &tracerComponent{tp: tp} }
-func (c *tracerComponent) Name() string                  { return "tracer" }
-func (c *tracerComponent) Start(_ context.Context) error { return nil }
+func TracerComponent(tp *trace.Provider) Component        { return &tracerComponent{tp: tp} }
+func (c *tracerComponent) Name() string                   { return "tracer" }
+func (c *tracerComponent) Start(_ context.Context) error  { return nil }
 func (c *tracerComponent) Stop(ctx context.Context) error { return c.tp.Shutdown(ctx) }
 
 // watcherComponent wraps *devmode.Watcher.
@@ -112,7 +112,7 @@ func WatcherComponent(w *devmode.Watcher, reloader ...*devmode.Reloader) Compone
 	}
 	return &watcherComponent{w: w, reloader: r}
 }
-func (c *watcherComponent) Name() string                  { return "file-watcher" }
+func (c *watcherComponent) Name() string { return "file-watcher" }
 func (c *watcherComponent) Start(_ context.Context) error {
 	c.w.Start()
 	return nil

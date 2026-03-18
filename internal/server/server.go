@@ -17,13 +17,13 @@ import (
 
 // Server wraps the Fiber app and Noda runtime dependencies.
 type Server struct {
-	app          *fiber.App
-	config       *config.ResolvedConfig
-	compiler     *expr.Compiler
-	services     *registry.ServiceRegistry
-	nodes        *registry.NodeRegistry
-	workflows    *engine.WorkflowCache
-	traceHub     *trace.EventHub
+	app            *fiber.App
+	config         *config.ResolvedConfig
+	compiler       *expr.Compiler
+	services       *registry.ServiceRegistry
+	nodes          *registry.NodeRegistry
+	workflows      *engine.WorkflowCache
+	traceHub       *trace.EventHub
 	devMode        bool
 	connManagers   *connmgr.ManagerGroup
 	port           int

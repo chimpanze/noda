@@ -97,14 +97,14 @@ func TestApplyGrants_WrongTypes(t *testing.T) {
 
 func TestRoomToMap(t *testing.T) {
 	room := &lkproto.Room{
-		Sid:              "RM_abc",
-		Name:             "test-room",
-		EmptyTimeout:     300,
-		MaxParticipants:  50,
-		Metadata:         `{"key":"val"}`,
-		NumParticipants:  5,
-		CreationTime:     1234567890,
-		ActiveRecording:  true,
+		Sid:             "RM_abc",
+		Name:            "test-room",
+		EmptyTimeout:    300,
+		MaxParticipants: 50,
+		Metadata:        `{"key":"val"}`,
+		NumParticipants: 5,
+		CreationTime:    1234567890,
+		ActiveRecording: true,
 	}
 	m := roomToMap(room)
 

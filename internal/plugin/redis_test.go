@@ -16,7 +16,7 @@ func TestNewRedisClient_Success(t *testing.T) {
 	client, err := NewRedisClient(config, "test")
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 }
 
 func TestNewRedisClient_MissingURL(t *testing.T) {
@@ -57,7 +57,7 @@ func TestNewRedisClient_WithPoolSize(t *testing.T) {
 	client, err := NewRedisClient(config, "test")
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	assert.Equal(t, 20, client.Options().PoolSize)
 }
 
@@ -70,7 +70,7 @@ func TestNewRedisClient_WithMinIdle(t *testing.T) {
 	client, err := NewRedisClient(config, "test")
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	assert.Equal(t, 5, client.Options().MinIdleConns)
 }
 
@@ -84,7 +84,7 @@ func TestNewRedisClient_WithAllOptions(t *testing.T) {
 	client, err := NewRedisClient(config, "test")
 	require.NoError(t, err)
 	require.NotNil(t, client)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	assert.Equal(t, 15, client.Options().PoolSize)
 	assert.Equal(t, 3, client.Options().MinIdleConns)
 }

@@ -39,7 +39,7 @@ func TestWatcher_DetectsFileChange(t *testing.T) {
 
 	require.NoError(t, w.WatchDir(dir))
 	w.Start()
-	defer w.Stop(context.Background())
+	defer func() { _ = w.Stop(context.Background()) }()
 
 	// Write a JSON file
 	testFile := filepath.Join(dir, "test.json")
@@ -66,7 +66,7 @@ func TestWatcher_IgnoresNonJSON(t *testing.T) {
 
 	require.NoError(t, w.WatchDir(dir))
 	w.Start()
-	defer w.Stop(context.Background())
+	defer func() { _ = w.Stop(context.Background()) }()
 
 	// Write a non-JSON file
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "readme.md"), []byte("# Hello"), 0644))
@@ -87,7 +87,7 @@ func TestWatcher_Debounce(t *testing.T) {
 
 	require.NoError(t, w.WatchDir(dir))
 	w.Start()
-	defer w.Stop(context.Background())
+	defer func() { _ = w.Stop(context.Background()) }()
 
 	testFile := filepath.Join(dir, "test.json")
 
@@ -115,7 +115,7 @@ func TestWatcher_SubdirectoryWatch(t *testing.T) {
 
 	require.NoError(t, w.WatchDir(dir))
 	w.Start()
-	defer w.Stop(context.Background())
+	defer func() { _ = w.Stop(context.Background()) }()
 
 	// Write in subdirectory
 	require.NoError(t, os.WriteFile(filepath.Join(subDir, "flow.json"), []byte(`{}`), 0644))

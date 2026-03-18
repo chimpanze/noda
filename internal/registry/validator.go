@@ -15,9 +15,9 @@ var staticFieldsByNodeType = map[string][]string{
 	"event.emit":      {"mode"},
 	"control.switch":  {"cases"},
 	"workflow.run":    {"workflow", "transaction"},
-	"control.loop":   {"workflow"},
+	"control.loop":    {"workflow"},
 	"workflow.output": {"name"},
-	"http.request":   {"method"},
+	"http.request":    {"method"},
 	"transform.merge": {"mode", "type"},
 }
 

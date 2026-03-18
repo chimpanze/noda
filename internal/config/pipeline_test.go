@@ -186,4 +186,3 @@ func TestValidateAll_EnvVarsResolved(t *testing.T) {
 	cfg := db["config"].(map[string]any)
 	assert.Equal(t, "postgres://resolved/test", cfg["url"])
 }
-

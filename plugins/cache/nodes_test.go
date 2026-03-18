@@ -369,10 +369,10 @@ func TestResolveInt_Variants(t *testing.T) {
 
 func TestDescriptors(t *testing.T) {
 	descriptors := []struct {
-		name        string
-		d           api.NodeDescriptor
-		factory     func(map[string]any) api.NodeExecutor
-		outputs     []string
+		name    string
+		d       api.NodeDescriptor
+		factory func(map[string]any) api.NodeExecutor
+		outputs []string
 	}{
 		{"get", &getDescriptor{}, newGetExecutor, api.DefaultOutputs()},
 		{"set", &setDescriptor{}, newSetExecutor, api.DefaultOutputs()},
@@ -406,7 +406,7 @@ func TestService_Client(t *testing.T) {
 func TestService_Get_NonJSONString(t *testing.T) {
 	svc, mr := newTestService(t)
 	// Set a raw non-JSON string directly in miniredis
-	mr.Set("raw-key", "not-json-{broken")
+	_ = mr.Set("raw-key", "not-json-{broken")
 
 	val, err := svc.Get(context.Background(), "raw-key")
 	require.NoError(t, err)

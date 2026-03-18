@@ -54,14 +54,14 @@ func TestParseShutdownDeadline_MissingServerBlock(t *testing.T) {
 
 func TestParseWasmModuleConfig_FullConfig(t *testing.T) {
 	raw := map[string]any{
-		"module":    "/path/to/module.wasm",
-		"tick_rate": float64(60),
-		"encoding":  "msgpack",
-		"services":  []any{"cache-main", "db-main"},
-		"connections": []any{"ws-endpoint"},
-		"config":    map[string]any{"key": "value"},
-		"memory_pages": float64(256),
-		"tick_timeout": "5s",
+		"module":            "/path/to/module.wasm",
+		"tick_rate":         float64(60),
+		"encoding":          "msgpack",
+		"services":          []any{"cache-main", "db-main"},
+		"connections":       []any{"ws-endpoint"},
+		"config":            map[string]any{"key": "value"},
+		"memory_pages":      float64(256),
+		"tick_timeout":      "5s",
 		"allowed_workflows": []any{"wf-a", "wf-b"},
 		"allow_outbound": map[string]any{
 			"http": []any{"api.example.com"},

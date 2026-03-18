@@ -3362,7 +3362,7 @@ func TestEditorAPI_ListEnvVars(t *testing.T) {
 func TestEditorAPI_ListVars(t *testing.T) {
 	// Create a minimal config directory with noda.json so Discover succeeds
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "noda.json"), []byte(`{"port": 8080}`), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "noda.json"), []byte(`{"port": 8080}`), 0o644)
 
 	app := fiber.New()
 	nodeReg := buildTestNodeRegistry()
