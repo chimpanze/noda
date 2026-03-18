@@ -4,20 +4,13 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // --- Pure helper tests ---
-
-func TestRelPath_Empty(t *testing.T) {
-	assert.Equal(t, "", relPath("/base", ""))
-}
-
-func TestRelPath_Nested(t *testing.T) {
-	assert.Equal(t, "sub/file.json", relPath("/base", "/base/sub/file.json"))
-}
 
 func TestNormalizeRoutes_SingleRoute(t *testing.T) {
 	data := map[string]any{"method": "GET", "path": "/test"}
@@ -137,25 +130,27 @@ func TestFindEnvRefs_NonStringType(t *testing.T) {
 // --- Editor API constructor tests ---
 
 func TestNewEditorAPI_Constructor(t *testing.T) {
-	dir := t.TempDir()
+	root, err := pathutil.NewRoot(t.TempDir())
+	require.NoError(t, err)
 	plugins := registry.NewPluginRegistry()
 	nodes := registry.NewNodeRegistry()
 	services := registry.NewServiceRegistry()
 	compiler := expr.NewCompiler()
 
-	api := NewEditorAPI(dir, "", nil, plugins, nodes, services, compiler)
+	api := NewEditorAPI(root, "", nil, plugins, nodes, services, compiler)
 	require.NotNil(t, api)
-	assert.NotEmpty(t, api.configDir)
+	assert.NotEmpty(t, api.root.String())
 }
 
 func TestNewEditorAPIReadOnly_Constructor(t *testing.T) {
-	dir := t.TempDir()
+	root, err := pathutil.NewRoot(t.TempDir())
+	require.NoError(t, err)
 	plugins := registry.NewPluginRegistry()
 	nodes := registry.NewNodeRegistry()
 	services := registry.NewServiceRegistry()
 	compiler := expr.NewCompiler()
 
-	api := NewEditorAPIReadOnly(dir, "", nil, plugins, nodes, services, compiler)
+	api := NewEditorAPIReadOnly(root, "", nil, plugins, nodes, services, compiler)
 	require.NotNil(t, api)
 	assert.Nil(t, api.reloader)
 }

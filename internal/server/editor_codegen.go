@@ -29,25 +29,19 @@ func (e *EditorAPI) runTests(c fiber.Ctx) error {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
 	}
 
-	// Find the test data by matching the path against rc.Tests keys
-	absPath := filepath.Join(e.configDir, filepath.Clean(req.Path))
-	var testData map[string]any
-	var testFilePath string
-	for p, data := range rc.Tests {
-		if p == absPath || p == req.Path {
-			testData = data
-			testFilePath = p
-			break
-		}
+	// Resolve the test path and look it up by absolute key
+	absPath, err := e.root.Resolve(req.Path)
+	if err != nil {
+		return c.Status(403).JSON(map[string]any{"error": "path outside config directory"})
 	}
-
-	if testData == nil {
+	testData, ok := rc.Tests[absPath]
+	if !ok {
 		return c.Status(404).JSON(map[string]any{"error": fmt.Sprintf("test file %q not found", req.Path)})
 	}
 
 	// Load the single test suite
 	suites, err := nodatesting.LoadTests(&config.ResolvedConfig{
-		Tests:     map[string]map[string]any{testFilePath: testData},
+		Tests:     map[string]map[string]any{absPath: testData},
 		Workflows: rc.Workflows,
 	})
 	if err != nil {
@@ -94,7 +88,7 @@ func (e *EditorAPI) listModels(c fiber.Ctx) error {
 	models := make([]map[string]any, 0, len(rc.Models))
 	for path, model := range rc.Models {
 		models = append(models, map[string]any{
-			"path":  relPath(e.configDir, path),
+			"path":  e.root.Rel(path),
 			"model": model,
 		})
 	}
@@ -113,8 +107,8 @@ func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
 	}
 	_ = c.Bind().JSON(&req)
 
-	modelsDir := filepath.Join(e.configDir, "models")
-	migrationsDir := filepath.Join(e.configDir, "migrations")
+	modelsDir := e.root.Join("models")
+	migrationsDir := e.root.Join("migrations")
 
 	upSQL, downSQL, err := generate.GenerateMigration(modelsDir, migrationsDir)
 	if err != nil {
@@ -169,8 +163,8 @@ func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
 		"status":    "created",
 		"up":        upSQL,
 		"down":      downSQL,
-		"up_path":   relPath(e.configDir, upPath),
-		"down_path": relPath(e.configDir, downPath),
+		"up_path":   e.root.Rel(upPath),
+		"down_path": e.root.Rel(downPath),
 	})
 }
 
@@ -191,8 +185,8 @@ func (e *EditorAPI) generateCRUD(c fiber.Ctx) error {
 	}
 
 	// Load the model
-	modelPath := filepath.Join(e.configDir, filepath.Clean(req.Model))
-	if !strings.HasPrefix(modelPath, e.configDir) {
+	modelPath, err := e.root.Resolve(req.Model)
+	if err != nil {
 		return c.Status(403).JSON(map[string]any{"error": "path outside config directory"})
 	}
 
@@ -223,8 +217,8 @@ func (e *EditorAPI) generateCRUD(c fiber.Ctx) error {
 
 	// Write all files
 	for relFilePath, content := range result.Files {
-		absPath := filepath.Join(e.configDir, filepath.Clean(relFilePath))
-		if !strings.HasPrefix(absPath, e.configDir) {
+		absPath, err := e.root.Resolve(relFilePath)
+		if err != nil {
 			return c.Status(400).JSON(map[string]any{"error": "generated path outside config directory"})
 		}
 		if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {

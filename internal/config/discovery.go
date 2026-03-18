@@ -25,6 +25,12 @@ type DiscoveredFiles struct {
 // Discover scans rootPath for config files and categorizes them by convention.
 // The env parameter determines which overlay file to look for (e.g., "development" → noda.development.json).
 func Discover(rootPath string, env string) (*DiscoveredFiles, error) {
+	var err error
+	rootPath, err = filepath.Abs(rootPath)
+	if err != nil {
+		return nil, fmt.Errorf("cannot resolve config directory: %w", err)
+	}
+
 	rootFile := filepath.Join(rootPath, "noda.json")
 	if _, err := os.Stat(rootFile); os.IsNotExist(err) {
 		return nil, fmt.Errorf("missing required config file: %s", rootFile)

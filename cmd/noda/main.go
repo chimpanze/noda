@@ -20,6 +20,7 @@ import (
 	"github.com/chimpanze/noda/internal/lifecycle"
 	nodamcp "github.com/chimpanze/noda/internal/mcp"
 	"github.com/chimpanze/noda/internal/migrate"
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/server"
@@ -338,7 +339,11 @@ func newStartCmd() *cobra.Command {
 
 				// Serve embedded editor UI and read-only API (production mode)
 				srv.RegisterEditorUI()
-				editorAPI := server.NewEditorAPIReadOnly(configDir, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
+				root, err := pathutil.NewRoot(configDir)
+				if err != nil {
+					return fmt.Errorf("resolving config directory: %w", err)
+				}
+				editorAPI := server.NewEditorAPIReadOnly(root, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
 				editorAPI.Register(srv.App())
 			}
 
@@ -613,7 +618,11 @@ func newDevCmd() *cobra.Command {
 			})
 
 			// Register editor API endpoints (dev mode only)
-			editorAPI := server.NewEditorAPI(configDir, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
+			root, err := pathutil.NewRoot(configDir)
+			if err != nil {
+				return fmt.Errorf("resolving config directory: %w", err)
+			}
+			editorAPI := server.NewEditorAPI(root, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
 			editorAPI.Register(srv.App())
 
 			// Serve editor static files: prefer local dist (for live dev),

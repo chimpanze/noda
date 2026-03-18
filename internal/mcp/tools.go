@@ -13,6 +13,7 @@ import (
 	"github.com/chimpanze/noda/internal/config"
 	configschemas "github.com/chimpanze/noda/internal/config/schemas"
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -690,7 +691,7 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError("config_dir is required"), nil
 	}
 
-	if !isAbsPath(configDir) {
+	if !filepath.IsAbs(configDir) {
 		return mcp.NewToolResultError("config_dir must be an absolute path"), nil
 	}
 
@@ -726,7 +727,7 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError("path is required"), nil
 	}
 
-	if !isAbsPath(path) {
+	if !filepath.IsAbs(path) {
 		return mcp.NewToolResultError("path must be an absolute path"), nil
 	}
 
@@ -792,23 +793,18 @@ func readProjectFileHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError("path is required"), nil
 	}
 
-	if !isAbsPath(configDir) {
+	if !filepath.IsAbs(configDir) {
 		return mcp.NewToolResultError("config_dir must be an absolute path"), nil
 	}
 
-	// Prevent path traversal
-	cleaned := filepath.Clean(relPath)
-	if strings.HasPrefix(cleaned, "..") || filepath.IsAbs(cleaned) {
-		return mcp.NewToolResultError("path must be a relative path within the project"), nil
+	root, err := pathutil.NewRoot(configDir)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid config_dir: %v", err)), nil
 	}
 
-	fullPath := filepath.Join(configDir, cleaned)
-
-	// Verify the resolved path is still within configDir
-	absConfigDir, _ := filepath.Abs(configDir)
-	absFullPath, _ := filepath.Abs(fullPath)
-	if !strings.HasPrefix(absFullPath, absConfigDir+string(filepath.Separator)) {
-		return mcp.NewToolResultError("path must be within the project directory"), nil
+	fullPath, err := root.Resolve(relPath)
+	if err != nil {
+		return mcp.NewToolResultError("path must be a relative path within the project"), nil
 	}
 
 	data, err := os.ReadFile(fullPath)
@@ -838,31 +834,36 @@ func listProjectFilesHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp
 		return mcp.NewToolResultError("config_dir is required"), nil
 	}
 
-	if !isAbsPath(configDir) {
+	if !filepath.IsAbs(configDir) {
 		return mcp.NewToolResultError("config_dir must be an absolute path"), nil
 	}
 
-	discovered, err := config.Discover(configDir, "")
+	root, err := pathutil.NewRoot(configDir)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("invalid config_dir: %v", err)), nil
+	}
+
+	discovered, err := config.Discover(root.String(), "")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to discover config files: %v", err)), nil
 	}
 
 	result := map[string]any{
-		"root": relativeToDir(configDir, discovered.Root),
+		"root": root.Rel(discovered.Root),
 	}
 
 	if discovered.Overlay != "" {
-		result["overlay"] = relativeToDir(configDir, discovered.Overlay)
+		result["overlay"] = root.Rel(discovered.Overlay)
 	}
 	if discovered.Vars != "" {
-		result["vars"] = relativeToDir(configDir, discovered.Vars)
+		result["vars"] = root.Rel(discovered.Vars)
 	}
 
 	addRelPaths := func(key string, paths []string) {
 		if len(paths) > 0 {
 			rel := make([]string, len(paths))
 			for i, p := range paths {
-				rel[i] = relativeToDir(configDir, p)
+				rel[i] = root.Rel(p)
 			}
 			result[key] = rel
 		}
@@ -888,18 +889,6 @@ func jsonResult(v any) (*mcp.CallToolResult, error) {
 		return mcp.NewToolResultError(fmt.Sprintf("failed to marshal result: %v", err)), nil
 	}
 	return mcp.NewToolResultText(string(data)), nil
-}
-
-func isAbsPath(p string) bool {
-	return filepath.IsAbs(p)
-}
-
-func relativeToDir(base, path string) string {
-	rel, err := filepath.Rel(base, path)
-	if err != nil {
-		return path
-	}
-	return rel
 }
 
 func sortedKeys(m map[string]string) []string {

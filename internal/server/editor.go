@@ -1,11 +1,10 @@
 package server
 
 import (
-	"path/filepath"
-
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/devmode"
 	nodaexpr "github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/gofiber/fiber/v3"
 )
@@ -14,62 +13,56 @@ import (
 // In dev mode all endpoints are available (including write/delete).
 // In production mode only read-only endpoints are registered.
 type EditorAPI struct {
-	configDir string
-	envFlag   string
-	reloader  *devmode.Reloader // nil in production mode
-	rc        *config.ResolvedConfig
-	plugins   *registry.PluginRegistry
-	nodes     *registry.NodeRegistry
-	services  *registry.ServiceRegistry
-	compiler  *nodaexpr.Compiler
+	root     pathutil.Root
+	envFlag  string
+	reloader *devmode.Reloader // nil in production mode
+	rc       *config.ResolvedConfig
+	plugins  *registry.PluginRegistry
+	nodes    *registry.NodeRegistry
+	services *registry.ServiceRegistry
+	compiler *nodaexpr.Compiler
 }
 
 // NewEditorAPI creates the editor API handler for dev mode (all endpoints).
 func NewEditorAPI(
-	configDir, envFlag string,
+	root pathutil.Root,
+	envFlag string,
 	reloader *devmode.Reloader,
 	plugins *registry.PluginRegistry,
 	nodes *registry.NodeRegistry,
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
 ) *EditorAPI {
-	absDir, err := filepath.Abs(configDir)
-	if err != nil {
-		absDir = configDir
-	}
 	return &EditorAPI{
-		configDir: absDir,
-		envFlag:   envFlag,
-		reloader:  reloader,
-		plugins:   plugins,
-		nodes:     nodes,
-		services:  services,
-		compiler:  compiler,
+		root:     root,
+		envFlag:  envFlag,
+		reloader: reloader,
+		plugins:  plugins,
+		nodes:    nodes,
+		services: services,
+		compiler: compiler,
 	}
 }
 
 // NewEditorAPIReadOnly creates the editor API handler for production mode.
 // Write and delete endpoints are not registered.
 func NewEditorAPIReadOnly(
-	configDir, envFlag string,
+	root pathutil.Root,
+	envFlag string,
 	rc *config.ResolvedConfig,
 	plugins *registry.PluginRegistry,
 	nodes *registry.NodeRegistry,
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
 ) *EditorAPI {
-	absDir, err := filepath.Abs(configDir)
-	if err != nil {
-		absDir = configDir
-	}
 	return &EditorAPI{
-		configDir: absDir,
-		envFlag:   envFlag,
-		rc:        rc,
-		plugins:   plugins,
-		nodes:     nodes,
-		services:  services,
-		compiler:  compiler,
+		root:     root,
+		envFlag:  envFlag,
+		rc:       rc,
+		plugins:  plugins,
+		nodes:    nodes,
+		services: services,
+		compiler: compiler,
 	}
 }
 
@@ -129,16 +122,4 @@ func (e *EditorAPI) resolvedConfig() *config.ResolvedConfig {
 		return e.reloader.Config()
 	}
 	return e.rc
-}
-
-// relPath returns a relative path from base, or the original if Rel fails.
-func relPath(base, path string) string {
-	if path == "" {
-		return ""
-	}
-	r, err := filepath.Rel(base, path)
-	if err != nil {
-		return path
-	}
-	return r
 }

@@ -1,8 +1,6 @@
 package server
 
 import (
-	"path/filepath"
-
 	"github.com/chimpanze/noda/internal/config"
 	nodaexpr "github.com/chimpanze/noda/internal/expr"
 	"github.com/gofiber/fiber/v3"
@@ -19,13 +17,13 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 	}
 
 	// Run full validation to catch cross-references
-	_, errs := config.ValidateAll(e.configDir, e.envFlag)
+	_, errs := config.ValidateAll(e.root.String(), e.envFlag)
 
 	// Filter errors for the requested file
 	var filtered []map[string]any
-	absPath := filepath.Join(e.configDir, filepath.Clean(req.Path))
+	absPath, _ := e.root.Resolve(req.Path)
 	for _, ve := range errs {
-		if ve.FilePath == absPath || ve.FilePath == req.Path {
+		if ve.FilePath == absPath {
 			filtered = append(filtered, map[string]any{
 				"file":    ve.FilePath,
 				"path":    ve.JSONPath,
@@ -42,12 +40,12 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 
 // validateAll runs the full validation pipeline and returns all errors.
 func (e *EditorAPI) validateAll(c fiber.Ctx) error {
-	_, errs := config.ValidateAll(e.configDir, e.envFlag)
+	_, errs := config.ValidateAll(e.root.String(), e.envFlag)
 
 	var errors []map[string]any
 	for _, ve := range errs {
 		errors = append(errors, map[string]any{
-			"file":    relPath(e.configDir, ve.FilePath),
+			"file":    e.root.Rel(ve.FilePath),
 			"path":    ve.JSONPath,
 			"message": ve.Message,
 		})

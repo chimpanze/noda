@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/gofiber/fiber/v3"
@@ -14,7 +13,7 @@ import (
 
 // listFiles returns all config files grouped by category.
 func (e *EditorAPI) listFiles(c fiber.Ctx) error {
-	discovered, err := config.Discover(e.configDir, e.envFlag)
+	discovered, err := config.Discover(e.root.String(), e.envFlag)
 	if err != nil {
 		return c.Status(500).JSON(map[string]any{"error": err.Error()})
 	}
@@ -22,17 +21,16 @@ func (e *EditorAPI) listFiles(c fiber.Ctx) error {
 	rel := func(paths []string) []string {
 		result := make([]string, 0, len(paths))
 		for _, p := range paths {
-			r, _ := filepath.Rel(e.configDir, p)
-			result = append(result, r)
+			result = append(result, e.root.Rel(p))
 		}
 		sort.Strings(result)
 		return result
 	}
 
 	return c.JSON(map[string]any{
-		"root":        relPath(e.configDir, discovered.Root),
-		"overlay":     relPath(e.configDir, discovered.Overlay),
-		"vars":        relPath(e.configDir, discovered.Vars),
+		"root":        e.root.Rel(discovered.Root),
+		"overlay":     e.root.Rel(discovered.Overlay),
+		"vars":        e.root.Rel(discovered.Vars),
 		"schemas":     rel(discovered.Schemas),
 		"routes":      rel(discovered.Routes),
 		"workflows":   rel(discovered.Workflows),
@@ -50,10 +48,9 @@ func (e *EditorAPI) readFile(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid path"})
 	}
-	absPath := filepath.Join(e.configDir, filepath.Clean(relPath))
 
-	// Security: ensure path is within config dir
-	if !strings.HasPrefix(absPath, e.configDir) {
+	absPath, err := e.root.Resolve(relPath)
+	if err != nil {
 		return c.Status(403).JSON(map[string]any{"error": "path outside config directory"})
 	}
 
@@ -76,9 +73,9 @@ func (e *EditorAPI) writeFile(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid path"})
 	}
-	absPath := filepath.Join(e.configDir, filepath.Clean(relFilePath))
 
-	if !strings.HasPrefix(absPath, e.configDir) {
+	absPath, err := e.root.Resolve(relFilePath)
+	if err != nil {
 		return c.Status(403).JSON(map[string]any{"error": "path outside config directory"})
 	}
 
@@ -120,9 +117,9 @@ func (e *EditorAPI) deleteFile(c fiber.Ctx) error {
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid path"})
 	}
-	absPath := filepath.Join(e.configDir, filepath.Clean(relFilePath))
 
-	if !strings.HasPrefix(absPath, e.configDir) {
+	absPath, err := e.root.Resolve(relFilePath)
+	if err != nil {
 		return c.Status(403).JSON(map[string]any{"error": "path outside config directory"})
 	}
 

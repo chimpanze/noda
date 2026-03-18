@@ -164,7 +164,7 @@ func (e *EditorAPI) listSchemas(c fiber.Ctx) error {
 	schemas := make([]map[string]any, 0, len(rc.Schemas))
 	for path, schema := range rc.Schemas {
 		schemas = append(schemas, map[string]any{
-			"path":   relPath(e.configDir, path),
+			"path":   e.root.Rel(path),
 			"schema": schema,
 		})
 	}
@@ -307,13 +307,13 @@ func (e *EditorAPI) listEnvVars(c fiber.Ctx) error {
 		"root": rc.Root,
 	}
 	for path, route := range rc.Routes {
-		configSources[relPath(e.configDir, path)] = route
+		configSources[e.root.Rel(path)] = route
 	}
 	for path, wf := range rc.Workflows {
-		configSources[relPath(e.configDir, path)] = wf
+		configSources[e.root.Rel(path)] = wf
 	}
 	for path, worker := range rc.Workers {
-		configSources[relPath(e.configDir, path)] = worker
+		configSources[e.root.Rel(path)] = worker
 	}
 
 	for source, data := range configSources {
@@ -361,7 +361,7 @@ func (e *EditorAPI) listVars(c fiber.Ctx) error {
 	}
 
 	// Load raw vars from discovered files (pre-resolution values)
-	discovered, err := config.Discover(e.configDir, e.envFlag)
+	discovered, err := config.Discover(e.root.String(), e.envFlag)
 	if err != nil {
 		return c.Status(500).JSON(map[string]any{"error": err.Error()})
 	}
@@ -380,19 +380,19 @@ func (e *EditorAPI) listVars(c fiber.Ctx) error {
 
 	configSources := make(map[string]any)
 	for path, route := range rc.Routes {
-		configSources[relPath(e.configDir, path)] = route
+		configSources[e.root.Rel(path)] = route
 	}
 	for path, wf := range rc.Workflows {
-		configSources[relPath(e.configDir, path)] = wf
+		configSources[e.root.Rel(path)] = wf
 	}
 	for path, worker := range rc.Workers {
-		configSources[relPath(e.configDir, path)] = worker
+		configSources[e.root.Rel(path)] = worker
 	}
 	for path, sched := range rc.Schedules {
-		configSources[relPath(e.configDir, path)] = sched
+		configSources[e.root.Rel(path)] = sched
 	}
 	for path, conn := range rc.Connections {
-		configSources[relPath(e.configDir, path)] = conn
+		configSources[e.root.Rel(path)] = conn
 	}
 
 	for source, data := range configSources {
