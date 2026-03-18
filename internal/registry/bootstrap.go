@@ -95,7 +95,13 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 			compilerOpts = append(compilerOpts, expr.WithStrictMode(strict))
 		}
 	}
-	compiler := expr.NewCompilerWithVars(rc.Vars, compilerOpts...)
+	funcRegistry := expr.NewFunctionRegistryWithVars(rc.Vars)
+	slog.Info("registered expression functions", "functions", funcRegistry.RegisteredNames())
+	compilerOpts = append([]expr.CompilerOption{
+		expr.WithExprOptions(funcRegistry.ExprOptions()...),
+		expr.WithMaxCacheSize(10000),
+	}, compilerOpts...)
+	compiler := expr.NewCompiler(compilerOpts...)
 
 	// 5. Run startup validation
 	if opt.DryRun {
