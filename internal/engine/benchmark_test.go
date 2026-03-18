@@ -391,6 +391,37 @@ func BenchmarkExecContext_SetOutput_Concurrent(b *testing.B) {
 // Ensure noopExecutor satisfies the interface.
 var _ api.NodeExecutor = &noopExecutor{}
 
+func BenchmarkExecute_LargePayload(b *testing.B) {
+	// Build a ~10MB input payload with many keys.
+	const numKeys = 10000
+	payload := make(map[string]any, numKeys)
+	// Each value is ~1KB string to reach ~10MB total.
+	value := string(make([]byte, 1024))
+	for i := 0; i < numKeys; i++ {
+		payload[fmt.Sprintf("field_%d", i)] = value
+	}
+
+	wf := makeLinearWorkflow(3)
+	resolver := &benchOutputResolver{}
+	graph, err := Compile(wf, resolver)
+	if err != nil {
+		b.Fatal(err)
+	}
+	nodeReg, svcReg := setupBenchRegistry(b, nodeTypesForLinear(3))
+	ctx := context.Background()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for b.Loop() {
+		execCtx := NewExecutionContext(
+			WithWorkflowID("linear"),
+			WithLogger(discardLogger),
+			WithInput(payload),
+		)
+		_ = ExecuteGraph(ctx, graph, execCtx, svcReg, nodeReg)
+	}
+}
+
 func BenchmarkResolve(b *testing.B) {
 	compiler := expr.NewCompilerWithFunctions()
 	ctx := NewExecutionContext(
