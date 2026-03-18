@@ -688,7 +688,7 @@ func newDevCmd() *cobra.Command {
 			if wasmRuntime != nil {
 				lc.Register(lifecycle.WasmComponent(wasmRuntime))
 			}
-			lc.Register(lifecycle.WatcherComponent(watcher))
+			lc.Register(lifecycle.WatcherComponent(watcher, reloader))
 			lc.Register(lifecycle.ConnManagerComponent(srv.ConnManagers()))
 			lc.Register(lifecycle.ServiceRegistryComponent(bootstrap.Services))
 			if traceProvider != nil {

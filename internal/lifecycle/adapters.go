@@ -98,15 +98,28 @@ func (c *tracerComponent) Stop(ctx context.Context) error { return c.tp.Shutdown
 
 // watcherComponent wraps *devmode.Watcher.
 type watcherComponent struct {
-	w *devmode.Watcher
+	w        *devmode.Watcher
+	reloader *devmode.Reloader
 }
 
-func WatcherComponent(w *devmode.Watcher) Component      { return &watcherComponent{w: w} }
+// WatcherComponent creates a lifecycle component for the file watcher.
+// If a reloader is provided, it is marked as shutting down before the watcher stops,
+// preventing reload callbacks from firing during shutdown.
+func WatcherComponent(w *devmode.Watcher, reloader ...*devmode.Reloader) Component {
+	var r *devmode.Reloader
+	if len(reloader) > 0 {
+		r = reloader[0]
+	}
+	return &watcherComponent{w: w, reloader: r}
+}
 func (c *watcherComponent) Name() string                  { return "file-watcher" }
 func (c *watcherComponent) Start(_ context.Context) error {
 	c.w.Start()
 	return nil
 }
 func (c *watcherComponent) Stop(ctx context.Context) error {
+	if c.reloader != nil {
+		c.reloader.SetShuttingDown()
+	}
 	return c.w.Stop(ctx)
 }

@@ -3,6 +3,7 @@ package devmode
 import (
 	"log/slog"
 	"sync"
+	"sync/atomic"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/trace"
@@ -10,10 +11,11 @@ import (
 
 // Reloader handles hot-reloading of config when files change.
 type Reloader struct {
-	configDir string
-	envFlag   string
-	logger    *slog.Logger
-	hub       *trace.EventHub
+	configDir    string
+	envFlag      string
+	logger       *slog.Logger
+	hub          *trace.EventHub
+	shuttingDown atomic.Bool
 
 	mu     sync.RWMutex
 	config *config.ResolvedConfig
@@ -47,7 +49,16 @@ func (r *Reloader) Config() *config.ResolvedConfig {
 // HandleChange processes a file change event. It re-validates the full config.
 // On success, it swaps the config atomically and calls the reload callback.
 // On failure, it keeps the old config and emits an error event via the trace hub.
+// SetShuttingDown marks the reloader as shutting down, preventing further
+// reload callbacks from firing.
+func (r *Reloader) SetShuttingDown() {
+	r.shuttingDown.Store(true)
+}
+
 func (r *Reloader) HandleChange(path string) {
+	if r.shuttingDown.Load() {
+		return
+	}
 	r.logger.Info("reloading config", "trigger", path)
 
 	sm, smErr := config.NewSecretsManager(r.configDir, r.envFlag)
