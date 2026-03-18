@@ -403,11 +403,19 @@ func newStartCmd() *cobra.Command {
 				if len(wasmRuntimes) > 0 {
 					workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler, secretsCtx)
 					wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
+					wasmRoot, err := pathutil.NewRoot(configDir)
+					if err != nil {
+						return fmt.Errorf("resolving config directory for wasm: %w", err)
+					}
 					for name, raw := range wasmRuntimes {
 						cfg := parseWasmModuleConfig(name, raw)
-						// Resolve module path relative to config directory
+						// Resolve module path relative to config directory with containment check
 						if cfg.ModulePath != "" && !filepath.IsAbs(cfg.ModulePath) {
-							cfg.ModulePath = filepath.Join(configDir, cfg.ModulePath)
+							resolved, err := wasmRoot.Resolve(cfg.ModulePath)
+							if err != nil {
+								return fmt.Errorf("wasm module %q: path outside config directory: %w", name, err)
+							}
+							cfg.ModulePath = resolved
 						}
 						if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
 							return fmt.Errorf("loading wasm module %q: %w", name, err)
@@ -599,10 +607,18 @@ func newDevCmd() *cobra.Command {
 			if len(wasmRuntimes) > 0 {
 				workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler, secretsCtx)
 				wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
+				wasmRoot, err := pathutil.NewRoot(configDir)
+				if err != nil {
+					return fmt.Errorf("resolving config directory for wasm: %w", err)
+				}
 				for name, raw := range wasmRuntimes {
 					cfg := parseWasmModuleConfig(name, raw)
 					if cfg.ModulePath != "" && !filepath.IsAbs(cfg.ModulePath) {
-						cfg.ModulePath = filepath.Join(configDir, cfg.ModulePath)
+						resolved, err := wasmRoot.Resolve(cfg.ModulePath)
+						if err != nil {
+							return fmt.Errorf("wasm module %q: path outside config directory: %w", name, err)
+						}
+						cfg.ModulePath = resolved
 					}
 					if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
 						return fmt.Errorf("loading wasm module %q: %w", name, err)
