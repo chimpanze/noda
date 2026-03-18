@@ -335,6 +335,40 @@ func TestPlugin_CreateService_DefaultBackend(t *testing.T) {
 	assert.Contains(t, err.Error(), "path")
 }
 
+func TestService_PathTraversal_DotDot_Local(t *testing.T) {
+	dir := t.TempDir()
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"backend": "local", "path": dir})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	ctx := context.Background()
+
+	// Attempt to read outside the storage root via path traversal.
+	// afero.BasePathFs prevents escaping the configured directory.
+	_, err = svc.Read(ctx, "../../etc/passwd")
+	require.Error(t, err)
+
+	// Attempt to write outside the storage root.
+	err = svc.Write(ctx, "../../tmp/evil.txt", []byte("pwned"))
+	require.Error(t, err)
+}
+
+func TestService_PathTraversal_DotDot_Memory(t *testing.T) {
+	svc := newMemService(t)
+	ctx := context.Background()
+
+	// Memory fs doesn't have real path semantics but ../../ paths
+	// should not succeed in writing accessible content at normal paths.
+	err := svc.Write(ctx, "../../etc/passwd", []byte("fake"))
+	if err != nil {
+		// If Write rejects it, that's fine
+		return
+	}
+	// If Write accepted it, the path must not be accessible at "etc/passwd"
+	_, err = svc.Read(ctx, "etc/passwd")
+	assert.Error(t, err)
+}
+
 func TestMultipleInstances(t *testing.T) {
 	p := &Plugin{}
 
