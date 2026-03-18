@@ -24,7 +24,7 @@ type serverComponent struct {
 func ServerComponent(srv *server.Server) Component       { return &serverComponent{srv: srv} }
 func (c *serverComponent) Name() string                  { return "http-server" }
 func (c *serverComponent) Start(_ context.Context) error { return nil }
-func (c *serverComponent) Stop(_ context.Context) error  { return c.srv.Stop() }
+func (c *serverComponent) Stop(ctx context.Context) error { return c.srv.Stop(ctx) }
 
 // workerComponent wraps *worker.Runtime.
 type workerComponent struct {

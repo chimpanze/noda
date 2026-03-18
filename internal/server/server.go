@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
@@ -166,10 +167,10 @@ func (s *Server) Start() error {
 	return s.app.Listen(addr)
 }
 
-// Stop gracefully shuts down the server.
-func (s *Server) Stop() error {
+// Stop gracefully shuts down the server, respecting the context deadline.
+func (s *Server) Stop(ctx context.Context) error {
 	s.logger.Info("server stopping")
-	return s.app.Shutdown()
+	return s.app.ShutdownWithContext(ctx)
 }
 
 // errorHandler is the Fiber error handler that returns standardized error responses.

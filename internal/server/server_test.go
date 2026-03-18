@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -53,6 +54,6 @@ func TestServer_StopWithoutStart(t *testing.T) {
 	srv, err := NewServer(rc, registry.NewServiceRegistry(), registry.NewNodeRegistry())
 	require.NoError(t, err)
 	// Stop without starting should not panic
-	err = srv.Stop()
+	err = srv.Stop(context.Background())
 	assert.NoError(t, err)
 }
