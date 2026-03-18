@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -105,7 +106,8 @@ func (r *ServiceRegistry) HealthCheckAll() []error {
 }
 
 // ShutdownAll shuts down all services in reverse initialization order.
-func (r *ServiceRegistry) ShutdownAll() []error {
+// If ctx has a deadline, each service shutdown is bounded by the remaining time.
+func (r *ServiceRegistry) ShutdownAll(ctx context.Context) []error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -117,9 +119,27 @@ func (r *ServiceRegistry) ShutdownAll() []error {
 		if entry.plugin == nil {
 			continue
 		}
-		if err := entry.plugin.Shutdown(entry.instance); err != nil {
-			errs = append(errs, fmt.Errorf("service %q shutdown failed: %w", name, err))
+		if err := shutdownWithContext(ctx, name, entry); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	return errs
+}
+
+// shutdownWithContext runs a single service shutdown, respecting the context deadline.
+func shutdownWithContext(ctx context.Context, name string, entry serviceEntry) error {
+	done := make(chan error, 1)
+	go func() {
+		done <- entry.plugin.Shutdown(entry.instance)
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return fmt.Errorf("service %q shutdown failed: %w", name, err)
+		}
+		return nil
+	case <-ctx.Done():
+		return fmt.Errorf("service %q shutdown timed out: %w", name, ctx.Err())
+	}
 }

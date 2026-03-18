@@ -189,7 +189,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 	assert.Equal(t, "not_found", output)
 
 	// 7. Shutdown
-	shutdownErrs := services.ShutdownAll()
+	shutdownErrs := services.ShutdownAll(t.Context())
 	assert.Empty(t, shutdownErrs)
 
 	// Verify store was cleared

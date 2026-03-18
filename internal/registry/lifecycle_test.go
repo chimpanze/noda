@@ -159,7 +159,7 @@ func TestShutdownAll_ReverseOrder(t *testing.T) {
 	require.NoError(t, registry.Register("svc-first", "inst1", p1))
 	require.NoError(t, registry.Register("svc-second", "inst2", p2))
 
-	errs := registry.ShutdownAll()
+	errs := registry.ShutdownAll(t.Context())
 	assert.Empty(t, errs)
 	assert.Equal(t, []string{"second", "first"}, shutdownLog)
 }

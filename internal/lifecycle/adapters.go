@@ -79,8 +79,8 @@ func ServiceRegistryComponent(sr *registry.ServiceRegistry) Component {
 }
 func (c *serviceRegistryComponent) Name() string                  { return "services" }
 func (c *serviceRegistryComponent) Start(_ context.Context) error { return nil }
-func (c *serviceRegistryComponent) Stop(_ context.Context) error {
-	if errs := c.sr.ShutdownAll(); len(errs) > 0 {
+func (c *serviceRegistryComponent) Stop(ctx context.Context) error {
+	if errs := c.sr.ShutdownAll(ctx); len(errs) > 0 {
 		return fmt.Errorf("%d service shutdown errors: %v", len(errs), errs)
 	}
 	return nil

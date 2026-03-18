@@ -672,7 +672,7 @@ func TestShutdownAll_WithErrors(t *testing.T) {
 	require.NoError(t, registry.Register("svc-a", "inst-a", failPlugin))
 	require.NoError(t, registry.Register("svc-b", "inst-b", failPlugin))
 
-	errs := registry.ShutdownAll()
+	errs := registry.ShutdownAll(t.Context())
 	require.Len(t, errs, 2)
 	for _, err := range errs {
 		assert.Contains(t, err.Error(), "shutdown failed")
@@ -697,7 +697,7 @@ func (p *failingShutdownPlugin) Shutdown(service any) error {
 
 func TestShutdownAll_EmptyRegistry(t *testing.T) {
 	registry := NewServiceRegistry()
-	errs := registry.ShutdownAll()
+	errs := registry.ShutdownAll(t.Context())
 	assert.Empty(t, errs)
 }
 
