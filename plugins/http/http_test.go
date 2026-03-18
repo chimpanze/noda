@@ -557,3 +557,33 @@ func TestRequestExecutor_MissingService(t *testing.T) {
 	}, map[string]any{})
 	require.Error(t, err)
 }
+
+func TestRequestExecutor_MethodNotEvaluatedAsExpression(t *testing.T) {
+	svc := newTestService()
+	services := map[string]any{"client": svc}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{"method": "DELETE"}))
+
+	// Method contains expression syntax but should be treated as a static string.
+	// Previously this would resolve to "DELETE" via expression evaluation.
+	// Now it should be used literally, resulting in an invalid HTTP method error.
+	e := newRequestExecutor(nil)
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"method": "{{ input.method }}",
+		"url":    "http://example.com",
+	}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid method")
+}
+
+func TestRequestExecutor_MissingMethod(t *testing.T) {
+	svc := newTestService()
+	services := map[string]any{"client": svc}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newRequestExecutor(nil)
+	_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"url": "http://example.com",
+	}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing required field \"method\"")
+}

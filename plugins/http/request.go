@@ -55,12 +55,12 @@ func (e *requestExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 
 // doRequest is the shared implementation for http.request, http.get, http.post.
 func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, svc *Service, fixedMethod string) (string, any, error) {
-	// Resolve method
+	// Read method as a static string — method is not an expression field.
 	method := fixedMethod
 	if method == "" {
-		m, err := plugin.ResolveString(nCtx, config, "method")
-		if err != nil {
-			return "", nil, fmt.Errorf("http.request: %w", err)
+		m, _ := config["method"].(string)
+		if m == "" {
+			return "", nil, fmt.Errorf("http.request: missing required field \"method\"")
 		}
 		method = strings.ToUpper(m)
 	}
