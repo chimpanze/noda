@@ -62,22 +62,20 @@ func TestExecutionContext_Resolve(t *testing.T) {
 	assert.Equal(t, 42, result)
 }
 
-func TestExecutionContext_ResolveEnv(t *testing.T) {
-	t.Setenv("NODA_TEST_SECRET", "super-secret")
+func TestExecutionContext_ResolveSecrets(t *testing.T) {
+	secretsCtx := map[string]any{"NODA_TEST_SECRET": "super-secret"}
+	ctx := NewExecutionContext(WithSecrets(secretsCtx))
 
-	ctx := NewExecutionContext()
-
-	result, err := ctx.Resolve("{{ env.NODA_TEST_SECRET }}")
+	result, err := ctx.Resolve("{{ secrets.NODA_TEST_SECRET }}")
 	require.NoError(t, err)
 	assert.Equal(t, "super-secret", result)
 }
 
-func TestExecutionContext_ResolveEnvInExpression(t *testing.T) {
-	t.Setenv("NODA_TEST_PREFIX", "prod")
+func TestExecutionContext_ResolveSecretsInExpression(t *testing.T) {
+	secretsCtx := map[string]any{"NODA_TEST_PREFIX": "prod"}
+	ctx := NewExecutionContext(WithSecrets(secretsCtx))
 
-	ctx := NewExecutionContext()
-
-	result, err := ctx.Resolve("{{ env.NODA_TEST_PREFIX + \"-db\" }}")
+	result, err := ctx.Resolve("{{ secrets.NODA_TEST_PREFIX + \"-db\" }}")
 	require.NoError(t, err)
 	assert.Equal(t, "prod-db", result)
 }

@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -320,7 +319,7 @@ func (e *EditorAPI) listEnvVars(c fiber.Ctx) error {
 		refs := findEnvRefs(data)
 		for _, varName := range refs {
 			if _, exists := envVars[varName]; !exists {
-				_, defined := os.LookupEnv(varName)
+				defined := e.secrets != nil && e.secrets.Has(varName)
 				envVars[varName] = map[string]any{
 					"name":    varName,
 					"defined": defined,

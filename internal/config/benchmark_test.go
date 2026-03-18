@@ -1,9 +1,12 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/chimpanze/noda/internal/secrets"
 )
 
 func saasBackendPath(b *testing.B) string {
@@ -17,10 +20,12 @@ func saasBackendPath(b *testing.B) string {
 
 func BenchmarkValidateAll_SaaSBackend(b *testing.B) {
 	path := saasBackendPath(b)
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = ValidateAll(path, "development")
+		_, _ = ValidateAll(path, "development", sm)
 	}
 }
 
@@ -82,14 +87,8 @@ func BenchmarkMergeOverlay(b *testing.B) {
 }
 
 func BenchmarkResolveEnvVars(b *testing.B) {
-	_ = os.Setenv("BENCH_DB_HOST", "localhost")
-	_ = os.Setenv("BENCH_DB_PORT", "5432")
-	_ = os.Setenv("BENCH_REDIS_URL", "redis://localhost:6379")
-	defer func() {
-		_ = os.Unsetenv("BENCH_DB_HOST")
-		_ = os.Unsetenv("BENCH_DB_PORT")
-		_ = os.Unsetenv("BENCH_REDIS_URL")
-	}()
+	sm := secrets.New(&secrets.ProcessEnvProvider{})
+	_ = sm.Load(context.Background())
 
 	config := map[string]any{
 		"services": map[string]any{
@@ -108,7 +107,7 @@ func BenchmarkResolveEnvVars(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for b.Loop() {
-		_, _ = resolveEnvVars(config)
+		_, _ = sm.Resolve(config)
 	}
 }
 

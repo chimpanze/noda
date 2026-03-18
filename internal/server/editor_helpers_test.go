@@ -137,7 +137,7 @@ func TestNewEditorAPI_Constructor(t *testing.T) {
 	services := registry.NewServiceRegistry()
 	compiler := expr.NewCompiler()
 
-	api := NewEditorAPI(root, "", nil, plugins, nodes, services, compiler)
+	api := NewEditorAPI(root, "", nil, plugins, nodes, services, compiler, nil)
 	require.NotNil(t, api)
 	assert.NotEmpty(t, api.root.String())
 }
@@ -150,7 +150,7 @@ func TestNewEditorAPIReadOnly_Constructor(t *testing.T) {
 	services := registry.NewServiceRegistry()
 	compiler := expr.NewCompiler()
 
-	api := NewEditorAPIReadOnly(root, "", nil, plugins, nodes, services, compiler)
+	api := NewEditorAPIReadOnly(root, "", nil, plugins, nodes, services, compiler, nil)
 	require.NotNil(t, api)
 	assert.Nil(t, api.reloader)
 }

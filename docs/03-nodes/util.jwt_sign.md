@@ -31,7 +31,7 @@ Creates a JWT token with the specified claims, signs it using the given secret a
       "sub": "{{ input.user_id }}",
       "roles": "{{ input.roles }}"
     },
-    "secret": "{{ env.JWT_SECRET }}",
+    "secret": "{{ secrets.JWT_SECRET }}",
     "algorithm": "HS256",
     "expiry": "24h"
   }

@@ -695,7 +695,11 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError("config_dir must be an absolute path"), nil
 	}
 
-	rc, errs := config.ValidateAll(configDir, "")
+	sm, smErr := config.NewSecretsManager(configDir, "")
+	if smErr != nil {
+		return mcp.NewToolResultError("loading secrets: " + smErr.Error()), nil
+	}
+	rc, errs := config.ValidateAll(configDir, "", sm)
 	if len(errs) > 0 {
 		errMsgs := make([]string, len(errs))
 		for i, e := range errs {

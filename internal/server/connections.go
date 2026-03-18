@@ -147,6 +147,7 @@ func (s *Server) buildWorkflowRunner(triggerType string) api.WorkflowRunner {
 			}),
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(s.compiler),
+			engine.WithSecrets(s.secretsContext),
 		)
 		return s.runWorkflow(ctx, workflowID, execCtx)
 	}

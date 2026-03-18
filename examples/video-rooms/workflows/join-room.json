@@ -45,7 +45,7 @@
           "name": "{{ input.name }}",
           "room": "{{ input.room }}",
           "token": "{{ nodes.create_token.token }}",
-          "url": "{{ env.LIVEKIT_URL }}"
+          "url": "{{ secrets.LIVEKIT_URL }}"
         },
         "headers": {},
         "status": 200

@@ -12,7 +12,7 @@ All nodes have access to these variables in expressions:
 | `auth` | Auth data: `user_id`, `roles`, `claims` |
 | `trigger` | Trigger metadata: `type`, `timestamp`, `trace_id` |
 | `nodes.<id>` | Output data from a previously executed node |
-| `env.<NAME>` | Environment variable (includes `.env` file values) |
+| `secrets.<NAME>` | Secret value from configured providers (`.env` files by default) |
 | `$item`, `$index` | Loop iteration variables (inside `control.loop`) |
 
 ## Built-in Functions

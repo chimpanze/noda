@@ -1,6 +1,15 @@
 package config
 
-import "log/slog"
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"os"
+	"path/filepath"
+
+	"github.com/chimpanze/noda/internal/secrets"
+)
 
 // ResolvedConfig is the fully resolved, validated configuration structure.
 type ResolvedConfig struct {
@@ -19,8 +28,8 @@ type ResolvedConfig struct {
 }
 
 // ValidateAll runs the full config loading and validation pipeline.
-// Steps: detect env → discover → load → merge → resolve $env() → resolve $ref → validate schemas → validate cross-refs.
-func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []ValidationError) {
+// Steps: detect env → discover → load → merge → load secrets → resolve $env() → resolve $ref → validate schemas → validate cross-refs.
+func ValidateAll(rootPath string, envFlag string, sm *secrets.Manager) (*ResolvedConfig, []ValidationError) {
 	// 1. Detect environment
 	env, err := DetectEnvironment(envFlag)
 	if err != nil {
@@ -51,8 +60,8 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 		raw.Root = MergeOverlay(raw.Root, raw.Overlay)
 	}
 
-	// 5. Resolve $env() in root config
-	envErrs := resolveEnvVarsSelective(raw)
+	// 5. Resolve $env() in root config using SecretsManager
+	resolved, envErrs := sm.Resolve(raw.Root)
 	if len(envErrs) > 0 {
 		var valErrs []ValidationError
 		for _, e := range envErrs {
@@ -60,6 +69,7 @@ func ValidateAll(rootPath string, envFlag string) (*ResolvedConfig, []Validation
 		}
 		return nil, valErrs
 	}
+	raw.Root = resolved
 
 	// 5.5 Resolve $var()
 	if len(raw.Vars) > 0 {
@@ -163,4 +173,70 @@ func GetValidateInfo(rootPath string, envFlag string) (*ValidateInfo, error) {
 	}
 
 	return info, nil
+}
+
+// NewSecretsManager creates and loads a SecretsManager by reading provider
+// configuration from the raw root config (noda.json). This must run before
+// $env() resolution since it provides the values $env() resolves against.
+//
+// If no "secrets" section exists, defaults to DotEnvProvider only (safe default).
+func NewSecretsManager(configDir, envFlag string) (*secrets.Manager, error) {
+	env, err := DetectEnvironment(envFlag)
+	if err != nil {
+		return nil, err
+	}
+
+	providers := parseSecretsProviders(configDir, env)
+	sm := secrets.New(providers...)
+	if err := sm.Load(context.Background()); err != nil {
+		return nil, fmt.Errorf("loading secrets: %w", err)
+	}
+	return sm, nil
+}
+
+// parseSecretsProviders reads the raw noda.json to determine which secret
+// providers to configure. Falls back to DotEnvProvider if no config found.
+func parseSecretsProviders(configDir, env string) []secrets.Provider {
+	absConfig, _ := filepath.Abs(configDir)
+	rootFile := filepath.Join(absConfig, "noda.json")
+
+	raw, err := os.ReadFile(rootFile)
+	if err != nil {
+		// No noda.json — use default provider
+		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+	}
+
+	var root map[string]any
+	if err := json.Unmarshal(raw, &root); err != nil {
+		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+	}
+
+	secretsCfg, ok := root["secrets"].(map[string]any)
+	if !ok {
+		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+	}
+
+	providersList, ok := secretsCfg["providers"].([]any)
+	if !ok || len(providersList) == 0 {
+		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+	}
+
+	var providers []secrets.Provider
+	for _, item := range providersList {
+		m, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		switch m["type"] {
+		case "dotenv":
+			providers = append(providers, &secrets.DotEnvProvider{ConfigDir: configDir, Env: env})
+		case "env":
+			providers = append(providers, &secrets.ProcessEnvProvider{})
+		}
+	}
+
+	if len(providers) == 0 {
+		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+	}
+	return providers
 }

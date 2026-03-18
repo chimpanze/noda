@@ -330,6 +330,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			engine.WithTrigger(triggerResult.Trigger),
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(s.compiler),
+			engine.WithSecrets(s.secretsContext),
 		}
 
 		// Attach trace callback when hub is available (dev mode)

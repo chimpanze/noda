@@ -39,14 +39,15 @@ type DeadLetterConfig struct {
 
 // Runtime manages worker consumers that process messages from Redis Streams.
 type Runtime struct {
-	workers       []WorkerConfig
-	services      *registry.ServiceRegistry
-	nodes         *registry.NodeRegistry
-	workflows     map[string]map[string]any
-	workflowCache *engine.WorkflowCache
-	compiler      *expr.Compiler
-	logger        *slog.Logger
-	middleware    []Middleware
+	workers        []WorkerConfig
+	services       *registry.ServiceRegistry
+	nodes          *registry.NodeRegistry
+	workflows      map[string]map[string]any
+	workflowCache  *engine.WorkflowCache
+	compiler       *expr.Compiler
+	logger         *slog.Logger
+	middleware     []Middleware
+	secretsContext map[string]any
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -63,6 +64,7 @@ func NewRuntime(
 	middleware []Middleware,
 	compiler *expr.Compiler,
 	logger *slog.Logger,
+	secretsContext map[string]any,
 ) *Runtime {
 	if logger == nil {
 		logger = slog.Default()
@@ -71,14 +73,15 @@ func NewRuntime(
 		compiler = expr.NewCompilerWithFunctions()
 	}
 	return &Runtime{
-		workers:       workers,
-		services:      services,
-		nodes:         nodes,
-		workflows:     workflows,
-		workflowCache: workflowCache,
-		compiler:      compiler,
-		logger:        logger,
-		middleware:    middleware,
+		workers:        workers,
+		services:       services,
+		nodes:          nodes,
+		workflows:      workflows,
+		workflowCache:  workflowCache,
+		compiler:       compiler,
+		logger:         logger,
+		middleware:     middleware,
+		secretsContext: secretsContext,
 	}
 }
 
@@ -258,6 +261,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 		engine.WithWorkflowID(w.WorkflowID),
 		engine.WithLogger(r.logger),
 		engine.WithCompiler(r.compiler),
+		engine.WithSecrets(r.secretsContext),
 	)
 
 	// Build the handler chain (workflow execution wrapped in middleware)
