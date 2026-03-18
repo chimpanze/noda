@@ -22,6 +22,7 @@ The root config file. All fields are optional except where noted.
 | `write_timeout` | string | `"30s"` | Write timeout (duration) |
 | `body_limit` | integer | `5242880` | Max request body size in bytes (5 MB) |
 | `expression_memory_budget` | integer | `1000000` | Memory budget for expression evaluation (in allocation units). Limits array, map, and range allocations. Expressions exceeding this budget return an error. `0` uses the default |
+| `expression_strict_mode` | boolean | `false` | When `true`, undefined variables in expressions produce compile errors instead of silently returning nil. Catches typos like `{{ auth.is_admim }}` at load time |
 
 ```json
 {

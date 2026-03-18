@@ -71,7 +71,8 @@
         "body_limit": { "type": "integer", "minimum": 0 },
         "response_timeout": { "type": "string" },
         "shutdown_deadline": { "type": "string" },
-        "expression_memory_budget": { "type": "integer", "minimum": 0 }
+        "expression_memory_budget": { "type": "integer", "minimum": 0 },
+        "expression_strict_mode": { "type": "boolean" }
       }
     },
     "global_middleware": {

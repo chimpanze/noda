@@ -91,6 +91,9 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 				compilerOpts = append(compilerOpts, expr.WithMemoryBudget(n))
 			}
 		}
+		if strict, ok := serverCfg["expression_strict_mode"].(bool); ok {
+			compilerOpts = append(compilerOpts, expr.WithStrictMode(strict))
+		}
 	}
 	compiler := expr.NewCompilerWithVars(rc.Vars, compilerOpts...)
 

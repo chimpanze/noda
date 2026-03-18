@@ -21,6 +21,7 @@ type compilerConfig struct {
 	exprOptions  []expr.Option
 	maxCacheSize int  // 0 means unlimited
 	memoryBudget uint // 0 means use expr default (1M)
+	strictMode   bool // when true, disallow undefined top-level variables
 }
 
 // WithMemoryBudget sets the memory budget for expression evaluation.
@@ -40,12 +41,34 @@ func WithExprOptions(opts ...expr.Option) CompilerOption {
 	}
 }
 
+// WithStrictMode enables strict mode, which disallows undefined top-level
+// variables in expressions. When enabled, references to unknown top-level
+// names (e.g., {{ auht.is_admin }} instead of {{ auth.is_admin }}) produce
+// a compile error instead of silently returning nil. Sub-field access on
+// known top-level variables is not checked at compile time.
+func WithStrictMode(strict bool) CompilerOption {
+	return func(c *compilerConfig) {
+		c.strictMode = strict
+	}
+}
+
 // WithMaxCacheSize sets the maximum number of compiled expressions to cache.
 // When the limit is reached, the cache is cleared. 0 means unlimited.
 func WithMaxCacheSize(size int) CompilerOption {
 	return func(c *compilerConfig) {
 		c.maxCacheSize = size
 	}
+}
+
+// knownContextEnv defines the top-level variable names available in expression
+// contexts. Used in strict mode with expr.Env() to reject unknown top-level names.
+// Values are typed as any (interface{}) because sub-field access is dynamic.
+var knownContextEnv = map[string]any{
+	"input":   map[string]any{},
+	"auth":    map[string]any{},
+	"trigger": map[string]any{},
+	"nodes":   map[string]any{},
+	"secrets": map[string]any{},
 }
 
 // Compiler compiles and caches expressions.
@@ -93,9 +116,16 @@ func (c *Compiler) Compile(input string) (*CompiledExpression, error) {
 		return compiled, nil
 	}
 
-	// Build expr options: allow undefined variables for flexible context
-	opts := []expr.Option{
-		expr.AllowUndefinedVariables(),
+	// Build expr options
+	var opts []expr.Option
+	if c.opts.strictMode {
+		// In strict mode, provide known top-level context keys so the expr
+		// compiler rejects references to undefined top-level variables.
+		// This catches typos like {{ auht.is_admin }} at compile time.
+		opts = append(opts, expr.Env(knownContextEnv))
+	} else {
+		// Allow undefined variables for flexible context (default behavior).
+		opts = append(opts, expr.AllowUndefinedVariables())
 	}
 	opts = append(opts, c.opts.exprOptions...)
 

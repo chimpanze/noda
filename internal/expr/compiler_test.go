@@ -72,6 +72,46 @@ func TestCompileAll_CollectsErrors(t *testing.T) {
 	assert.Len(t, result, 2) // valid and also_ok
 }
 
+func TestCompile_StrictMode_RejectsUndefinedTopLevelVariable(t *testing.T) {
+	c := NewCompiler(WithStrictMode(true))
+	// "auht" is a typo for "auth" — strict mode catches top-level typos
+	_, err := c.Compile("{{ auht.is_admin }}")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "compile error")
+}
+
+func TestCompile_StrictMode_AllowsKnownTopLevelVariables(t *testing.T) {
+	c := NewCompiler(WithStrictMode(true))
+	// All known top-level context variables should compile fine
+	for _, expr := range []string{
+		"{{ input.name }}",
+		"{{ auth.sub }}",
+		"{{ trigger.type }}",
+		"{{ nodes.step1 }}",
+		"{{ secrets.api_key }}",
+		"{{ 1 + 2 }}",
+	} {
+		compiled, err := c.Compile(expr)
+		require.NoError(t, err, "expression %q should compile in strict mode", expr)
+		assert.NotNil(t, compiled)
+	}
+}
+
+func TestCompile_NonStrict_AllowsUndefinedVariables(t *testing.T) {
+	// Default (non-strict) allows undefined variables — backward compatible
+	c := NewCompiler()
+	compiled, err := c.Compile("{{ auht.is_admin }}")
+	require.NoError(t, err)
+	assert.NotNil(t, compiled)
+}
+
+func TestCompile_StrictModeFalse_AllowsUndefinedVariables(t *testing.T) {
+	c := NewCompiler(WithStrictMode(false))
+	compiled, err := c.Compile("{{ auht.is_admin }}")
+	require.NoError(t, err)
+	assert.NotNil(t, compiled)
+}
+
 func TestCompile_RetainsOriginalText(t *testing.T) {
 	c := NewCompiler()
 	input := "{{ input.name }}"
