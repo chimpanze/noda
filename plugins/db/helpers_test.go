@@ -432,6 +432,51 @@ func TestResolveUpdateSpec_ArrayInvalidItem(t *testing.T) {
 	assert.Contains(t, err.Error(), "must be a string")
 }
 
+func TestUpsertNode_InvalidConflictColumn(t *testing.T) {
+	db := newTestDB(t)
+	exec := &upsertExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	// String conflict with invalid identifier
+	config := map[string]any{
+		"table":    "tasks",
+		"data":     map[string]any{"title": "T"},
+		"conflict": "bad;col",
+	}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+
+	// Array conflict with invalid identifier
+	config["conflict"] = []any{"id", "bad;col"}
+	_, _, err = exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
+func TestUpsertNode_InvalidUpdateColumn(t *testing.T) {
+	db := newTestDB(t)
+	exec := &upsertExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	// Array update with invalid identifier
+	config := map[string]any{
+		"table":    "tasks",
+		"data":     map[string]any{"title": "T"},
+		"conflict": "id",
+		"update":   []any{"bad;col"},
+	}
+	_, _, err := exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+
+	// Map update with invalid identifier key
+	config["update"] = map[string]any{"bad;col": "value"}
+	_, _, err = exec.Execute(t.Context(), nCtx, config, testServices(db))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid identifier")
+}
+
 func TestResolveUpdateSpec_DefaultAllNonConflict(t *testing.T) {
 	config := map[string]any{}
 	onConflict := &clause.OnConflict{}

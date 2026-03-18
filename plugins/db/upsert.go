@@ -105,6 +105,9 @@ func resolveConflictColumns(config map[string]any) ([]clause.Column, error) {
 
 	switch v := raw.(type) {
 	case string:
+		if err := ValidateIdentifier(v); err != nil {
+			return nil, fmt.Errorf("conflict column: %w", err)
+		}
 		return []clause.Column{{Name: v}}, nil
 	case []any:
 		cols := make([]clause.Column, 0, len(v))
@@ -112,6 +115,9 @@ func resolveConflictColumns(config map[string]any) ([]clause.Column, error) {
 			s, ok := item.(string)
 			if !ok {
 				return nil, fmt.Errorf("conflict[%d] must be a string", i)
+			}
+			if err := ValidateIdentifier(s); err != nil {
+				return nil, fmt.Errorf("conflict[%d]: %w", i, err)
 			}
 			cols = append(cols, clause.Column{Name: s})
 		}
@@ -147,12 +153,18 @@ func resolveUpdateSpec(config map[string]any, data map[string]any, conflictCols 
 			if !ok {
 				return fmt.Errorf("update[%d] must be a string", i)
 			}
+			if err := ValidateIdentifier(s); err != nil {
+				return fmt.Errorf("update[%d]: %w", i, err)
+			}
 			cols = append(cols, s)
 		}
 		onConflict.DoUpdates = clause.AssignmentColumns(cols)
 	case map[string]any:
 		assignments := make([]clause.Assignment, 0, len(v))
 		for col, val := range v {
+			if err := ValidateIdentifier(col); err != nil {
+				return fmt.Errorf("update column: %w", err)
+			}
 			assignments = append(assignments, clause.Assignment{
 				Column: clause.Column{Name: col},
 				Value:  val,
