@@ -10,7 +10,7 @@ type ModuleConfig struct {
 	Encoding      string         // "json" (default) or "msgpack"
 	Services      []string       // Allowed service instance names
 	Connections   []string       // Allowed connection endpoint names
-	AllowHTTP        []string       // Whitelisted HTTP hosts
+	AllowHTTP        []string       // Whitelisted HTTP hosts (maps to Extism AllowedHosts)
 	AllowWS          []string       // Whitelisted WebSocket hosts
 	AllowedWorkflows []string       // Whitelisted workflow IDs for trigger_workflow
 	Config        map[string]any // Opaque config passed to initialize

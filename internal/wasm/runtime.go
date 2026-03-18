@@ -67,7 +67,7 @@ func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, was
 		Wasm: []extism.Wasm{
 			extism.WasmData{Data: wasmBytes},
 		},
-		AllowedHosts: cfg.AllowHTTP,
+		AllowedHosts: cfg.AllowHTTP, // Extism enforces HTTP host whitelist via its built-in HTTP host function
 	}
 
 	if cfg.MemoryPages > 0 {
