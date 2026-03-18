@@ -432,6 +432,7 @@ func newStartCmd() *cobra.Command {
 			// Components registered to lc after this point will still be
 			// stopped because StopAll uses lc.started at call time.
 			deadline := parseShutdownDeadline(rc, 30*time.Second)
+			lc.SetRollbackDeadline(deadline)
 			sigCh := make(chan os.Signal, 1)
 			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 			go func() {
@@ -669,6 +670,7 @@ func newDevCmd() *cobra.Command {
 
 			// Install signal handler early.
 			deadline := parseShutdownDeadline(rc, 30*time.Second)
+			lc.SetRollbackDeadline(deadline)
 			sigCh := make(chan os.Signal, 1)
 			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 			go func() {

@@ -18,15 +18,24 @@ type Component interface {
 
 // Lifecycle manages ordered startup and reverse-order shutdown of components.
 type Lifecycle struct {
-	mu         sync.Mutex
-	components []Component
-	started    int // number of successfully started components
-	logger     *slog.Logger
+	mu               sync.Mutex
+	components       []Component
+	started          int // number of successfully started components
+	logger           *slog.Logger
+	rollbackDeadline time.Duration // deadline for rollback on startup failure (default 30s)
 }
 
 // New creates a new Lifecycle manager.
 func New(logger *slog.Logger) *Lifecycle {
-	return &Lifecycle{logger: logger}
+	return &Lifecycle{logger: logger, rollbackDeadline: 30 * time.Second}
+}
+
+// SetRollbackDeadline sets the deadline for rolling back started components
+// when a startup failure occurs. Defaults to 30s if not set.
+func (l *Lifecycle) SetRollbackDeadline(d time.Duration) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.rollbackDeadline = d
 }
 
 // Register adds a component. Start order = registration order.
@@ -53,7 +62,7 @@ func (l *Lifecycle) StartAll(ctx context.Context) error {
 			l.mu.Lock()
 			l.started = i
 			l.mu.Unlock()
-			l.StopAll(30 * time.Second)
+			l.StopAll(l.rollbackDeadline)
 			return fmt.Errorf("starting %s: %w", c.Name(), err)
 		}
 	}
