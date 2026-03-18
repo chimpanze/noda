@@ -100,7 +100,7 @@ func TestIntegration_StaticFieldValidation(t *testing.T) {
 		"input": "{{ steps.prev.output }}",
 	}
 
-	errs := validateStaticFields(config, []string{"mode", "cases"})
+	errs := ValidateStaticFields(config, []string{"mode", "cases"})
 	assert.Len(t, errs, 2)
 
 	// "input" is not in static fields list, so no error for it

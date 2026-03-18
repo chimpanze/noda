@@ -10,9 +10,9 @@ func isStatic(value string) bool {
 	return !strings.Contains(value, "{{")
 }
 
-// validateStaticFields checks that the specified fields in a config map
+// ValidateStaticFields checks that the specified fields in a config map
 // do not contain expressions. Returns errors for any fields that are expressions.
-func validateStaticFields(config map[string]any, staticFields []string) []error {
+func ValidateStaticFields(config map[string]any, staticFields []string) []error {
 	var errs []error
 	for _, field := range staticFields {
 		val, ok := getNestedString(config, field)

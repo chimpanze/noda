@@ -8,6 +8,19 @@ import (
 	"github.com/chimpanze/noda/internal/expr"
 )
 
+// staticFieldsByNodeType maps node types to config fields that must be static
+// (literal values, not expressions). These fields are evaluated at compile time
+// or used for structural decisions that cannot change per-request.
+var staticFieldsByNodeType = map[string][]string{
+	"event.emit":      {"mode"},
+	"control.switch":  {"cases"},
+	"workflow.run":    {"workflow", "transaction"},
+	"control.loop":   {"workflow"},
+	"workflow.output": {"name"},
+	"http.request":   {"method"},
+	"transform.merge": {"mode", "type"},
+}
+
 // ValidateStartup checks all plugin, service, and node references in the config.
 // The deferred parameter lists services that will be created later (connection endpoints,
 // wasm runtimes) — these are treated as valid references during slot validation.
@@ -81,7 +94,7 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 		}
 	}
 
-	// 4. Pre-compile all expressions in workflow node configs to catch syntax errors
+	// 4. Pre-compile all expressions and validate static fields in workflow node configs
 	for wfName, wf := range rc.Workflows {
 		wfNodes, ok := wf["nodes"].(map[string]any)
 		if !ok {
@@ -92,9 +105,15 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 			if !ok {
 				continue
 			}
+			nodeType, _ := node["type"].(string)
 			if cfg, ok := node["config"].(map[string]any); ok {
 				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
 					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
+				}
+				if fields, ok := staticFieldsByNodeType[nodeType]; ok {
+					for _, sfErr := range expr.ValidateStaticFields(cfg, fields) {
+						errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr))
+					}
 				}
 			}
 		}
@@ -186,7 +205,7 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		}
 	}
 
-	// Pre-compile all expressions
+	// Pre-compile all expressions and validate static fields
 	for wfName, wf := range rc.Workflows {
 		wfNodes, ok := wf["nodes"].(map[string]any)
 		if !ok {
@@ -197,9 +216,15 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			if !ok {
 				continue
 			}
+			nodeType, _ := node["type"].(string)
 			if cfg, ok := node["config"].(map[string]any); ok {
 				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
 					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
+				}
+				if fields, ok := staticFieldsByNodeType[nodeType]; ok {
+					for _, sfErr := range expr.ValidateStaticFields(cfg, fields) {
+						errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr))
+					}
 				}
 			}
 		}
