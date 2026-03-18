@@ -211,9 +211,11 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 
 	// Distributed locking
 	if sc.LockEnabled && sc.LockSvcName != "" {
-		// Ensure lock TTL outlives the job timeout (add 30s buffer for cleanup)
-		if sc.LockTTL > 0 && sc.LockTTL < timeout+30*time.Second {
-			sc.LockTTL = timeout + 30*time.Second
+		// Compute effective lock TTL without mutating the schedule config.
+		// Ensure lock TTL outlives the job timeout (add 30s buffer for cleanup).
+		lockTTL := sc.LockTTL
+		if lockTTL > 0 && lockTTL < timeout+30*time.Second {
+			lockTTL = timeout + 30*time.Second
 		}
 
 		lockKey := fmt.Sprintf("noda:schedule:%s:%d", sc.ID, now.Truncate(time.Minute).Unix())
@@ -234,7 +236,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			return
 		}
 
-		lockToken, err := tryAcquireLock(ctx, lockSvc, lockKey, sc.LockTTL)
+		lockToken, err := tryAcquireLock(ctx, lockSvc, lockKey, lockTTL)
 		if err != nil {
 			r.logger.Error("scheduler: lock error",
 				"schedule_id", sc.ID,
