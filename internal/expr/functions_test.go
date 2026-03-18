@@ -296,3 +296,69 @@ func TestFunctionRegistry_CustomFunction(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 42, result)
 }
+
+func TestCoerceToInt_FromString(t *testing.T) {
+	v, err := coerceToInt("42")
+	require.NoError(t, err)
+	assert.Equal(t, 42, v)
+}
+
+func TestCoerceToInt_FromFloat(t *testing.T) {
+	v, err := coerceToInt(3.14)
+	require.NoError(t, err)
+	assert.Equal(t, 3, v)
+}
+
+func TestCoerceToInt_FromInt64(t *testing.T) {
+	v, err := coerceToInt(int64(99))
+	require.NoError(t, err)
+	assert.Equal(t, 99, v)
+}
+
+func TestCoerceToInt_FromFloatString(t *testing.T) {
+	v, err := coerceToInt("3.14")
+	require.NoError(t, err)
+	assert.Equal(t, 3, v)
+}
+
+func TestCoerceToInt_Invalid(t *testing.T) {
+	_, err := coerceToInt("not_a_number")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot convert")
+}
+
+func TestCoerceToInt_UnsupportedType(t *testing.T) {
+	_, err := coerceToInt([]int{1, 2})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported type")
+}
+
+func TestCoerceToFloat_FromString(t *testing.T) {
+	v, err := coerceToFloat("3.14")
+	require.NoError(t, err)
+	assert.InDelta(t, 3.14, v, 0.001)
+}
+
+func TestCoerceToFloat_FromInt(t *testing.T) {
+	v, err := coerceToFloat(42)
+	require.NoError(t, err)
+	assert.Equal(t, 42.0, v)
+}
+
+func TestCoerceToFloat_FromInt64(t *testing.T) {
+	v, err := coerceToFloat(int64(99))
+	require.NoError(t, err)
+	assert.Equal(t, 99.0, v)
+}
+
+func TestCoerceToFloat_Invalid(t *testing.T) {
+	_, err := coerceToFloat("not_a_number")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "cannot convert")
+}
+
+func TestCoerceToFloat_UnsupportedType(t *testing.T) {
+	_, err := coerceToFloat([]int{1, 2})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported type")
+}
