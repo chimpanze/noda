@@ -1,4 +1,4 @@
-.PHONY: build build-editor build-go test test-coverage lint fmt dev clean migrate-up migrate-down \
+.PHONY: build build-editor build-go test test-race test-coverage lint fmt dev clean migrate-up migrate-down \
 	bench bench-expr bench-engine bench-config bench-plugins bench-registry bench-save bench-compare \
 	loadtest loadtest-baseline
 
@@ -18,6 +18,9 @@ build-go:
 
 test:
 	go test ./... -race -count=1
+
+test-race:
+	go test -race -count=1 ./internal/engine/ ./internal/connmgr/ ./internal/wasm/ ./internal/worker/ ./internal/scheduler/
 
 test-coverage:
 	go test ./... -race -coverprofile=coverage.out
