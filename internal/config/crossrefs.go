@@ -219,6 +219,40 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 		}
 	}
 
+	// Validate duration fields in workers
+	for filePath, worker := range rc.Workers {
+		if v, ok := worker["timeout"].(string); ok {
+			if _, err := time.ParseDuration(v); err != nil {
+				errs = append(errs, ValidationError{
+					FilePath: filePath,
+					JSONPath: "/timeout",
+					Message:  fmt.Sprintf("invalid duration %q: %v", v, err),
+				})
+			}
+		}
+	}
+
+	// Validate duration fields in connection endpoints
+	for filePath, conn := range rc.Connections {
+		if endpoints, ok := conn["endpoints"].(map[string]any); ok {
+			for epName, epVal := range endpoints {
+				if ep, ok := epVal.(map[string]any); ok {
+					for _, field := range []string{"ping_interval", "heartbeat", "retry"} {
+						if v, ok := ep[field].(string); ok {
+							if _, err := time.ParseDuration(v); err != nil {
+								errs = append(errs, ValidationError{
+									FilePath: filePath,
+									JSONPath: fmt.Sprintf("/endpoints/%s/%s", epName, field),
+									Message:  fmt.Sprintf("invalid duration %q: %v", v, err),
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
 	// Warn if CORS middleware is used but no allow_origins is configured
 	if corsUsed(rc) {
 		if rc.Root != nil {

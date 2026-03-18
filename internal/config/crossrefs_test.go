@@ -1,6 +1,7 @@
 package config
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -241,4 +242,43 @@ func TestDetectWorkflowCycles(t *testing.T) {
 		assert.Contains(t, errs[0].Message, "circular workflow reference")
 		assert.Contains(t, errs[0].Message, "A")
 	})
+}
+
+func TestValidateCrossRefs_WorkerTimeout(t *testing.T) {
+	rc := &RawConfig{
+		Workers: map[string]map[string]any{
+			"workers/bad.json": {"timeout": "notaduration"},
+		},
+	}
+	errs := ValidateCrossRefs(rc)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "invalid duration") && e.JSONPath == "/timeout" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected invalid duration error for worker timeout")
+}
+
+func TestValidateCrossRefs_ConnectionEndpointDuration(t *testing.T) {
+	rc := &RawConfig{
+		Connections: map[string]map[string]any{
+			"connections/ws.json": {
+				"endpoints": map[string]any{
+					"game": map[string]any{
+						"ping_interval": "bad",
+						"heartbeat":     "10s",
+					},
+				},
+			},
+		},
+	}
+	errs := ValidateCrossRefs(rc)
+	found := false
+	for _, e := range errs {
+		if strings.Contains(e.Message, "invalid duration") && strings.Contains(e.JSONPath, "ping_interval") {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected invalid duration error for ping_interval")
 }
