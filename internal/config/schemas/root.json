@@ -105,6 +105,22 @@
         "required": ["module", "tick_rate"]
       }
     },
+    "secrets": {
+      "type": "object",
+      "properties": {
+        "providers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["dotenv", "env"] },
+              "config": { "type": "object" }
+            },
+            "required": ["type"]
+          }
+        }
+      }
+    },
     "connections": {
       "type": "object",
       "properties": {

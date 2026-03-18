@@ -23,10 +23,11 @@ type Server struct {
 	nodes        *registry.NodeRegistry
 	workflows    *engine.WorkflowCache
 	traceHub     *trace.EventHub
-	devMode      bool
-	connManagers *connmgr.ManagerGroup
-	port         int
-	logger       *slog.Logger
+	devMode        bool
+	connManagers   *connmgr.ManagerGroup
+	port           int
+	logger         *slog.Logger
+	secretsContext map[string]any
 }
 
 // ServerOption configures a Server.
@@ -45,6 +46,11 @@ func WithCompiler(c *expr.Compiler) ServerOption {
 // WithWorkflowCache sets a pre-built workflow cache.
 func WithWorkflowCache(c *engine.WorkflowCache) ServerOption {
 	return func(s *Server) { s.workflows = c }
+}
+
+// WithSecretsContext sets the secrets map for expression evaluation.
+func WithSecretsContext(ctx map[string]any) ServerOption {
+	return func(s *Server) { s.secretsContext = ctx }
 }
 
 // WithTraceHub sets the trace event hub for dev-mode live tracing.

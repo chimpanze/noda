@@ -1,12 +1,15 @@
 package config
 
 import (
+	"context"
 	"path/filepath"
 	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/chimpanze/noda/internal/secrets"
 )
 
 func testdataPath(name string) string {
@@ -17,7 +20,9 @@ func testdataPath(name string) string {
 func TestIntegration_ValidProject(t *testing.T) {
 	dir := testdataPath("valid-project")
 
-	rc, errs := ValidateAll(dir, "development")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "development", sm)
 	if len(errs) > 0 {
 		t.Logf("Errors:\n%s", FormatErrors(errs))
 	}
@@ -36,7 +41,9 @@ func TestIntegration_ValidProject(t *testing.T) {
 func TestIntegration_InvalidProject(t *testing.T) {
 	dir := testdataPath("invalid-project")
 
-	_, errs := ValidateAll(dir, "development")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "development", sm)
 	require.NotEmpty(t, errs, "invalid project should produce errors")
 	// The broken-syntax.json should cause a JSON parse error
 	hasParseError := false
@@ -51,7 +58,9 @@ func TestIntegration_InvalidProject(t *testing.T) {
 func TestIntegration_MinimalProject(t *testing.T) {
 	dir := testdataPath("minimal-project")
 
-	rc, errs := ValidateAll(dir, "development")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "development", sm)
 	if len(errs) > 0 {
 		t.Logf("Errors:\n%s", FormatErrors(errs))
 	}

@@ -16,8 +16,13 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 		return c.Status(400).JSON(map[string]any{"error": "invalid request body"})
 	}
 
-	// Run full validation to catch cross-references
-	_, errs := config.ValidateAll(e.root.String(), e.envFlag)
+	// Run full validation to catch cross-references.
+	// Create a fresh secrets manager for validation (reuses same providers).
+	sm, smErr := config.NewSecretsManager(e.root.String(), e.envFlag)
+	if smErr != nil {
+		return c.Status(500).JSON(map[string]any{"error": smErr.Error()})
+	}
+	_, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
 
 	// Filter errors for the requested file
 	var filtered []map[string]any
@@ -40,7 +45,11 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 
 // validateAll runs the full validation pipeline and returns all errors.
 func (e *EditorAPI) validateAll(c fiber.Ctx) error {
-	_, errs := config.ValidateAll(e.root.String(), e.envFlag)
+	sm, smErr := config.NewSecretsManager(e.root.String(), e.envFlag)
+	if smErr != nil {
+		return c.Status(500).JSON(map[string]any{"error": smErr.Error()})
+	}
+	_, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
 
 	var errors []map[string]any
 	for _, ve := range errs {

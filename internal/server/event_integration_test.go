@@ -173,7 +173,7 @@ func TestE2E_EventEmitAndWorkerConsume(t *testing.T) {
 		svcReg, buildTestNodeRegistry(), workerWorkflows,
 		nil,
 		[]worker.Middleware{trackingMW},
-		nil, nil,
+		nil, nil, nil,
 	)
 
 	ctx := context.Background()
@@ -238,7 +238,7 @@ func TestE2E_WorkerFailureRedelivery(t *testing.T) {
 		svcReg, buildTestNodeRegistry(), failWorkflows,
 		nil,
 		[]worker.Middleware{failMW},
-		nil, nil,
+		nil, nil, nil,
 	)
 
 	ctx := context.Background()

@@ -115,7 +115,7 @@ func TestRuntime_JobFires(t *testing.T) {
 		WorkflowID: "test-wf",
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 
 	err := rt.Start()
 	require.NoError(t, err)
@@ -152,7 +152,7 @@ func TestRuntime_TriggerMetadata(t *testing.T) {
 		WorkflowID: "meta-wf",
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()
@@ -195,7 +195,7 @@ func TestRuntime_InputMapping(t *testing.T) {
 		},
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()
@@ -218,7 +218,7 @@ func TestRuntime_JobFailureLogged(t *testing.T) {
 		WorkflowID: "nonexistent",
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()
@@ -242,7 +242,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 			Cron:       "@every 10m",
 			WorkflowID: "wf",
 		}},
-		svcReg, nodeReg, nil, nil, nil, nil, nil,
+		svcReg, nodeReg, nil, nil, nil, nil, nil, nil,
 	)
 
 	err := rt.Start()
@@ -270,7 +270,7 @@ func TestRuntime_NextRun(t *testing.T) {
 		WorkflowID: "wf",
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, nil, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, nil, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()
@@ -321,7 +321,7 @@ func TestDistributedLock_Acquire(t *testing.T) {
 		LockTTL:     5 * time.Minute,
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()
@@ -360,7 +360,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 	}
 
 	// First runtime — will acquire lock
-	rt1 := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt1 := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 	err := rt1.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt1.Stop(context.Background()) }()
@@ -373,7 +373,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 
 	// Second runtime using the same lock key — if both fire at the same second,
 	// the second should be skipped. We simulate this by directly calling runJob.
-	rt2 := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt2 := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 
 	// Both run — the lock from rt1 should cause rt2 to skip
 	// Since lock TTL is 5min, the key is still set, so the next call skips
@@ -397,7 +397,7 @@ func TestDistributedLock_LockServiceNotFound(t *testing.T) {
 		LockTTL:     5 * time.Minute,
 	}
 
-	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, map[string]map[string]any{}, nil, nil, nil, nil)
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, map[string]map[string]any{}, nil, nil, nil, nil, nil)
 	rt.runJob(sc)
 
 	history := rt.History()
@@ -435,7 +435,7 @@ func TestDistributedLock_Release(t *testing.T) {
 // --- Helpers ---
 
 func TestResolveInput_StaticValues(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	input, err := rt.resolveInput(map[string]any{
 		"key":   "static",
 		"count": float64(42),
@@ -446,7 +446,7 @@ func TestResolveInput_StaticValues(t *testing.T) {
 }
 
 func TestResolveInput_Expressions(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	ctx := map[string]any{
 		"schedule": map[string]any{"id": "my-job"},
 	}
@@ -486,7 +486,7 @@ func TestRuntime_MultipleJobs(t *testing.T) {
 		{ID: "job-b", Cron: "@every 1s", WorkflowID: "wf-b"},
 	}
 
-	rt := NewRuntime(schedules, svcReg, nodeReg, workflows, nil, nil, nil, nil)
+	rt := NewRuntime(schedules, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
 	err := rt.Start()
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()

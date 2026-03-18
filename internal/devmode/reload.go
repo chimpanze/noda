@@ -50,7 +50,12 @@ func (r *Reloader) Config() *config.ResolvedConfig {
 func (r *Reloader) HandleChange(path string) {
 	r.logger.Info("reloading config", "trigger", path)
 
-	rc, errs := config.ValidateAll(r.configDir, r.envFlag)
+	sm, smErr := config.NewSecretsManager(r.configDir, r.envFlag)
+	if smErr != nil {
+		r.logger.Warn("secrets loading failed during reload", "error", smErr.Error())
+		return
+	}
+	rc, errs := config.ValidateAll(r.configDir, r.envFlag, sm)
 	if len(errs) > 0 {
 		r.logger.Warn("config reload failed — keeping previous config",
 			"errors", len(errs),

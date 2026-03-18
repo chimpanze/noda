@@ -1,10 +1,12 @@
 package testing
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/secrets"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/util"
@@ -426,7 +428,9 @@ func TestFormatResults_VerboseShowsTrace(t *testing.T) {
 }
 
 func TestRunner_TestdataIntegration(t *testing.T) {
-	rc, errs := config.ValidateAll("../../testdata/valid-project", "development")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := config.ValidateAll("../../testdata/valid-project", "development", sm)
 	require.Empty(t, errs)
 
 	suites, err := LoadTests(rc)

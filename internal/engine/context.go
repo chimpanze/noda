@@ -3,9 +3,7 @@ package engine
 import (
 	"fmt"
 	"log/slog"
-	"os"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -44,6 +42,8 @@ type ExecutionContextImpl struct {
 	responseInterceptor ResponseInterceptor
 	tracer              oteltrace.Tracer
 	traceCallback       func(eventType, nodeID, nodeType, output, errMsg string, data any)
+
+	secretsContext map[string]any // from secrets.Manager.ExpressionContext()
 
 	depth    int32 // atomic
 	maxDepth int32 // atomic
@@ -110,6 +110,12 @@ func WithCompiler(compiler *expr.Compiler) ExecutionContextOption {
 // WithTracer sets the OTel tracer.
 func WithTracer(tracer oteltrace.Tracer) ExecutionContextOption {
 	return func(c *ExecutionContextImpl) { c.tracer = tracer }
+}
+
+// WithSecrets sets the secrets context for expression evaluation.
+// The map is typically obtained from secrets.Manager.ExpressionContext().
+func WithSecrets(secretsCtx map[string]any) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.secretsContext = secretsCtx }
 }
 
 // Tracer returns the OTel tracer.
@@ -308,20 +314,10 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 		nodesMap[k] = v
 	}
 	ctx["nodes"] = nodesMap
-	ctx["env"] = envMap()
-	return ctx
-}
-
-// envMap returns the current process environment as a map.
-func envMap() map[string]any {
-	environ := os.Environ()
-	m := make(map[string]any, len(environ))
-	for _, entry := range environ {
-		if k, v, ok := strings.Cut(entry, "="); ok {
-			m[k] = v
-		}
+	if c.secretsContext != nil {
+		ctx["secrets"] = c.secretsContext
 	}
-	return m
+	return ctx
 }
 
 func returnExprContext(ctx map[string]any) {

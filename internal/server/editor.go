@@ -6,6 +6,7 @@ import (
 	nodaexpr "github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/secrets"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -21,6 +22,7 @@ type EditorAPI struct {
 	nodes    *registry.NodeRegistry
 	services *registry.ServiceRegistry
 	compiler *nodaexpr.Compiler
+	secrets  *secrets.Manager
 }
 
 // NewEditorAPI creates the editor API handler for dev mode (all endpoints).
@@ -32,6 +34,7 @@ func NewEditorAPI(
 	nodes *registry.NodeRegistry,
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
+	sm *secrets.Manager,
 ) *EditorAPI {
 	return &EditorAPI{
 		root:     root,
@@ -41,6 +44,7 @@ func NewEditorAPI(
 		nodes:    nodes,
 		services: services,
 		compiler: compiler,
+		secrets:  sm,
 	}
 }
 
@@ -54,6 +58,7 @@ func NewEditorAPIReadOnly(
 	nodes *registry.NodeRegistry,
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
+	sm *secrets.Manager,
 ) *EditorAPI {
 	return &EditorAPI{
 		root:     root,
@@ -63,6 +68,7 @@ func NewEditorAPIReadOnly(
 		nodes:    nodes,
 		services: services,
 		compiler: compiler,
+		secrets:  sm,
 	}
 }
 

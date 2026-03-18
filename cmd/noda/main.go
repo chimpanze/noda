@@ -129,8 +129,11 @@ func newValidateCmd() *cobra.Command {
 			envFlag, _ := cmd.Flags().GetString("env")
 			verbose, _ := cmd.Flags().GetBool("verbose")
 
-			// Load .env files before config validation
-			loadDotEnv(configDir, envFlag, nil)
+			// Create secrets manager
+			sm, err := config.NewSecretsManager(configDir, envFlag)
+			if err != nil {
+				return fmt.Errorf("loading secrets: %w", err)
+			}
 
 			if verbose {
 				info, err := config.GetValidateInfo(configDir, envFlag)
@@ -149,7 +152,7 @@ func newValidateCmd() *cobra.Command {
 				fmt.Println()
 			}
 
-			rc, errs := config.ValidateAll(configDir, envFlag)
+			rc, errs := config.ValidateAll(configDir, envFlag, sm)
 			if len(errs) > 0 {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
@@ -188,11 +191,14 @@ func newTestCmd() *cobra.Command {
 			verbose, _ := cmd.Flags().GetBool("verbose")
 			workflowFilter, _ := cmd.Flags().GetString("workflow")
 
-			// Load .env files before config validation
-			loadDotEnv(configDir, envFlag, nil)
+			// Create secrets manager
+			sm, err := config.NewSecretsManager(configDir, envFlag)
+			if err != nil {
+				return fmt.Errorf("loading secrets: %w", err)
+			}
 
 			// Load and validate config
-			rc, errs := config.ValidateAll(configDir, envFlag)
+			rc, errs := config.ValidateAll(configDir, envFlag, sm)
 			if len(errs) > 0 {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
@@ -286,11 +292,14 @@ func newStartCmd() *cobra.Command {
 				runScheduler = true
 				runWasm = true
 			}
-			// Load .env files before config validation
-			loadDotEnv(configDir, envFlag, nil)
+			// Create secrets manager
+			sm, err := config.NewSecretsManager(configDir, envFlag)
+			if err != nil {
+				return fmt.Errorf("loading secrets: %w", err)
+			}
 
 			// Load and validate config
-			rc, errs := config.ValidateAll(configDir, envFlag)
+			rc, errs := config.ValidateAll(configDir, envFlag, sm)
 			if len(errs) > 0 {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
@@ -322,9 +331,11 @@ func newStartCmd() *cobra.Command {
 				return fmt.Errorf("compiling workflows: %w", err)
 			}
 
+			secretsCtx := sm.ExpressionContext()
+
 			var srv *server.Server
 			if runServer {
-				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler))
+				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithSecretsContext(secretsCtx))
 				if err != nil {
 					return fmt.Errorf("creating server: %w", err)
 				}
@@ -343,7 +354,7 @@ func newStartCmd() *cobra.Command {
 				if err != nil {
 					return fmt.Errorf("resolving config directory: %w", err)
 				}
-				editorAPI := server.NewEditorAPIReadOnly(root, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
+				editorAPI := server.NewEditorAPIReadOnly(root, envFlag, rc, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler, sm)
 				editorAPI.Register(srv.App())
 			}
 
@@ -361,6 +372,7 @@ func newStartCmd() *cobra.Command {
 					mw,
 					bootstrap.Compiler,
 					logger,
+					secretsCtx,
 				)
 				if err := workerRuntime.Start(context.Background()); err != nil {
 					return fmt.Errorf("starting workers: %w", err)
@@ -385,6 +397,7 @@ func newStartCmd() *cobra.Command {
 					bootstrap.Compiler,
 					tracer,
 					logger,
+					secretsCtx,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
 					return fmt.Errorf("starting scheduler: %w", err)
@@ -397,7 +410,7 @@ func newStartCmd() *cobra.Command {
 			if runWasm {
 				wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any)
 				if len(wasmRuntimes) > 0 {
-					workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler)
+					workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler, secretsCtx)
 					wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
 					for name, raw := range wasmRuntimes {
 						cfg := parseWasmModuleConfig(name, raw)
@@ -498,11 +511,14 @@ func newDevCmd() *cobra.Command {
 			envFlag, _ := cmd.Flags().GetString("env")
 			logger := slog.Default()
 
-			// Load .env files before config validation
-			loadDotEnv(configDir, envFlag, logger)
+			// Create secrets manager
+			sm, err := config.NewSecretsManager(configDir, envFlag)
+			if err != nil {
+				return fmt.Errorf("loading secrets: %w", err)
+			}
 
 			// Load and validate config
-			rc, errs := config.ValidateAll(configDir, envFlag)
+			rc, errs := config.ValidateAll(configDir, envFlag, sm)
 			if len(errs) > 0 {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
@@ -540,8 +556,10 @@ func newDevCmd() *cobra.Command {
 				return fmt.Errorf("compiling workflows: %w", err)
 			}
 
+			secretsCtx := sm.ExpressionContext()
+
 			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub))
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub), server.WithSecretsContext(secretsCtx))
 			if err != nil {
 				return fmt.Errorf("creating server: %w", err)
 			}
@@ -575,6 +593,7 @@ func newDevCmd() *cobra.Command {
 					bootstrap.Compiler,
 					tracer,
 					logger,
+					secretsCtx,
 				)
 				if err := schedulerRuntime.Start(); err != nil {
 					return fmt.Errorf("starting scheduler: %w", err)
@@ -586,7 +605,7 @@ func newDevCmd() *cobra.Command {
 			var wasmRuntime *wasm.Runtime
 			wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any)
 			if len(wasmRuntimes) > 0 {
-				workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler)
+				workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler, secretsCtx)
 				wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
 				for name, raw := range wasmRuntimes {
 					cfg := parseWasmModuleConfig(name, raw)
@@ -622,7 +641,7 @@ func newDevCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving config directory: %w", err)
 			}
-			editorAPI := server.NewEditorAPI(root, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler)
+			editorAPI := server.NewEditorAPI(root, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler, sm)
 			editorAPI.Register(srv.App())
 
 			// Serve editor static files: prefer local dist (for live dev),
@@ -718,8 +737,14 @@ func newGenerateCmd() *cobra.Command {
 			envFlag, _ := cmd.Flags().GetString("env")
 			output, _ := cmd.Flags().GetString("output")
 
+			// Create secrets manager
+			sm, err := config.NewSecretsManager(configDir, envFlag)
+			if err != nil {
+				return fmt.Errorf("loading secrets: %w", err)
+			}
+
 			// Load and validate config
-			rc, errs := config.ValidateAll(configDir, envFlag)
+			rc, errs := config.ValidateAll(configDir, envFlag, sm)
 			if len(errs) > 0 {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
@@ -877,9 +902,12 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 	envFlag, _ := cmd.Flags().GetString("env")
 	serviceName, _ := cmd.Flags().GetString("service")
 
-	loadDotEnv(configDir, envFlag, nil)
+	sm, err := config.NewSecretsManager(configDir, envFlag)
+	if err != nil {
+		return nil, "", nil, fmt.Errorf("loading secrets: %w", err)
+	}
 
-	rc, errs := config.ValidateAll(configDir, envFlag)
+	rc, errs := config.ValidateAll(configDir, envFlag, sm)
 	if len(errs) > 0 {
 		return nil, "", nil, fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 	}
@@ -994,7 +1022,12 @@ func newScheduleCmd() *cobra.Command {
 			configDir, _ := cmd.Flags().GetString("config")
 			envFlag, _ := cmd.Flags().GetString("env")
 
-			rc, errs := config.ValidateAll(configDir, envFlag)
+			sm, err := config.NewSecretsManager(configDir, envFlag)
+			if err != nil {
+				return fmt.Errorf("loading secrets: %w", err)
+			}
+
+			rc, errs := config.ValidateAll(configDir, envFlag, sm)
 			if len(errs) > 0 {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
@@ -1034,19 +1067,6 @@ func parseShutdownDeadline(rc *config.ResolvedConfig, defaultVal time.Duration) 
 	return defaultVal
 }
 
-// loadDotEnv loads .env files from the config directory and working directory.
-// Logs which files were loaded for transparency.
-func loadDotEnv(configDir, envFlag string, logger *slog.Logger) {
-	loaded := config.LoadDotEnv(configDir, envFlag)
-	for _, f := range loaded {
-		if logger != nil {
-			logger.Info("loaded environment file", "path", f)
-		} else {
-			fmt.Printf("Loaded environment from %s\n", f)
-		}
-	}
-}
-
 // buildWorkflowRunner creates a standalone WorkflowRunner for use outside
 // the HTTP server (e.g., by the Wasm runtime).
 func buildWorkflowRunner(
@@ -1054,6 +1074,7 @@ func buildWorkflowRunner(
 	services *registry.ServiceRegistry,
 	nodes *registry.NodeRegistry,
 	compiler *expr.Compiler,
+	secretsCtx map[string]any,
 ) api.WorkflowRunner {
 	return func(ctx context.Context, workflowID string, input map[string]any) error {
 		graph, ok := cache.Get(workflowID)
@@ -1068,6 +1089,7 @@ func buildWorkflowRunner(
 			}),
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(compiler),
+			engine.WithSecrets(secretsCtx),
 		)
 		return engine.ExecuteGraph(ctx, graph, execCtx, services, nodes)
 	}

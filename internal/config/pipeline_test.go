@@ -1,12 +1,14 @@
 package config
 
 import (
-	"os"
+	"context"
 	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/chimpanze/noda/internal/secrets"
 )
 
 func setupValidProject(t *testing.T) string {
@@ -36,7 +38,9 @@ func setupValidProject(t *testing.T) string {
 func TestValidateAll_ValidProject(t *testing.T) {
 	dir := setupValidProject(t)
 
-	rc, errs := ValidateAll(dir, "development")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "development", sm)
 	assert.Empty(t, errs)
 	require.NotNil(t, rc)
 	assert.Equal(t, "development", rc.Environment)
@@ -52,7 +56,9 @@ func TestValidateAll_BrokenJSON(t *testing.T) {
 		"routes/bad.json": `{invalid json}`,
 	})
 
-	_, errs := ValidateAll(dir, "")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "", sm)
 	require.NotEmpty(t, errs)
 	// Should be JSON error, not schema error
 	assert.Contains(t, errs[0].Message, "invalid JSON")
@@ -66,7 +72,9 @@ func TestValidateAll_SchemaErrors(t *testing.T) {
 		}`,
 	})
 
-	_, errs := ValidateAll(dir, "")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "", sm)
 	require.NotEmpty(t, errs)
 }
 
@@ -81,7 +89,9 @@ func TestValidateAll_CrossRefErrors(t *testing.T) {
 		}`,
 	})
 
-	_, errs := ValidateAll(dir, "")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "", sm)
 	require.NotEmpty(t, errs)
 	assert.Contains(t, errs[0].Message, "non-existent")
 }
@@ -95,7 +105,9 @@ func TestValidateAll_MissingEnvVars(t *testing.T) {
 		}`,
 	})
 
-	_, errs := ValidateAll(dir, "")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "", sm)
 	require.NotEmpty(t, errs)
 	assert.Contains(t, errs[0].Message, "MISSING_DB_URL")
 }
@@ -114,7 +126,9 @@ func TestValidateAll_WithOverlay(t *testing.T) {
 		}`,
 	})
 
-	rc, errs := ValidateAll(dir, "production")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "production", sm)
 	assert.Empty(t, errs)
 	require.NotNil(t, rc)
 
@@ -127,7 +141,9 @@ func TestValidateAll_WithOverlay(t *testing.T) {
 func TestValidateAll_MissingNodaJSON(t *testing.T) {
 	dir := t.TempDir()
 
-	_, errs := ValidateAll(dir, "")
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "", sm)
 	require.NotEmpty(t, errs)
 	assert.Contains(t, errs[0].Message, "missing required config file")
 }
@@ -160,7 +176,9 @@ func TestValidateAll_EnvVarsResolved(t *testing.T) {
 		}`,
 	})
 
-	rc, errs := ValidateAll(dir, "")
+	sm := secrets.New(&secrets.ProcessEnvProvider{})
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "", sm)
 	assert.Empty(t, errs)
 	require.NotNil(t, rc)
 
@@ -169,5 +187,3 @@ func TestValidateAll_EnvVarsResolved(t *testing.T) {
 	assert.Equal(t, "postgres://resolved/test", cfg["url"])
 }
 
-// Ensure os import is used
-var _ = os.Getenv

@@ -2974,6 +2974,7 @@ func setupEditorApp(t *testing.T) *fiber.App {
 		nodeReg,
 		svcReg,
 		compiler,
+		nil,
 	)
 	editorAPI.Register(app)
 	return app
@@ -3210,7 +3211,7 @@ func TestEditorAPI_ReadFile_OutsideConfigDir(t *testing.T) {
 
 	tmpDir := t.TempDir()
 	root, _ := pathutil.NewRoot(tmpDir)
-	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	// Try to access file outside config dir
@@ -3255,7 +3256,7 @@ func TestEditorAPI_ListServicesWithHealth(t *testing.T) {
 	_ = svcReg.Register("plain-svc", "no-ping", p)
 
 	root, _ := pathutil.NewRoot(t.TempDir())
-	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	req := httptest.NewRequest("GET", "/_noda/services", nil)
@@ -3307,7 +3308,7 @@ func TestEditorAPI_ListMiddleware_WithPresets(t *testing.T) {
 	}
 
 	root, _ := pathutil.NewRoot(t.TempDir())
-	editorAPI := NewEditorAPIReadOnly(root, "", rc, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", rc, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	req := httptest.NewRequest("GET", "/_noda/middleware", nil)
@@ -3341,7 +3342,7 @@ func TestEditorAPI_ListEnvVars(t *testing.T) {
 	}
 
 	root, _ := pathutil.NewRoot(t.TempDir())
-	editorAPI := NewEditorAPIReadOnly(root, "", rc, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", rc, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	req := httptest.NewRequest("GET", "/_noda/env", nil)
@@ -3378,7 +3379,7 @@ func TestEditorAPI_ListVars(t *testing.T) {
 	}
 
 	root, _ := pathutil.NewRoot(dir)
-	editorAPI := NewEditorAPIReadOnly(root, "", rc, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", rc, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	req := httptest.NewRequest("GET", "/_noda/vars", nil)
@@ -3400,7 +3401,7 @@ func TestEditorAPI_ValidateAll(t *testing.T) {
 	pluginReg := registry.NewPluginRegistry()
 
 	root, _ := pathutil.NewRoot(dir)
-	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	req := httptest.NewRequest("POST", "/_noda/validate/all", nil)
@@ -3422,7 +3423,7 @@ func TestEditorAPI_ValidateFile(t *testing.T) {
 	pluginReg := registry.NewPluginRegistry()
 
 	root, _ := pathutil.NewRoot(dir)
-	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	body := `{"path": "noda.json", "content": {"port": 8080}}`
@@ -3446,7 +3447,7 @@ func TestEditorAPI_ValidateFile_BadRequest(t *testing.T) {
 	pluginReg := registry.NewPluginRegistry()
 
 	root, _ := pathutil.NewRoot(dir)
-	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil)
+	editorAPI := NewEditorAPIReadOnly(root, "", nil, pluginReg, nodeReg, svcReg, nil, nil)
 	editorAPI.Register(app)
 
 	req := httptest.NewRequest("POST", "/_noda/validate", strings.NewReader("not json"))

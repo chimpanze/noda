@@ -48,14 +48,15 @@ type JobRun struct {
 
 // Runtime manages cron-based scheduled workflow execution.
 type Runtime struct {
-	schedules     []ScheduleConfig
-	services      *registry.ServiceRegistry
-	nodes         *registry.NodeRegistry
-	workflows     map[string]map[string]any
-	workflowCache *engine.WorkflowCache
-	compiler      *expr.Compiler
-	tracer        oteltrace.Tracer
-	logger        *slog.Logger
+	schedules      []ScheduleConfig
+	services       *registry.ServiceRegistry
+	nodes          *registry.NodeRegistry
+	workflows      map[string]map[string]any
+	workflowCache  *engine.WorkflowCache
+	compiler       *expr.Compiler
+	tracer         oteltrace.Tracer
+	logger         *slog.Logger
+	secretsContext map[string]any
 
 	cron    *cron.Cron
 	mu      sync.RWMutex
@@ -73,6 +74,7 @@ func NewRuntime(
 	compiler *expr.Compiler,
 	tracer oteltrace.Tracer,
 	logger *slog.Logger,
+	secretsContext map[string]any,
 ) *Runtime {
 	if logger == nil {
 		logger = slog.Default()
@@ -81,14 +83,15 @@ func NewRuntime(
 		compiler = expr.NewCompilerWithFunctions()
 	}
 	return &Runtime{
-		schedules:     schedules,
-		services:      services,
-		nodes:         nodes,
-		workflows:     workflows,
-		workflowCache: workflowCache,
-		compiler:      compiler,
-		tracer:        tracer,
-		logger:        logger,
+		schedules:      schedules,
+		services:       services,
+		nodes:          nodes,
+		workflows:      workflows,
+		workflowCache:  workflowCache,
+		compiler:       compiler,
+		tracer:         tracer,
+		logger:         logger,
+		secretsContext: secretsContext,
 	}
 }
 
@@ -311,6 +314,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 		engine.WithWorkflowID(sc.WorkflowID),
 		engine.WithLogger(r.logger),
 		engine.WithCompiler(r.compiler),
+		engine.WithSecrets(r.secretsContext),
 	}
 	if r.tracer != nil {
 		opts = append(opts, engine.WithTracer(r.tracer))

@@ -176,8 +176,8 @@ Access environment variables (including `.env` file values) via `env.*`:
 ```json
 {
   "config": {
-    "secret": "{{ env.JWT_SECRET }}",
-    "api_url": "{{ env.EXTERNAL_API_URL }}"
+    "secret": "{{ secrets.JWT_SECRET }}",
+    "api_url": "{{ secrets.EXTERNAL_API_URL }}"
   }
 }
 ```
