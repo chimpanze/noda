@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	neturl "net/url"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/fasthttp/websocket"
@@ -28,10 +29,11 @@ type gatewayConn struct {
 	ws     *websocket.Conn
 	config GatewayConfig
 
-	mu        sync.Mutex
-	stopCh    chan struct{}
-	closed    bool
-	closeOnce sync.Once
+	mu              sync.Mutex
+	stopCh          chan struct{}
+	closed          bool
+	closeOnce       sync.Once
+	readLoopRunning atomic.Bool
 }
 
 // safeClose closes the underlying WebSocket exactly once, safe for concurrent use.
@@ -224,6 +226,8 @@ func (g *Gateway) CloseAll() {
 
 // readLoop reads messages from an outbound WebSocket and buffers them for tick delivery.
 func (g *Gateway) readLoop(gc *gatewayConn) {
+	gc.readLoopRunning.Store(true)
+	defer gc.readLoopRunning.Store(false)
 	defer func() {
 		gc.mu.Lock()
 		wasClosed := gc.closed
@@ -350,6 +354,10 @@ func (g *Gateway) reconnectLoop(gc *gatewayConn) {
 		})
 
 		g.logger.Debug("gateway reconnected", "module", g.module.Name, "id", gc.id, "attempt", attempt)
+		// Wait for old readLoop to exit before starting a new one
+		for gc.readLoopRunning.Load() {
+			time.Sleep(10 * time.Millisecond)
+		}
 		go g.readLoop(gc)
 		return
 	}
