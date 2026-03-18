@@ -186,6 +186,12 @@ func (m *Module) Stop(ctx context.Context) error {
 	// Cancel lifecycle context to unblock pending async calls
 	m.lifecycleCancel()
 
+	// Clear pending async state
+	m.mu.Lock()
+	m.pendingLabels = make(map[string]bool)
+	m.asyncResults = make(map[string]*AsyncResponse)
+	m.mu.Unlock()
+
 	// Close gateway connections
 	m.gateway.CloseAll()
 
