@@ -28,9 +28,15 @@ type gatewayConn struct {
 	ws     *websocket.Conn
 	config GatewayConfig
 
-	mu     sync.Mutex
-	stopCh chan struct{}
-	closed bool
+	mu        sync.Mutex
+	stopCh    chan struct{}
+	closed    bool
+	closeOnce sync.Once
+}
+
+// safeClose closes the underlying WebSocket exactly once, safe for concurrent use.
+func (gc *gatewayConn) safeClose() {
+	gc.closeOnce.Do(func() { _ = gc.ws.Close() })
 }
 
 // NewGateway creates a new gateway manager.
@@ -159,7 +165,7 @@ func (g *Gateway) CloseConn(payload map[string]any) (any, error) {
 
 	msg := websocket.FormatCloseMessage(code, reason)
 	_ = gc.ws.WriteControl(websocket.CloseMessage, msg, time.Now().Add(time.Second))
-	_ = gc.ws.Close()
+	gc.safeClose()
 
 	g.logger.Debug("gateway disconnected", "module", g.module.Name, "id", id)
 	return nil, nil
@@ -212,7 +218,7 @@ func (g *Gateway) CloseAll() {
 		gc.closed = true
 		close(gc.stopCh)
 		gc.mu.Unlock()
-		_ = gc.ws.Close()
+		gc.safeClose()
 	}
 }
 
@@ -335,6 +341,7 @@ func (g *Gateway) reconnectLoop(gc *gatewayConn) {
 		gc.ws = conn
 		gc.closed = false
 		gc.stopCh = make(chan struct{})
+		gc.closeOnce = sync.Once{} // reset for new connection
 		gc.mu.Unlock()
 
 		g.module.AddConnectionEvent(ConnectionEvent{
