@@ -69,6 +69,9 @@ type Module struct {
 
 	// Query serialization
 	queryCh chan queryRequest
+
+	// tickDone is closed when the tick loop goroutine exits
+	tickDone chan struct{}
 }
 
 type timerEntry struct {
@@ -119,6 +122,7 @@ func NewModule(name string, plugin PluginInstance, cfg ModuleConfig, dispatcher 
 		asyncResults:  make(map[string]*AsyncResponse),
 		timers:        make(map[string]timerEntry),
 		queryCh:       make(chan queryRequest, queryChannelBuffer),
+		tickDone:      make(chan struct{}),
 	}
 
 	m.lifecycleCtx, m.lifecycleCancel = context.WithCancel(context.Background())
@@ -165,7 +169,7 @@ func (m *Module) Start() {
 	m.lastTick = time.Now()
 	m.mu.Unlock()
 
-	go m.tickLoop()
+	go func() { m.tickLoop(); close(m.tickDone) }()
 }
 
 // Stop halts the tick loop and calls shutdown.
@@ -179,11 +183,20 @@ func (m *Module) Stop(ctx context.Context) error {
 	close(m.stopCh)
 	m.mu.Unlock()
 
+	// Cancel lifecycle context to unblock any in-flight callWithTimeout calls
+	m.lifecycleCancel()
+
+	// Wait for the tick loop goroutine to fully exit before touching the plugin
+	<-m.tickDone
+
+	// Reset lifecycle context so the shutdown call below can proceed
+	m.lifecycleCtx, m.lifecycleCancel = context.WithCancel(context.Background())
+
 	// Call shutdown with timeout to prevent hung exports from blocking lifecycle
 	data, _ := m.Codec.Marshal(map[string]any{})
 	_, _, err := m.callWithTimeout("shutdown", data, wasmCallTimeout)
 
-	// Cancel lifecycle context to unblock pending async calls
+	// Cancel the temporary context
 	m.lifecycleCancel()
 
 	// Clear pending async state

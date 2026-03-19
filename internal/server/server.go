@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync/atomic"
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -29,6 +30,7 @@ type Server struct {
 	port           int
 	logger         *slog.Logger
 	secretsContext map[string]any
+	readyFlag      atomic.Bool
 }
 
 // ServerOption configures a Server.
@@ -108,6 +110,9 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 	s.app = fiber.New(fiberCfg)
 	return s, nil
 }
+
+// SetReady marks the server as ready to accept traffic.
+func (s *Server) SetReady() { s.readyFlag.Store(true) }
 
 // App returns the underlying Fiber app (for testing).
 func (s *Server) App() *fiber.App { return s.app }

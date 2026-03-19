@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/chimpanze/noda/plugins/core/transform"
@@ -411,7 +412,7 @@ func TestDeserializePayload_NoPayloadKey(t *testing.T) {
 
 func TestResolveInput_NilMap(t *testing.T) {
 	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	result, err := rt.resolveInput(nil, map[string]any{})
+	result, err := engine.ResolveInput(rt.compiler, nil, map[string]any{})
 	require.NoError(t, err)
 	assert.NotNil(t, result)
 	assert.Empty(t, result)
@@ -423,7 +424,7 @@ func TestResolveInput_NonStringValues(t *testing.T) {
 		"count":  42,
 		"active": true,
 	}
-	result, err := rt.resolveInput(inputMap, map[string]any{})
+	result, err := engine.ResolveInput(rt.compiler, inputMap, map[string]any{})
 	require.NoError(t, err)
 	assert.Equal(t, 42, result["count"])
 	assert.Equal(t, true, result["active"])
@@ -441,7 +442,7 @@ func TestResolveInput_ExpressionResolution(t *testing.T) {
 			},
 		},
 	}
-	result, err := rt.resolveInput(inputMap, messageCtx)
+	result, err := engine.ResolveInput(rt.compiler, inputMap, messageCtx)
 	require.NoError(t, err)
 	assert.Equal(t, "test@example.com", result["email"])
 }

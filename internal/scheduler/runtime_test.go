@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/util"
@@ -436,7 +437,7 @@ func TestDistributedLock_Release(t *testing.T) {
 
 func TestResolveInput_StaticValues(t *testing.T) {
 	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
-	input, err := rt.resolveInput(map[string]any{
+	input, err := engine.ResolveInput(rt.compiler, map[string]any{
 		"key":   "static",
 		"count": float64(42),
 	}, map[string]any{})
@@ -450,7 +451,7 @@ func TestResolveInput_Expressions(t *testing.T) {
 	ctx := map[string]any{
 		"schedule": map[string]any{"id": "my-job"},
 	}
-	input, err := rt.resolveInput(map[string]any{
+	input, err := engine.ResolveInput(rt.compiler, map[string]any{
 		"job": "{{ schedule.id }}",
 	}, ctx)
 	require.NoError(t, err)

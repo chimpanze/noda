@@ -88,21 +88,22 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 }
 
 // HealthCheckAll runs health checks on all registered services.
-func (r *ServiceRegistry) HealthCheckAll() []error {
+// Returns a map of service name to error for services that failed their health check.
+func (r *ServiceRegistry) HealthCheckAll() map[string]error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	var errs []error
+	results := make(map[string]error)
 	for _, name := range r.order {
 		entry := r.services[name]
 		if entry.plugin == nil {
 			continue
 		}
 		if err := entry.plugin.HealthCheck(entry.instance); err != nil {
-			errs = append(errs, fmt.Errorf("service %q health check failed: %w", name, err))
+			results[name] = err
 		}
 	}
-	return errs
+	return results
 }
 
 // ShutdownAll shuts down all services in reverse initialization order.

@@ -289,7 +289,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 	}
 
 	// Resolve trigger input mapping
-	input, err := r.resolveInput(sc.InputMap, scheduleMeta)
+	input, err := engine.ResolveInput(r.compiler, sc.InputMap, scheduleMeta)
 	if err != nil {
 		r.logger.Error("scheduler: input mapping failed",
 			"schedule_id", sc.ID,
@@ -323,7 +323,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 	}
 	execCtx := engine.NewExecutionContext(opts...)
 
-	wfErr := r.executeWorkflow(ctx, sc.WorkflowID, execCtx)
+	wfErr := engine.RunWorkflow(ctx, sc.WorkflowID, execCtx, r.workflowCache, r.workflows, r.services, r.nodes)
 
 	run := JobRun{
 		ScheduleID: sc.ID,
@@ -348,54 +348,6 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 		)
 	}
 	r.recordRun(run)
-}
-
-// executeWorkflow runs a workflow, using the cache if available or compiling on the fly.
-func (r *Runtime) executeWorkflow(ctx context.Context, workflowID string, execCtx *engine.ExecutionContextImpl) error {
-	if r.workflowCache != nil {
-		graph, ok := r.workflowCache.Get(workflowID)
-		if !ok {
-			return fmt.Errorf("workflow %q not found", workflowID)
-		}
-		return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
-	}
-
-	// Fallback: compile on the fly (used in tests without a cache)
-	wfData, ok := r.workflows[workflowID]
-	if !ok {
-		return fmt.Errorf("workflow %q not found", workflowID)
-	}
-	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
-	if err != nil {
-		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
-	}
-	graph, err := engine.Compile(wfConfig, r.nodes)
-	if err != nil {
-		return fmt.Errorf("compile workflow %q: %w", workflowID, err)
-	}
-	return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
-}
-
-// resolveInput evaluates trigger input mapping against schedule metadata.
-func (r *Runtime) resolveInput(inputMap map[string]any, scheduleCtx map[string]any) (map[string]any, error) {
-	if inputMap == nil {
-		return map[string]any{}, nil
-	}
-	resolver := expr.NewResolver(r.compiler, scheduleCtx)
-	result := make(map[string]any)
-	for key, exprVal := range inputMap {
-		exprStr, ok := exprVal.(string)
-		if !ok {
-			result[key] = exprVal
-			continue
-		}
-		resolved, err := resolver.Resolve(exprStr)
-		if err != nil {
-			return nil, fmt.Errorf("field %q: %w", key, err)
-		}
-		result[key] = resolved
-	}
-	return result, nil
 }
 
 // recordRun appends a job run to history (capped at maxHistoryEntries).

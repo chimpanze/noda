@@ -230,7 +230,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	}
 
 	// Resolve trigger input mapping
-	input, err := r.resolveInput(w.InputMap, messageCtx)
+	input, err := engine.ResolveInput(r.compiler, w.InputMap, messageCtx)
 	if err != nil {
 		r.logger.Error("worker input mapping failed",
 			"worker_id", w.ID,
@@ -266,7 +266,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 
 	// Build the handler chain (workflow execution wrapped in middleware)
 	handler := func(ctx context.Context) error {
-		return r.executeWorkflow(ctx, w.WorkflowID, execCtx)
+		return engine.RunWorkflow(ctx, w.WorkflowID, execCtx, r.workflowCache, r.workflows, r.services, r.nodes)
 	}
 
 	// Apply middleware in reverse order
@@ -323,58 +323,6 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 		"trace_id", traceID,
 		"duration", duration.String(),
 	)
-}
-
-// executeWorkflow runs a workflow, using the cache if available or compiling on the fly.
-func (r *Runtime) executeWorkflow(ctx context.Context, workflowID string, execCtx *engine.ExecutionContextImpl) error {
-	if r.workflowCache != nil {
-		graph, ok := r.workflowCache.Get(workflowID)
-		if !ok {
-			return fmt.Errorf("workflow %q not found", workflowID)
-		}
-		return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
-	}
-
-	// Fallback: compile on the fly (used in tests without a cache)
-	wfData, ok := r.workflows[workflowID]
-	if !ok {
-		return fmt.Errorf("workflow %q not found", workflowID)
-	}
-	wfConfig, err := engine.ParseWorkflowFromMap(workflowID, wfData)
-	if err != nil {
-		return fmt.Errorf("parse workflow %q: %w", workflowID, err)
-	}
-	graph, err := engine.Compile(wfConfig, r.nodes)
-	if err != nil {
-		return fmt.Errorf("compile workflow %q: %w", workflowID, err)
-	}
-	return engine.ExecuteGraph(ctx, graph, execCtx, r.services, r.nodes)
-}
-
-// resolveInput evaluates trigger input mapping expressions against the message context.
-func (r *Runtime) resolveInput(inputMap map[string]any, messageCtx map[string]any) (map[string]any, error) {
-	if inputMap == nil {
-		return map[string]any{}, nil
-	}
-
-	resolver := expr.NewResolver(r.compiler, messageCtx)
-	result := make(map[string]any)
-
-	for key, exprVal := range inputMap {
-		exprStr, ok := exprVal.(string)
-		if !ok {
-			result[key] = exprVal
-			continue
-		}
-
-		resolved, err := resolver.Resolve(exprStr)
-		if err != nil {
-			return nil, fmt.Errorf("field %q: %w", key, err)
-		}
-		result[key] = resolved
-	}
-
-	return result, nil
 }
 
 // getDeliveryAttempts returns how many times a message has been delivered.

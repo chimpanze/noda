@@ -62,7 +62,7 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, fmt.Errorf("db.query: %w", err)
 	}
 
-	slog.Warn("executing raw SQL query", "query_prefix", query[:min(len(query), 50)])
+	slog.Debug("executing raw SQL query", "query_prefix", query[:min(len(query), 50)])
 
 	var results []map[string]any
 	tx := db.WithContext(ctx).Raw(query, params...).Scan(&results)

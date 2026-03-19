@@ -1,17 +1,8 @@
 package server
 
 import (
-	"strings"
-	"sync/atomic"
-
 	"github.com/gofiber/fiber/v3"
 )
-
-// readyFlag tracks whether the server has completed initialization.
-var readyFlag atomic.Bool
-
-// SetReady marks the server as ready to accept traffic.
-func SetReady() { readyFlag.Store(true) }
 
 // registerHealthRoutes adds /health, /health/ready, and /health/live endpoints.
 func (s *Server) registerHealthRoutes() {
@@ -20,7 +11,7 @@ func (s *Server) registerHealthRoutes() {
 	})
 
 	s.app.Get("/health/ready", func(c fiber.Ctx) error {
-		if !readyFlag.Load() {
+		if !s.readyFlag.Load() {
 			return c.Status(fiber.StatusServiceUnavailable).JSON(map[string]any{
 				"status": "not_ready",
 			})
@@ -35,19 +26,11 @@ func (s *Server) registerHealthRoutes() {
 
 		// Use HealthCheckAll for plugin-based checks
 		healthErrs := s.services.HealthCheckAll()
-		failedServices := make(map[string]bool)
-		for _, err := range healthErrs {
-			s.logger.Error("health check failed", "error", err)
-			for name := range services {
-				if strings.Contains(err.Error(), name) {
-					failedServices[name] = true
-				}
-			}
-		}
 
 		for name, svc := range services {
-			if failedServices[name] {
+			if err, failed := healthErrs[name]; failed {
 				details[name] = "unhealthy"
+				s.logger.Error("health check failed", "service", name, "error", err)
 				allHealthy = false
 				continue
 			}

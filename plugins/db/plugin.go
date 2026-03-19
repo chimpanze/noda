@@ -53,7 +53,12 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		return nil, fmt.Errorf("postgres: get sql.DB: %w", err)
 	}
 
-	// Pool settings
+	// Sensible defaults (overridden by config below)
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+
+	// Pool settings from config
 	if v, ok := plugin.ToInt(config["max_open"]); ok {
 		sqlDB.SetMaxOpenConns(v)
 	}

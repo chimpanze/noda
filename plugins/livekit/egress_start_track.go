@@ -76,7 +76,11 @@ func (e *egressStartTrackExecutor) Execute(ctx context.Context, nCtx api.Executi
 
 	// Map file output's upload config to direct file output
 	if fileOutput.Output != nil {
-		directOut := req.Output.(*lkproto.TrackEgressRequest_File).File
+		fileOut, ok := req.Output.(*lkproto.TrackEgressRequest_File)
+		if !ok || fileOut == nil {
+			return "", nil, fmt.Errorf("lk.egressStartTrack: unexpected output type")
+		}
+		directOut := fileOut.File
 		switch v := fileOutput.Output.(type) {
 		case *lkproto.EncodedFileOutput_S3:
 			directOut.Output = &lkproto.DirectFileOutput_S3{S3: v.S3}

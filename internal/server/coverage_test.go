@@ -2664,11 +2664,10 @@ func TestMapTrigger_ExpressionError(t *testing.T) {
 // --- readyFlag state ---
 
 func TestSetReady_SetsFlag(t *testing.T) {
-	readyFlag.Store(false)
-	SetReady()
-	assert.True(t, readyFlag.Load())
-	// Clean up
-	readyFlag.Store(false)
+	srv := setupHealthServer(t)
+	assert.False(t, srv.readyFlag.Load())
+	srv.SetReady()
+	assert.True(t, srv.readyFlag.Load())
 }
 
 // --- OpenAPI: buildWorkflowRunner ---

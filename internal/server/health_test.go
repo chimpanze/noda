@@ -24,7 +24,6 @@ func TestHealth_Live(t *testing.T) {
 }
 
 func TestHealth_Ready_NotReady(t *testing.T) {
-	readyFlag.Store(false)
 	srv := setupHealthServer(t)
 	resp, err := srv.App().Test(mustReq(http.MethodGet, "/health/ready"))
 	require.NoError(t, err)
@@ -34,9 +33,8 @@ func TestHealth_Ready_NotReady(t *testing.T) {
 }
 
 func TestHealth_Ready_AfterSetReady(t *testing.T) {
-	readyFlag.Store(false)
 	srv := setupHealthServer(t)
-	SetReady()
+	srv.SetReady()
 	resp, err := srv.App().Test(mustReq(http.MethodGet, "/health/ready"))
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)

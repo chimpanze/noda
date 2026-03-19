@@ -143,7 +143,7 @@ func TestHealthCheckAll_Unhealthy(t *testing.T) {
 
 	healthErrs := registry.HealthCheckAll()
 	require.Len(t, healthErrs, 1)
-	assert.Contains(t, healthErrs[0].Error(), "connection lost")
+	assert.Contains(t, healthErrs["main-db"].Error(), "connection lost")
 }
 
 func TestShutdownAll_ReverseOrder(t *testing.T) {

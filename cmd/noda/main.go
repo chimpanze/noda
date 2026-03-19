@@ -479,7 +479,9 @@ func newStartCmd() *cobra.Command {
 			}
 
 			// Mark ready
-			server.SetReady()
+			if srv != nil {
+				srv.SetReady()
+			}
 			slog.Info("noda ready")
 
 			if srv != nil {
@@ -719,7 +721,7 @@ func newDevCmd() *cobra.Command {
 			}
 
 			// Mark server as ready
-			server.SetReady()
+			srv.SetReady()
 			slog.Info("noda ready")
 
 			slog.Info("dev server starting", "port", srv.Port())

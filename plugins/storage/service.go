@@ -13,6 +13,15 @@ import (
 	"github.com/spf13/afero"
 )
 
+// validatePath rejects path traversal attempts as defense-in-depth.
+func validatePath(path string) error {
+	cleaned := filepath.ToSlash(filepath.Clean(path))
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return fmt.Errorf("storage: path traversal not allowed: %q", path)
+	}
+	return nil
+}
+
 // Service wraps an Afero filesystem and implements api.StorageService.
 type Service struct {
 	fs      afero.Fs
@@ -24,6 +33,9 @@ func (s *Service) Fs() afero.Fs { return s.fs }
 
 // Read reads file contents from the given path.
 func (s *Service) Read(_ context.Context, path string) ([]byte, error) {
+	if err := validatePath(path); err != nil {
+		return nil, err
+	}
 	f, err := s.fs.Open(path)
 	if err != nil {
 		if isNotExist(err) {
@@ -42,6 +54,9 @@ func (s *Service) Read(_ context.Context, path string) ([]byte, error) {
 
 // Write writes data to the given path, creating parent directories as needed.
 func (s *Service) Write(_ context.Context, path string, data []byte) error {
+	if err := validatePath(path); err != nil {
+		return err
+	}
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "/" {
 		if err := s.fs.MkdirAll(dir, 0755); err != nil {
@@ -63,6 +78,9 @@ func (s *Service) Write(_ context.Context, path string, data []byte) error {
 
 // WriteStream streams data from an io.Reader to the given path.
 func (s *Service) WriteStream(_ context.Context, path string, r io.Reader) (int64, error) {
+	if err := validatePath(path); err != nil {
+		return 0, err
+	}
 	dir := filepath.Dir(path)
 	if dir != "." && dir != "/" {
 		if err := s.fs.MkdirAll(dir, 0755); err != nil {
@@ -85,6 +103,9 @@ func (s *Service) WriteStream(_ context.Context, path string, r io.Reader) (int6
 
 // Delete removes a file at the given path.
 func (s *Service) Delete(_ context.Context, path string) error {
+	if err := validatePath(path); err != nil {
+		return err
+	}
 	err := s.fs.Remove(path)
 	if err != nil {
 		if isNotExist(err) {
@@ -97,6 +118,9 @@ func (s *Service) Delete(_ context.Context, path string) error {
 
 // List returns all file paths under the given prefix.
 func (s *Service) List(_ context.Context, prefix string) ([]string, error) {
+	if err := validatePath(prefix); err != nil {
+		return nil, err
+	}
 	var paths []string
 
 	err := afero.Walk(s.fs, prefix, func(path string, info os.FileInfo, err error) error {

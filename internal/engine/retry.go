@@ -9,6 +9,9 @@ import (
 	"github.com/chimpanze/noda/internal/trace"
 )
 
+// maxBackoffDelay caps the maximum delay between retries to prevent overflow.
+const maxBackoffDelay = 5 * time.Minute
+
 // retryNode re-executes a node according to the retry config.
 // Returns the output name from a successful retry, or "error" if all retries exhausted.
 func retryNode(
@@ -29,6 +32,10 @@ func retryNode(
 		currentDelay := delay
 		if retry.Backoff == "exponential" {
 			currentDelay = delay * time.Duration(1<<(attempt-1))
+			if currentDelay > maxBackoffDelay || currentDelay <= 0 {
+				// Cap or overflow protection
+				currentDelay = maxBackoffDelay
+			}
 		}
 
 		execCtx.Log("info", fmt.Sprintf("retry attempt %d/%d", attempt, retry.Attempts), map[string]any{
