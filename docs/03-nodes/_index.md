@@ -1,6 +1,6 @@
 # Node Reference
 
-Noda provides 68 built-in node types organized by plugin. Every node returns a named output (`success` or `error` by default) along with its result data.
+Noda provides 72 built-in node types organized by plugin. Every node returns a named output (`success` or `error` by default) along with its result data.
 
 ## Node Categories
 
@@ -10,7 +10,7 @@ Noda provides 68 built-in node types organized by plugin. Every node returns a n
 | Workflow | `workflow` | run, output |
 | Transform | `transform` | set, map, filter, merge, delete, validate |
 | Response | `response` | json, redirect, error |
-| Utility | `util` | log, uuid, delay, timestamp |
+| Utility | `util` | log, uuid, delay, timestamp, jwt_sign |
 | Event | `event` | emit |
 | Upload | `upload` | handle |
 | WebSocket | `ws` | send |
@@ -23,6 +23,7 @@ Noda provides 68 built-in node types organized by plugin. Every node returns a n
 | Email | `email` | send |
 | Image | `image` | resize, crop, watermark, convert, thumbnail |
 | LiveKit | `lk` | token, roomCreate, roomList, roomDelete, roomUpdateMetadata, sendData, participantList, participantGet, participantRemove, participantUpdate, muteTrack, egressStartRoomComposite, egressStartTrack, egressStop, egressList, ingressCreate, ingressList, ingressDelete |
+| OIDC | `oidc` | auth_url, exchange, refresh |
 
 ## Error Handling
 

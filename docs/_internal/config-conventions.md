@@ -1,7 +1,7 @@
 # Noda — Config Conventions
 
 **Version**: 0.4.0
-**Status**: Planning
+**Status**: Complete
 
 This document defines the naming conventions, field patterns, and structural rules for all JSON configuration in Noda. Every node config, trigger mapping, and structure definition should follow these conventions. The goal is that once you understand the patterns, most node configs become obvious from the node name alone.
 

@@ -2,7 +2,7 @@
 
 **Version**: 0.4.0
 **Language**: Go
-**Status**: Planning
+**Status**: Complete
 
 ---
 
@@ -394,8 +394,8 @@ An HTTP route maps selected request fields into `$.input`:
   "trigger": {
     "workflow": "create-user",
     "input": {
-      "email": "{{ request.body.email }}",
-      "name": "{{ request.body.name }}"
+      "email": "{{ body.email }}",
+      "name": "{{ body.name }}"
     }
   }
 }
@@ -431,7 +431,7 @@ When an HTTP route handles file uploads, the trigger config explicitly marks whi
   "trigger": {
     "workflow": "upload-avatar",
     "input": {
-      "user_id": "{{ request.params.id }}",
+      "user_id": "{{ params.id }}",
       "file": "{{ request.file }}"
     },
     "files": ["file"]

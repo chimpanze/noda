@@ -1,7 +1,7 @@
 # Noda — Wasm Host API
 
 **Version**: 0.4.0
-**Status**: Planning
+**Status**: Complete
 
 This document defines the contract between Noda and Wasm modules running in the Wasm runtime. It is intended for developers writing Wasm modules in any supported language (Rust, Go, C, AssemblyScript, JavaScript, etc.).
 

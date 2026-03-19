@@ -75,7 +75,7 @@ Use `$env('VAR_NAME')` in any string value in the root config to reference envir
 
 ```json
 {
-  "dsn": "{{ $env('DATABASE_URL') }}"
+  "url": "{{ $env('DATABASE_URL') }}"
 }
 ```
 

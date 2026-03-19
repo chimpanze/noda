@@ -1,6 +1,6 @@
 # REST API Example — Task Management
 
-A simple CRUD API for tasks, based on `docs/use-cases/01-rest-api.md`.
+A simple CRUD API for tasks, based on `docs/05-examples/rest-api.md`.
 
 ## Endpoints
 

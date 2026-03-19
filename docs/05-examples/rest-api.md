@@ -54,7 +54,7 @@ workflows/
 
 **Trigger:** `POST /api/tasks` → workflow `create-task`
 
-**Input mapping:** `{ "title": "{{ request.body.title }}", "description": "{{ request.body.description }}" }`
+**Input mapping:** `{ "title": "{{ body.title }}", "description": "{{ body.description }}" }`
 
 **Nodes:**
 
@@ -71,7 +71,7 @@ Request body validation happens automatically at the route level via `body.schem
 
 **Trigger:** `GET /api/tasks` → workflow `list-tasks`
 
-**Input mapping:** `{ "page": "{{ request.query.page ?? 1 }}", "limit": "{{ request.query.limit ?? 20 }}" }`
+**Input mapping:** `{ "page": "{{ query.page ?? 1 }}", "limit": "{{ query.limit ?? 20 }}" }`
 
 **Nodes:**
 

@@ -49,8 +49,7 @@ Map of service instance name to service config. Each service connects to an exte
 
 | Config Field | Type | Required | Description |
 |-------------|------|----------|-------------|
-| `driver` | string | yes | Database driver: `"postgres"` |
-| `dsn` | string | yes | Connection string |
+| `url` | string | yes | PostgreSQL connection URL (e.g., `postgres://user:pass@host:5432/db`) |
 
 ```json
 {
@@ -58,8 +57,7 @@ Map of service instance name to service config. Each service connects to an exte
     "postgres": {
       "plugin": "db",
       "config": {
-        "driver": "postgres",
-        "dsn": "{{ $env('DATABASE_URL') }}"
+        "url": "{{ $env('DATABASE_URL') }}"
       }
     }
   }
