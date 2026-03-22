@@ -15,6 +15,7 @@ import (
 	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
+	gojson "github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
 )
@@ -100,6 +101,8 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 
 	fiberCfg := fiber.Config{
 		ErrorHandler: s.errorHandler,
+		JSONEncoder:  gojson.Marshal,
+		JSONDecoder:  gojson.Unmarshal,
 	}
 
 	// Read server settings from root config

@@ -11,6 +11,7 @@ import (
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/google/uuid"
 )
 
@@ -330,7 +331,7 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		triggerResult.Trigger.TraceID = traceID
 
 		// Propagate X-Request-ID from Fiber's requestid middleware
-		if reqID, ok := c.Locals("requestid").(string); ok && reqID != "" {
+		if reqID := requestid.FromContext(c); reqID != "" {
 			triggerResult.Trigger.RequestID = reqID
 		}
 

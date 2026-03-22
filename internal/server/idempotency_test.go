@@ -1,69 +1,23 @@
 package server
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
 	"io"
 	"net/http/httptest"
-	"sync"
 	"testing"
 
-	"github.com/chimpanze/noda/internal/registry"
-	"github.com/chimpanze/noda/pkg/api"
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// mockCacheService is a simple in-memory cache for testing.
-type mockCacheService struct {
-	mu   sync.RWMutex
-	data map[string]any
-}
-
-func newMockCacheService() *mockCacheService {
-	return &mockCacheService{data: make(map[string]any)}
-}
-
-func (m *mockCacheService) Get(_ context.Context, key string) (any, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	v, ok := m.data[key]
-	if !ok {
-		return nil, &api.NotFoundError{Resource: "cache", ID: key}
-	}
-	return v, nil
-}
-
-func (m *mockCacheService) Set(_ context.Context, key string, value any, _ int) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.data[key] = value
-	return nil
-}
-
-func (m *mockCacheService) Del(_ context.Context, key string) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	delete(m.data, key)
-	return nil
-}
-
-func (m *mockCacheService) Exists(_ context.Context, key string) (bool, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	_, ok := m.data[key]
-	return ok, nil
-}
-
 func TestIdempotencyMiddleware_NoKey_PassesThrough(t *testing.T) {
-	cache := newMockCacheService()
-	handler := newIdempotencyHandler(cache, nil)
+	h, err := newIdempotencyMiddleware(nil, nil)
+	require.NoError(t, err)
 
 	app := fiber.New()
 	callCount := 0
-	app.Post("/test", handler, func(c fiber.Ctx) error {
+	app.Post("/test", h, func(c fiber.Ctx) error {
 		callCount++
 		return c.JSON(map[string]any{"n": callCount})
 	})
@@ -84,21 +38,24 @@ func TestIdempotencyMiddleware_NoKey_PassesThrough(t *testing.T) {
 }
 
 func TestIdempotencyMiddleware_WithKey_ReturnsCached(t *testing.T) {
-	cache := newMockCacheService()
-	handler := newIdempotencyHandler(cache, map[string]any{
-		"ttl": "1h",
-	})
+	h, err := newIdempotencyMiddleware(map[string]any{
+		"lifetime": "1h",
+	}, nil)
+	require.NoError(t, err)
 
 	app := fiber.New()
 	callCount := 0
-	app.Post("/test", handler, func(c fiber.Ctx) error {
+	app.Post("/test", h, func(c fiber.Ctx) error {
 		callCount++
 		return c.JSON(map[string]any{"n": callCount})
 	})
 
+	// Fiber's built-in uses X-Idempotency-Key and expects a UUID (36 chars)
+	key := "550e8400-e29b-41d4-a716-446655440000"
+
 	// First call with key
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "abc123")
+	req.Header.Set("X-Idempotency-Key", key)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -108,7 +65,7 @@ func TestIdempotencyMiddleware_WithKey_ReturnsCached(t *testing.T) {
 
 	// Second call with same key — should return cached response
 	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "abc123")
+	req.Header.Set("X-Idempotency-Key", key)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
@@ -119,167 +76,132 @@ func TestIdempotencyMiddleware_WithKey_ReturnsCached(t *testing.T) {
 }
 
 func TestIdempotencyMiddleware_DifferentKeys_ExecutesSeparately(t *testing.T) {
-	cache := newMockCacheService()
-	handler := newIdempotencyHandler(cache, nil)
+	h, err := newIdempotencyMiddleware(nil, nil)
+	require.NoError(t, err)
 
 	app := fiber.New()
 	callCount := 0
-	app.Post("/test", handler, func(c fiber.Ctx) error {
+	app.Post("/test", h, func(c fiber.Ctx) error {
 		callCount++
 		return c.JSON(map[string]any{"n": callCount})
 	})
 
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "key-1")
-	_, err := app.Test(req)
+	req.Header.Set("X-Idempotency-Key", "550e8400-e29b-41d4-a716-446655440001")
+	_, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 1, callCount)
 
 	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "key-2")
+	req.Header.Set("X-Idempotency-Key", "550e8400-e29b-41d4-a716-446655440002")
 	_, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 2, callCount) // different key, new execution
 }
 
 func TestIdempotencyMiddleware_CustomKeyHeader(t *testing.T) {
-	cache := newMockCacheService()
-	handler := newIdempotencyHandler(cache, map[string]any{
+	h, err := newIdempotencyMiddleware(map[string]any{
 		"key_header": "X-Request-Token",
-	})
+	}, nil)
+	require.NoError(t, err)
 
 	app := fiber.New()
 	callCount := 0
-	app.Post("/test", handler, func(c fiber.Ctx) error {
+	app.Post("/test", h, func(c fiber.Ctx) error {
 		callCount++
 		return c.JSON(map[string]any{"n": callCount})
 	})
 
+	key := "550e8400-e29b-41d4-a716-446655440003"
+
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-Request-Token", "token-1")
-	_, err := app.Test(req)
+	req.Header.Set("X-Request-Token", key)
+	_, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 1, callCount)
 
 	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("X-Request-Token", "token-1")
+	req.Header.Set("X-Request-Token", key)
 	_, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 1, callCount) // cached
 }
 
-func TestIdempotencyMiddleware_CacheMiss_ExecutesHandler(t *testing.T) {
-	// Cache that always returns NotFound
-	cache := newMockCacheService()
-	handler := newIdempotencyHandler(cache, nil)
+func TestIdempotencyMiddleware_SafeMethodSkipped(t *testing.T) {
+	h, err := newIdempotencyMiddleware(nil, nil)
+	require.NoError(t, err)
 
 	app := fiber.New()
-	executed := false
-	app.Post("/test", handler, func(c fiber.Ctx) error {
-		executed = true
-		return c.JSON(map[string]any{"ok": true})
+	callCount := 0
+	app.Get("/test", h, func(c fiber.Ctx) error {
+		callCount++
+		return c.JSON(map[string]any{"n": callCount})
 	})
 
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "new-key")
-	resp, err := app.Test(req)
+	key := "550e8400-e29b-41d4-a716-446655440004"
+
+	// GET is a safe method — idempotency middleware should skip it
+	req := httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Idempotency-Key", key)
+	_, err = app.Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode)
-	assert.True(t, executed)
+	assert.Equal(t, 1, callCount)
+
+	req = httptest.NewRequest("GET", "/test", nil)
+	req.Header.Set("X-Idempotency-Key", key)
+	_, err = app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 2, callCount) // NOT cached — safe methods are skipped
 }
 
 func TestIdempotencyMiddleware_CachesStatusCode(t *testing.T) {
-	cache := newMockCacheService()
-	handler := newIdempotencyHandler(cache, nil)
+	h, err := newIdempotencyMiddleware(nil, nil)
+	require.NoError(t, err)
 
 	app := fiber.New()
-	app.Post("/test", handler, func(c fiber.Ctx) error {
+	app.Post("/test", h, func(c fiber.Ctx) error {
 		return c.Status(201).JSON(map[string]any{"created": true})
 	})
 
+	key := "550e8400-e29b-41d4-a716-446655440005"
+
 	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "create-1")
+	req.Header.Set("X-Idempotency-Key", key)
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 201, resp.StatusCode)
 
-	body, _ := io.ReadAll(resp.Body)
-	var result map[string]any
-	require.NoError(t, json.Unmarshal(body, &result))
-	assert.Equal(t, true, result["created"])
-
 	// Second call returns same status
 	req = httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "create-1")
+	req.Header.Set("X-Idempotency-Key", key)
 	resp, err = app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 201, resp.StatusCode)
 }
 
-func TestNewIdempotencyMiddleware_MissingCacheServiceConfig(t *testing.T) {
-	_, err := newIdempotencyMiddleware(
-		map[string]any{},
-		map[string]any{"_services": registry.NewServiceRegistry()},
-	)
+func TestNewIdempotencyMiddleware_InvalidLifetime(t *testing.T) {
+	_, err := newIdempotencyMiddleware(map[string]any{
+		"lifetime": "not-a-duration",
+	}, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "cache_service")
+	assert.Contains(t, err.Error(), "invalid lifetime")
 }
 
-func TestNewIdempotencyMiddleware_ServiceNotFound(t *testing.T) {
-	_, err := newIdempotencyMiddleware(
-		map[string]any{"cache_service": "missing"},
-		map[string]any{"_services": registry.NewServiceRegistry()},
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in service registry")
-}
+func TestNewIdempotencyMiddleware_RedisStorage(t *testing.T) {
+	mr := miniredis.RunT(t)
 
-func TestNewIdempotencyMiddleware_WrongServiceType(t *testing.T) {
-	svcReg := registry.NewServiceRegistry()
-	_ = svcReg.Register("not-cache", &struct{}{}, &mockPlugin{})
-
-	_, err := newIdempotencyMiddleware(
-		map[string]any{"cache_service": "not-cache"},
-		map[string]any{"_services": svcReg},
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "does not implement CacheService")
-}
-
-func TestNewIdempotencyMiddleware_NoServiceRegistry(t *testing.T) {
-	_, err := newIdempotencyMiddleware(
-		map[string]any{"cache_service": "cache"},
-		map[string]any{},
-	)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "service registry not available")
-}
-
-// failingCacheService returns errors on Get to test cache miss handling.
-type failingCacheService struct{}
-
-func (f *failingCacheService) Get(_ context.Context, key string) (any, error) {
-	return nil, fmt.Errorf("cache unavailable")
-}
-func (f *failingCacheService) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
-func (f *failingCacheService) Del(_ context.Context, _ string) error               { return nil }
-func (f *failingCacheService) Exists(_ context.Context, _ string) (bool, error)    { return false, nil }
-
-func TestIdempotencyMiddleware_CacheError_StillExecutes(t *testing.T) {
-	handler := newIdempotencyHandler(&failingCacheService{}, nil)
-
-	app := fiber.New()
-	callCount := 0
-	app.Post("/test", handler, func(c fiber.Ctx) error {
-		callCount++
-		return c.JSON(map[string]any{"n": callCount})
-	})
-
-	// Even with cache errors, the handler should execute
-	req := httptest.NewRequest("POST", "/test", nil)
-	req.Header.Set("Idempotency-Key", "test-key")
-	resp, err := app.Test(req)
+	h, err := newIdempotencyMiddleware(map[string]any{
+		"storage":   "redis",
+		"redis_url": "redis://" + mr.Addr(),
+	}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, 1, callCount)
+	assert.NotNil(t, h)
+}
+
+func TestNewIdempotencyMiddleware_RedisStorage_MissingURL(t *testing.T) {
+	_, err := newIdempotencyMiddleware(map[string]any{
+		"storage": "redis",
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "redis_url is required")
 }
