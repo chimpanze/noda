@@ -60,3 +60,4 @@ Thumbs.db
 # Logs
 *.log
 /projects/adventure-stream/frontend/node_modules/
+/projects/adventure-stream/frontend/dist/

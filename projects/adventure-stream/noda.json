@@ -27,7 +27,7 @@
   "security": {
     "cors": {
       "allow_methods": "GET, POST, DELETE, OPTIONS, HEAD",
-      "allow_origins": "*"
+      "allow_origins": "https://live.marten.me"
     },
     "jwt": {
       "algorithm": "HS256",

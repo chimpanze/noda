@@ -7,7 +7,7 @@ import type {
   Participant,
 } from "./types";
 
-const BASE = "/api";
+const BASE = (import.meta.env.VITE_API_URL as string) || "/api";
 
 function getToken(): string | null {
   return localStorage.getItem("admin_token");
