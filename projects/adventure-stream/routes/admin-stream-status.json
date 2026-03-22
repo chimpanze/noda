@@ -1,0 +1,10 @@
+{
+  "id": "admin-stream-status",
+  "method": "GET",
+  "path": "/api/admin/stream/status",
+  "summary": "Get detailed stream status",
+  "tags": ["admin", "stream"],
+  "trigger": {
+    "workflow": "admin-stream-status"
+  }
+}

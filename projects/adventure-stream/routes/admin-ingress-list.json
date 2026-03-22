@@ -1,0 +1,10 @@
+{
+  "id": "admin-ingress-list",
+  "method": "GET",
+  "path": "/api/admin/ingress",
+  "summary": "List all ingress endpoints",
+  "tags": ["admin", "ingress"],
+  "trigger": {
+    "workflow": "admin-ingress-list"
+  }
+}

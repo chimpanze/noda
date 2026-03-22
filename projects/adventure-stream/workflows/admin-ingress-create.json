@@ -1,0 +1,53 @@
+{
+  "id": "admin-ingress-create",
+  "name": "Create Ingress",
+  "nodes": {
+    "create": {
+      "type": "lk.ingressCreate",
+      "services": { "livekit": "lk" },
+      "config": {
+        "input_type": "rtmp",
+        "room": "adventure-stream",
+        "participant_identity": "camera",
+        "participant_name": "{{ input.participant_name ?? 'DJI Osmo Action 4' }}"
+      }
+    },
+    "build_cache": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "ingress_id": "{{ nodes.create.ingress_id }}",
+          "url": "{{ nodes.create.url }}",
+          "stream_key": "{{ nodes.create.stream_key }}"
+        }
+      }
+    },
+    "cache_ingress": {
+      "type": "cache.set",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "ingress:active",
+        "value": "{{ nodes.build_cache }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "ingress_id": "{{ nodes.create.ingress_id }}",
+          "url": "{{ nodes.create.url }}",
+          "stream_key": "{{ nodes.create.stream_key }}",
+          "room": "{{ nodes.create.room }}",
+          "participant_identity": "{{ nodes.create.participant_identity }}",
+          "participant_name": "{{ nodes.create.participant_name }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "create", "to": "build_cache" },
+    { "from": "build_cache", "to": "cache_ingress" },
+    { "from": "cache_ingress", "to": "respond" }
+  ]
+}

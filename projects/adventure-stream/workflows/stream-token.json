@@ -1,0 +1,47 @@
+{
+  "id": "stream-token",
+  "name": "Stream Token",
+  "nodes": {
+    "gen_identity": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "identity": "{{ $uuid() }}"
+        }
+      }
+    },
+    "create_token": {
+      "type": "lk.token",
+      "services": { "livekit": "lk" },
+      "config": {
+        "identity": "{{ nodes.gen_identity.identity }}",
+        "room": "adventure-stream",
+        "name": "{{ input.name }}",
+        "ttl": "6h",
+        "grants": {
+          "canSubscribe": true,
+          "canPublish": true,
+          "canPublishData": true,
+          "canPublishSources": ["MICROPHONE"],
+          "roomJoin": true
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "token": "{{ nodes.create_token.token }}",
+          "url": "{{ secrets.LIVEKIT_URL }}",
+          "room": "adventure-stream",
+          "identity": "{{ nodes.gen_identity.identity }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "gen_identity", "to": "create_token" },
+    { "from": "create_token", "to": "respond" }
+  ]
+}

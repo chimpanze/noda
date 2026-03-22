@@ -1,0 +1,13 @@
+{
+  "id": "admin-ingress-delete",
+  "method": "DELETE",
+  "path": "/api/admin/ingress/:id",
+  "summary": "Delete an ingress endpoint",
+  "tags": ["admin", "ingress"],
+  "trigger": {
+    "workflow": "admin-ingress-delete",
+    "input": {
+      "ingress_id": "{{ params.id }}"
+    }
+  }
+}

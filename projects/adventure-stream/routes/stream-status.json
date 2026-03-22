@@ -1,0 +1,10 @@
+{
+  "id": "stream-status",
+  "method": "GET",
+  "path": "/api/stream/status",
+  "summary": "Get current stream status",
+  "tags": ["stream"],
+  "trigger": {
+    "workflow": "stream-status"
+  }
+}

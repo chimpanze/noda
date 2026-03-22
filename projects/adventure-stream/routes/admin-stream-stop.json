@@ -1,0 +1,13 @@
+{
+  "id": "admin-stream-stop",
+  "method": "POST",
+  "path": "/api/admin/stream/stop",
+  "summary": "Stop the adventure stream",
+  "tags": ["admin", "stream"],
+  "body": {
+    "validate": false
+  },
+  "trigger": {
+    "workflow": "admin-stream-stop"
+  }
+}

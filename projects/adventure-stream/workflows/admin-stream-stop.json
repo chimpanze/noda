@@ -1,0 +1,34 @@
+{
+  "id": "admin-stream-stop",
+  "name": "Stop Stream",
+  "nodes": {
+    "delete_room": {
+      "type": "lk.roomDelete",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "adventure-stream"
+      }
+    },
+    "clear_cache": {
+      "type": "cache.del",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "stream:info"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "stopped": true
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "delete_room", "output": "success", "to": "clear_cache" },
+    { "from": "delete_room", "output": "error", "to": "clear_cache" },
+    { "from": "clear_cache", "to": "respond" }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "id": "admin-stream-status",
+  "name": "Admin Stream Status",
+  "nodes": {
+    "get_cache": {
+      "type": "cache.get",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "stream:info"
+      }
+    },
+    "list_rooms": {
+      "type": "lk.roomList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "names": ["adventure-stream"]
+      }
+    },
+    "list_ingress": {
+      "type": "lk.ingressList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "adventure-stream"
+      }
+    },
+    "respond_live": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "stream": "{{ nodes.get_cache.value }}",
+          "rooms": "{{ nodes.list_rooms.rooms }}",
+          "ingress": "{{ nodes.list_ingress.items }}"
+        }
+      }
+    },
+    "respond_offline": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "stream": null,
+          "rooms": "{{ nodes.list_rooms.rooms }}",
+          "ingress": "{{ nodes.list_ingress.items }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "get_cache", "output": "success", "to": "respond_live" },
+    { "from": "get_cache", "output": "error", "to": "respond_offline" },
+    { "from": "list_rooms", "to": "respond_live" },
+    { "from": "list_rooms", "to": "respond_offline" },
+    { "from": "list_ingress", "to": "respond_live" },
+    { "from": "list_ingress", "to": "respond_offline" }
+  ]
+}

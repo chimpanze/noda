@@ -1,0 +1,33 @@
+{
+  "id": "admin-ingress-delete",
+  "name": "Delete Ingress",
+  "nodes": {
+    "delete": {
+      "type": "lk.ingressDelete",
+      "services": { "livekit": "lk" },
+      "config": {
+        "ingress_id": "{{ input.ingress_id }}"
+      }
+    },
+    "clear_cache": {
+      "type": "cache.del",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "ingress:active"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "deleted": true
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "delete", "to": "clear_cache" },
+    { "from": "clear_cache", "to": "respond" }
+  ]
+}

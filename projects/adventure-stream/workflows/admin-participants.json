@@ -1,0 +1,25 @@
+{
+  "id": "admin-participants",
+  "name": "List Participants",
+  "nodes": {
+    "list": {
+      "type": "lk.participantList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "adventure-stream"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "participants": "{{ nodes.list.participants }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "respond" }
+  ]
+}

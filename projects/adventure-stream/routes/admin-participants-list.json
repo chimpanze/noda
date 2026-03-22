@@ -1,0 +1,10 @@
+{
+  "id": "admin-participants-list",
+  "method": "GET",
+  "path": "/api/admin/participants",
+  "summary": "List stream participants",
+  "tags": ["admin", "participants"],
+  "trigger": {
+    "workflow": "admin-participants"
+  }
+}

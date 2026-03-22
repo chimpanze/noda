@@ -1,0 +1,13 @@
+{
+  "id": "stream-token",
+  "method": "GET",
+  "path": "/api/stream/token",
+  "summary": "Get a viewer token for the stream",
+  "tags": ["stream"],
+  "trigger": {
+    "workflow": "stream-token",
+    "input": {
+      "name": "{{ query.name }}"
+    }
+  }
+}

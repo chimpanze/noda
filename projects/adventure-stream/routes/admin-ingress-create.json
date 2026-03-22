@@ -1,0 +1,16 @@
+{
+  "id": "admin-ingress-create",
+  "method": "POST",
+  "path": "/api/admin/ingress",
+  "summary": "Create RTMP ingress for camera streaming",
+  "tags": ["admin", "ingress"],
+  "body": {
+    "schema": { "$ref": "schemas/CreateIngress" }
+  },
+  "trigger": {
+    "workflow": "admin-ingress-create",
+    "input": {
+      "participant_name": "{{ body.participant_name }}"
+    }
+  }
+}

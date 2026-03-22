@@ -1,0 +1,13 @@
+{
+  "id": "admin-participant-kick",
+  "method": "DELETE",
+  "path": "/api/admin/participants/:identity",
+  "summary": "Kick a participant from the stream",
+  "tags": ["admin", "participants"],
+  "trigger": {
+    "workflow": "admin-participant-kick",
+    "input": {
+      "identity": "{{ params.identity }}"
+    }
+  }
+}
