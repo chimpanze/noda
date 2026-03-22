@@ -183,22 +183,23 @@ Noda exposes health check endpoints:
 
 | Endpoint | Purpose | Success | Failure |
 |----------|---------|---------|---------|
-| `GET /health` | Liveness probe — is the process running? | `200 OK` | `503` |
-| `GET /ready` | Readiness probe — are all services connected? | `200 OK` | `503` |
+| `GET /health/live` | Liveness probe — is the process running? | `200 OK` | — |
+| `GET /health/ready` | Readiness probe — are all services initialized? | `200 OK` | `503` |
+| `GET /health` | Deep check — pings all registered services | `200 OK` | `503` |
 
 ### Kubernetes Probes
 
 ```yaml
 livenessProbe:
   httpGet:
-    path: /health
+    path: /health/live
     port: 3000
   initialDelaySeconds: 5
   periodSeconds: 10
 
 readinessProbe:
   httpGet:
-    path: /ready
+    path: /health/ready
     port: 3000
   initialDelaySeconds: 10
   periodSeconds: 5
@@ -217,7 +218,7 @@ Noda has built-in OpenTelemetry support for traces. Configure the OTLP exporter:
       "exporter": "otlp",
       "endpoint": "http://jaeger:4318",
       "service_name": "noda",
-      "sample_rate": 1.0
+      "sampling_rate": 1.0
     }
   }
 }
@@ -255,12 +256,33 @@ services:
 
 ### Prometheus Metrics
 
-Noda exposes Prometheus-compatible metrics at `/metrics` (when enabled):
+Noda exposes Prometheus-compatible metrics at `/metrics` (when enabled in config):
 
-- `noda_http_requests_total` — request count by method, path, status
-- `noda_workflow_executions_total` — workflow execution count by ID, status
-- `noda_node_execution_duration_seconds` — node execution latency histogram
-- `noda_worker_messages_total` — worker message processing count
+```json
+{
+  "observability": {
+    "metrics": {
+      "enabled": true,
+      "path": "/metrics"
+    }
+  }
+}
+```
+
+Available metrics:
+
+| Metric | Type | Labels | Description |
+|--------|------|--------|-------------|
+| `http_request_duration` | Histogram | method, route, status | HTTP request latency (seconds) |
+| `http_requests_total` | Counter | method, route, status | Total HTTP requests |
+| `http_errors_total` | Counter | method, route, status, error_type | Total HTTP errors |
+| `workflow_duration` | Histogram | workflow_id, status | Workflow execution latency (seconds) |
+| `workflow_executions_total` | Counter | workflow_id, status | Total workflow executions |
+| `workflow_errors_total` | Counter | workflow_id, error_type | Total failed workflows |
+| `node_duration` | Histogram | node_type, status | Node execution latency (seconds) |
+| `node_errors_total` | Counter | node_type, error_type | Total node errors |
+| `active_connections` | UpDownCounter | type (ws/sse) | Current WebSocket/SSE connections |
+| `panics_recovered_total` | Counter | source | Recovered panics |
 
 ## Database Migrations
 

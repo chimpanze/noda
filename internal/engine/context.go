@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -44,6 +46,8 @@ type ExecutionContextImpl struct {
 	traceCallback       func(eventType, nodeID, nodeType, output, errMsg string, data any)
 
 	secretsContext map[string]any // from secrets.Manager.ExpressionContext()
+
+	metrics *metrics.Metrics // optional application metrics
 
 	depth    int32 // atomic
 	maxDepth int32 // atomic
@@ -118,8 +122,16 @@ func WithSecrets(secretsCtx map[string]any) ExecutionContextOption {
 	return func(c *ExecutionContextImpl) { c.secretsContext = secretsCtx }
 }
 
+// WithMetricsInst sets the application metrics for recording workflow/node metrics.
+func WithMetricsInst(m *metrics.Metrics) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.metrics = m }
+}
+
 // Tracer returns the OTel tracer.
 func (c *ExecutionContextImpl) Tracer() oteltrace.Tracer { return c.tracer }
+
+// Metrics returns the application metrics, or nil if not configured.
+func (c *ExecutionContextImpl) Metrics() *metrics.Metrics { return c.metrics }
 
 // TraceCallback is a function called for each execution event (dev mode).
 type TraceCallback func(eventType, nodeID, nodeType, output, errMsg string, data any)
@@ -178,11 +190,18 @@ func (c *ExecutionContextImpl) Log(level string, message string, fields map[stri
 		"trace_id", c.trigger.TraceID,
 		"workflow_id", c.workflowID,
 	}
+	if c.trigger.RequestID != "" {
+		attrs = append(attrs, "request_id", c.trigger.RequestID)
+	}
 	if nodeID, _ := c.currentNode.Load().(string); nodeID != "" {
 		attrs = append(attrs, "node_id", nodeID)
 	}
 	for k, v := range fields {
-		attrs = append(attrs, k, v)
+		if isSensitiveLogKey(k) {
+			attrs = append(attrs, k, "[REDACTED]")
+		} else {
+			attrs = append(attrs, k, v)
+		}
 	}
 
 	switch level {
@@ -303,9 +322,10 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 		}
 	}
 	ctx["trigger"] = map[string]any{
-		"type":      c.trigger.Type,
-		"timestamp": c.trigger.Timestamp,
-		"trace_id":  c.trigger.TraceID,
+		"type":       c.trigger.Type,
+		"timestamp":  c.trigger.Timestamp,
+		"trace_id":   c.trigger.TraceID,
+		"request_id": c.trigger.RequestID,
 	}
 	// Node outputs are namespaced under "nodes" to avoid clashing with
 	// expr-lang built-in functions (len, find, count, map, filter, etc.).
@@ -322,4 +342,36 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 
 func returnExprContext(ctx map[string]any) {
 	exprContextPool.Put(ctx)
+}
+
+// sensitiveLogContains lists substrings (lowercase) that make any log key sensitive.
+var sensitiveLogContains = []string{
+	"password",
+	"secret",
+	"token",
+	"authorization",
+	"credential",
+	"api_key",
+	"apikey",
+}
+
+// sensitiveLogExact lists exact key names (lowercase) that are sensitive.
+var sensitiveLogExact = []string{
+	"key",
+}
+
+// isSensitiveLogKey checks whether a log field key matches any sensitive pattern.
+func isSensitiveLogKey(key string) bool {
+	lower := strings.ToLower(key)
+	for _, pattern := range sensitiveLogContains {
+		if strings.Contains(lower, pattern) {
+			return true
+		}
+	}
+	for _, exact := range sensitiveLogExact {
+		if lower == exact {
+			return true
+		}
+	}
+	return false
 }

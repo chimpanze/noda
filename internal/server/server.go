@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -11,9 +12,13 @@ import (
 	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Server wraps the Fiber app and Noda runtime dependencies.
@@ -25,6 +30,9 @@ type Server struct {
 	nodes          *registry.NodeRegistry
 	workflows      *engine.WorkflowCache
 	traceHub       *trace.EventHub
+	metrics        *metrics.Metrics
+	metricsHandler http.Handler
+	metricsPath    string
 	devMode        bool
 	connManagers   *connmgr.ManagerGroup
 	port           int
@@ -54,6 +62,15 @@ func WithWorkflowCache(c *engine.WorkflowCache) ServerOption {
 // WithSecretsContext sets the secrets map for expression evaluation.
 func WithSecretsContext(ctx map[string]any) ServerOption {
 	return func(s *Server) { s.secretsContext = ctx }
+}
+
+// WithMetrics sets the application metrics and Prometheus handler.
+func WithMetrics(m *metrics.Metrics, handler http.Handler, path string) ServerOption {
+	return func(s *Server) {
+		s.metrics = m
+		s.metricsHandler = handler
+		s.metricsPath = path
+	}
 }
 
 // WithTraceHub sets the trace event hub for dev-mode live tracing.
@@ -134,6 +151,15 @@ func (s *Server) Setup() error {
 	// Register health endpoints (before middleware so they're always accessible)
 	s.registerHealthRoutes()
 
+	// Register metrics endpoint (before middleware so it's always accessible)
+	if s.metrics != nil && s.metricsHandler != nil {
+		path := s.metricsPath
+		if path == "" {
+			path = "/metrics"
+		}
+		s.app.Get(path, adaptor.HTTPHandler(s.metricsHandler))
+	}
+
 	// Apply global middleware
 	if err := s.applyGlobalMiddleware(); err != nil {
 		return fmt.Errorf("global middleware: %w", err)
@@ -203,6 +229,17 @@ func (s *Server) errorHandler(c fiber.Ctx, err error) error {
 		default:
 			code = "HTTP_ERROR"
 		}
+	}
+
+	if s.metrics != nil {
+		s.metrics.ErrorsTotal.Add(c.Context(), 1,
+			metric.WithAttributes(
+				attribute.String("method", c.Method()),
+				attribute.String("path", c.Route().Path),
+				attribute.String("status", fmt.Sprintf("%d", status)),
+				attribute.String("error_type", code),
+			),
+		)
 	}
 
 	return c.Status(status).JSON(map[string]any{

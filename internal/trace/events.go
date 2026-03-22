@@ -74,6 +74,11 @@ func (h *EventHub) Emit(event Event) {
 		event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 
+	// Redact sensitive values from trace data before broadcasting
+	if m, ok := event.Data.(map[string]any); ok {
+		event.Data = redactSecrets(m)
+	}
+
 	data, err := json.Marshal(event)
 	if err != nil {
 		return

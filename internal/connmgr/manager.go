@@ -8,6 +8,10 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/chimpanze/noda/internal/metrics"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Conn represents a single client connection (WebSocket or SSE).
@@ -19,6 +23,7 @@ type Conn struct {
 	Metadata map[string]any
 	SendFn   func(data []byte) error            // for WebSocket
 	SSEFn    func(event, data, id string) error // for SSE
+	CloseFn  func() error                       // called during graceful shutdown
 }
 
 // ErrMaxConnectionsReached is returned when the total connection limit is exceeded.
@@ -40,6 +45,8 @@ type Manager struct {
 	channels    map[string]map[string]bool // channel → set of connIDs
 	connCount   atomic.Int64
 	config      ManagerConfig
+	metrics     *metrics.Metrics // optional application metrics
+	connType    string           // "ws" or "sse", set via SetMetrics
 }
 
 // NewManager creates a new connection manager with optional limits.
@@ -53,6 +60,12 @@ func NewManager(configs ...ManagerConfig) *Manager {
 		channels:    make(map[string]map[string]bool),
 		config:      cfg,
 	}
+}
+
+// SetMetrics sets the application metrics and connection type label for this manager.
+func (m *Manager) SetMetrics(met *metrics.Metrics, connType string) {
+	m.metrics = met
+	m.connType = connType
 }
 
 // Register adds a connection to the manager. Returns an error if connection
@@ -81,6 +94,13 @@ func (m *Manager) Register(conn *Conn) error {
 	}
 	m.channels[conn.Channel][conn.ID] = true
 	m.connCount.Add(1)
+
+	if m.metrics != nil {
+		m.metrics.ActiveConns.Add(context.Background(), 1,
+			metric.WithAttributes(attribute.String("type", m.connType)),
+		)
+	}
+
 	return nil
 }
 
@@ -102,6 +122,12 @@ func (m *Manager) Unregister(connID string) {
 		}
 	}
 	m.connCount.Add(-1)
+
+	if m.metrics != nil {
+		m.metrics.ActiveConns.Add(context.Background(), -1,
+			metric.WithAttributes(attribute.String("type", m.connType)),
+		)
+	}
 }
 
 // Count returns the number of active connections.
@@ -216,17 +242,22 @@ func matchWildcard(pattern, channel string) bool {
 	return true
 }
 
-// Stop gracefully unregisters all connections.
+// Stop gracefully closes and unregisters all connections.
 func (m *Manager) Stop(_ context.Context) error {
 	m.mu.Lock()
-	ids := make([]string, 0, len(m.connections))
-	for id := range m.connections {
-		ids = append(ids, id)
+	conns := make([]*Conn, 0, len(m.connections))
+	for _, conn := range m.connections {
+		conns = append(conns, conn)
 	}
 	m.mu.Unlock()
 
-	for _, id := range ids {
-		m.Unregister(id)
+	for _, conn := range conns {
+		if conn.CloseFn != nil {
+			if err := conn.CloseFn(); err != nil {
+				slog.Debug("connection close failed", "conn", conn.ID, "error", err)
+			}
+		}
+		m.Unregister(conn.ID)
 	}
 	return nil
 }

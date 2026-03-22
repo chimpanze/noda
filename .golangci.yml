@@ -5,10 +5,35 @@ linters:
   enable:
     - errcheck
     - govet
+    - gosec
     - ineffassign
     - staticcheck
     - unused
     - misspell
+  exclusions:
+    rules:
+      # G101: false positives on example/test credential strings
+      - linters: [gosec]
+        text: "G101"
+      # G115: integer overflow in controlled contexts (loop counters, dep counts)
+      - linters: [gosec]
+        text: "G115"
+      # G301/G306: relaxed file permissions in internal tooling, CLI scaffolding, plugins, and tests
+      - linters: [gosec]
+        text: "G30[16]"
+        path: (_test\.go|internal/|cmd/|plugins/)
+      # G304: file reads from constructed paths in internal code and tests
+      - linters: [gosec]
+        text: "G304"
+        path: (_test\.go|internal/)
+      # G118: false positive when cancel is stored in struct field
+      - linters: [gosec]
+        text: "G118"
+        path: internal/(wasm|worker)/
+      # G120: test HTTP handlers don't need body size limits
+      - linters: [gosec]
+        text: "G120"
+        path: _test\.go
 
 formatters:
   enable:

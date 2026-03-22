@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/chimpanze/noda/internal/expr"
 )
@@ -41,9 +42,10 @@ type NodeConfig struct {
 
 // WorkflowConfig represents a parsed workflow definition.
 type WorkflowConfig struct {
-	ID    string
-	Nodes map[string]NodeConfig
-	Edges []EdgeConfig
+	ID      string
+	Timeout string `json:"timeout,omitempty"`
+	Nodes   map[string]NodeConfig
+	Edges   []EdgeConfig
 }
 
 // CompiledNode holds compiled metadata for a single node.
@@ -71,6 +73,7 @@ type CompiledEdge struct {
 // CompiledGraph is the executable representation of a workflow.
 type CompiledGraph struct {
 	WorkflowID string
+	Timeout    time.Duration
 	Nodes      map[string]*CompiledNode
 
 	// Adjacency: nodeID → output → []targetNodeID
@@ -129,6 +132,15 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		Reverse:    make(map[string][]string),
 		DepCount:   make(map[string]int),
 		JoinTypes:  make(map[string]JoinType),
+	}
+
+	// Parse workflow timeout
+	if wf.Timeout != "" {
+		d, err := time.ParseDuration(wf.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("invalid workflow timeout %q: %w", wf.Timeout, err)
+		}
+		g.Timeout = d
 	}
 
 	// Compile nodes

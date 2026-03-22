@@ -14,6 +14,7 @@ type TriggerData struct {
 	Type      string // "http", "event", "schedule", "websocket", "wasm"
 	Timestamp time.Time
 	TraceID   string
+	RequestID string // X-Request-ID from HTTP request (if present)
 }
 
 // ExecutionContext provides node executors with access to input data,

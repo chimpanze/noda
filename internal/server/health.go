@@ -1,8 +1,40 @@
 package server
 
 import (
+	"context"
+	"fmt"
+	"time"
+
 	"github.com/gofiber/fiber/v3"
 )
+
+const defaultHealthTimeout = 5 * time.Second
+
+// healthTimeout returns the configured health check timeout or the default.
+func (s *Server) healthTimeout() time.Duration {
+	if serverCfg, ok := s.config.Root["server"].(map[string]any); ok {
+		if v, ok := serverCfg["health_timeout"].(string); ok {
+			if d, err := time.ParseDuration(v); err == nil {
+				return d
+			}
+		}
+	}
+	return defaultHealthTimeout
+}
+
+// pingWithTimeout runs a Ping() call bounded by the given context.
+func pingWithTimeout(ctx context.Context, checker interface{ Ping() error }) error {
+	done := make(chan error, 1)
+	go func() {
+		done <- checker.Ping()
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return fmt.Errorf("health check timed out")
+	}
+}
 
 // registerHealthRoutes adds /health, /health/ready, and /health/live endpoints.
 func (s *Server) registerHealthRoutes() {
@@ -20,12 +52,38 @@ func (s *Server) registerHealthRoutes() {
 	})
 
 	s.app.Get("/health", func(c fiber.Ctx) error {
+		timeout := s.healthTimeout()
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+
 		services := s.services.All()
 		details := make(map[string]string, len(services))
 		allHealthy := true
 
-		// Use HealthCheckAll for plugin-based checks
-		healthErrs := s.services.HealthCheckAll()
+		// Use HealthCheckAll for plugin-based checks (bounded by timeout)
+		type healthCheckResult struct {
+			errs map[string]error
+		}
+		hcCh := make(chan healthCheckResult, 1)
+		go func() {
+			hcCh <- healthCheckResult{errs: s.services.HealthCheckAll()}
+		}()
+
+		var healthErrs map[string]error
+		select {
+		case res := <-hcCh:
+			healthErrs = res.errs
+		case <-ctx.Done():
+			// HealthCheckAll timed out — mark all services as unhealthy
+			for name := range services {
+				details[name] = "unhealthy"
+				s.logger.Error("health check timed out", "service", name)
+			}
+			return c.Status(fiber.StatusServiceUnavailable).JSON(map[string]any{
+				"status":   "unhealthy",
+				"services": details,
+			})
+		}
 
 		for name, svc := range services {
 			if err, failed := healthErrs[name]; failed {
@@ -36,7 +94,7 @@ func (s *Server) registerHealthRoutes() {
 			}
 			// Also check Ping() for services not covered by plugin health checks
 			if checker, ok := svc.(interface{ Ping() error }); ok {
-				if err := checker.Ping(); err != nil {
+				if err := pingWithTimeout(ctx, checker); err != nil {
 					details[name] = "unhealthy"
 					s.logger.Error("health check failed", "service", name, "error", err)
 					allHealthy = false
