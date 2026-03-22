@@ -1,0 +1,25 @@
+{
+  "id": "admin-ingress-list",
+  "name": "List Ingress",
+  "nodes": {
+    "list": {
+      "type": "lk.ingressList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "adventure-stream"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "items": "{{ nodes.list.items }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "respond" }
+  ]
+}

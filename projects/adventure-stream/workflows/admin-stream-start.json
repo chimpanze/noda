@@ -1,0 +1,50 @@
+{
+  "id": "admin-stream-start",
+  "name": "Start Stream",
+  "nodes": {
+    "create_room": {
+      "type": "lk.roomCreate",
+      "services": { "livekit": "lk" },
+      "config": {
+        "name": "adventure-stream",
+        "empty_timeout": 300,
+        "max_participants": 100
+      }
+    },
+    "build_info": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "title": "{{ input.title }}",
+          "description": "{{ input.description }}",
+          "started_at": "{{ now() }}",
+          "room_sid": "{{ nodes.create_room.sid }}"
+        }
+      }
+    },
+    "cache_info": {
+      "type": "cache.set",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "stream:info",
+        "value": "{{ nodes.build_info }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "room": "{{ nodes.create_room }}",
+          "title": "{{ input.title }}",
+          "description": "{{ input.description }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "create_room", "to": "build_info" },
+    { "from": "build_info", "to": "cache_info" },
+    { "from": "cache_info", "to": "respond" }
+  ]
+}

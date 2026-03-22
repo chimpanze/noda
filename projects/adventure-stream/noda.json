@@ -1,0 +1,55 @@
+{
+  "server": {
+    "port": 8080
+  },
+  "services": {
+    "lk": {
+      "plugin": "livekit",
+      "config": {
+        "url": "{{ $env('LIVEKIT_URL') }}",
+        "api_key": "{{ $env('LIVEKIT_API_KEY') }}",
+        "api_secret": "{{ $env('LIVEKIT_API_SECRET') }}"
+      }
+    },
+    "app-cache": {
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
+    },
+    "realtime": {
+      "plugin": "pubsub",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
+    }
+  },
+  "security": {
+    "cors": {
+      "allow_methods": "GET, POST, DELETE, OPTIONS, HEAD",
+      "allow_origins": "https://live.marten.me"
+    },
+    "jwt": {
+      "algorithm": "HS256",
+      "secret": "{{ $env('JWT_SECRET') }}",
+      "token_lookup": "header:Authorization"
+    }
+  },
+  "middleware_presets": {
+    "public": [
+      "security.cors"
+    ],
+    "admin": [
+      "security.cors",
+      "auth.jwt"
+    ]
+  },
+  "route_groups": {
+    "/api/admin": {
+      "middleware_preset": "admin"
+    },
+    "/api": {
+      "middleware_preset": "public"
+    }
+  }
+}

@@ -1,7 +1,7 @@
 # Noda — Visual Editor
 
 **Version**: 0.4.0
-**Status**: Planning
+**Status**: Complete
 
 The visual editor is Noda's primary authoring tool. It is a web application that reads and writes Noda's JSON config files, providing a graphical interface for building workflows, managing routes, configuring services, and debugging executions in real time.
 

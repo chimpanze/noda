@@ -1,6 +1,6 @@
 # Noda — Use Case: Video Conferencing with LiveKit
 
-**Version**: 0.5.0
+**Version**: 0.4.0
 
 A video conferencing backend with room management, token generation, recording, and webhook-driven event handling. Noda acts as the **control plane** — clients connect to LiveKit directly for media transport (WebRTC). No application code required.
 
@@ -103,8 +103,7 @@ JWT_SECRET=your-jwt-secret-at-least-32-bytes-long
     "main-db": {
       "plugin": "db",
       "config": {
-        "driver": "postgres",
-        "dsn": "{{ $env('DATABASE_URL') }}"
+        "url": "{{ $env('DATABASE_URL') }}"
       }
     }
   },

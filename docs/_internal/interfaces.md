@@ -1,7 +1,7 @@
 # Noda — Public API Interfaces (`pkg/api/`)
 
 **Version**: 0.4.0
-**Status**: Planning
+**Status**: Complete
 
 This document defines the stable public interfaces that live in `pkg/api/`. Plugin authors import this package to build plugins and nodes for Noda. Everything in this package is a contract — once published, breaking changes require a major version bump.
 

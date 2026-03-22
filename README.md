@@ -73,7 +73,7 @@ docs/               Documentation
 |---|---|
 | [Getting Started](docs/01-getting-started/quick-start.md) | Installation, quick start, tutorial |
 | [Config Reference](docs/02-config/overview.md) | All config file formats and fields |
-| [Node Reference](docs/03-nodes/_index.md) | All 50 node types with examples |
+| [Node Reference](docs/03-nodes/_index.md) | All 72 node types with examples |
 | [Plugin Author Guide](docs/04-guides/plugin-development.md) | Building custom plugins |
 | [Wasm Developer Guide](docs/04-guides/wasm-development.md) | Building Wasm modules |
 | [Deployment Guide](docs/04-guides/deployment.md) | Production deployment, scaling, observability |
@@ -86,7 +86,7 @@ docs/               Documentation
 | [Public API Interfaces](docs/_internal/interfaces.md) | Go interfaces for plugin authors |
 | [Wasm Host API](docs/_internal/wasm-host-api.md) | Contract for Wasm module developers |
 | [Config Conventions](docs/_internal/config-conventions.md) | Field naming rules, value formats, structural patterns |
-| [Node Reference](docs/03-nodes/_index.md) | All 50 nodes — config, outputs, behavior |
+| [Node Reference](docs/03-nodes/_index.md) | All 72 nodes — config, outputs, behavior |
 | [Visual Editor](docs/_internal/visual-editor.md) | Editor design — React Flow, tech stack, features |
 
 ### Examples
@@ -98,6 +98,8 @@ docs/               Documentation
 | [Real-Time Collaboration](examples/realtime-collab/) | WebSocket-based live editing |
 | [Discord Bot](examples/discord-bot/) | Wasm module with gateway connection |
 | [Wasm Counter](examples/wasm-counter/) | Simple stateful Wasm module |
+| [Init Example](examples/init-example/) | Scaffolded starter project from `noda init` |
+| [Video Rooms](examples/video-rooms/) | Video conferencing with LiveKit integration |
 
 ### Use Cases
 
@@ -108,6 +110,7 @@ docs/               Documentation
 | [Real-Time Collaboration](docs/05-examples/realtime-collab.md) | WebSocket, presence, live editing |
 | [Discord Bot](docs/05-examples/discord-bot.md) | Wasm runtime, gateway connection, async HTTP |
 | [Multiplayer Game](docs/05-examples/multiplayer-game.md) | Wasm 20Hz tick loop, state broadcasting |
+| [Video Conferencing](docs/05-examples/video-conferencing.md) | LiveKit rooms, tokens, recording, webhooks |
 
 ## Tech Stack
 

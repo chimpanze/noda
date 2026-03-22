@@ -1,0 +1,46 @@
+{
+  "id": "admin-login",
+  "name": "Admin Login",
+  "nodes": {
+    "check_password": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ input.password == secrets.ADMIN_PASSWORD }}"
+      }
+    },
+    "sign_jwt": {
+      "type": "util.jwt_sign",
+      "config": {
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "algorithm": "HS256",
+        "expiry": "24h",
+        "claims": {
+          "sub": "admin",
+          "role": "admin"
+        }
+      }
+    },
+    "respond_success": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "token": "{{ nodes.sign_jwt }}"
+        }
+      }
+    },
+    "respond_error": {
+      "type": "response.error",
+      "config": {
+        "status": 401,
+        "code": "UNAUTHORIZED",
+        "message": "Invalid password"
+      }
+    }
+  },
+  "edges": [
+    { "from": "check_password", "output": "then", "to": "sign_jwt" },
+    { "from": "check_password", "output": "else", "to": "respond_error" },
+    { "from": "sign_jwt", "to": "respond_success" }
+  ]
+}

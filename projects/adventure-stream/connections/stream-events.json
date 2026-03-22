@@ -1,0 +1,16 @@
+{
+  "sync": {
+    "pubsub": "realtime"
+  },
+  "endpoints": {
+    "stream-events": {
+      "type": "websocket",
+      "path": "/ws/stream-events",
+      "channels": {
+        "pattern": "stream.events",
+        "max_per_channel": 500
+      },
+      "ping_interval": "30s"
+    }
+  }
+}

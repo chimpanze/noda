@@ -153,14 +153,13 @@ Plugins provide **node types** (operations) and **services** (connections to ext
     "postgres": {
       "plugin": "db",
       "config": {
-        "driver": "postgres",
-        "dsn": "{{ $env('DATABASE_URL') }}"
+        "url": "{{ $env('DATABASE_URL') }}"
       }
     },
     "redis": {
       "plugin": "cache",
       "config": {
-        "addr": "{{ $env('REDIS_URL') }}"
+        "url": "{{ $env('REDIS_URL') }}"
       }
     }
   }
@@ -201,8 +200,7 @@ Edit `noda.json`:
     "postgres": {
       "plugin": "db",
       "config": {
-        "driver": "postgres",
-        "dsn": "{{ $env('DATABASE_URL') }}"
+        "url": "{{ $env('DATABASE_URL') }}"
       }
     }
   }

@@ -56,7 +56,7 @@ pdk/                                   ← Wasm plugin development kit
 examples/                              ← 6 example projects
 testdata/                              ← test fixtures
 docs/
-  01-getting-started/                  ← installation, quick start, expressions
+  01-getting-started/                  ← installation, quick start, expressions, data flow
   02-config/                           ← all config file formats and fields (11 files)
   03-nodes/                            ← all 50 node types (one file per node)
   04-guides/                           ← deployment, plugin dev, wasm dev

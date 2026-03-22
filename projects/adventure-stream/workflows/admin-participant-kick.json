@@ -1,0 +1,26 @@
+{
+  "id": "admin-participant-kick",
+  "name": "Kick Participant",
+  "nodes": {
+    "remove": {
+      "type": "lk.participantRemove",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "adventure-stream",
+        "identity": "{{ input.identity }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "removed": true
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "remove", "to": "respond" }
+  ]
+}

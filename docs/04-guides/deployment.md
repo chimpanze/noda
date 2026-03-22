@@ -90,7 +90,7 @@ CMD ["start"]
 All environment variables can be referenced in config via `$env()`:
 
 ```json
-{ "dsn": "{{ $env('DATABASE_URL') }}" }
+{ "url": "{{ $env('DATABASE_URL') }}" }
 ```
 
 ### Core Variables

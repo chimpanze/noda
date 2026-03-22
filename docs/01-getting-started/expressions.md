@@ -17,7 +17,14 @@ All nodes have access to these variables in expressions:
 
 ## Built-in Functions
 
-`len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$var()`.
+`len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$var()`, `toInt()`, `toFloat()`.
+
+### Type Conversion Functions
+
+| Function | Description |
+|---|---|
+| `toInt(value)` | Converts a string or float to an integer |
+| `toFloat(value)` | Converts a string or integer to a float64 |
 
 ### Hashing Functions
 

@@ -1,0 +1,17 @@
+{
+  "id": "admin-stream-start",
+  "method": "POST",
+  "path": "/api/admin/stream/start",
+  "summary": "Start the adventure stream",
+  "tags": ["admin", "stream"],
+  "body": {
+    "schema": { "$ref": "schemas/StartStream" }
+  },
+  "trigger": {
+    "workflow": "admin-stream-start",
+    "input": {
+      "title": "{{ body.title }}",
+      "description": "{{ body.description }}"
+    }
+  }
+}

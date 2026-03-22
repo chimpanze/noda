@@ -11,9 +11,9 @@ When a route triggers a workflow, the `trigger.input` mapping extracts data from
   "trigger": {
     "workflow": "create-user",
     "input": {
-      "name": "{{ request.body.name }}",
-      "email": "{{ request.body.email }}",
-      "user_id": "{{ request.params.id }}"
+      "name": "{{ body.name }}",
+      "email": "{{ body.email }}",
+      "user_id": "{{ params.id }}"
     }
   }
 }
@@ -25,10 +25,11 @@ Inside the workflow, these are accessed as `input.name`, `input.email`, `input.u
 
 | Field | Description |
 |-------|-------------|
-| `request.body` | Parsed JSON request body |
-| `request.params` | URL path parameters (e.g. `:id`) |
-| `request.query` | Query string parameters |
-| `request.headers` | HTTP request headers |
+| `body` | Parsed JSON request body |
+| `params` | URL path parameters (e.g. `:id`) |
+| `query` | Query string parameters |
+| `headers` | HTTP request headers |
+| `auth` | JWT auth data (`auth.sub`, `auth.roles`, `auth.claims`) |
 
 ## Node Outputs
 
@@ -102,8 +103,8 @@ Only the node connected to the triggered output port executes next.
 | Node Type | Outputs | Description |
 |-----------|---------|-------------|
 | Most nodes | `success`, `error` | Standard success/failure branching |
-| `control.if` | `true`, `false` | Branches based on condition evaluation |
-| `control.switch` | Case names | Branches to the matching case |
+| `control.if` | `then`, `else` | Branches based on condition evaluation |
+| `control.switch` | Case names, `default` | Branches to the matching case or default |
 
 ## Common Output Shapes
 

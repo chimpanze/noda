@@ -1,0 +1,38 @@
+{
+  "AdminLogin": {
+    "type": "object",
+    "properties": {
+      "password": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["password"]
+  },
+  "CreateIngress": {
+    "type": "object",
+    "properties": {
+      "participant_name": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    },
+    "required": []
+  },
+  "StartStream": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "description": {
+        "type": "string",
+        "maxLength": 1000
+      }
+    },
+    "required": ["title"]
+  }
+}

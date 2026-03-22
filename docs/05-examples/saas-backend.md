@@ -148,8 +148,8 @@ For `invoice.paid`, the workflow:
   "trigger": {
     "workflow": "upload-attachment",
     "input": {
-      "workspace_id": "{{ request.params.workspace_id }}",
-      "project_id": "{{ request.params.pid }}",
+      "workspace_id": "{{ params.workspace_id }}",
+      "project_id": "{{ params.pid }}",
       "file": "{{ request.file }}"
     },
     "files": ["file"]
