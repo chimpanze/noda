@@ -24,7 +24,7 @@ var sensitiveExact = []string{
 func redactSecrets(m map[string]any) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
-		if isSensitiveKey(k) {
+		if IsSensitiveKey(k) {
 			out[k] = "[REDACTED]"
 			continue
 		}
@@ -37,8 +37,8 @@ func redactSecrets(m map[string]any) map[string]any {
 	return out
 }
 
-// isSensitiveKey checks whether the key matches any sensitive pattern (case-insensitive).
-func isSensitiveKey(key string) bool {
+// IsSensitiveKey checks whether the key matches any sensitive pattern (case-insensitive).
+func IsSensitiveKey(key string) bool {
 	lower := strings.ToLower(key)
 	for _, pattern := range sensitiveContains {
 		if strings.Contains(lower, pattern) {

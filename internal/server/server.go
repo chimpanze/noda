@@ -17,8 +17,6 @@ import (
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 // Server wraps the Fiber app and Noda runtime dependencies.
@@ -148,6 +146,13 @@ func (s *Server) Setup() error {
 		s.workflows = cache
 	}
 
+	// Make internal runtime objects available to middleware factories via rootConfig.
+	// Keys prefixed with "_" are reserved for internal use and must not collide with user config.
+	s.config.Root["_services"] = s.services
+	if s.metrics != nil {
+		s.config.Root["_metrics"] = s.metrics
+	}
+
 	// Register health endpoints (before middleware so they're always accessible)
 	s.registerHealthRoutes()
 
@@ -229,17 +234,6 @@ func (s *Server) errorHandler(c fiber.Ctx, err error) error {
 		default:
 			code = "HTTP_ERROR"
 		}
-	}
-
-	if s.metrics != nil {
-		s.metrics.ErrorsTotal.Add(c.Context(), 1,
-			metric.WithAttributes(
-				attribute.String("method", c.Method()),
-				attribute.String("path", c.Route().Path),
-				attribute.String("status", fmt.Sprintf("%d", status)),
-				attribute.String("error_type", code),
-			),
-		)
 	}
 
 	return c.Status(status).JSON(map[string]any{

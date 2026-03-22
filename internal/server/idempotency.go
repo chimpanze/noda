@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
-	"github.com/redis/go-redis/v9"
 )
 
 // idempotencyEntry stores a cached response for an idempotent request.
@@ -19,20 +20,33 @@ type idempotencyEntry struct {
 	Body    []byte            `json:"body"`
 }
 
-// newIdempotencyMiddleware creates middleware that ensures request idempotency via Redis.
-// Requests with the same idempotency key return the cached response.
-func newIdempotencyMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
-	redisURL, _ := cfg["redis_url"].(string)
-	if redisURL == "" {
-		return nil, fmt.Errorf("idempotency: 'redis_url' is required")
+// newIdempotencyMiddleware creates middleware that ensures request idempotency
+// using a cache service resolved from the service registry.
+func newIdempotencyMiddleware(cfg map[string]any, rootConfig map[string]any) (fiber.Handler, error) {
+	serviceName, _ := cfg["cache_service"].(string)
+	if serviceName == "" {
+		return nil, fmt.Errorf("idempotency: 'cache_service' is required in middleware config")
 	}
 
-	opts, err := redis.ParseURL(redisURL)
-	if err != nil {
-		return nil, fmt.Errorf("idempotency: parse redis_url: %w", err)
+	svcReg, ok := rootConfig["_services"].(*registry.ServiceRegistry)
+	if !ok {
+		return nil, fmt.Errorf("idempotency: service registry not available")
 	}
-	client := redis.NewClient(opts)
 
+	svc, ok := svcReg.Get(serviceName)
+	if !ok {
+		return nil, fmt.Errorf("idempotency: cache service %q not found in service registry", serviceName)
+	}
+	cache, ok := svc.(api.CacheService)
+	if !ok {
+		return nil, fmt.Errorf("idempotency: service %q does not implement CacheService", serviceName)
+	}
+
+	return newIdempotencyHandler(cache, cfg), nil
+}
+
+// newIdempotencyHandler creates the idempotency Fiber handler using a cache service.
+func newIdempotencyHandler(cache api.CacheService, cfg map[string]any) fiber.Handler {
 	keyHeader := "Idempotency-Key"
 	if v, _ := cfg["key_header"].(string); v != "" {
 		keyHeader = v
@@ -44,6 +58,7 @@ func newIdempotencyMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handl
 			ttl = d
 		}
 	}
+	ttlSeconds := int(ttl.Seconds())
 
 	prefix := "noda:idempotency:"
 
@@ -64,14 +79,27 @@ func newIdempotencyMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handl
 		ctx := context.Background()
 
 		// Check for cached response
-		cached, err := client.Get(ctx, fingerprint).Bytes()
+		cached, err := cache.Get(ctx, fingerprint)
 		if err == nil {
-			var entry idempotencyEntry
-			if json.Unmarshal(cached, &entry) == nil {
-				for k, v := range entry.Headers {
-					c.Set(k, v)
+			// cached is the stored JSON string
+			var data string
+			switch v := cached.(type) {
+			case string:
+				data = v
+			default:
+				// If the cache returns something else, try to marshal it back
+				if b, err := json.Marshal(v); err == nil {
+					data = string(b)
 				}
-				return c.Status(entry.Status).Send(entry.Body)
+			}
+			if data != "" {
+				var entry idempotencyEntry
+				if json.Unmarshal([]byte(data), &entry) == nil {
+					for k, v := range entry.Headers {
+						c.Set(k, v)
+					}
+					return c.Status(entry.Status).Send(entry.Body)
+				}
 			}
 		}
 
@@ -93,9 +121,9 @@ func newIdempotencyMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handl
 
 		data, err := json.Marshal(entry)
 		if err == nil {
-			_ = client.Set(ctx, fingerprint, data, ttl).Err()
+			_ = cache.Set(ctx, fingerprint, string(data), ttlSeconds)
 		}
 
 		return nil
-	}, nil
+	}
 }

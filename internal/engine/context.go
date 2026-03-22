@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
-	"strings"
 	"sync"
 	"sync/atomic"
 
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/metrics"
+	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -197,7 +197,7 @@ func (c *ExecutionContextImpl) Log(level string, message string, fields map[stri
 		attrs = append(attrs, "node_id", nodeID)
 	}
 	for k, v := range fields {
-		if isSensitiveLogKey(k) {
+		if trace.IsSensitiveKey(k) {
 			attrs = append(attrs, k, "[REDACTED]")
 		} else {
 			attrs = append(attrs, k, v)
@@ -342,36 +342,4 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 
 func returnExprContext(ctx map[string]any) {
 	exprContextPool.Put(ctx)
-}
-
-// sensitiveLogContains lists substrings (lowercase) that make any log key sensitive.
-var sensitiveLogContains = []string{
-	"password",
-	"secret",
-	"token",
-	"authorization",
-	"credential",
-	"api_key",
-	"apikey",
-}
-
-// sensitiveLogExact lists exact key names (lowercase) that are sensitive.
-var sensitiveLogExact = []string{
-	"key",
-}
-
-// isSensitiveLogKey checks whether a log field key matches any sensitive pattern.
-func isSensitiveLogKey(key string) bool {
-	lower := strings.ToLower(key)
-	for _, pattern := range sensitiveLogContains {
-		if strings.Contains(lower, pattern) {
-			return true
-		}
-	}
-	for _, exact := range sensitiveLogExact {
-		if lower == exact {
-			return true
-		}
-	}
-	return false
 }

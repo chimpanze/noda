@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
@@ -129,7 +130,16 @@ func extractMiddlewareConfig(name string, rootConfig map[string]any) map[string]
 	return nil
 }
 
-func newRecoverMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error) {
+func newRecoverMiddleware(_ map[string]any, rootConfig map[string]any) (fiber.Handler, error) {
+	if m, ok := rootConfig["_metrics"].(*metrics.Metrics); ok {
+		return recover.New(recover.Config{
+			EnableStackTrace: true,
+			StackTraceHandler: func(c fiber.Ctx, e any) {
+				m.PanicsRecovered.Add(c.Context(), 1)
+				slog.Error("panic recovered", "error", e)
+			},
+		}), nil
+	}
 	return recover.New(), nil
 }
 

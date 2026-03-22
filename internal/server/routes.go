@@ -344,6 +344,11 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			engine.WithSecrets(s.secretsContext),
 		}
 
+		// Attach metrics to execution context
+		if s.metrics != nil {
+			opts = append(opts, engine.WithMetricsInst(s.metrics))
+		}
+
 		// Attach trace callback when hub is available (dev mode)
 		if s.traceHub != nil {
 			opts = append(opts, engine.WithTraceCallback(

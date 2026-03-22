@@ -18,6 +18,7 @@ import (
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/lifecycle"
+	nodametrics "github.com/chimpanze/noda/internal/metrics"
 	nodamcp "github.com/chimpanze/noda/internal/mcp"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/pathutil"
@@ -311,6 +312,25 @@ func newStartCmd() *cobra.Command {
 				logger.Warn("tracer initialization failed", "error", err.Error())
 			}
 
+			// Initialize metrics (if enabled in config)
+			metricsCfg := nodametrics.ParseConfig(rc.Root)
+			var appMetrics *nodametrics.Metrics
+			var metricsServerOpt server.ServerOption
+			if metricsCfg.Enabled {
+				provider, handler, err := nodametrics.NewProvider()
+				if err != nil {
+					logger.Warn("metrics initialization failed", "error", err.Error())
+				} else {
+					meter := provider.Meter("noda")
+					appMetrics, err = nodametrics.NewMetrics(meter)
+					if err != nil {
+						logger.Warn("metrics instrument creation failed", "error", err.Error())
+					} else {
+						metricsServerOpt = server.WithMetrics(appMetrics, handler, metricsCfg.Path)
+					}
+				}
+			}
+
 			// Bootstrap plugins and services
 			plugins := registry.NewPluginRegistry()
 			if err := registerCorePlugins(plugins); err != nil {
@@ -335,7 +355,11 @@ func newStartCmd() *cobra.Command {
 
 			var srv *server.Server
 			if runServer {
-				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithSecretsContext(secretsCtx))
+				serverOpts := []server.ServerOption{server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithSecretsContext(secretsCtx)}
+				if metricsServerOpt != nil {
+					serverOpts = append(serverOpts, metricsServerOpt)
+				}
+				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, serverOpts...)
 				if err != nil {
 					return fmt.Errorf("creating server: %w", err)
 				}
@@ -560,8 +584,26 @@ func newDevCmd() *cobra.Command {
 
 			secretsCtx := sm.ExpressionContext()
 
+			// Initialize metrics (if enabled in config)
+			devMetricsCfg := nodametrics.ParseConfig(rc.Root)
+			devServerOpts := []server.ServerOption{server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub), server.WithSecretsContext(secretsCtx)}
+			if devMetricsCfg.Enabled {
+				provider, handler, mErr := nodametrics.NewProvider()
+				if mErr != nil {
+					logger.Warn("metrics initialization failed", "error", mErr.Error())
+				} else {
+					meter := provider.Meter("noda")
+					devMetrics, mErr := nodametrics.NewMetrics(meter)
+					if mErr != nil {
+						logger.Warn("metrics instrument creation failed", "error", mErr.Error())
+					} else {
+						devServerOpts = append(devServerOpts, server.WithMetrics(devMetrics, handler, devMetricsCfg.Path))
+					}
+				}
+			}
+
 			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub), server.WithSecretsContext(secretsCtx))
+			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, devServerOpts...)
 			if err != nil {
 				return fmt.Errorf("creating server: %w", err)
 			}

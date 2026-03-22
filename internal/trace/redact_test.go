@@ -115,7 +115,7 @@ func TestIsSensitiveKey(t *testing.T) {
 		"apikey", "APIKEY",
 	}
 	for _, k := range sensitive {
-		assert.True(t, isSensitiveKey(k), "expected %q to be sensitive", k)
+		assert.True(t, IsSensitiveKey(k), "expected %q to be sensitive", k)
 	}
 
 	safe := []string{
@@ -123,6 +123,6 @@ func TestIsSensitiveKey(t *testing.T) {
 		"custom_field", "monkey",
 	}
 	for _, k := range safe {
-		assert.False(t, isSensitiveKey(k), "expected %q to be safe", k)
+		assert.False(t, IsSensitiveKey(k), "expected %q to be safe", k)
 	}
 }

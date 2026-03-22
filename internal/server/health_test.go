@@ -104,18 +104,26 @@ func TestHealth_ServiceWithoutPing(t *testing.T) {
 	assert.Equal(t, "ok", services["simple-svc"])
 }
 
-// slowService blocks on Ping() until context is done or a long time passes.
-type slowService struct{}
+// slowService blocks on Ping() until its done channel is closed or the test ends.
+type slowService struct {
+	done chan struct{}
+}
+
+func newSlowService() *slowService {
+	return &slowService{done: make(chan struct{})}
+}
 
 func (s *slowService) Ping() error {
-	time.Sleep(10 * time.Second)
+	<-s.done
 	return nil
 }
 
 func TestHealth_PingTimeout(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	p := &mockPlugin{}
-	_ = svcReg.Register("slow-db", &slowService{}, p)
+	slow := newSlowService()
+	defer close(slow.done) // unblock goroutine when test ends
+	_ = svcReg.Register("slow-db", slow, p)
 
 	rc := &config.ResolvedConfig{
 		Root: map[string]any{
@@ -170,7 +178,9 @@ func TestPingWithTimeout_Success(t *testing.T) {
 func TestPingWithTimeout_Timeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
-	err := pingWithTimeout(ctx, &slowService{})
+	slow := newSlowService()
+	defer close(slow.done)
+	err := pingWithTimeout(ctx, slow)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "timed out")
 }

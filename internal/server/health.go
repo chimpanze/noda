@@ -23,6 +23,9 @@ func (s *Server) healthTimeout() time.Duration {
 }
 
 // pingWithTimeout runs a Ping() call bounded by the given context.
+// If the context expires before Ping() returns, the goroutine will still complete
+// in the background. The buffered channel (capacity 1) ensures it won't block
+// forever — it writes its result and exits, then both channel and goroutine are GC'd.
 func pingWithTimeout(ctx context.Context, checker interface{ Ping() error }) error {
 	done := make(chan error, 1)
 	go func() {
@@ -60,7 +63,9 @@ func (s *Server) registerHealthRoutes() {
 		details := make(map[string]string, len(services))
 		allHealthy := true
 
-		// Use HealthCheckAll for plugin-based checks (bounded by timeout)
+		// Use HealthCheckAll for plugin-based checks (bounded by timeout).
+		// The goroutine completes when HealthCheckAll returns; the buffered channel
+		// ensures it won't block if the context expires first.
 		type healthCheckResult struct {
 			errs map[string]error
 		}

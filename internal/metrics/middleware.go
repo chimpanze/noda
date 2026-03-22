@@ -30,6 +30,10 @@ func NewHTTPMiddleware(m *Metrics) fiber.Handler {
 		m.RequestDuration.Record(c.Context(), duration, attrs)
 		m.RequestsTotal.Add(c.Context(), 1, attrs)
 
+		if c.Response().StatusCode() >= 400 {
+			m.ErrorsTotal.Add(c.Context(), 1, attrs)
+		}
+
 		return err
 	}
 }
