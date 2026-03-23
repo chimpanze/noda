@@ -1,10 +1,11 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
+
+	json "github.com/goccy/go-json"
 
 	"github.com/chimpanze/noda/internal/config/schemas"
 	"github.com/santhosh-tekuri/jsonschema/v6"

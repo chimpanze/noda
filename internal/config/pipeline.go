@@ -2,11 +2,12 @@ package config
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	json "github.com/goccy/go-json"
 
 	"github.com/chimpanze/noda/internal/secrets"
 )

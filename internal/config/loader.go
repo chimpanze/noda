@@ -1,9 +1,10 @@
 package config
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
+
+	json "github.com/goccy/go-json"
 )
 
 // RawConfig holds the raw parsed JSON from all config files.

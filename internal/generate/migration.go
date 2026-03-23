@@ -1,8 +1,9 @@
 package generate
 
 import (
-	"encoding/json"
 	"fmt"
+
+	json "github.com/goccy/go-json"
 	"os"
 	"path/filepath"
 	"sort"

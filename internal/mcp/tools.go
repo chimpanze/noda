@@ -2,9 +2,10 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
+
+	json "github.com/goccy/go-json"
 	"path/filepath"
 	"regexp"
 	"sort"
