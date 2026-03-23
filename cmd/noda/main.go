@@ -6,11 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -18,7 +16,6 @@ import (
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/lifecycle"
-	nodametrics "github.com/chimpanze/noda/internal/metrics"
 	nodamcp "github.com/chimpanze/noda/internal/mcp"
 	"github.com/chimpanze/noda/internal/migrate"
 	"github.com/chimpanze/noda/internal/pathutil"
@@ -55,7 +52,6 @@ import (
 	"github.com/google/uuid"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
-	oteltrace "go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -281,7 +277,6 @@ func newStartCmd() *cobra.Command {
 			runScheduler, _ := cmd.Flags().GetBool("scheduler")
 			runWasm, _ := cmd.Flags().GetBool("wasm")
 			runAll, _ := cmd.Flags().GetBool("all")
-			logger := slog.Default()
 
 			// Default to --all if no specific flags are set
 			if !runServer && !runWorkers && !runScheduler && !runWasm {
@@ -293,101 +288,53 @@ func newStartCmd() *cobra.Command {
 				runScheduler = true
 				runWasm = true
 			}
-			// Create secrets manager
-			sm, err := config.NewSecretsManager(configDir, envFlag)
+
+			rtCtx, err := initRuntime(configDir, envFlag, initOptions{})
 			if err != nil {
-				return fmt.Errorf("loading secrets: %w", err)
-			}
-
-			// Load and validate config
-			rc, errs := config.ValidateAll(configDir, envFlag, sm)
-			if len(errs) > 0 {
-				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
-			}
-
-			// Initialize OTel tracing
-			traceCfg := trace.ParseConfig(rc.Root)
-			traceProvider, err := trace.NewProvider(context.Background(), traceCfg, logger)
-			if err != nil {
-				logger.Warn("tracer initialization failed", "error", err.Error())
-			}
-
-			// Initialize metrics (if enabled in config)
-			metricsCfg := nodametrics.ParseConfig(rc.Root)
-			var appMetrics *nodametrics.Metrics
-			var metricsServerOpt server.ServerOption
-			if metricsCfg.Enabled {
-				provider, handler, err := nodametrics.NewProvider()
-				if err != nil {
-					logger.Warn("metrics initialization failed", "error", err.Error())
-				} else {
-					meter := provider.Meter("noda")
-					appMetrics, err = nodametrics.NewMetrics(meter)
-					if err != nil {
-						logger.Warn("metrics instrument creation failed", "error", err.Error())
-					} else {
-						metricsServerOpt = server.WithMetrics(appMetrics, handler, metricsCfg.Path)
-					}
-				}
-			}
-
-			// Bootstrap plugins and services
-			plugins := registry.NewPluginRegistry()
-			if err := registerCorePlugins(plugins); err != nil {
 				return err
 			}
-			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
-			if len(bootstrapErrs) > 0 {
-				var errMsgs []string
-				for _, e := range bootstrapErrs {
-					errMsgs = append(errMsgs, e.Error())
-				}
-				return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
-			}
 
-			// Pre-compile all workflows once for server, scheduler, and workers
-			workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
-			if err != nil {
-				return fmt.Errorf("compiling workflows: %w", err)
-			}
+			_, metricsOpt := initMetrics(rtCtx.RC, rtCtx.Logger)
 
-			secretsCtx := sm.ExpressionContext()
-
+			// Create and setup server (if requested)
 			var srv *server.Server
 			if runServer {
-				serverOpts := []server.ServerOption{server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithSecretsContext(secretsCtx)}
-				if metricsServerOpt != nil {
-					serverOpts = append(serverOpts, metricsServerOpt)
+				serverOpts := []server.ServerOption{
+					server.WithLogger(rtCtx.Logger),
+					server.WithWorkflowCache(rtCtx.WorkflowCache),
+					server.WithCompiler(rtCtx.Bootstrap.Compiler),
+					server.WithSecretsContext(rtCtx.SecretsCtx),
 				}
-				srv, err = server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, serverOpts...)
+				if metricsOpt != nil {
+					serverOpts = append(serverOpts, metricsOpt)
+				}
+				srv, err = server.NewServer(rtCtx.RC, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Nodes, serverOpts...)
 				if err != nil {
 					return fmt.Errorf("creating server: %w", err)
 				}
-
 				if err := srv.Setup(); err != nil {
 					return fmt.Errorf("setting up server: %w", err)
 				}
-
 				if err := srv.RegisterOpenAPIRoutes(); err != nil {
-					logger.Warn("OpenAPI generation failed", "error", err.Error())
+					rtCtx.Logger.Warn("OpenAPI generation failed", "error", err.Error())
 				}
 			}
 
 			// Start workers if configured and requested
 			var workerRuntime *worker.Runtime
-			if runWorkers && len(rc.Workers) > 0 {
-				workerConfigs := worker.ParseWorkerConfigs(rc.Workers)
+			if runWorkers && len(rtCtx.RC.Workers) > 0 {
+				workerConfigs := worker.ParseWorkerConfigs(rtCtx.RC.Workers)
 				mw := resolveWorkerMiddleware(workerConfigs, 5*time.Minute)
 				workerRuntime = worker.NewRuntime(
 					workerConfigs,
-					bootstrap.Services,
-					bootstrap.Nodes,
-					rc.Workflows,
-					workflowCache,
+					rtCtx.Bootstrap.Services,
+					rtCtx.Bootstrap.Nodes,
+					rtCtx.RC.Workflows,
+					rtCtx.WorkflowCache,
 					mw,
-					bootstrap.Compiler,
-					logger,
-					secretsCtx,
+					rtCtx.Bootstrap.Compiler,
+					rtCtx.Logger,
+					rtCtx.SecretsCtx,
 				)
 				if err := workerRuntime.Start(context.Background()); err != nil {
 					return fmt.Errorf("starting workers: %w", err)
@@ -395,111 +342,32 @@ func newStartCmd() *cobra.Command {
 				slog.Info("workers started", "consumers", len(workerConfigs))
 			}
 
-			// Start scheduler if configured and requested
-			var schedulerRuntime *scheduler.Runtime
-			if runScheduler && len(rc.Schedules) > 0 {
-				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
-				var tracer oteltrace.Tracer
-				if traceProvider != nil {
-					tracer = traceProvider.Tracer()
+			// Start scheduler (if requested)
+			var schedulerRT *scheduler.Runtime
+			if runScheduler {
+				schedulerRT, err = initScheduler(rtCtx)
+				if err != nil {
+					return err
 				}
-				schedulerRuntime = scheduler.NewRuntime(
-					scheduleConfigs,
-					bootstrap.Services,
-					bootstrap.Nodes,
-					rc.Workflows,
-					workflowCache,
-					bootstrap.Compiler,
-					tracer,
-					logger,
-					secretsCtx,
-				)
-				if err := schedulerRuntime.Start(); err != nil {
-					return fmt.Errorf("starting scheduler: %w", err)
-				}
-				slog.Info("scheduler started", "jobs", len(scheduleConfigs))
 			}
 
-			// Start Wasm runtimes if configured and requested
-			var wasmRuntime *wasm.Runtime
+			// Start Wasm runtimes (if requested)
+			var wasmRT *wasm.Runtime
 			if runWasm {
-				wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any)
-				if len(wasmRuntimes) > 0 {
-					workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler, secretsCtx)
-					wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
-					wasmRoot, err := pathutil.NewRoot(configDir)
-					if err != nil {
-						return fmt.Errorf("resolving config directory for wasm: %w", err)
-					}
-					for name, raw := range wasmRuntimes {
-						cfg := parseWasmModuleConfig(name, raw)
-						// Resolve module path relative to config directory with containment check
-						if cfg.ModulePath != "" && !filepath.IsAbs(cfg.ModulePath) {
-							resolved, err := wasmRoot.Resolve(cfg.ModulePath)
-							if err != nil {
-								return fmt.Errorf("wasm module %q: path outside config directory: %w", name, err)
-							}
-							cfg.ModulePath = resolved
-						}
-						if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
-							return fmt.Errorf("loading wasm module %q: %w", name, err)
-						}
-						// Register WasmService so wasm.send/wasm.query nodes can reference this module
-						wasmSvc := wasm.NewWasmService(wasmRuntime, name)
-						if err := bootstrap.Services.Register(name, wasmSvc, nil); err != nil {
-							logger.Warn("wasm service registration failed", "name", name, "error", err)
-						}
-					}
-					if err := wasmRuntime.StartAll(context.Background()); err != nil {
-						return fmt.Errorf("starting wasm runtimes: %w", err)
-					}
-					slog.Info("wasm runtimes started", "modules", len(wasmRuntimes))
+				wasmRT, err = initWasm(rtCtx)
+				if err != nil {
+					return err
 				}
 			}
 
-			// Build lifecycle manager for ordered shutdown.
-			lc := lifecycle.New(logger)
-
-			// Install signal handler early — before any runtimes start.
-			// Components registered to lc after this point will still be
-			// stopped because StopAll uses lc.started at call time.
-			deadline := parseShutdownDeadline(rc, 30*time.Second)
-			lc.SetRollbackDeadline(deadline)
-			sigCh := make(chan os.Signal, 1)
-			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-			go func() {
-				<-sigCh
-				slog.Info("shutting down")
-				lc.StopAll(deadline)
-				os.Exit(0)
-			}()
-
-			// Register components in dependency order (shutdown is reverse).
-			if srv != nil {
-				lc.Register(lifecycle.ServerComponent(srv))
-			}
-			if workerRuntime != nil {
-				lc.Register(lifecycle.WorkerComponent(workerRuntime))
-			}
-			if schedulerRuntime != nil {
-				lc.Register(lifecycle.SchedulerComponent(schedulerRuntime))
-			}
-			if wasmRuntime != nil {
-				lc.Register(lifecycle.WasmComponent(wasmRuntime))
-			}
-			if srv != nil {
-				lc.Register(lifecycle.ConnManagerComponent(srv.ConnManagers()))
-			}
-			lc.Register(lifecycle.ServiceRegistryComponent(bootstrap.Services))
-			if traceProvider != nil {
-				lc.Register(lifecycle.TracerComponent(traceProvider))
-			}
-
-			// Start lifecycle-managed components (most adapters have no-op Start
-			// since the real runtimes were started above; this sets l.started
-			// so StopAll knows which components to tear down).
-			if err := lc.StartAll(context.Background()); err != nil {
-				return fmt.Errorf("lifecycle start: %w", err)
+			// Lifecycle
+			if _, err := setupLifecycle(rtCtx, lifecycleComponents{
+				Server:        srv,
+				WorkerRuntime: workerRuntime,
+				Scheduler:     schedulerRT,
+				WasmRuntime:   wasmRT,
+			}); err != nil {
+				return err
 			}
 
 			// Mark ready
@@ -535,156 +403,62 @@ func newDevCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			configDir, _ := cmd.Flags().GetString("config")
 			envFlag, _ := cmd.Flags().GetString("env")
-			logger := slog.Default()
 
-			// Create secrets manager
-			sm, err := config.NewSecretsManager(configDir, envFlag)
+			rtCtx, err := initRuntime(configDir, envFlag, initOptions{
+				ForceTracing: true,
+				TracingFatal: true,
+			})
 			if err != nil {
-				return fmt.Errorf("loading secrets: %w", err)
-			}
-
-			// Load and validate config
-			rc, errs := config.ValidateAll(configDir, envFlag, sm)
-			if len(errs) > 0 {
-				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
-			}
-
-			// Initialize OTel tracing
-			traceCfg := trace.ParseConfig(rc.Root)
-			if !traceCfg.Enabled {
-				traceCfg.Enabled = true // always enabled in dev mode
-			}
-			traceProvider, err := trace.NewProvider(context.Background(), traceCfg, logger)
-			if err != nil {
-				return fmt.Errorf("initializing tracer: %w", err)
+				return err
 			}
 
 			// Create trace event hub for dev mode streaming
 			hub := trace.NewEventHub()
 
-			// Bootstrap plugins and services
-			plugins := registry.NewPluginRegistry()
-			if err := registerCorePlugins(plugins); err != nil {
-				return err
-			}
-			bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
-			if len(bootstrapErrs) > 0 {
-				var errMsgs []string
-				for _, e := range bootstrapErrs {
-					errMsgs = append(errMsgs, e.Error())
-				}
-				return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
-			}
+			_, metricsOpt := initMetrics(rtCtx.RC, rtCtx.Logger)
 
-			// Pre-compile all workflows
-			workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
-			if err != nil {
-				return fmt.Errorf("compiling workflows: %w", err)
+			// Create and setup server with dev options
+			serverOpts := []server.ServerOption{
+				server.WithLogger(rtCtx.Logger),
+				server.WithWorkflowCache(rtCtx.WorkflowCache),
+				server.WithCompiler(rtCtx.Bootstrap.Compiler),
+				server.WithTraceHub(hub),
+				server.WithSecretsContext(rtCtx.SecretsCtx),
 			}
-
-			secretsCtx := sm.ExpressionContext()
-
-			// Initialize metrics (if enabled in config)
-			devMetricsCfg := nodametrics.ParseConfig(rc.Root)
-			devServerOpts := []server.ServerOption{server.WithLogger(logger), server.WithWorkflowCache(workflowCache), server.WithCompiler(bootstrap.Compiler), server.WithTraceHub(hub), server.WithSecretsContext(secretsCtx)}
-			if devMetricsCfg.Enabled {
-				provider, handler, mErr := nodametrics.NewProvider()
-				if mErr != nil {
-					logger.Warn("metrics initialization failed", "error", mErr.Error())
-				} else {
-					meter := provider.Meter("noda")
-					devMetrics, mErr := nodametrics.NewMetrics(meter)
-					if mErr != nil {
-						logger.Warn("metrics instrument creation failed", "error", mErr.Error())
-					} else {
-						devServerOpts = append(devServerOpts, server.WithMetrics(devMetrics, handler, devMetricsCfg.Path))
-					}
-				}
+			if metricsOpt != nil {
+				serverOpts = append(serverOpts, metricsOpt)
 			}
-
-			// Create and setup server
-			srv, err := server.NewServer(rc, bootstrap.Services, bootstrap.Nodes, devServerOpts...)
+			srv, err := server.NewServer(rtCtx.RC, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Nodes, serverOpts...)
 			if err != nil {
 				return fmt.Errorf("creating server: %w", err)
 			}
-
 			if err := srv.Setup(); err != nil {
 				return fmt.Errorf("setting up server: %w", err)
 			}
-
-			// Register OpenAPI routes
 			if err := srv.RegisterOpenAPIRoutes(); err != nil {
-				logger.Warn("OpenAPI generation failed", "error", err.Error())
+				rtCtx.Logger.Warn("OpenAPI generation failed", "error", err.Error())
 			}
 
 			// Register trace WebSocket endpoint (dev only)
-			trace.RegisterTraceWebSocket(srv.App(), hub, logger)
+			trace.RegisterTraceWebSocket(srv.App(), hub, rtCtx.Logger)
 
-			// Start scheduler if configured
-			var schedulerRuntime *scheduler.Runtime
-			if len(rc.Schedules) > 0 {
-				scheduleConfigs := scheduler.ParseScheduleConfigs(rc.Schedules)
-				var tracer oteltrace.Tracer
-				if traceProvider != nil {
-					tracer = traceProvider.Tracer()
-				}
-				schedulerRuntime = scheduler.NewRuntime(
-					scheduleConfigs,
-					bootstrap.Services,
-					bootstrap.Nodes,
-					rc.Workflows,
-					workflowCache,
-					bootstrap.Compiler,
-					tracer,
-					logger,
-					secretsCtx,
-				)
-				if err := schedulerRuntime.Start(); err != nil {
-					return fmt.Errorf("starting scheduler: %w", err)
-				}
-				slog.Info("scheduler started", "jobs", len(scheduleConfigs))
+			// Start scheduler and wasm (always if configured in dev mode)
+			schedulerRT, err := initScheduler(rtCtx)
+			if err != nil {
+				return err
 			}
-
-			// Start Wasm runtimes if configured
-			var wasmRuntime *wasm.Runtime
-			wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any)
-			if len(wasmRuntimes) > 0 {
-				workflowRunner := buildWorkflowRunner(workflowCache, bootstrap.Services, bootstrap.Nodes, bootstrap.Compiler, secretsCtx)
-				wasmRuntime = wasm.NewRuntime(bootstrap.Services, workflowRunner, logger)
-				wasmRoot, err := pathutil.NewRoot(configDir)
-				if err != nil {
-					return fmt.Errorf("resolving config directory for wasm: %w", err)
-				}
-				for name, raw := range wasmRuntimes {
-					cfg := parseWasmModuleConfig(name, raw)
-					if cfg.ModulePath != "" && !filepath.IsAbs(cfg.ModulePath) {
-						resolved, err := wasmRoot.Resolve(cfg.ModulePath)
-						if err != nil {
-							return fmt.Errorf("wasm module %q: path outside config directory: %w", name, err)
-						}
-						cfg.ModulePath = resolved
-					}
-					if _, err := wasmRuntime.LoadModule(context.Background(), cfg); err != nil {
-						return fmt.Errorf("loading wasm module %q: %w", name, err)
-					}
-					wasmSvc := wasm.NewWasmService(wasmRuntime, name)
-					if err := bootstrap.Services.Register(name, wasmSvc, nil); err != nil {
-						logger.Warn("wasm service registration failed", "name", name, "error", err)
-					}
-				}
-				if err := wasmRuntime.StartAll(context.Background()); err != nil {
-					return fmt.Errorf("starting wasm runtimes: %w", err)
-				}
-				slog.Info("wasm runtimes started", "modules", len(wasmRuntimes))
+			wasmRT, err := initWasm(rtCtx)
+			if err != nil {
+				return err
 			}
 
 			// Set up hot-reload
-			reloader := devmode.NewReloader(configDir, envFlag, rc, hub, logger)
+			reloader := devmode.NewReloader(configDir, envFlag, rtCtx.RC, hub, rtCtx.Logger)
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
-				if err := workflowCache.Invalidate(newRC.Workflows, bootstrap.Nodes); err != nil {
-					logger.Error("workflow cache invalidation failed", "error", err)
+				if err := rtCtx.WorkflowCache.Invalidate(newRC.Workflows, rtCtx.Bootstrap.Nodes); err != nil {
+					rtCtx.Logger.Error("workflow cache invalidation failed", "error", err)
 				} else {
-					logger.Info("workflow cache invalidated", "workflows", len(newRC.Workflows))
+					rtCtx.Logger.Info("workflow cache invalidated", "workflows", len(newRC.Workflows))
 				}
 			})
 
@@ -693,7 +467,7 @@ func newDevCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving config directory: %w", err)
 			}
-			editorAPI := server.NewEditorAPI(root, envFlag, reloader, plugins, bootstrap.Nodes, bootstrap.Services, bootstrap.Compiler, sm)
+			editorAPI := server.NewEditorAPI(root, envFlag, reloader, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Compiler, rtCtx.SecretsManager)
 			editorAPI.Register(srv.App())
 
 			// Serve editor static files: prefer local dist (for live dev),
@@ -712,60 +486,33 @@ func newDevCmd() *cobra.Command {
 					return c.SendFile(absPath)
 				})
 			} else {
-				// Use embedded editor assets
 				srv.RegisterEditorUI()
 			}
 
 			// Set up file watcher
-			watcher, err := devmode.NewWatcher(reloader.HandleChange, logger)
+			fileWatcher, err := devmode.NewWatcher(reloader.HandleChange, rtCtx.Logger)
 			if err != nil {
 				return fmt.Errorf("creating file watcher: %w", err)
 			}
-			if err := watcher.WatchDir(configDir); err != nil {
-				logger.Warn("failed to watch config directory", "error", err.Error())
+			if err := fileWatcher.WatchDir(configDir); err != nil {
+				rtCtx.Logger.Warn("failed to watch config directory", "error", err.Error())
 			}
 
-			// Build lifecycle manager for ordered shutdown.
-			lc := lifecycle.New(logger)
-
-			// Install signal handler early.
-			deadline := parseShutdownDeadline(rc, 30*time.Second)
-			lc.SetRollbackDeadline(deadline)
-			sigCh := make(chan os.Signal, 1)
-			signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-			go func() {
-				<-sigCh
-				slog.Info("shutting down")
-				lc.StopAll(deadline)
-				os.Exit(0)
-			}()
-
-			// Register components in dependency order (shutdown is reverse).
-			lc.Register(lifecycle.ServerComponent(srv))
-			if schedulerRuntime != nil {
-				lc.Register(lifecycle.SchedulerComponent(schedulerRuntime))
-			}
-			if wasmRuntime != nil {
-				lc.Register(lifecycle.WasmComponent(wasmRuntime))
-			}
-			lc.Register(lifecycle.WatcherComponent(watcher, reloader))
-			lc.Register(lifecycle.ConnManagerComponent(srv.ConnManagers()))
-			lc.Register(lifecycle.ServiceRegistryComponent(bootstrap.Services))
-			if traceProvider != nil {
-				lc.Register(lifecycle.TracerComponent(traceProvider))
-			}
-
-			// Start lifecycle-managed components (the watcher's Start is
-			// real; the rest are no-ops that mark them for shutdown).
+			// Lifecycle
 			slog.Info("watching for changes", "dir", configDir)
-			if err := lc.StartAll(context.Background()); err != nil {
-				return fmt.Errorf("lifecycle start: %w", err)
+			if _, err := setupLifecycle(rtCtx, lifecycleComponents{
+				Server:      srv,
+				Scheduler:   schedulerRT,
+				WasmRuntime: wasmRT,
+				ExtraComponents: []lifecycle.Component{
+					lifecycle.WatcherComponent(fileWatcher, reloader),
+				},
+			}); err != nil {
+				return err
 			}
 
-			// Mark server as ready
 			srv.SetReady()
 			slog.Info("noda ready")
-
 			slog.Info("dev server starting", "port", srv.Port())
 			slog.Info("trace websocket available", "path", "/ws/trace")
 			slog.Info("editor available", "path", "/editor/")
