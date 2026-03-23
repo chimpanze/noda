@@ -22,6 +22,8 @@ Output: `{status, headers, body}`
 
 Resolves all config fields and makes an outbound HTTP request using the configured client service. The `url` is relative to the client's base URL. Maps are automatically JSON-encoded as the request body. Returns the response status code, headers, and parsed body.
 
+Response bodies are limited to 100 MB. Responses exceeding this limit produce an error.
+
 ## Service Dependencies
 
 | Slot | Prefix | Required |

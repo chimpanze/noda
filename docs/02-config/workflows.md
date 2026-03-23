@@ -6,6 +6,7 @@ Files in `workflows/*.json`. Each file defines one workflow.
 |-------|------|----------|-------------|
 | `id` | string | yes | Unique workflow identifier |
 | `name` | string | no | Display name |
+| `timeout` | string | no | Maximum execution time (e.g., `"30s"`, `"5m"`). Workflow is cancelled if exceeded. |
 | `nodes` | object | yes | Map of node ID to node definition |
 | `edges` | array | yes | Execution flow edges |
 

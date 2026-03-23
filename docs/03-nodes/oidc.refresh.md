@@ -17,7 +17,7 @@ Refreshes OIDC tokens using a refresh token.
 
 ## Behavior
 
-Performs OIDC discovery and uses the provider's token endpoint to exchange a refresh token for new tokens. If the provider returns a new ID token, it is verified and its claims are extracted.
+Performs OIDC discovery and uses the provider's token endpoint to exchange a refresh token for new tokens. If the provider returns a new ID token, it is verified and its claims are extracted. If ID token verification or claims extraction fails, the node routes to the `error` output.
 
 On success, outputs:
 
