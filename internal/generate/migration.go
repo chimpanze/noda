@@ -337,7 +337,22 @@ func columnChanged(old, new ColumnDef) bool {
 		old.NotNull != new.NotNull ||
 		old.Default != new.Default ||
 		old.PrimaryKey != new.PrimaryKey ||
-		old.MaxLength != new.MaxLength
+		old.MaxLength != new.MaxLength ||
+		old.Precision != new.Precision ||
+		old.Scale != new.Scale ||
+		!enumEqual(old.Enum, new.Enum)
+}
+
+func enumEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func indexSet(indexes []IndexDef) map[string]IndexDef {

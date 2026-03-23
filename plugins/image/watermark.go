@@ -110,19 +110,27 @@ func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 }
 
 // calculatePosition returns Left, Top offsets for watermark placement.
+// Values are clamped to 0 to prevent negative offsets when the watermark
+// is larger than the source image.
 func calculatePosition(position string, img, wm bimg.ImageSize) (int, int) {
+	var x, y int
 	switch position {
 	case "top-left":
-		return 0, 0
+		x, y = 0, 0
 	case "top-right":
-		return img.Width - wm.Width, 0
+		x, y = img.Width-wm.Width, 0
 	case "bottom-left":
-		return 0, img.Height - wm.Height
+		x, y = 0, img.Height-wm.Height
 	case "bottom-right":
-		return img.Width - wm.Width, img.Height - wm.Height
-	case "center":
-		return (img.Width - wm.Width) / 2, (img.Height - wm.Height) / 2
-	default:
-		return (img.Width - wm.Width) / 2, (img.Height - wm.Height) / 2
+		x, y = img.Width-wm.Width, img.Height-wm.Height
+	default: // "center" and fallback
+		x, y = (img.Width-wm.Width)/2, (img.Height-wm.Height)/2
 	}
+	if x < 0 {
+		x = 0
+	}
+	if y < 0 {
+		y = 0
+	}
+	return x, y
 }

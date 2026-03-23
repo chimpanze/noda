@@ -14,7 +14,9 @@ import (
 	corewasm "github.com/chimpanze/noda/plugins/core/wasm"
 	"github.com/chimpanze/noda/plugins/core/workflow"
 	corews "github.com/chimpanze/noda/plugins/core/ws"
+	coreoidc "github.com/chimpanze/noda/plugins/core/oidc"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
+	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
@@ -41,5 +43,7 @@ func corePlugins() []api.Plugin {
 		&corews.Plugin{},
 		&coresse.Plugin{},
 		&corewasm.Plugin{},
+		&coreoidc.Plugin{},
+		&livekitplugin.Plugin{},
 	}
 }

@@ -28,10 +28,29 @@ func redactSecrets(m map[string]any) map[string]any {
 			out[k] = "[REDACTED]"
 			continue
 		}
-		if nested, ok := v.(map[string]any); ok {
-			out[k] = redactSecrets(nested)
-		} else {
+		switch val := v.(type) {
+		case map[string]any:
+			out[k] = redactSecrets(val)
+		case []any:
+			out[k] = redactSlice(val)
+		default:
 			out[k] = v
+		}
+	}
+	return out
+}
+
+// redactSlice returns a copy of the slice with sensitive values in nested maps redacted.
+func redactSlice(s []any) []any {
+	out := make([]any, len(s))
+	for i, v := range s {
+		switch val := v.(type) {
+		case map[string]any:
+			out[i] = redactSecrets(val)
+		case []any:
+			out[i] = redactSlice(val)
+		default:
+			out[i] = v
 		}
 	}
 	return out

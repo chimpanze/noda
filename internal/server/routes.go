@@ -328,7 +328,10 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 				},
 			})
 		}
-		triggerResult.Trigger.TraceID = traceID
+		// Preserve trace ID from X-Request-Id if MapTrigger already set it
+		if triggerResult.Trigger.TraceID == "" {
+			triggerResult.Trigger.TraceID = traceID
+		}
 
 		// Propagate X-Request-ID from Fiber's requestid middleware
 		if reqID := requestid.FromContext(c); reqID != "" {

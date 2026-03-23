@@ -403,7 +403,7 @@ func detectWorkflowCycles(graph map[string][]string) []ValidationError {
 				// Cycle found — reconstruct path
 				cycle := []string{next, node}
 				cur := node
-				for cur != next {
+				for i := 0; cur != next && i < len(graph)+1; i++ {
 					cur = parent[cur]
 					cycle = append(cycle, cur)
 				}

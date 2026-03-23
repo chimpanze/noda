@@ -110,11 +110,12 @@ func TestCalculatePosition_WatermarkLargerThanImage(t *testing.T) {
 	img := bimg.ImageSize{Width: 50, Height: 50}
 	wm := bimg.ImageSize{Width: 100, Height: 100}
 
+	// Negative offsets are clamped to 0 to prevent crashes
 	left, top := calculatePosition("top-right", img, wm)
-	assert.Equal(t, -50, left)
+	assert.Equal(t, 0, left)
 	assert.Equal(t, 0, top)
 
 	left, top = calculatePosition("bottom-left", img, wm)
 	assert.Equal(t, 0, left)
-	assert.Equal(t, -50, top)
+	assert.Equal(t, 0, top)
 }

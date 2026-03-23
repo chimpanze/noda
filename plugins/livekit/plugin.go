@@ -3,6 +3,7 @@ package livekit
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/chimpanze/noda/pkg/api"
 	lkproto "github.com/livekit/protocol/livekit"
@@ -77,7 +78,9 @@ func (p *Plugin) HealthCheck(service any) error {
 	if !ok {
 		return fmt.Errorf("livekit: invalid service type")
 	}
-	_, err := svc.Room.ListRooms(context.Background(), &lkproto.ListRoomsRequest{})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := svc.Room.ListRooms(ctx, &lkproto.ListRoomsRequest{})
 	if err != nil {
 		return fmt.Errorf("livekit: health check failed: %w", err)
 	}

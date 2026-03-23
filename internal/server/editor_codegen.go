@@ -416,7 +416,8 @@ func convertPath(path string) string {
 	parts := strings.Split(path, "/")
 	for i, p := range parts {
 		if strings.HasPrefix(p, ":") {
-			parts[i] = "{" + p[1:] + "}"
+			name := strings.TrimSuffix(p[1:], "?")
+			parts[i] = "{" + name + "}"
 		}
 	}
 	return strings.Join(parts, "/")
@@ -426,8 +427,9 @@ func extractPathParams(path string) []any {
 	var params []any
 	for _, part := range strings.Split(path, "/") {
 		if strings.HasPrefix(part, ":") {
+			name := strings.TrimSuffix(part[1:], "?")
 			params = append(params, map[string]any{
-				"name":     part[1:],
+				"name":     name,
 				"in":       "path",
 				"required": true,
 				"schema":   map[string]any{"type": "string"},

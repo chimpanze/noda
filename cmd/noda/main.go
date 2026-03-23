@@ -1217,8 +1217,10 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 	return cfg
 }
 
-// resolveWorkerMiddleware checks if any worker config specifies custom middleware.
-// If so, uses the first worker's middleware list via ResolveMiddleware; otherwise falls back to DefaultMiddleware.
+// resolveWorkerMiddleware returns the middleware chain shared by all workers.
+// It uses the first worker config that specifies custom middleware; if none do,
+// it falls back to DefaultMiddleware. All workers share a single middleware chain —
+// per-worker middleware is not currently supported.
 func resolveWorkerMiddleware(configs []worker.WorkerConfig, timeout time.Duration) []worker.Middleware {
 	for _, wc := range configs {
 		if len(wc.Middleware) > 0 {

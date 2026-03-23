@@ -112,11 +112,11 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 		allErrors = append(allErrors, valErrs...)
 	}
 
-	slog.Info("startup validation passed")
-
 	if len(allErrors) > 0 {
 		return nil, allErrors
 	}
+
+	slog.Info("startup validation passed")
 
 	return &BootstrapResult{
 		Plugins:  plugins,
