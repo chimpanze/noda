@@ -8,9 +8,8 @@ import (
 // envPattern matches {{ $env('KEY') }} patterns in config strings.
 var envPattern = regexp.MustCompile(`\{\{\s*\$env\(\s*'([^']+)'\s*\)\s*\}\}`)
 
-// EnvPattern returns the compiled regex for $env() patterns.
-// Exported for the editor's variable highlighting.
-func EnvPattern() *regexp.Regexp { return envPattern }
+// envPatternRe returns the compiled regex for $env() patterns (test helper).
+func envPatternRe() *regexp.Regexp { return envPattern }
 
 // Resolve replaces {{ $env('KEY') }} patterns in the config map using the manager's loaded secrets.
 // Only meant for the root config (not routes/workflows).

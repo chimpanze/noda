@@ -125,8 +125,8 @@ func (r *PluginRegistry) All() []api.Plugin {
 	return result
 }
 
-// Prefixes returns all registered prefixes.
-func (r *PluginRegistry) Prefixes() []string {
+// prefixes returns all registered prefixes (test helper).
+func (r *PluginRegistry) prefixes() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

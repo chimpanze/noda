@@ -38,7 +38,7 @@ func TestManager_GetHasKeys(t *testing.T) {
 	assert.True(t, m.Has("DB_URL"))
 	assert.False(t, m.Has("MISSING"))
 
-	keys := m.Keys()
+	keys := m.keys()
 	assert.Equal(t, []string{"API_KEY", "DB_URL"}, keys)
 }
 
@@ -49,7 +49,7 @@ func TestManager_Empty(t *testing.T) {
 	_, ok := m.Get("ANYTHING")
 	assert.False(t, ok)
 	assert.False(t, m.Has("ANYTHING"))
-	assert.Empty(t, m.Keys())
+	assert.Empty(t, m.keys())
 }
 
 func TestManager_MultipleProviders_LaterWins(t *testing.T) {

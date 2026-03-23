@@ -66,7 +66,7 @@ func TestCompileAll_CollectsErrors(t *testing.T) {
 		"also_ok": "{{ input.age }}",
 	}
 
-	result, errs := c.CompileAll(exprs)
+	result, errs := c.compileAll(exprs)
 	assert.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "invalid")
 	assert.Len(t, result, 2) // valid and also_ok

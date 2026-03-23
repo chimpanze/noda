@@ -77,7 +77,7 @@ func TestIntegration_RouteInterpolation(t *testing.T) {
 // Test: custom functions in expressions
 func TestIntegration_CustomFunctions(t *testing.T) {
 	reg := NewFunctionRegistry()
-	reg.Register("greet", func(params ...any) (any, error) {
+	reg.register("greet", func(params ...any) (any, error) {
 		return "Hello, " + params[0].(string) + "!", nil
 	}, new(func(string) string))
 

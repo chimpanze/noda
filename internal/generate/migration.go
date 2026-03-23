@@ -110,7 +110,7 @@ type Change struct {
 }
 
 // GenerateMigration compares current models against a snapshot and produces SQL.
-func GenerateMigration(modelsDir, migrationsDir string) (upSQL, downSQL string, err error) {
+func GenerateMigration(modelsDir, _ string) (upSQL, downSQL string, err error) {
 	current, err := loadModels(modelsDir)
 	if err != nil {
 		return "", "", fmt.Errorf("loading models: %w", err)

@@ -124,7 +124,7 @@ func TestRuntime_JobFires(t *testing.T) {
 
 	// Wait for at least 1 job run
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		return len(history) >= 1 && history[0].Success
 	}, 5*time.Second, 100*time.Millisecond)
 }
@@ -159,11 +159,11 @@ func TestRuntime_TriggerMetadata(t *testing.T) {
 	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		return len(history) >= 1
 	}, 5*time.Second, 100*time.Millisecond)
 
-	run := rt.History()[0]
+	run := rt.jobHistory()[0]
 	assert.Equal(t, "meta-job", run.ScheduleID)
 	assert.NotEmpty(t, run.TraceID)
 	assert.False(t, run.StartedAt.IsZero())
@@ -202,7 +202,7 @@ func TestRuntime_InputMapping(t *testing.T) {
 	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		return len(history) >= 1 && history[0].Success
 	}, 5*time.Second, 100*time.Millisecond)
 }
@@ -225,11 +225,11 @@ func TestRuntime_JobFailureLogged(t *testing.T) {
 	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		return len(history) >= 1 && !history[0].Success
 	}, 5*time.Second, 100*time.Millisecond)
 
-	run := rt.History()[0]
+	run := rt.jobHistory()[0]
 	assert.False(t, run.Success)
 	assert.Contains(t, run.Error, "workflow")
 }
@@ -276,7 +276,7 @@ func TestRuntime_NextRun(t *testing.T) {
 	require.NoError(t, err)
 	defer func() { _ = rt.Stop(context.Background()) }()
 
-	next, ok := rt.NextRun("next-job")
+	next, ok := rt.nextRun("next-job")
 	assert.True(t, ok)
 	assert.True(t, next.After(time.Now()))
 }
@@ -289,7 +289,7 @@ func TestRuntime_History_Capped(t *testing.T) {
 		rt.recordRun(JobRun{ScheduleID: "job", Success: true})
 	}
 
-	history := rt.History()
+	history := rt.jobHistory()
 	assert.Len(t, history, 1000)
 }
 
@@ -328,7 +328,7 @@ func TestDistributedLock_Acquire(t *testing.T) {
 	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		return len(history) >= 1 && history[0].Success
 	}, 5*time.Second, 100*time.Millisecond)
 }
@@ -368,7 +368,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 
 	// Wait for first to acquire and execute
 	require.Eventually(t, func() bool {
-		h := rt1.History()
+		h := rt1.jobHistory()
 		return len(h) >= 1
 	}, 5*time.Second, 100*time.Millisecond)
 
@@ -380,7 +380,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 	// Since lock TTL is 5min, the key is still set, so the next call skips
 	rt2.runJob(sc)
 
-	h2 := rt2.History()
+	h2 := rt2.jobHistory()
 	require.Len(t, h2, 1)
 	// The second instance should have been skipped (lock held by rt1)
 	assert.True(t, h2[0].Skipped || h2[0].Success, "should be skipped or succeed on next minute key")
@@ -401,7 +401,7 @@ func TestDistributedLock_LockServiceNotFound(t *testing.T) {
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, map[string]map[string]any{}, nil, nil, nil, nil, nil)
 	rt.runJob(sc)
 
-	history := rt.History()
+	history := rt.jobHistory()
 	require.Len(t, history, 1)
 	assert.False(t, history[0].Success)
 	assert.Contains(t, history[0].Error, "not found")
@@ -493,7 +493,7 @@ func TestRuntime_MultipleJobs(t *testing.T) {
 	defer func() { _ = rt.Stop(context.Background()) }()
 
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		var foundA, foundB bool
 		for _, h := range history {
 			if h.ScheduleID == "job-a" && h.Success {

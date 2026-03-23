@@ -13,7 +13,7 @@ type Service struct {
 	APISecret string
 }
 
-// NewAuthProvider returns a key provider for webhook verification and token generation.
-func (s *Service) NewAuthProvider() *auth.SimpleKeyProvider {
+// newAuthProvider returns a key provider for webhook verification and token generation (test helper).
+func (s *Service) newAuthProvider() *auth.SimpleKeyProvider {
 	return auth.NewSimpleKeyProvider(s.APIKey, s.APISecret)
 }

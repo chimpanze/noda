@@ -143,8 +143,8 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	}
 }
 
-// History returns the job execution history (most recent first).
-func (r *Runtime) History() []JobRun {
+// jobHistory returns the job execution history (most recent first, test helper).
+func (r *Runtime) jobHistory() []JobRun {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	n := len(r.history)
@@ -155,9 +155,9 @@ func (r *Runtime) History() []JobRun {
 	return result
 }
 
-// NextRun returns the next scheduled time for a job by ID.
+// nextRun returns the next scheduled time for a job by ID (test helper).
 // Entries are indexed in registration order matching r.schedules order.
-func (r *Runtime) NextRun(scheduleID string) (time.Time, bool) {
+func (r *Runtime) nextRun(scheduleID string) (time.Time, bool) {
 	if r.cron == nil {
 		return time.Time{}, false
 	}

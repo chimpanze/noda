@@ -229,7 +229,7 @@ func addQueryParams(op *openapi3.Operation, queryDef map[string]any) {
 	}
 }
 
-func addRequestBody(op *openapi3.Operation, bodyDef map[string]any, rc *config.ResolvedConfig) {
+func addRequestBody(op *openapi3.Operation, bodyDef map[string]any, _ *config.ResolvedConfig) {
 	contentType := "application/json"
 	if ct, ok := bodyDef["content_type"].(string); ok {
 		contentType = ct
@@ -267,7 +267,7 @@ func addRequestBody(op *openapi3.Operation, bodyDef map[string]any, rc *config.R
 	}
 }
 
-func addResponses(op *openapi3.Operation, route map[string]any, rc *config.ResolvedConfig) {
+func addResponses(op *openapi3.Operation, route map[string]any, _ *config.ResolvedConfig) {
 	op.Responses = openapi3.NewResponses()
 
 	if respDef, ok := route["response"].(map[string]any); ok {

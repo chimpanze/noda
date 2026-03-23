@@ -51,8 +51,8 @@ func (r *ServiceRegistry) Get(name string) (any, bool) {
 	return entry.instance, true
 }
 
-// GetWithPlugin looks up a service instance and its owning plugin.
-func (r *ServiceRegistry) GetWithPlugin(name string) (any, api.Plugin, bool) {
+// getWithPlugin looks up a service instance and its owning plugin (test helper).
+func (r *ServiceRegistry) getWithPlugin(name string) (any, api.Plugin, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -90,8 +90,8 @@ func (r *ServiceRegistry) All() map[string]any {
 	return result
 }
 
-// ByPrefix returns service instances belonging to the given plugin prefix.
-func (r *ServiceRegistry) ByPrefix(prefix string) map[string]any {
+// byPrefix returns service instances belonging to the given plugin prefix (test helper).
+func (r *ServiceRegistry) byPrefix(prefix string) map[string]any {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
@@ -114,8 +114,8 @@ func (r *ServiceRegistry) Count() int {
 	return len(r.order)
 }
 
-// Order returns the service names in initialization order.
-func (r *ServiceRegistry) Order() []string {
+// initOrder returns the service names in initialization order (test helper).
+func (r *ServiceRegistry) initOrder() []string {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 

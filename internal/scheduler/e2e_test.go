@@ -64,7 +64,7 @@ func TestE2E_ScheduledWorkflowExecutes(t *testing.T) {
 
 	// Wait for the job to fire and complete successfully
 	require.Eventually(t, func() bool {
-		history := rt.History()
+		history := rt.jobHistory()
 		for _, h := range history {
 			if h.ScheduleID == "e2e-job" && h.Success {
 				return true
@@ -73,7 +73,7 @@ func TestE2E_ScheduledWorkflowExecutes(t *testing.T) {
 		return false
 	}, 5*time.Second, 100*time.Millisecond)
 
-	history := rt.History()
+	history := rt.jobHistory()
 	require.NotEmpty(t, history)
 	assert.Equal(t, "e2e-job", history[0].ScheduleID)
 	assert.True(t, history[0].Success)
@@ -137,16 +137,16 @@ func TestE2E_TwoInstances_OnlyOneExecutes(t *testing.T) {
 
 	// Wait until at least one execution happened across both instances
 	require.Eventually(t, func() bool {
-		histA := rtA.History()
-		histB := rtB.History()
+		histA := rtA.jobHistory()
+		histB := rtB.jobHistory()
 		return len(histA)+len(histB) >= 1
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Allow a bit more time for a second tick
 	time.Sleep(1500 * time.Millisecond)
 
-	histA := rtA.History()
-	histB := rtB.History()
+	histA := rtA.jobHistory()
+	histB := rtB.jobHistory()
 
 	// Count executions (not skipped) across both instances
 	executed := 0

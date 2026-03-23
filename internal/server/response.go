@@ -5,9 +5,6 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// ResponseInterceptKey is the context key for the response channel.
-const ResponseInterceptKey = "noda_response_ch"
-
 // writeHTTPResponse writes an api.HTTPResponse to a Fiber context.
 func writeHTTPResponse(c fiber.Ctx, resp *api.HTTPResponse) error {
 	// Set headers

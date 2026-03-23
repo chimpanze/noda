@@ -294,8 +294,8 @@ func (g *ManagerGroup) Stop(ctx context.Context) error {
 	return nil
 }
 
-// GetConnection returns a connection by ID.
-func (m *Manager) GetConnection(connID string) *Conn {
+// getConnection returns a connection by ID (test helper).
+func (m *Manager) getConnection(connID string) *Conn {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.connections[connID]

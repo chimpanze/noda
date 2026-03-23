@@ -284,7 +284,7 @@ func TestFunctionRegistry_RegisteredNames(t *testing.T) {
 
 func TestFunctionRegistry_CustomFunction(t *testing.T) {
 	reg := NewFunctionRegistry()
-	reg.Register("double", func(params ...any) (any, error) {
+	reg.register("double", func(params ...any) (any, error) {
 		return params[0].(int) * 2, nil
 	}, new(func(int) int))
 

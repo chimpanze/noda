@@ -337,7 +337,7 @@ func TestGetConnection_Found(t *testing.T) {
 	conn := &Conn{ID: "c1", Channel: "ch"}
 	require.NoError(t, mgr.Register(conn))
 
-	got := mgr.GetConnection("c1")
+	got := mgr.getConnection("c1")
 	require.NotNil(t, got)
 	assert.Equal(t, "c1", got.ID)
 	assert.Equal(t, "ch", got.Channel)
@@ -345,7 +345,7 @@ func TestGetConnection_Found(t *testing.T) {
 
 func TestGetConnection_NotFound(t *testing.T) {
 	mgr := NewManager()
-	got := mgr.GetConnection("nonexistent")
+	got := mgr.getConnection("nonexistent")
 	assert.Nil(t, got)
 }
 

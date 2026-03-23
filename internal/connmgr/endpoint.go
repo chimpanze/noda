@@ -8,15 +8,14 @@ import (
 
 var _ api.ConnectionService = (*EndpointService)(nil)
 
-// EndpointService wraps a Manager for a specific endpoint and implements api.ConnectionService.
+// EndpointService wraps a Manager and implements api.ConnectionService.
 type EndpointService struct {
-	manager  *Manager
-	endpoint string
+	manager *Manager
 }
 
-// NewEndpointService creates a ConnectionService for a specific endpoint.
-func NewEndpointService(manager *Manager, endpoint string) *EndpointService {
-	return &EndpointService{manager: manager, endpoint: endpoint}
+// NewEndpointService creates a ConnectionService for the given manager.
+func NewEndpointService(manager *Manager, _ string) *EndpointService {
+	return &EndpointService{manager: manager}
 }
 
 func (s *EndpointService) Send(ctx context.Context, channel string, data any) error {

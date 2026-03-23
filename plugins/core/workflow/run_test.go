@@ -76,7 +76,7 @@ func TestRun_DynamicOutputs(t *testing.T) {
 	executor := &RunExecutor{outputs: []string{"success", "error"}}
 	assert.Equal(t, []string{"success", "error"}, executor.Outputs())
 
-	executor.SetOutputs([]string{"approved", "rejected", "error"})
+	executor.setOutputs([]string{"approved", "rejected", "error"})
 	assert.Equal(t, []string{"approved", "rejected", "error"}, executor.Outputs())
 }
 

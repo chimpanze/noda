@@ -160,7 +160,7 @@ func TestEventHub_MultipleSubscribers(t *testing.T) {
 	hub.Emit(Event{Type: EventNodeCompleted})
 	assert.Equal(t, 1, count1)
 	assert.Equal(t, 1, count2)
-	assert.Equal(t, 2, hub.SubscriberCount())
+	assert.Equal(t, 2, hub.subscriberCount())
 }
 
 func TestEventHub_EmitSetsTimestamp(t *testing.T) {
@@ -178,19 +178,19 @@ func TestEventHub_EmitSetsTimestamp(t *testing.T) {
 
 func TestEventHub_SubscriberCount(t *testing.T) {
 	hub := NewEventHub()
-	assert.Equal(t, 0, hub.SubscriberCount())
+	assert.Equal(t, 0, hub.subscriberCount())
 
 	unsub1 := hub.Subscribe(func(data []byte) {})
-	assert.Equal(t, 1, hub.SubscriberCount())
+	assert.Equal(t, 1, hub.subscriberCount())
 
 	unsub2 := hub.Subscribe(func(data []byte) {})
-	assert.Equal(t, 2, hub.SubscriberCount())
+	assert.Equal(t, 2, hub.subscriberCount())
 
 	unsub1()
-	assert.Equal(t, 1, hub.SubscriberCount())
+	assert.Equal(t, 1, hub.subscriberCount())
 
 	unsub2()
-	assert.Equal(t, 0, hub.SubscriberCount())
+	assert.Equal(t, 0, hub.subscriberCount())
 }
 
 func TestParseConfig_NoTracing(t *testing.T) {

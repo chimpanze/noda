@@ -56,11 +56,6 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 	for _, a := range opts.Artifacts {
 		artifactSet[a] = true
 	}
-	opSet := make(map[string]bool)
-	for _, o := range opts.Operations {
-		opSet[o] = true
-	}
-
 	// Generate schemas
 	if artifactSet["schemas"] {
 		result.Files[fmt.Sprintf("schemas/models/%s.json", capitalize(singular))] = generateModelSchemas(singular, columns)
@@ -68,10 +63,6 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 
 	// Generate routes and workflows
 	for _, op := range opts.Operations {
-		if !opSet[op] {
-			continue
-		}
-
 		switch op {
 		case "create":
 			wfName := "create-" + singular

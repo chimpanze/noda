@@ -35,7 +35,7 @@ func TestServiceRegistry_GetWithPlugin(t *testing.T) {
 	plugin := &stubPlugin{name: "test-db", prefix: "db"}
 	require.NoError(t, reg.Register("main-db", "instance", plugin))
 
-	inst, p, ok := reg.GetWithPlugin("main-db")
+	inst, p, ok := reg.getWithPlugin("main-db")
 	assert.True(t, ok)
 	assert.Equal(t, "instance", inst)
 	assert.Equal(t, "test-db", p.Name())
@@ -50,10 +50,10 @@ func TestServiceRegistry_ByPrefix(t *testing.T) {
 	require.NoError(t, reg.Register("read-db", "db2", dbPlugin))
 	require.NoError(t, reg.Register("redis", "cache1", cachePlugin))
 
-	dbServices := reg.ByPrefix("db")
+	dbServices := reg.byPrefix("db")
 	assert.Len(t, dbServices, 2)
 
-	cacheServices := reg.ByPrefix("cache")
+	cacheServices := reg.byPrefix("cache")
 	assert.Len(t, cacheServices, 1)
 }
 

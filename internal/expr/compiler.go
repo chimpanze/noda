@@ -167,8 +167,8 @@ func (c *Compiler) addToCache(key string, compiled *CompiledExpression) {
 	c.cache[key] = compiled
 }
 
-// CompileAll compiles all expressions in a string map, collecting all errors.
-func (c *Compiler) CompileAll(expressions map[string]string) (map[string]*CompiledExpression, []error) {
+// compileAll compiles all expressions in a string map, collecting all errors (test helper).
+func (c *Compiler) compileAll(expressions map[string]string) (map[string]*CompiledExpression, []error) {
 	result := make(map[string]*CompiledExpression, len(expressions))
 	var errs []error
 

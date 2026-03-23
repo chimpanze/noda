@@ -51,8 +51,8 @@ func (m *Manager) Has(key string) bool {
 	return ok
 }
 
-// Keys returns all secret keys in sorted order.
-func (m *Manager) Keys() []string {
+// keys returns all secret keys in sorted order (test helper).
+func (m *Manager) keys() []string {
 	keys := make([]string, 0, len(m.secrets))
 	for k := range m.secrets {
 		keys = append(keys, k)

@@ -72,9 +72,9 @@ func newRunExecutor(config map[string]any) api.NodeExecutor {
 
 func (e *RunExecutor) Outputs() []string { return e.outputs }
 
-// SetOutputs allows the engine to set the dynamic outputs after discovering
-// the sub-workflow's workflow.output nodes.
-func (e *RunExecutor) SetOutputs(outputs []string) {
+// setOutputs allows the engine to set the dynamic outputs after discovering
+// the sub-workflow's workflow.output nodes (test helper).
+func (e *RunExecutor) setOutputs(outputs []string) {
 	e.outputs = outputs
 }
 

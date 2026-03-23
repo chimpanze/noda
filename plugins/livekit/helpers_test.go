@@ -313,7 +313,7 @@ func TestService_NewAuthProvider(t *testing.T) {
 		APIKey:    "my-api-key",
 		APISecret: "my-api-secret",
 	}
-	provider := svc.NewAuthProvider()
+	provider := svc.newAuthProvider()
 	require.NotNil(t, provider)
 
 	secret := provider.GetSecret("my-api-key")

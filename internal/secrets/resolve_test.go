@@ -100,7 +100,7 @@ func TestResolve_InArray(t *testing.T) {
 }
 
 func TestEnvPattern(t *testing.T) {
-	p := EnvPattern()
+	p := envPatternRe()
 	assert.NotNil(t, p)
 	assert.True(t, p.MatchString("{{ $env('KEY') }}"))
 	assert.False(t, p.MatchString("{{ $var('KEY') }}"))

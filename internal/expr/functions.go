@@ -200,9 +200,8 @@ func NewFunctionRegistry() *FunctionRegistry {
 	return r
 }
 
-// Register adds a custom function to the registry.
-// types are function signature hints for the expr compiler (e.g., new(func(string) string)).
-func (r *FunctionRegistry) Register(name string, fn func(params ...any) (any, error), types ...any) {
+// register adds a custom function to the registry (test helper, prefer RegisterWithInfo).
+func (r *FunctionRegistry) register(name string, fn func(params ...any) (any, error), types ...any) {
 	r.functions[name] = registeredFunc{fn: fn, types: types}
 }
 

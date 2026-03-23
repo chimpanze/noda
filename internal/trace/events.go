@@ -96,8 +96,8 @@ func (h *EventHub) Emit(event Event) {
 	}
 }
 
-// SubscriberCount returns the number of active subscribers.
-func (h *EventHub) SubscriberCount() int {
+// subscriberCount returns the number of active subscribers (test helper).
+func (h *EventHub) subscriberCount() int {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return len(h.subscribers)

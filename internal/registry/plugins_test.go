@@ -40,7 +40,7 @@ func TestPluginRegistry_MultiplePlugins(t *testing.T) {
 	require.NoError(t, reg.Register(&stubPlugin{name: "cache-plugin", prefix: "cache"}))
 
 	assert.Len(t, reg.All(), 2)
-	assert.Len(t, reg.Prefixes(), 2)
+	assert.Len(t, reg.prefixes(), 2)
 }
 
 func TestPluginRegistry_DuplicatePrefix(t *testing.T) {

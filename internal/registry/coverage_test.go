@@ -975,7 +975,7 @@ func TestPluginRegistry_CompositePlugin_DuplicateBothHaveNodes(t *testing.T) {
 
 func TestServiceRegistry_GetWithPlugin_NotFound(t *testing.T) {
 	reg := NewServiceRegistry()
-	inst, p, ok := reg.GetWithPlugin("nonexistent")
+	inst, p, ok := reg.getWithPlugin("nonexistent")
 	assert.False(t, ok)
 	assert.Nil(t, inst)
 	assert.Nil(t, p)
@@ -989,7 +989,7 @@ func TestServiceRegistry_Order(t *testing.T) {
 	require.NoError(t, reg.Register("second", "inst2", plugin))
 	require.NoError(t, reg.Register("third", "inst3", plugin))
 
-	order := reg.Order()
+	order := reg.initOrder()
 	assert.Equal(t, []string{"first", "second", "third"}, order)
 }
 
