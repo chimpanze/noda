@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -42,8 +43,15 @@ func (s *Server) registerRoutes() error {
 		return errs[0]
 	}
 
-	for routeID, route := range s.config.Routes {
-		if err := s.registerRoute(routeID, route); err != nil {
+	// Sort route IDs for deterministic registration order
+	routeIDs := make([]string, 0, len(s.config.Routes))
+	for id := range s.config.Routes {
+		routeIDs = append(routeIDs, id)
+	}
+	sort.Strings(routeIDs)
+
+	for _, routeID := range routeIDs {
+		if err := s.registerRoute(routeID, s.config.Routes[routeID]); err != nil {
 			return fmt.Errorf("route %q: %w", routeID, err)
 		}
 	}

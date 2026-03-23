@@ -17,7 +17,7 @@ import (
 
 func TestPlugin_Name(t *testing.T) {
 	p := &Plugin{}
-	assert.Equal(t, "sse", p.Name())
+	assert.Equal(t, "core.sse", p.Name())
 }
 
 func TestPlugin_Prefix(t *testing.T) {

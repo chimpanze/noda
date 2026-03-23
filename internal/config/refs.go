@@ -107,7 +107,9 @@ func resolveRef(refName string, registry map[string]map[string]any, filePath str
 	// Check for circular reference
 	for _, s := range seen {
 		if s == refName {
-			cycle := append(seen, refName)
+			cycle := make([]string, len(seen)+1)
+			copy(cycle, seen)
+			cycle[len(seen)] = refName
 			return nil, []error{
 				fmt.Errorf("circular $ref detected: %s (in %s)", strings.Join(cycle, " → "), filePath),
 			}

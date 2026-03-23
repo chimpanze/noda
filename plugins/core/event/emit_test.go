@@ -85,7 +85,7 @@ func (f *failingPubSubService) Publish(_ context.Context, _ string, _ any) error
 
 func TestPlugin_Metadata(t *testing.T) {
 	p := &Plugin{}
-	assert.Equal(t, "event", p.Name())
+	assert.Equal(t, "core.event", p.Name())
 	assert.Equal(t, "event", p.Prefix())
 	assert.False(t, p.HasServices())
 

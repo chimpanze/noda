@@ -342,7 +342,7 @@ func allFromSameNode(sources []string) bool {
 
 // hasCommonConditionalAncestor traces inbound edges back to find if they share
 // a common conditional ancestor (meaning they're mutually exclusive branches).
-func hasCommonConditionalAncestor(g *CompiledGraph, nodeID string, inbound []string) bool {
+func hasCommonConditionalAncestor(g *CompiledGraph, _ string, inbound []string) bool {
 	// For each inbound source, trace ancestors
 	ancestorSets := make([]map[string]bool, len(inbound))
 	for i, src := range inbound {

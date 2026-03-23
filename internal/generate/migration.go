@@ -660,7 +660,7 @@ func topoSortCreates(creates []Change) []Change {
 		}
 	}
 
-	// Kahn's algorithm
+	// DFS topological sort with cycle detection
 	var sorted []Change
 	visited := make(map[string]bool)
 	visiting := make(map[string]bool)

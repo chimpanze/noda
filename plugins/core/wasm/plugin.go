@@ -5,7 +5,7 @@ import "github.com/chimpanze/noda/pkg/api"
 // Plugin provides Wasm workflow nodes (wasm.send, wasm.query).
 type Plugin struct{}
 
-func (p *Plugin) Name() string      { return "wasm" }
+func (p *Plugin) Name() string      { return "core.wasm" }
 func (p *Plugin) Prefix() string    { return "wasm" }
 func (p *Plugin) HasServices() bool { return false }
 

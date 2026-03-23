@@ -7,7 +7,7 @@ import (
 
 // tickLoop runs the tick loop at the configured rate.
 func (m *Module) tickLoop() {
-	interval := time.Duration(1000/m.tickRate) * time.Millisecond
+	interval := time.Second / time.Duration(m.tickRate)
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -94,7 +94,7 @@ func (m *Module) executeTick() {
 	}
 
 	// Budget monitoring
-	budget := time.Duration(1000/m.tickRate) * time.Millisecond
+	budget := time.Second / time.Duration(m.tickRate)
 	if elapsed > budget {
 		m.Logger.Warn("tick exceeded budget",
 			"module", m.Name,

@@ -75,7 +75,7 @@ var knownContextEnv = map[string]any{
 type Compiler struct {
 	mu    sync.RWMutex
 	cache map[string]*CompiledExpression
-	order []string // insertion order for LRU eviction
+	order []string // insertion order for FIFO eviction
 	opts  compilerConfig
 }
 

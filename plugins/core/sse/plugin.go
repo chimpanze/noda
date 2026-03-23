@@ -5,7 +5,7 @@ import "github.com/chimpanze/noda/pkg/api"
 // Plugin provides SSE workflow nodes.
 type Plugin struct{}
 
-func (p *Plugin) Name() string      { return "sse" }
+func (p *Plugin) Name() string      { return "core.sse" }
 func (p *Plugin) Prefix() string    { return "sse" }
 func (p *Plugin) HasServices() bool { return false }
 

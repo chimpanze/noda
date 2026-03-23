@@ -5,7 +5,7 @@ import "github.com/chimpanze/noda/pkg/api"
 // Plugin provides WebSocket workflow nodes.
 type Plugin struct{}
 
-func (p *Plugin) Name() string      { return "ws" }
+func (p *Plugin) Name() string      { return "core.ws" }
 func (p *Plugin) Prefix() string    { return "ws" }
 func (p *Plugin) HasServices() bool { return false }
 

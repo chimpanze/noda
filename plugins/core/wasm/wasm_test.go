@@ -67,7 +67,7 @@ func (m *mockPlugin) Close(_ context.Context) error { return nil }
 func TestPlugin(t *testing.T) {
 	p := &Plugin{}
 
-	assert.Equal(t, "wasm", p.Name())
+	assert.Equal(t, "core.wasm", p.Name())
 	assert.Equal(t, "wasm", p.Prefix())
 	assert.False(t, p.HasServices())
 

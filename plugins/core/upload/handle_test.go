@@ -460,7 +460,7 @@ func TestUploadHandle_CustomFieldName(t *testing.T) {
 
 func TestPlugin_Methods(t *testing.T) {
 	p := &Plugin{}
-	assert.Equal(t, "upload", p.Name())
+	assert.Equal(t, "core.upload", p.Name())
 	assert.Equal(t, "upload", p.Prefix())
 	assert.False(t, p.HasServices())
 

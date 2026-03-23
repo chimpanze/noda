@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
@@ -18,7 +19,7 @@ func dispatchNode(
 ) (outputName string, err error) {
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("node %q panicked: %v", node.ID, r)
+			err = fmt.Errorf("node %q panicked: %v\n%s", node.ID, r, debug.Stack())
 			outputName = ""
 		}
 	}()

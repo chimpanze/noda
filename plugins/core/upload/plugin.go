@@ -5,7 +5,7 @@ import "github.com/chimpanze/noda/pkg/api"
 // Plugin registers the upload.handle node.
 type Plugin struct{}
 
-func (p *Plugin) Name() string   { return "upload" }
+func (p *Plugin) Name() string   { return "core.upload" }
 func (p *Plugin) Prefix() string { return "upload" }
 
 func (p *Plugin) HasServices() bool { return false }

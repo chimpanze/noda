@@ -24,7 +24,7 @@ func (d *switchDescriptor) ConfigSchema() map[string]any {
 }
 func (d *switchDescriptor) OutputDescriptions() map[string]string {
 	return map[string]string{
-		"default": "Input data passed through to the matching case output",
+		"default": "Evaluated expression result routed to the matching case output",
 	}
 }
 

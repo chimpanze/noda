@@ -3,11 +3,20 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"sync"
 
 	"github.com/chimpanze/noda/internal/config/schemas"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 	"golang.org/x/text/language"
 	"golang.org/x/text/message"
+)
+
+// schemaCache caches compiled JSON schemas to avoid re-reading and re-compiling
+// the same schema from the embedded FS on every validation call.
+var (
+	schemaCacheMu sync.RWMutex
+	schemaCache   = make(map[string]*jsonschema.Schema)
 )
 
 // ValidationError represents a single validation error with location context.
@@ -73,24 +82,9 @@ func Validate(rc *RawConfig) []ValidationError {
 }
 
 func validateAgainstSchema(schemaName string, filePath string, data map[string]any) []ValidationError {
-	schemaData, err := schemas.FS.ReadFile(schemaName)
+	schema, err := getCompiledSchema(schemaName)
 	if err != nil {
-		return []ValidationError{{FilePath: filePath, Message: fmt.Sprintf("internal error: schema %s not found", schemaName)}}
-	}
-
-	var schemaDoc any
-	if err := json.Unmarshal(schemaData, &schemaDoc); err != nil {
-		return []ValidationError{{FilePath: filePath, Message: fmt.Sprintf("internal error: invalid schema %s", schemaName)}}
-	}
-
-	compiler := jsonschema.NewCompiler()
-	if err := compiler.AddResource(schemaName, schemaDoc); err != nil {
-		return []ValidationError{{FilePath: filePath, Message: fmt.Sprintf("internal error: could not add schema resource: %v", err)}}
-	}
-
-	schema, err := compiler.Compile(schemaName)
-	if err != nil {
-		return []ValidationError{{FilePath: filePath, Message: fmt.Sprintf("internal error: could not compile schema: %v", err)}}
+		return []ValidationError{{FilePath: filePath, Message: fmt.Sprintf("internal error: %v", err)}}
 	}
 
 	validationErr := schema.Validate(data)
@@ -99,6 +93,42 @@ func validateAgainstSchema(schemaName string, filePath string, data map[string]a
 	}
 
 	return extractValidationErrors(filePath, validationErr)
+}
+
+// getCompiledSchema returns a cached compiled schema, loading and compiling it on first access.
+func getCompiledSchema(schemaName string) (*jsonschema.Schema, error) {
+	schemaCacheMu.RLock()
+	if s, ok := schemaCache[schemaName]; ok {
+		schemaCacheMu.RUnlock()
+		return s, nil
+	}
+	schemaCacheMu.RUnlock()
+
+	schemaData, err := schemas.FS.ReadFile(schemaName)
+	if err != nil {
+		return nil, fmt.Errorf("schema %s not found", schemaName)
+	}
+
+	var schemaDoc any
+	if err := json.Unmarshal(schemaData, &schemaDoc); err != nil {
+		return nil, fmt.Errorf("invalid schema %s", schemaName)
+	}
+
+	compiler := jsonschema.NewCompiler()
+	if err := compiler.AddResource(schemaName, schemaDoc); err != nil {
+		return nil, fmt.Errorf("could not add schema resource: %v", err)
+	}
+
+	schema, err := compiler.Compile(schemaName)
+	if err != nil {
+		return nil, fmt.Errorf("could not compile schema: %v", err)
+	}
+
+	schemaCacheMu.Lock()
+	schemaCache[schemaName] = schema
+	schemaCacheMu.Unlock()
+
+	return schema, nil
 }
 
 func extractValidationErrors(filePath string, err error) []ValidationError {
@@ -142,12 +172,5 @@ func collectLeafErrors(filePath string, ve *jsonschema.ValidationError, errs *[]
 }
 
 func joinPath(parts []string) string {
-	result := ""
-	for i, p := range parts {
-		if i > 0 {
-			result += "/"
-		}
-		result += p
-	}
-	return result
+	return strings.Join(parts, "/")
 }

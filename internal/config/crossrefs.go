@@ -474,12 +474,5 @@ func corsUsed(rc *RawConfig) bool {
 }
 
 func formatCycle(ids []string) string {
-	result := ""
-	for i, id := range ids {
-		if i > 0 {
-			result += " → "
-		}
-		result += id
-	}
-	return result
+	return strings.Join(ids, " → ")
 }

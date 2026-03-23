@@ -23,8 +23,8 @@ func (d *ifDescriptor) ConfigSchema() map[string]any {
 }
 func (d *ifDescriptor) OutputDescriptions() map[string]string {
 	return map[string]string{
-		"then":  "Input data passed through (condition was true)",
-		"else":  "Input data passed through (condition was false)",
+		"then":  "Evaluated condition result (condition was true)",
+		"else":  "Evaluated condition result (condition was false)",
 		"error": "Expression evaluation error",
 	}
 }

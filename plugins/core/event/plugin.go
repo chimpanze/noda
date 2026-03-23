@@ -5,7 +5,7 @@ import "github.com/chimpanze/noda/pkg/api"
 // Plugin provides the event.emit node.
 type Plugin struct{}
 
-func (p *Plugin) Name() string   { return "event" }
+func (p *Plugin) Name() string   { return "core.event" }
 func (p *Plugin) Prefix() string { return "event" }
 
 func (p *Plugin) HasServices() bool { return false }

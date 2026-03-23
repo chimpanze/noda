@@ -47,6 +47,9 @@ type NotFoundError struct {
 }
 
 func (e *NotFoundError) Error() string {
+	if e.ID == "" {
+		return fmt.Sprintf("%s not found", e.Resource)
+	}
 	return fmt.Sprintf("%s not found: %s", e.Resource, e.ID)
 }
 
