@@ -84,6 +84,9 @@ func (e *EditorAPI) runTests(c fiber.Ctx) error {
 // listModels returns all parsed model definitions.
 func (e *EditorAPI) listModels(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
+	if rc == nil {
+		return c.Status(500).JSON(map[string]any{"error": "no config available"})
+	}
 
 	models := make([]map[string]any, 0, len(rc.Models))
 	for path, model := range rc.Models {

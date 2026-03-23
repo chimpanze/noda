@@ -53,6 +53,9 @@ func (e *requestExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 	return doRequest(ctx, nCtx, config, svc, "")
 }
 
+// maxResponseBodySize limits the amount of response data read into memory (100 MB).
+const maxResponseBodySize = 100 * 1024 * 1024
+
 // doRequest is the shared implementation for http.request, http.get, http.post.
 func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, svc *Service, fixedMethod string) (string, any, error) {
 	// Read method as a static string — method is not an expression field.
@@ -157,10 +160,13 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	// Read response body
-	respBody, err := io.ReadAll(resp.Body)
+	// Read response body with size limit to prevent OOM from large responses
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return "", nil, fmt.Errorf("http.request: read response: %w", err)
+	}
+	if len(respBody) > maxResponseBodySize {
+		return "", nil, fmt.Errorf("http.request: response body exceeds %d bytes limit", maxResponseBodySize)
 	}
 
 	// Build response headers map

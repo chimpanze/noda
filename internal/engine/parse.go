@@ -9,8 +9,9 @@ import (
 // This is the canonical parser used by the server, worker, scheduler, and testing packages.
 func ParseWorkflowFromMap(id string, raw map[string]any) (WorkflowConfig, error) {
 	wf := WorkflowConfig{
-		ID:    id,
-		Nodes: make(map[string]NodeConfig),
+		ID:      id,
+		Timeout: MapStrVal(raw, "timeout"),
+		Nodes:   make(map[string]NodeConfig),
 	}
 
 	nodesRaw, _ := raw["nodes"].(map[string]any)

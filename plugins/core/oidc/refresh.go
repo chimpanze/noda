@@ -111,12 +111,14 @@ func (e *refreshExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		// Verify and extract claims from the new ID token
 		verifier := provider.Verifier(&gooidc.Config{ClientID: clientID})
 		idToken, err := verifier.Verify(ctx, rawIDToken)
-		if err == nil {
-			var claims map[string]any
-			if err := idToken.Claims(&claims); err == nil {
-				result["claims"] = claims
-			}
+		if err != nil {
+			return "", nil, fmt.Errorf("oidc.refresh: verify id_token: %w", err)
 		}
+		var claims map[string]any
+		if err := idToken.Claims(&claims); err != nil {
+			return "", nil, fmt.Errorf("oidc.refresh: parse id_token claims: %w", err)
+		}
+		result["claims"] = claims
 	}
 
 	if !newToken.Expiry.IsZero() {

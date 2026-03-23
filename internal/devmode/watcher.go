@@ -114,9 +114,10 @@ func (w *Watcher) loop() {
 			if timer != nil {
 				timer.Stop()
 			}
+			path := lastPath // capture by value to avoid data race with timer goroutine
 			timer = time.AfterFunc(w.debounce, func() {
-				w.logger.Info("config file changed", "path", lastPath)
-				w.onChange(lastPath)
+				w.logger.Info("config file changed", "path", path)
+				w.onChange(path)
 			})
 
 		case err, ok := <-w.watcher.Errors:

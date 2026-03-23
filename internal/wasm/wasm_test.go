@@ -2487,7 +2487,7 @@ func TestGateway_HeartbeatLoop_ZeroInterval(t *testing.T) {
 	// Should return immediately without blocking
 	done := make(chan struct{})
 	go func() {
-		gw.heartbeatLoop(gc)
+		gw.heartbeatLoop(context.Background(), gc)
 		close(done)
 	}()
 

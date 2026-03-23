@@ -34,6 +34,7 @@ type gatewayConn struct {
 	closed          bool
 	closeOnce       sync.Once
 	readLoopRunning atomic.Bool
+	heartbeatCancel context.CancelFunc // cancels the current heartbeat loop, if any
 }
 
 // safeClose closes the underlying WebSocket exactly once, safe for concurrent use.
@@ -190,10 +191,16 @@ func (g *Gateway) Configure(payload map[string]any) (any, error) {
 
 	if v, ok := payload["heartbeat_interval"].(float64); ok && v > 0 {
 		gc.mu.Lock()
+		// Cancel previous heartbeat loop if running
+		if gc.heartbeatCancel != nil {
+			gc.heartbeatCancel()
+		}
 		gc.config.HeartbeatInterval = time.Duration(v) * time.Millisecond
 		gc.config.HeartbeatPayload = payload["heartbeat_payload"]
+		ctx, cancel := context.WithCancel(context.Background())
+		gc.heartbeatCancel = cancel
 		gc.mu.Unlock()
-		go g.heartbeatLoop(gc)
+		go g.heartbeatLoop(ctx, gc)
 	}
 
 	if rc, ok := payload["reconnect"].(map[string]any); ok {
@@ -262,7 +269,8 @@ func (g *Gateway) readLoop(gc *gatewayConn) {
 }
 
 // heartbeatLoop sends periodic heartbeat messages.
-func (g *Gateway) heartbeatLoop(gc *gatewayConn) {
+// The ctx is cancelled when a new heartbeat loop replaces this one or the connection closes.
+func (g *Gateway) heartbeatLoop(ctx context.Context, gc *gatewayConn) {
 	gc.mu.Lock()
 	interval := gc.config.HeartbeatInterval
 	gc.mu.Unlock()
@@ -275,6 +283,8 @@ func (g *Gateway) heartbeatLoop(gc *gatewayConn) {
 
 	for {
 		select {
+		case <-ctx.Done():
+			return
 		case <-gc.stopCh:
 			return
 		case <-ticker.C:

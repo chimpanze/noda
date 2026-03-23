@@ -1021,9 +1021,10 @@ func (r *configAwareTestResolver) OutputsForTypeWithConfig(nodeType string, conf
 
 // --- Retry with dispatchNode error propagation ---
 
-func TestRetry_DispatchErrorContinuesRetry(t *testing.T) {
-	// When dispatchNode returns an error (not "error" output), retry should continue
-	// This covers the `if execErr != nil { continue }` path in retryNode
+func TestRetry_DispatchErrorReturnsImmediately(t *testing.T) {
+	// When dispatchNode returns a structural error (no error output edge),
+	// retry should return immediately instead of retrying — these errors
+	// (panics, unknown types, missing services) will never succeed on retry.
 	plugins := registry.NewPluginRegistry()
 	nodeReg := registry.NewNodeRegistry()
 
@@ -1052,13 +1053,13 @@ func TestRetry_DispatchErrorContinuesRetry(t *testing.T) {
 		Outputs: []string{"success"}, // no error output, so dispatchNode returns error
 	}
 
-	output, err := retryNode(context.Background(), node, execCtx, svcReg, nodeReg, &RetryConfig{
+	_, err := retryNode(context.Background(), node, execCtx, svcReg, nodeReg, &RetryConfig{
 		Attempts: 3,
 		Backoff:  "fixed",
 		Delay:    "1ms",
 	})
-	require.NoError(t, err)
-	assert.Equal(t, "success", output)
+	require.Error(t, err)
+	assert.Equal(t, int32(1), callCount.Load(), "should only attempt once before returning the dispatch error")
 }
 
 type hardFailThenSucceed struct {

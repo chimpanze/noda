@@ -48,6 +48,9 @@ func resolveWhereClause(nCtx api.ExecutionContext, config map[string]any) (*wher
 	if !ok {
 		return nil, fmt.Errorf("where_clause.query resolved to %T, expected string", resolved)
 	}
+	if err := ValidateSQLFragment(query); err != nil {
+		return nil, fmt.Errorf("where_clause: %w", err)
+	}
 
 	params, err := plugin.ResolveOptionalArray(nCtx, m, "params")
 	if err != nil {
@@ -246,6 +249,9 @@ func applyQueryOptions(tx *gorm.DB, nCtx api.ExecutionContext, config map[string
 			queryStr, ok := resolved.(string)
 			if !ok {
 				return nil, fmt.Errorf("having.query resolved to %T, expected string", resolved)
+			}
+			if err := ValidateSQLFragment(queryStr); err != nil {
+				return nil, fmt.Errorf("having: %w", err)
 			}
 			params, err := plugin.ResolveOptionalArray(nCtx, h, "params")
 			if err != nil {

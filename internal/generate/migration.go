@@ -9,6 +9,41 @@ import (
 	"strings"
 )
 
+// validOnDeleteActions lists allowed ON DELETE actions for foreign keys.
+var validOnDeleteActions = map[string]bool{
+	"CASCADE":    true,
+	"SET NULL":   true,
+	"RESTRICT":   true,
+	"NO ACTION":  true,
+	"SET DEFAULT": true,
+}
+
+// validateOnDelete checks that an ON DELETE value is a known SQL action.
+func validateOnDelete(value string) error {
+	if !validOnDeleteActions[strings.ToUpper(value)] {
+		return fmt.Errorf("invalid ON DELETE action %q", value)
+	}
+	return nil
+}
+
+// validateDefault checks that a column default value does not contain SQL injection patterns.
+// Allowed: numeric literals, quoted strings, SQL keywords (TRUE/FALSE/NULL), function calls like NOW().
+func validateDefault(value string) error {
+	v := strings.TrimSpace(value)
+	if v == "" {
+		return nil
+	}
+	// Reject semicolons which could terminate a statement
+	if strings.Contains(v, ";") {
+		return fmt.Errorf("invalid default value %q: contains semicolon", value)
+	}
+	// Reject comment markers
+	if strings.Contains(v, "--") || strings.Contains(v, "/*") {
+		return fmt.Errorf("invalid default value %q: contains SQL comment", value)
+	}
+	return nil
+}
+
 // quoteIdent quotes a SQL identifier to prevent injection.
 func quoteIdent(name string) string {
 	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
@@ -133,6 +168,27 @@ func loadModels(modelsDir string) (map[string]ModelDef, error) {
 
 		if model.Table == "" {
 			model.Table = strings.TrimSuffix(entry.Name(), ".json")
+		}
+
+		// Validate column Default values to prevent SQL injection
+		for colName, col := range model.Columns {
+			if col.Default != "" {
+				if err := validateDefault(col.Default); err != nil {
+					return nil, fmt.Errorf("%s: column %q: %w", entry.Name(), colName, err)
+				}
+			}
+		}
+
+		// Validate relation OnDelete values to prevent SQL injection
+		for relName, rel := range model.Relations {
+			if rel.OnDelete != "" {
+				if err := validateOnDelete(rel.OnDelete); err != nil {
+					return nil, fmt.Errorf("%s: relation %q: %w", entry.Name(), relName, err)
+				}
+				// Normalize to uppercase
+				rel.OnDelete = strings.ToUpper(rel.OnDelete)
+				model.Relations[relName] = rel
+			}
 		}
 
 		models[model.Table] = model

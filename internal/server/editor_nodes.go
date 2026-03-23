@@ -159,6 +159,9 @@ func (e *EditorAPI) listPlugins(c fiber.Ctx) error {
 // listSchemas returns all shared schema definitions.
 func (e *EditorAPI) listSchemas(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
+	if rc == nil {
+		return c.Status(500).JSON(map[string]any{"error": "no config available"})
+	}
 
 	schemas := make([]map[string]any, 0, len(rc.Schemas))
 	for path, schema := range rc.Schemas {

@@ -706,7 +706,7 @@ func newDevCmd() *cobra.Command {
 						file = "index.html"
 					}
 					absPath := filepath.Join(editorDist, filepath.Clean(file))
-					if !strings.HasPrefix(absPath, editorDist) {
+					if !strings.HasPrefix(absPath, editorDist+string(filepath.Separator)) {
 						return c.Status(403).SendString("forbidden")
 					}
 					return c.SendFile(absPath)

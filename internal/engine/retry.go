@@ -58,9 +58,9 @@ func retryNode(
 		// Re-execute the node
 		output, execErr := dispatchNode(ctx, node, execCtx, services, nodes)
 		if execErr != nil {
-			// dispatchNode only returns error if there's no error output edge,
-			// but during retry the node does have error handling
-			continue
+			// Structural errors (panics, unknown types, missing services, undeclared outputs)
+			// will never succeed on retry — return immediately.
+			return "", execErr
 		}
 		if output != "error" {
 			// Node succeeded on retry
