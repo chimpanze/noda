@@ -1,11 +1,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/registry"
@@ -100,6 +102,87 @@ func TestHealth_ServiceWithoutPing(t *testing.T) {
 	assert.Equal(t, "healthy", body["status"])
 	services := body["services"].(map[string]any)
 	assert.Equal(t, "ok", services["simple-svc"])
+}
+
+// slowService blocks on Ping() until its done channel is closed or the test ends.
+type slowService struct {
+	done chan struct{}
+}
+
+func newSlowService() *slowService {
+	return &slowService{done: make(chan struct{})}
+}
+
+func (s *slowService) Ping() error {
+	<-s.done
+	return nil
+}
+
+func TestHealth_PingTimeout(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	p := &mockPlugin{}
+	slow := newSlowService()
+	defer close(slow.done) // unblock goroutine when test ends
+	_ = svcReg.Register("slow-db", slow, p)
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"server": map[string]any{
+				"health_timeout": "100ms",
+			},
+		},
+	}
+	srv, err := NewServer(rc, svcReg, registry.NewNodeRegistry())
+	require.NoError(t, err)
+	srv.registerHealthRoutes()
+
+	resp, err := srv.App().Test(mustReq(http.MethodGet, "/health"))
+	require.NoError(t, err)
+	assert.Equal(t, 503, resp.StatusCode)
+
+	body := readJSON(t, resp)
+	assert.Equal(t, "unhealthy", body["status"])
+	services := body["services"].(map[string]any)
+	assert.Equal(t, "unhealthy", services["slow-db"])
+}
+
+func TestHealth_ConfigurableTimeout(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"server": map[string]any{
+				"health_timeout": "2s",
+			},
+		},
+	}
+	srv, err := NewServer(rc, registry.NewServiceRegistry(), registry.NewNodeRegistry())
+	require.NoError(t, err)
+	assert.Equal(t, 2*time.Second, srv.healthTimeout())
+}
+
+func TestHealth_DefaultTimeout(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{},
+	}
+	srv, err := NewServer(rc, registry.NewServiceRegistry(), registry.NewNodeRegistry())
+	require.NoError(t, err)
+	assert.Equal(t, defaultHealthTimeout, srv.healthTimeout())
+}
+
+func TestPingWithTimeout_Success(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	err := pingWithTimeout(ctx, &healthyService{})
+	assert.NoError(t, err)
+}
+
+func TestPingWithTimeout_Timeout(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	slow := newSlowService()
+	defer close(slow.done)
+	err := pingWithTimeout(ctx, slow)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "timed out")
 }
 
 // --- helpers ---

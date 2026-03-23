@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -78,14 +79,17 @@ func runTestCase(
 		}
 	}
 
-	// Set up trace collection
+	// Set up trace collection (protected by mutex since nodes execute in parallel)
 	var traceEvents []TraceEvent
+	var traceMu sync.Mutex
 	startTimes := map[string]time.Time{}
 
 	// Build execution context
 	opts := []engine.ExecutionContextOption{
 		engine.WithWorkflowID(workflowID),
 		engine.WithTraceCallback(func(eventType, nodeID, nodeType, output, errMsg string, data any) {
+			traceMu.Lock()
+			defer traceMu.Unlock()
 			switch eventType {
 			case "node:entered":
 				startTimes[nodeID] = time.Now()

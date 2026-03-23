@@ -2,7 +2,7 @@ package expr
 
 import (
 	"crypto/hmac"
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // MD5 exposed as expression function for non-security hashing
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
@@ -127,7 +127,7 @@ func NewFunctionRegistry() *FunctionRegistry {
 		if !ok {
 			return nil, fmt.Errorf("md5: expected string argument, got %T", params[0])
 		}
-		h := md5.Sum([]byte(s))
+		h := md5.Sum([]byte(s)) //nolint:gosec // intentional non-security hash function
 		return hex.EncodeToString(h[:]), nil
 	}, "Returns hex-encoded MD5 hash", "(string) string", new(func(string) string))
 

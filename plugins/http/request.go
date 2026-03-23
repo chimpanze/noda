@@ -128,15 +128,32 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 		req.Header.Set(k, v)
 	}
 
-	// Execute request
-	resp, err := svc.client.Do(req)
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return "", nil, &api.TimeoutError{
-				Operation: fmt.Sprintf("HTTP %s %s", method, url),
+	// Execute request (with circuit breaker if configured)
+	var resp *http.Response
+	if svc.breaker != nil {
+		result, cbErr := svc.breaker.Execute(func() (any, error) {
+			return svc.client.Do(req)
+		})
+		if cbErr != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return "", nil, &api.TimeoutError{
+					Operation: fmt.Sprintf("HTTP %s %s", method, url),
+				}
 			}
+			return "", nil, fmt.Errorf("http.request: %w", cbErr)
 		}
-		return "", nil, fmt.Errorf("http.request: %w", err)
+		resp = result.(*http.Response)
+	} else {
+		var reqErr error
+		resp, reqErr = svc.client.Do(req)
+		if reqErr != nil {
+			if ctx.Err() == context.DeadlineExceeded {
+				return "", nil, &api.TimeoutError{
+					Operation: fmt.Sprintf("HTTP %s %s", method, url),
+				}
+			}
+			return "", nil, fmt.Errorf("http.request: %w", reqErr)
+		}
 	}
 	defer func() { _ = resp.Body.Close() }()
 

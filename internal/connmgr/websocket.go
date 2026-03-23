@@ -123,6 +123,13 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 		SendFn: func(data []byte) error {
 			return ws.WriteMessage(websocket.TextMessage, data)
 		},
+		CloseFn: func() error {
+			return ws.WriteControl(
+				websocket.CloseMessage,
+				websocket.FormatCloseMessage(websocket.CloseGoingAway, "server shutdown"),
+				time.Now().Add(5*time.Second),
+			)
+		},
 	}
 
 	if err := h.manager.Register(conn); err != nil {

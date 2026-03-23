@@ -1,11 +1,20 @@
 package server
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"io"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -252,4 +261,224 @@ func TestBuildMiddleware_Limiter(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 429, resp.StatusCode)
+}
+
+func TestBuildMiddleware_Limiter_RedisStorage(t *testing.T) {
+	// When storage is "redis" and redis_url is provided, the middleware should
+	// be created successfully (it will use Redis-backed distributed storage).
+	// We use miniredis to avoid requiring a real Redis instance.
+	mr := miniredis.RunT(t)
+
+	app := fiber.New()
+	h, err := BuildMiddleware("limiter", map[string]any{
+		"middleware": map[string]any{
+			"limiter": map[string]any{
+				"max":        float64(2),
+				"expiration": "1m",
+				"storage":    "redis",
+				"redis_url":  "redis://" + mr.Addr(),
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	app.Use(h)
+	app.Get("/test", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	// First two requests should succeed
+	for i := 0; i < 2; i++ {
+		req := httptest.NewRequest("GET", "/test", nil)
+		resp, err := app.Test(req)
+		require.NoError(t, err)
+		assert.Equal(t, 200, resp.StatusCode)
+	}
+
+	// Third should be rate limited
+	req := httptest.NewRequest("GET", "/test", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 429, resp.StatusCode)
+}
+
+func TestBuildMiddleware_Limiter_RedisStorage_MissingURL(t *testing.T) {
+	_, err := BuildMiddleware("limiter", map[string]any{
+		"middleware": map[string]any{
+			"limiter": map[string]any{
+				"max":     float64(10),
+				"storage": "redis",
+			},
+		},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "redis_url is required")
+}
+
+func TestBuildMiddleware_Limiter_InMemoryDefault(t *testing.T) {
+	// Without storage config, limiter should use in-memory storage (default).
+	h, err := BuildMiddleware("limiter", map[string]any{
+		"middleware": map[string]any{
+			"limiter": map[string]any{
+				"max":        float64(5),
+				"expiration": "30s",
+			},
+		},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, h)
+}
+
+func rsaPublicKeyPEM(pub *rsa.PublicKey) string {
+	der, _ := x509.MarshalPKIXPublicKey(pub)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+}
+
+func ecdsaPublicKeyPEM(pub *ecdsa.PublicKey) string {
+	der, _ := x509.MarshalPKIXPublicKey(pub)
+	return string(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: der}))
+}
+
+func TestBuildMiddleware_JWT_RS256_ValidToken(t *testing.T) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	pubPEM := rsaPublicKeyPEM(&privKey.PublicKey)
+
+	app := fiber.New()
+	h, err := BuildMiddleware("auth.jwt", map[string]any{
+		"security": map[string]any{
+			"jwt": map[string]any{
+				"algorithm":  "RS256",
+				"public_key": pubPEM,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	app.Use(h)
+	app.Get("/protected", func(c fiber.Ctx) error {
+		userID := c.Locals(api.LocalJWTUserID)
+		return c.JSON(map[string]any{"user_id": userID})
+	})
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"sub": "rsa-user-1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	tokenStr, err := token.SignedString(privKey)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenStr)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "rsa-user-1")
+}
+
+func TestBuildMiddleware_JWT_ES256_ValidToken(t *testing.T) {
+	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	pubPEM := ecdsaPublicKeyPEM(&privKey.PublicKey)
+
+	app := fiber.New()
+	h, err := BuildMiddleware("auth.jwt", map[string]any{
+		"security": map[string]any{
+			"jwt": map[string]any{
+				"algorithm":  "ES256",
+				"public_key": pubPEM,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	app.Use(h)
+	app.Get("/protected", func(c fiber.Ctx) error {
+		userID := c.Locals(api.LocalJWTUserID)
+		return c.JSON(map[string]any{"user_id": userID})
+	})
+
+	token := jwt.NewWithClaims(jwt.SigningMethodES256, jwt.MapClaims{
+		"sub": "ecdsa-user-1",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	tokenStr, err := token.SignedString(privKey)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenStr)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "ecdsa-user-1")
+}
+
+func TestBuildMiddleware_JWT_UnsupportedAlgorithm_Asymmetric(t *testing.T) {
+	_, err := BuildMiddleware("auth.jwt", map[string]any{
+		"security": map[string]any{
+			"jwt": map[string]any{
+				"algorithm":  "PS256",
+				"public_key": "not-used",
+			},
+		},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported algorithm")
+}
+
+func TestBuildMiddleware_JWT_RSA_MissingPublicKey(t *testing.T) {
+	_, err := BuildMiddleware("auth.jwt", map[string]any{
+		"security": map[string]any{
+			"jwt": map[string]any{
+				"algorithm": "RS256",
+			},
+		},
+	})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "public_key or public_key_file is required")
+}
+
+func TestBuildMiddleware_JWT_RSA_PublicKeyFile(t *testing.T) {
+	privKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	pubPEM := rsaPublicKeyPEM(&privKey.PublicKey)
+	tmpDir := t.TempDir()
+	keyPath := filepath.Join(tmpDir, "pub.pem")
+	require.NoError(t, os.WriteFile(keyPath, []byte(pubPEM), 0644))
+
+	app := fiber.New()
+	h, err := BuildMiddleware("auth.jwt", map[string]any{
+		"security": map[string]any{
+			"jwt": map[string]any{
+				"algorithm":       "RS256",
+				"public_key_file": keyPath,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	app.Use(h)
+	app.Get("/protected", func(c fiber.Ctx) error {
+		return c.SendString("ok")
+	})
+
+	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwt.MapClaims{
+		"sub": "file-user",
+		"exp": time.Now().Add(time.Hour).Unix(),
+	})
+	tokenStr, err := token.SignedString(privKey)
+	require.NoError(t, err)
+
+	req := httptest.NewRequest("GET", "/protected", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenStr)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
 }

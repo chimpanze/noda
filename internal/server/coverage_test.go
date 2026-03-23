@@ -189,7 +189,7 @@ func TestBuildMiddleware_JWT_UnsupportedAlgorithm(t *testing.T) {
 		"security": map[string]any{
 			"jwt": map[string]any{
 				"secret":    "test-key-that-is-at-least-32-bytes-long!!",
-				"algorithm": "RS256",
+				"algorithm": "PS256",
 			},
 		},
 	})

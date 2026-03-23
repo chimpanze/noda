@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/internal/breaker"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -56,12 +57,22 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 
 	client := &http.Client{Timeout: timeout}
 
-	return &Service{
+	svc := &Service{
 		client:         client,
 		baseURL:        baseURL,
 		defaultHeaders: defaultHeaders,
 		defaultTimeout: timeout,
-	}, nil
+	}
+
+	if cbCfg := breaker.ParseConfig(config); cbCfg != nil {
+		name, _ := config["name"].(string)
+		if name == "" {
+			name = "http"
+		}
+		svc.breaker = breaker.New(name, *cbCfg)
+	}
+
+	return svc, nil
 }
 
 func (p *Plugin) HealthCheck(service any) error {

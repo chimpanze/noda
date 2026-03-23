@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -92,6 +93,8 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 	const sseEventBuffer = 64
 	events := make(chan sseEvent, sseEventBuffer)
 	done := make(chan struct{})
+	var closeOnce sync.Once
+	closeDone := func() { closeOnce.Do(func() { close(done) }) }
 
 	conn := &Conn{
 		ID:       connID,
@@ -116,6 +119,10 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 				return fmt.Errorf("sse buffer full")
 			}
 		},
+		CloseFn: func() error {
+			closeDone()
+			return nil
+		},
 	}
 
 	if err := h.manager.Register(conn); err != nil {
@@ -135,7 +142,7 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 
 	return c.SendStreamWriter(func(w *bufio.Writer) {
 		defer func() {
-			close(done) // signal SSEFn to stop accepting events
+			closeDone() // signal SSEFn to stop accepting events
 			h.manager.Unregister(connID)
 			if h.config.OnDisconnect != "" && h.runner != nil {
 				disconnectCtx, disconnectCancel := context.WithTimeout(context.Background(), lifecycleTimeout)

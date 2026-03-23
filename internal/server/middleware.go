@@ -3,9 +3,11 @@ package server
 import (
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
@@ -18,6 +20,7 @@ import (
 	"github.com/gofiber/fiber/v3/middleware/recover"
 	"github.com/gofiber/fiber/v3/middleware/requestid"
 	fibertimeout "github.com/gofiber/fiber/v3/middleware/timeout"
+	redisStorage "github.com/gofiber/storage/redis/v3"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -40,6 +43,7 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 	"auth.oidc":        newOIDCMiddleware,
 	"casbin.enforce":   newCasbinMiddleware,
 	"livekit.webhook":  newLiveKitWebhookMiddleware,
+	"idempotency":      newIdempotencyMiddleware,
 }
 
 // ParseMiddlewareName splits a middleware name into its base type and instance.
@@ -126,7 +130,16 @@ func extractMiddlewareConfig(name string, rootConfig map[string]any) map[string]
 	return nil
 }
 
-func newRecoverMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error) {
+func newRecoverMiddleware(_ map[string]any, rootConfig map[string]any) (fiber.Handler, error) {
+	if m, ok := rootConfig["_metrics"].(*metrics.Metrics); ok {
+		return recover.New(recover.Config{
+			EnableStackTrace: true,
+			StackTraceHandler: func(c fiber.Ctx, e any) {
+				m.PanicsRecovered.Add(c.Context(), 1)
+				slog.Error("panic recovered", "error", e)
+			},
+		}), nil
+	}
 	return recover.New(), nil
 }
 
@@ -229,6 +242,17 @@ func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, 
 				return nil, fmt.Errorf("limiter: invalid expiration %q: %w", v, err)
 			}
 		}
+		// Redis-backed distributed storage
+		if storage, ok := cfg["storage"].(string); ok && storage == "redis" {
+			redisURL, _ := cfg["redis_url"].(string)
+			if redisURL == "" {
+				return nil, fmt.Errorf("limiter: redis_url is required when storage is \"redis\"")
+			}
+			store := redisStorage.New(redisStorage.Config{
+				URL: redisURL,
+			})
+			limiterCfg.Storage = store
+		}
 	}
 	if limiterCfg.Max == 0 {
 		return nil, fmt.Errorf("limiter: max=0 is not allowed; set an explicit max request count")
@@ -260,21 +284,38 @@ func newETagMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error
 	return etag.New(), nil
 }
 
+// loadPublicKey reads a PEM-encoded public key from config and parses it
+// based on the signing method (RSA or ECDSA).
+func loadPublicKey(cfg map[string]any, method jwt.SigningMethod) (any, error) {
+	var pemBytes []byte
+
+	if keyFile, ok := cfg["public_key_file"].(string); ok && keyFile != "" {
+		data, err := os.ReadFile(keyFile)
+		if err != nil {
+			return nil, fmt.Errorf("auth.jwt: failed to read public_key_file: %w", err)
+		}
+		pemBytes = data
+	} else if keyStr, ok := cfg["public_key"].(string); ok && keyStr != "" {
+		pemBytes = []byte(keyStr)
+	} else {
+		return nil, fmt.Errorf("auth.jwt: public_key or public_key_file is required for %s", method.Alg())
+	}
+
+	switch method.(type) {
+	case *jwt.SigningMethodRSA:
+		return jwt.ParseRSAPublicKeyFromPEM(pemBytes)
+	case *jwt.SigningMethodECDSA:
+		return jwt.ParseECPublicKeyFromPEM(pemBytes)
+	default:
+		return nil, fmt.Errorf("auth.jwt: unsupported key type for %s", method.Alg())
+	}
+}
+
 // newJWTMiddleware creates a JWT validation middleware.
 // It validates the token and stores claims in Fiber locals for trigger mapping.
 func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("auth.jwt: security.jwt config is required")
-	}
-
-	secret, _ := cfg["secret"].(string)
-	if secret == "" {
-		return nil, fmt.Errorf("auth.jwt: secret is required")
-	}
-
-	// Reject weak secrets
-	if len(secret) < 32 {
-		return nil, fmt.Errorf("auth.jwt: secret is shorter than 32 bytes; use a stronger secret")
 	}
 
 	algorithm, _ := cfg["algorithm"].(string)
@@ -290,8 +331,40 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 		signingMethod = jwt.SigningMethodHS384
 	case "HS512":
 		signingMethod = jwt.SigningMethodHS512
+	case "RS256":
+		signingMethod = jwt.SigningMethodRS256
+	case "RS384":
+		signingMethod = jwt.SigningMethodRS384
+	case "RS512":
+		signingMethod = jwt.SigningMethodRS512
+	case "ES256":
+		signingMethod = jwt.SigningMethodES256
+	case "ES384":
+		signingMethod = jwt.SigningMethodES384
+	case "ES512":
+		signingMethod = jwt.SigningMethodES512
 	default:
 		return nil, fmt.Errorf("auth.jwt: unsupported algorithm %q", algorithm)
+	}
+
+	// Resolve the verification key based on algorithm family
+	var verifyKey any
+	switch signingMethod.(type) {
+	case *jwt.SigningMethodHMAC:
+		secret, _ := cfg["secret"].(string)
+		if secret == "" {
+			return nil, fmt.Errorf("auth.jwt: secret is required")
+		}
+		if len(secret) < 32 {
+			return nil, fmt.Errorf("auth.jwt: secret is shorter than 32 bytes; use a stronger secret")
+		}
+		verifyKey = []byte(secret)
+	case *jwt.SigningMethodRSA, *jwt.SigningMethodECDSA:
+		key, err := loadPublicKey(cfg, signingMethod)
+		if err != nil {
+			return nil, err
+		}
+		verifyKey = key
 	}
 
 	// Custom JWT middleware: parse token, validate, store claims in locals
@@ -310,7 +383,7 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 			if t.Method.Alg() != signingMethod.Alg() {
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}
-			return []byte(secret), nil
+			return verifyKey, nil
 		})
 		if err != nil {
 			slog.Debug("jwt validation failed", "error", err)

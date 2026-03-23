@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sync/atomic"
 	"time"
 
@@ -11,9 +12,12 @@ import (
 	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
+	gojson "github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/adaptor"
 )
 
 // Server wraps the Fiber app and Noda runtime dependencies.
@@ -25,6 +29,9 @@ type Server struct {
 	nodes          *registry.NodeRegistry
 	workflows      *engine.WorkflowCache
 	traceHub       *trace.EventHub
+	metrics        *metrics.Metrics
+	metricsHandler http.Handler
+	metricsPath    string
 	devMode        bool
 	connManagers   *connmgr.ManagerGroup
 	port           int
@@ -56,6 +63,15 @@ func WithSecretsContext(ctx map[string]any) ServerOption {
 	return func(s *Server) { s.secretsContext = ctx }
 }
 
+// WithMetrics sets the application metrics and Prometheus handler.
+func WithMetrics(m *metrics.Metrics, handler http.Handler, path string) ServerOption {
+	return func(s *Server) {
+		s.metrics = m
+		s.metricsHandler = handler
+		s.metricsPath = path
+	}
+}
+
 // WithTraceHub sets the trace event hub for dev-mode live tracing.
 // When set, every workflow execution emits trace events to connected
 // editor clients via the /ws/trace WebSocket.
@@ -85,6 +101,8 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 
 	fiberCfg := fiber.Config{
 		ErrorHandler: s.errorHandler,
+		JSONEncoder:  gojson.Marshal,
+		JSONDecoder:  gojson.Unmarshal,
 	}
 
 	// Read server settings from root config
@@ -131,8 +149,24 @@ func (s *Server) Setup() error {
 		s.workflows = cache
 	}
 
+	// Make internal runtime objects available to middleware factories via rootConfig.
+	// Keys prefixed with "_" are reserved for internal use and must not collide with user config.
+	s.config.Root["_services"] = s.services
+	if s.metrics != nil {
+		s.config.Root["_metrics"] = s.metrics
+	}
+
 	// Register health endpoints (before middleware so they're always accessible)
 	s.registerHealthRoutes()
+
+	// Register metrics endpoint (before middleware so it's always accessible)
+	if s.metrics != nil && s.metricsHandler != nil {
+		path := s.metricsPath
+		if path == "" {
+			path = "/metrics"
+		}
+		s.app.Get(path, adaptor.HTTPHandler(s.metricsHandler))
+	}
 
 	// Apply global middleware
 	if err := s.applyGlobalMiddleware(); err != nil {

@@ -244,6 +244,75 @@ func TestExecuteGraph_ErrorEdgeFollowed(t *testing.T) {
 	assert.Contains(t, order, "handler")
 }
 
+func TestExecuteGraph_WorkflowTimeout(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"slow": &slowExecutor{delay: 5 * time.Second},
+	})
+
+	resolver := &singleOutputResolver{outputs: []string{"success"}}
+	wf := WorkflowConfig{
+		ID:      "timeout-workflow",
+		Timeout: "100ms",
+		Nodes: map[string]NodeConfig{
+			"slow": {Type: "test.slow"},
+		},
+		Edges: []EdgeConfig{},
+	}
+
+	graph, err := Compile(wf, resolver)
+	require.NoError(t, err)
+	assert.Equal(t, 100*time.Millisecond, graph.Timeout)
+
+	execCtx := NewExecutionContext()
+	start := time.Now()
+	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	elapsed := time.Since(start)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Less(t, elapsed, 1*time.Second, "workflow should have timed out well before 1s")
+}
+
+func TestExecuteGraph_NoTimeoutStillWorks(t *testing.T) {
+	var order []string
+	mu := &sync.Mutex{}
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"a": &orderTrackingExecutor{mu: mu, order: &order, nodeID: "a"},
+	})
+
+	wf := WorkflowConfig{
+		ID: "no-timeout",
+		Nodes: map[string]NodeConfig{
+			"a": {Type: "test.a"},
+		},
+		Edges: []EdgeConfig{},
+	}
+
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+	assert.Equal(t, time.Duration(0), graph.Timeout)
+
+	execCtx := NewExecutionContext()
+	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"a"}, order)
+}
+
+func TestCompile_InvalidTimeout(t *testing.T) {
+	wf := WorkflowConfig{
+		ID:      "bad-timeout",
+		Timeout: "not-a-duration",
+		Nodes: map[string]NodeConfig{
+			"a": {Type: "test.a"},
+		},
+		Edges: []EdgeConfig{},
+	}
+
+	_, err := Compile(wf, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid workflow timeout")
+}
+
 // singleOutputResolver returns a fixed set of outputs for all types.
 type singleOutputResolver struct {
 	outputs []string

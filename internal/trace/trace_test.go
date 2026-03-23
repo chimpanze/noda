@@ -334,6 +334,56 @@ func TestNewProvider_OTLP_WithEndpoint(t *testing.T) {
 	assert.NoError(t, p.Shutdown(context.Background()))
 }
 
+func TestParseConfig_SamplingRate(t *testing.T) {
+	cfg := ParseConfig(map[string]any{
+		"observability": map[string]any{
+			"tracing": map[string]any{
+				"enabled":       true,
+				"exporter":      "otlp",
+				"sampling_rate": 0.5,
+			},
+		},
+	})
+	assert.True(t, cfg.Enabled)
+	require.NotNil(t, cfg.SamplingRate)
+	assert.Equal(t, 0.5, *cfg.SamplingRate)
+}
+
+func TestParseConfig_SamplingRate_NotSet(t *testing.T) {
+	cfg := ParseConfig(map[string]any{
+		"observability": map[string]any{
+			"tracing": map[string]any{
+				"enabled": true,
+			},
+		},
+	})
+	assert.Nil(t, cfg.SamplingRate)
+}
+
+func TestParseConfig_SamplingRate_WrongType(t *testing.T) {
+	cfg := ParseConfig(map[string]any{
+		"observability": map[string]any{
+			"tracing": map[string]any{
+				"enabled":       true,
+				"sampling_rate": "half",
+			},
+		},
+	})
+	assert.Nil(t, cfg.SamplingRate)
+}
+
+func TestNewProvider_WithSamplingRate(t *testing.T) {
+	rate := 0.25
+	p, err := NewProvider(context.Background(), TracerConfig{
+		Enabled:      true,
+		SamplingRate: &rate,
+	}, slog.Default())
+	require.NoError(t, err)
+	require.NotNil(t, p)
+	assert.NotNil(t, p.Tracer())
+	assert.NoError(t, p.Shutdown(context.Background()))
+}
+
 func TestNewProvider_OTLP_NoEndpoint(t *testing.T) {
 	// Test OTLP without endpoint (uses default)
 	p, err := NewProvider(context.Background(), TracerConfig{

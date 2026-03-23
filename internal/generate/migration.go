@@ -159,7 +159,7 @@ func saveSnapshot(modelsDir string, models map[string]ModelDef) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(modelsDir, ".snapshot.json"), data, 0o644)
+	return os.WriteFile(filepath.Join(modelsDir, ".snapshot.json"), data, 0o600) //nolint:gosec // snapshot file, not world-readable
 }
 
 func diffModels(old, new map[string]ModelDef) []Change {

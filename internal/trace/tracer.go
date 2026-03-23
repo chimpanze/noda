@@ -18,10 +18,11 @@ import (
 
 // TracerConfig holds the configuration for OTel tracing.
 type TracerConfig struct {
-	Enabled  bool   `json:"enabled"`
-	Exporter string `json:"exporter"` // "otlp", "stdout", or "" (noop)
-	Endpoint string `json:"endpoint"` // OTLP endpoint
-	Insecure bool   `json:"insecure"` // use HTTP instead of HTTPS
+	Enabled      bool     `json:"enabled"`
+	Exporter     string   `json:"exporter"`      // "otlp", "stdout", or "" (noop)
+	Endpoint     string   `json:"endpoint"`      // OTLP endpoint
+	Insecure     bool     `json:"insecure"`      // use HTTP instead of HTTPS
+	SamplingRate *float64 `json:"sampling_rate"` // 0.0–1.0; nil = always sample
 }
 
 // Provider wraps the OTel tracer provider with shutdown support.
@@ -68,6 +69,11 @@ func NewProvider(ctx context.Context, cfg TracerConfig, logger *slog.Logger) (*P
 		opts = append(opts, sdktrace.WithBatcher(exporter))
 	default:
 		// No exporter — just use the provider for in-process spans
+	}
+
+	if cfg.SamplingRate != nil {
+		sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(*cfg.SamplingRate))
+		opts = append(opts, sdktrace.WithSampler(sampler))
 	}
 
 	tp := sdktrace.NewTracerProvider(opts...)
@@ -164,6 +170,9 @@ func ParseConfig(root map[string]any) TracerConfig {
 	}
 	if v, ok := tracing["insecure"].(bool); ok {
 		cfg.Insecure = v
+	}
+	if v, ok := tracing["sampling_rate"].(float64); ok {
+		cfg.SamplingRate = &v
 	}
 	return cfg
 }

@@ -9,6 +9,8 @@ import (
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // ExecuteGraph runs a compiled workflow graph to completion.
@@ -55,8 +57,14 @@ func ExecuteGraph(
 	// Track output eviction for memory management
 	evictionTracker := NewEvictionTracker(graph, execCtx)
 
-	// Use context with cancel for error propagation
-	execCtx2, cancel := context.WithCancel(ctx)
+	// Use context with cancel (or timeout) for error propagation
+	var execCtx2 context.Context
+	var cancel context.CancelFunc
+	if graph.Timeout > 0 {
+		execCtx2, cancel = context.WithTimeout(ctx, graph.Timeout)
+	} else {
+		execCtx2, cancel = context.WithCancel(ctx)
+	}
 	defer cancel()
 
 	var (
@@ -87,7 +95,17 @@ func ExecuteGraph(
 			})
 
 			output, err := dispatchNode(execCtx2, node, execCtx, services, nodes)
+			nodeDuration := time.Since(nodeStart).Seconds()
+
 			if err != nil {
+				// Record node error metrics
+				if m := execCtx.Metrics(); m != nil {
+					nodeAttrs := metric.WithAttributes(
+						attribute.String("node_type", node.Type),
+					)
+					m.NodeDuration.Record(execCtx2, nodeDuration, nodeAttrs)
+					m.NodeErrors.Add(execCtx2, 1, nodeAttrs)
+				}
 				execCtx.Log("warn", "node failed", map[string]any{
 					"node_id": node.ID,
 					"error":   err.Error(),
@@ -95,6 +113,24 @@ func ExecuteGraph(
 				firstErr.CompareAndSwap(nil, err)
 				cancel()
 				return
+			}
+
+			// Record node success metrics
+			if m := execCtx.Metrics(); m != nil {
+				status := "success"
+				if output == "error" {
+					status = "error"
+				}
+				nodeAttrs := metric.WithAttributes(
+					attribute.String("node_type", node.Type),
+					attribute.String("status", status),
+				)
+				m.NodeDuration.Record(execCtx2, nodeDuration, nodeAttrs)
+				if output == "error" {
+					m.NodeErrors.Add(execCtx2, 1, metric.WithAttributes(
+						attribute.String("node_type", node.Type),
+					))
+				}
 			}
 
 			execCtx.Log("debug", "node completed", map[string]any{
@@ -189,8 +225,26 @@ func ExecuteGraph(
 			"duration": duration.String(),
 		})
 		workflowErr = errVal.(error)
+		// Record workflow error metrics
+		if m := execCtx.Metrics(); m != nil {
+			wfAttrs := metric.WithAttributes(
+				attribute.String("workflow_id", graph.WorkflowID),
+			)
+			m.WorkflowDuration.Record(ctx, duration.Seconds(), wfAttrs)
+			m.WorkflowsTotal.Add(ctx, 1, wfAttrs)
+			m.WorkflowErrors.Add(ctx, 1, wfAttrs)
+		}
 		execCtx.EmitTrace(string(trace.EventWorkflowFailed), "", "", "", workflowErr.Error(), nil)
 		return workflowErr
+	}
+
+	// Record workflow success metrics
+	if m := execCtx.Metrics(); m != nil {
+		wfAttrs := metric.WithAttributes(
+			attribute.String("workflow_id", graph.WorkflowID),
+		)
+		m.WorkflowDuration.Record(ctx, duration.Seconds(), wfAttrs)
+		m.WorkflowsTotal.Add(ctx, 1, wfAttrs)
 	}
 
 	execCtx.EmitTrace(string(trace.EventWorkflowCompleted), "", "", "", "", map[string]any{"duration": duration.String()})

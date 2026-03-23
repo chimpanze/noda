@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/requestid"
 	"github.com/google/uuid"
 )
 
@@ -17,6 +19,11 @@ const defaultResponseTimeout = 30 * time.Second
 
 // applyGlobalMiddleware applies global middleware from root config.
 func (s *Server) applyGlobalMiddleware() error {
+	// Apply metrics middleware first so it wraps all subsequent handlers
+	if s.metrics != nil {
+		s.app.Use(metrics.NewHTTPMiddleware(s.metrics))
+	}
+
 	globalMW := s.getGlobalMiddleware()
 	for _, name := range globalMW {
 		h, err := BuildMiddleware(name, s.config.Root)
@@ -323,6 +330,11 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		}
 		triggerResult.Trigger.TraceID = traceID
 
+		// Propagate X-Request-ID from Fiber's requestid middleware
+		if reqID := requestid.FromContext(c); reqID != "" {
+			triggerResult.Trigger.RequestID = reqID
+		}
+
 		// 2. Build execution context
 		opts := []engine.ExecutionContextOption{
 			engine.WithInput(triggerResult.Input),
@@ -331,6 +343,11 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(s.compiler),
 			engine.WithSecrets(s.secretsContext),
+		}
+
+		// Attach metrics to execution context
+		if s.metrics != nil {
+			opts = append(opts, engine.WithMetricsInst(s.metrics))
 		}
 
 		// Attach trace callback when hub is available (dev mode)
