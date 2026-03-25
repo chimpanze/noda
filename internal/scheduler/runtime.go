@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -58,6 +59,7 @@ type Runtime struct {
 	logger         *slog.Logger
 	secretsContext map[string]any
 
+	started bool
 	cron    *cron.Cron
 	mu      sync.RWMutex
 	history []JobRun
@@ -96,7 +98,12 @@ func NewRuntime(
 }
 
 // Start registers all cron jobs and begins the scheduler.
+// It is safe to call multiple times; subsequent calls return nil.
 func (r *Runtime) Start() error {
+	if r.started {
+		return nil
+	}
+	r.started = true
 	opts := []cron.Option{cron.WithSeconds()}
 	r.cron = cron.New(opts...)
 
@@ -361,9 +368,17 @@ func (r *Runtime) recordRun(run JobRun) {
 }
 
 // ParseScheduleConfigs extracts ScheduleConfig from raw config maps.
+// Keys are sorted for deterministic ordering across runs.
 func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig {
+	keys := make([]string, 0, len(schedules))
+	for k := range schedules {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
 	var configs []ScheduleConfig
-	for _, raw := range schedules {
+	for _, k := range keys {
+		raw := schedules[k]
 		tz := engine.MapStrVal(raw, "timezone")
 		if tz != "" {
 			if _, err := time.LoadLocation(tz); err != nil {

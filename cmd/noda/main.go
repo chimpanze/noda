@@ -53,6 +53,7 @@ import (
 	"github.com/google/uuid"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
+	oteltrace "go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -321,11 +322,15 @@ func newStartCmd() *cobra.Command {
 				}
 			}
 
-			// Start workers if configured and requested
+			// Create workers if configured and requested (lifecycle manages start)
 			var workerRuntime *worker.Runtime
 			if runWorkers && len(rtCtx.RC.Workers) > 0 {
 				workerConfigs := worker.ParseWorkerConfigs(rtCtx.RC.Workers)
 				mw := resolveWorkerMiddleware(workerConfigs, 5*time.Minute)
+				var workerTracer oteltrace.Tracer
+				if rtCtx.TraceProvider != nil {
+					workerTracer = rtCtx.TraceProvider.Tracer()
+				}
 				workerRuntime = worker.NewRuntime(
 					workerConfigs,
 					rtCtx.Bootstrap.Services,
@@ -334,40 +339,39 @@ func newStartCmd() *cobra.Command {
 					rtCtx.WorkflowCache,
 					mw,
 					rtCtx.Bootstrap.Compiler,
+					workerTracer,
 					rtCtx.Logger,
 					rtCtx.SecretsCtx,
 				)
-				if err := workerRuntime.Start(context.Background()); err != nil {
-					return fmt.Errorf("starting workers: %w", err)
-				}
-				slog.Info("workers started", "consumers", len(workerConfigs))
+				slog.Info("workers configured", "consumers", len(workerConfigs))
 			}
 
-			// Start scheduler (if requested)
+			// Create scheduler (if requested, lifecycle manages start)
 			var schedulerRT *scheduler.Runtime
 			if runScheduler {
-				schedulerRT, err = initScheduler(rtCtx)
+				schedulerRT, err = createScheduler(rtCtx)
 				if err != nil {
 					return err
 				}
 			}
 
-			// Start Wasm runtimes (if requested)
+			// Create Wasm runtimes (if requested, lifecycle manages start)
 			var wasmRT *wasm.Runtime
 			if runWasm {
-				wasmRT, err = initWasm(rtCtx)
+				wasmRT, err = createWasm(rtCtx)
 				if err != nil {
 					return err
 				}
 			}
 
 			// Lifecycle
-			if _, err := setupLifecycle(rtCtx, lifecycleComponents{
+			_, doneCh, err := setupLifecycle(rtCtx, lifecycleComponents{
 				Server:        srv,
 				WorkerRuntime: workerRuntime,
 				Scheduler:     schedulerRT,
 				WasmRuntime:   wasmRT,
-			}); err != nil {
+			})
+			if err != nil {
 				return err
 			}
 
@@ -379,12 +383,17 @@ func newStartCmd() *cobra.Command {
 
 			if srv != nil {
 				slog.Info("server starting", "port", srv.Port())
-				return srv.Start()
+				// srv.Start() blocks until srv.Stop() is called by lifecycle shutdown.
+				if err := srv.Start(); err != nil {
+					return err
+				}
+				return nil
 			}
 
-			// No server — block on signal
+			// No server — block until shutdown signal
 			slog.Info("started without HTTP server")
-			select {}
+			<-doneCh
+			return nil
 		},
 	}
 
@@ -444,11 +453,11 @@ func newDevCmd() *cobra.Command {
 			trace.RegisterTraceWebSocket(srv.App(), hub, rtCtx.Logger)
 
 			// Start scheduler and wasm (always if configured in dev mode)
-			schedulerRT, err := initScheduler(rtCtx)
+			schedulerRT, err := createScheduler(rtCtx)
 			if err != nil {
 				return err
 			}
-			wasmRT, err := initWasm(rtCtx)
+			wasmRT, err := createWasm(rtCtx)
 			if err != nil {
 				return err
 			}
@@ -501,14 +510,15 @@ func newDevCmd() *cobra.Command {
 
 			// Lifecycle
 			slog.Info("watching for changes", "dir", configDir)
-			if _, err := setupLifecycle(rtCtx, lifecycleComponents{
+			_, _, err = setupLifecycle(rtCtx, lifecycleComponents{
 				Server:      srv,
 				Scheduler:   schedulerRT,
 				WasmRuntime: wasmRT,
 				ExtraComponents: []lifecycle.Component{
 					lifecycle.WatcherComponent(fileWatcher, reloader),
 				},
-			}); err != nil {
+			})
+			if err != nil {
 				return err
 			}
 

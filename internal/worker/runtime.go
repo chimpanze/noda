@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
+	oteltrace "go.opentelemetry.io/otel/trace"
 )
 
 // WorkerConfig holds the parsed configuration for a single worker.
@@ -45,16 +47,18 @@ type Runtime struct {
 	workflows      map[string]map[string]any
 	workflowCache  *engine.WorkflowCache
 	compiler       *expr.Compiler
+	tracer         oteltrace.Tracer
 	logger         *slog.Logger
 	middleware     []Middleware
 	secretsContext map[string]any
 
-	cancel context.CancelFunc
-	wg     sync.WaitGroup
+	started bool
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 }
 
 // NewRuntime creates a new worker runtime.
-// If compiler is nil, a new one is created.
+// If compiler is nil, a new one is created. Tracer is optional (nil uses noop).
 func NewRuntime(
 	workers []WorkerConfig,
 	services *registry.ServiceRegistry,
@@ -63,6 +67,7 @@ func NewRuntime(
 	workflowCache *engine.WorkflowCache,
 	middleware []Middleware,
 	compiler *expr.Compiler,
+	tracer oteltrace.Tracer,
 	logger *slog.Logger,
 	secretsContext map[string]any,
 ) *Runtime {
@@ -79,6 +84,7 @@ func NewRuntime(
 		workflows:      workflows,
 		workflowCache:  workflowCache,
 		compiler:       compiler,
+		tracer:         tracer,
 		logger:         logger,
 		middleware:     middleware,
 		secretsContext: secretsContext,
@@ -86,7 +92,12 @@ func NewRuntime(
 }
 
 // Start begins consuming messages for all configured workers.
+// It is safe to call multiple times; subsequent calls return nil.
 func (r *Runtime) Start(ctx context.Context) error {
+	if r.started {
+		return nil
+	}
+	r.started = true
 	ctx, r.cancel = context.WithCancel(ctx)
 
 	for _, w := range r.workers {
@@ -250,7 +261,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	}
 
 	// Build execution context
-	execCtx := engine.NewExecutionContext(
+	opts := []engine.ExecutionContextOption{
 		engine.WithInput(input),
 		engine.WithTrigger(api.TriggerData{
 			Type:      "event",
@@ -261,7 +272,11 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 		engine.WithLogger(r.logger),
 		engine.WithCompiler(r.compiler),
 		engine.WithSecrets(r.secretsContext),
-	)
+	}
+	if r.tracer != nil {
+		opts = append(opts, engine.WithTracer(r.tracer))
+	}
+	execCtx := engine.NewExecutionContext(opts...)
 
 	// Build the handler chain (workflow execution wrapped in middleware)
 	handler := func(ctx context.Context) error {
@@ -407,9 +422,17 @@ func deserializePayload(values map[string]any) any {
 }
 
 // ParseWorkerConfigs extracts WorkerConfig from raw config maps.
+// Keys are sorted for deterministic ordering across runs.
 func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
+	keys := make([]string, 0, len(workers))
+	for k := range workers {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+
 	var configs []WorkerConfig
-	for _, raw := range workers {
+	for _, k := range keys {
+		raw := workers[k]
 		wc := WorkerConfig{
 			ID: engine.MapStrVal(raw, "id"),
 		}

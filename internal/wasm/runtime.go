@@ -240,8 +240,8 @@ func (r *Runtime) StartAll(ctx context.Context) error {
 	return nil
 }
 
-// StopAll stops all running modules.
-func (r *Runtime) StopAll(ctx context.Context) {
+// StopAll stops all running modules and returns the first error encountered.
+func (r *Runtime) StopAll(ctx context.Context) error {
 	r.mu.Lock()
 	modules := make(map[string]*Module, len(r.modules))
 	for k, v := range r.modules {
@@ -249,11 +249,16 @@ func (r *Runtime) StopAll(ctx context.Context) {
 	}
 	r.mu.Unlock()
 
+	var firstErr error
 	for name, m := range modules {
 		if err := m.Stop(ctx); err != nil {
 			r.logger.Error("stop module failed", "name", name, "error", err)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("stopping module %q: %w", name, err)
+			}
 		}
 	}
+	return firstErr
 }
 
 // WasmService provides the API for workflow nodes (wasm.send, wasm.query) to interact with modules.

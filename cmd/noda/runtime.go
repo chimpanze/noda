@@ -136,9 +136,9 @@ func initMetrics(rc *config.ResolvedConfig, logger *slog.Logger) (*nodametrics.M
 	return m, server.WithMetrics(m, handler, metricsCfg.Path)
 }
 
-// initScheduler creates and starts the scheduler runtime.
-// Returns nil, nil if no schedules are configured.
-func initScheduler(rtCtx *runtimeContext) (*scheduler.Runtime, error) {
+// createScheduler creates the scheduler runtime without starting it.
+// The lifecycle manager handles starting. Returns nil, nil if no schedules are configured.
+func createScheduler(rtCtx *runtimeContext) (*scheduler.Runtime, error) {
 	if len(rtCtx.RC.Schedules) == 0 {
 		return nil, nil
 	}
@@ -160,16 +160,13 @@ func initScheduler(rtCtx *runtimeContext) (*scheduler.Runtime, error) {
 		rtCtx.Logger,
 		rtCtx.SecretsCtx,
 	)
-	if err := rt.Start(); err != nil {
-		return nil, fmt.Errorf("starting scheduler: %w", err)
-	}
-	slog.Info("scheduler started", "jobs", len(scheduleConfigs))
+	slog.Info("scheduler configured", "jobs", len(scheduleConfigs))
 	return rt, nil
 }
 
-// initWasm creates and starts the Wasm runtime with all configured modules.
-// Returns nil, nil if no wasm_runtimes are configured.
-func initWasm(rtCtx *runtimeContext) (*wasm.Runtime, error) {
+// createWasm creates the Wasm runtime and loads all configured modules without starting them.
+// The lifecycle manager handles starting. Returns nil, nil if no wasm_runtimes are configured.
+func createWasm(rtCtx *runtimeContext) (*wasm.Runtime, error) {
 	wasmRuntimes, _ := rtCtx.RC.Root["wasm_runtimes"].(map[string]any)
 	if len(wasmRuntimes) == 0 {
 		return nil, nil
@@ -204,10 +201,7 @@ func initWasm(rtCtx *runtimeContext) (*wasm.Runtime, error) {
 		}
 	}
 
-	if err := rt.StartAll(context.Background()); err != nil {
-		return nil, fmt.Errorf("starting wasm runtimes: %w", err)
-	}
-	slog.Info("wasm runtimes started", "modules", len(wasmRuntimes))
+	slog.Info("wasm modules loaded", "modules", len(wasmRuntimes))
 	return rt, nil
 }
 
@@ -223,19 +217,21 @@ type lifecycleComponents struct {
 
 // setupLifecycle creates a lifecycle manager, installs the signal handler,
 // registers all non-nil components in dependency order, and calls StartAll.
-func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycle.Lifecycle, error) {
+// Returns a done channel that is closed after graceful shutdown completes.
+func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycle.Lifecycle, <-chan struct{}, error) {
 	lc := lifecycle.New(rtCtx.Logger)
 
 	deadline := parseShutdownDeadline(rtCtx.RC, 30*time.Second)
 	lc.SetRollbackDeadline(deadline)
 
+	doneCh := make(chan struct{})
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
 		slog.Info("shutting down")
 		lc.StopAll(deadline)
-		os.Exit(0)
+		close(doneCh)
 	}()
 
 	// Register components in dependency order (shutdown is reverse).
@@ -263,8 +259,8 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 	}
 
 	if err := lc.StartAll(context.Background()); err != nil {
-		return nil, fmt.Errorf("lifecycle start: %w", err)
+		return nil, nil, fmt.Errorf("lifecycle start: %w", err)
 	}
 
-	return lc, nil
+	return lc, doneCh, nil
 }

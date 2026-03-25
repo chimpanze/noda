@@ -133,7 +133,7 @@ func TestRuntime_ConsumesAndExecutes(t *testing.T) {
 		svcReg, nodeReg, workflows,
 		nil,
 		[]Middleware{trackingMW},
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -195,7 +195,7 @@ func TestRuntime_ConcurrentProcessing(t *testing.T) {
 		svcReg, nodeReg, workflows,
 		nil,
 		[]Middleware{trackingMW},
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -245,7 +245,7 @@ func TestRuntime_GracefulShutdown(t *testing.T) {
 			WorkflowID: "test-workflow",
 		}},
 		svcReg, nodeReg, workflows,
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -279,7 +279,7 @@ func TestRuntime_MissingStreamService(t *testing.T) {
 			WorkflowID: "wf",
 		}},
 		svcReg, nodeReg, nil,
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 	)
 
 	err := rt.Start(context.Background())
@@ -329,7 +329,7 @@ func TestRuntime_TriggerMapping(t *testing.T) {
 		svcReg, nodeReg, workflows,
 		nil,
 		[]Middleware{trackingMW},
-		nil, nil, nil,
+		nil, nil, nil, nil,
 	)
 
 	err := rt.Start(ctx)
@@ -411,7 +411,7 @@ func TestDeserializePayload_NoPayloadKey(t *testing.T) {
 }
 
 func TestResolveInput_NilMap(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	result, err := engine.ResolveInput(rt.compiler, nil, map[string]any{})
 	require.NoError(t, err)
 	assert.NotNil(t, result)
@@ -419,7 +419,7 @@ func TestResolveInput_NilMap(t *testing.T) {
 }
 
 func TestResolveInput_NonStringValues(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	inputMap := map[string]any{
 		"count":  42,
 		"active": true,
@@ -431,7 +431,7 @@ func TestResolveInput_NonStringValues(t *testing.T) {
 }
 
 func TestResolveInput_ExpressionResolution(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	inputMap := map[string]any{
 		"email": "{{ message.payload.email }}",
 	}
@@ -535,7 +535,7 @@ func TestRuntime_MaxConcurrencyExceeded(t *testing.T) {
 			WorkflowID:  "wf",
 		}},
 		svcReg, nodeReg, nil,
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 	)
 
 	err := rt.Start(context.Background())
@@ -561,7 +561,7 @@ func TestRuntime_NonRedisClientProvider(t *testing.T) {
 			WorkflowID: "wf",
 		}},
 		svcReg, nodeReg, nil,
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 	)
 
 	err = rt.Start(context.Background())
@@ -570,7 +570,7 @@ func TestRuntime_NonRedisClientProvider(t *testing.T) {
 }
 
 func TestRuntime_StopWithoutStart(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	err := rt.Stop(context.Background())
 	assert.NoError(t, err)
 }
@@ -599,7 +599,7 @@ func TestRuntime_StopWithContextTimeout(t *testing.T) {
 			WorkflowID: "test-workflow",
 		}},
 		svcReg, nodeReg, workflows,
-		nil, nil, nil, nil, nil,
+		nil, nil, nil, nil, nil, nil,
 	)
 
 	err := rt.Start(context.Background())
@@ -613,7 +613,7 @@ func TestRuntime_StopWithContextTimeout(t *testing.T) {
 }
 
 func TestNewRuntime_NilLoggerAndCompiler(t *testing.T) {
-	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	rt := NewRuntime(nil, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	assert.NotNil(t, rt)
 	assert.NotNil(t, rt.compiler)
 	assert.NotNil(t, rt.logger)

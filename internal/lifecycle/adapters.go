@@ -55,8 +55,7 @@ func WasmComponent(rt *wasm.Runtime) Component           { return &wasmComponent
 func (c *wasmComponent) Name() string                    { return "wasm" }
 func (c *wasmComponent) Start(ctx context.Context) error { return c.rt.StartAll(ctx) }
 func (c *wasmComponent) Stop(ctx context.Context) error {
-	c.rt.StopAll(ctx)
-	return nil
+	return c.rt.StopAll(ctx)
 }
 
 // connManagerComponent wraps *connmgr.ManagerGroup.
