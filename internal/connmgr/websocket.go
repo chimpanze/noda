@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -112,6 +113,10 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 
 	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID, h.logger)
 
+	// Mutex to synchronize all writes to the websocket connection.
+	// gorilla/websocket's WriteMessage is not safe for concurrent use.
+	var wsMu sync.Mutex
+
 	conn := &Conn{
 		ID:       connID,
 		Channel:  channel,
@@ -121,9 +126,13 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 			"params": params,
 		},
 		SendFn: func(data []byte) error {
+			wsMu.Lock()
+			defer wsMu.Unlock()
 			return ws.WriteMessage(websocket.TextMessage, data)
 		},
 		CloseFn: func() error {
+			wsMu.Lock()
+			defer wsMu.Unlock()
 			return ws.WriteControl(
 				websocket.CloseMessage,
 				websocket.FormatCloseMessage(websocket.CloseGoingAway, "server shutdown"),
@@ -158,7 +167,10 @@ func (h *WebSocketHandler) handleConnection(ws *websocket.Conn) {
 		for {
 			select {
 			case <-ticker.C:
-				if err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second)); err != nil {
+				wsMu.Lock()
+				err := ws.WriteControl(websocket.PingMessage, nil, time.Now().Add(5*time.Second))
+				wsMu.Unlock()
+				if err != nil {
 					return
 				}
 			case <-done:

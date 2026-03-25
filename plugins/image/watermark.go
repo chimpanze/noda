@@ -64,19 +64,12 @@ func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 	// a two-step approach: resize watermark, then overlay with vips.
 	// bimg.WatermarkImage provides image-based watermarking.
 	opacity := 1.0
-	if raw, ok := config["opacity"]; ok {
-		switch v := raw.(type) {
+	if opVal, opOk, _ := plugin.ResolveOptionalAny(nCtx, config, "opacity"); opOk && opVal != nil {
+		switch v := opVal.(type) {
 		case float64:
 			opacity = v
 		case int:
 			opacity = float64(v)
-		case string:
-			val, err := nCtx.Resolve(v)
-			if err == nil {
-				if f, ok := val.(float64); ok {
-					opacity = f
-				}
-			}
 		}
 	}
 
@@ -86,7 +79,7 @@ func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 	}
 
 	// Apply position via Left/Top offsets
-	if pos, ok := config["position"].(string); ok {
+	if pos, posOk, _ := plugin.ResolveOptionalString(nCtx, config, "position"); posOk {
 		imgSize, sizeErr := bimg.NewImage(data).Size()
 		wmSize, wmSizeErr := bimg.NewImage(wmData).Size()
 		if sizeErr == nil && wmSizeErr == nil {

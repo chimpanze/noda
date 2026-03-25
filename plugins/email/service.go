@@ -1,8 +1,10 @@
 package email
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
+	"net"
 	"net/smtp"
 	"strings"
 )
@@ -25,9 +27,9 @@ type Service struct {
 	dialFn func() (*smtp.Client, error)
 }
 
-// Send sends an email message.
-func (s *Service) Send(msg *Message) (string, error) {
-	client, err := s.dial()
+// Send sends an email message. The context is used for connection timeouts.
+func (s *Service) Send(ctx context.Context, msg *Message) (string, error) {
+	client, err := s.dialCtx(ctx)
 	if err != nil {
 		return "", fmt.Errorf("email: connect: %w", err)
 	}
@@ -120,22 +122,31 @@ func (s *Service) SetDialFn(fn func() (*smtp.Client, error)) {
 	s.dialFn = fn
 }
 
-func (s *Service) dial() (*smtp.Client, error) {
+func (s *Service) dialCtx(ctx context.Context) (*smtp.Client, error) {
 	if s.dialFn != nil {
 		return s.dialFn()
 	}
 
 	addr := fmt.Sprintf("%s:%d", s.host, s.port)
+	dialer := &net.Dialer{}
 
 	if s.useTLS {
-		conn, err := tls.Dial("tcp", addr, &tls.Config{ServerName: s.host})
+		tlsDialer := &tls.Dialer{
+			NetDialer: dialer,
+			Config:    &tls.Config{ServerName: s.host},
+		}
+		conn, err := tlsDialer.DialContext(ctx, "tcp", addr)
 		if err != nil {
 			return nil, err
 		}
 		return smtp.NewClient(conn, s.host)
 	}
 
-	return smtp.Dial(addr)
+	conn, err := dialer.DialContext(ctx, "tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+	return smtp.NewClient(conn, s.host)
 }
 
 // Message represents an email message.

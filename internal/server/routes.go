@@ -262,6 +262,13 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 						},
 					})
 				}
+				return writeErrorResponse(c, 500, ErrorResponse{
+					Error: api.ErrorData{
+						Code:    "INTERNAL_ERROR",
+						Message: "Params validation error",
+						TraceID: traceID,
+					},
+				})
 			}
 		}
 
@@ -286,6 +293,13 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 						},
 					})
 				}
+				return writeErrorResponse(c, 500, ErrorResponse{
+					Error: api.ErrorData{
+						Code:    "INTERNAL_ERROR",
+						Message: "Query validation error",
+						TraceID: traceID,
+					},
+				})
 			}
 		}
 
@@ -359,6 +373,11 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		// Attach metrics to execution context
 		if s.metrics != nil {
 			opts = append(opts, engine.WithMetricsInst(s.metrics))
+		}
+
+		// Attach sub-workflow runner for control.loop and workflow.run nodes
+		if s.subWorkflowRunner != nil {
+			opts = append(opts, engine.WithSubWorkflowRunner(s.subWorkflowRunner))
 		}
 
 		// Attach trace callback when hub is available (dev mode)

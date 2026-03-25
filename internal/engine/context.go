@@ -49,6 +49,12 @@ type ExecutionContextImpl struct {
 
 	metrics *metrics.Metrics // optional application metrics
 
+	subWorkflowRunner api.SubWorkflowRunner // injected for control.loop and workflow.run
+
+	// workflowOutput tracks the output from a workflow.output terminal node.
+	workflowOutputName string
+	workflowOutputData any
+
 	depth    int32 // atomic
 	maxDepth int32 // atomic
 }
@@ -125,6 +131,31 @@ func WithSecrets(secretsCtx map[string]any) ExecutionContextOption {
 // WithMetricsInst sets the application metrics for recording workflow/node metrics.
 func WithMetricsInst(m *metrics.Metrics) ExecutionContextOption {
 	return func(c *ExecutionContextImpl) { c.metrics = m }
+}
+
+// WithSubWorkflowRunner sets the sub-workflow runner for control.loop and workflow.run nodes.
+func WithSubWorkflowRunner(runner api.SubWorkflowRunner) ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.subWorkflowRunner = runner }
+}
+
+// SubWorkflowRunner returns the sub-workflow runner, or nil if not configured.
+func (c *ExecutionContextImpl) SubWorkflowRunner() api.SubWorkflowRunner {
+	return c.subWorkflowRunner
+}
+
+// SetWorkflowOutput records the output from a workflow.output terminal node.
+func (c *ExecutionContextImpl) SetWorkflowOutput(name string, data any) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.workflowOutputName = name
+	c.workflowOutputData = data
+}
+
+// WorkflowOutput returns the output name and data set by a workflow.output node.
+func (c *ExecutionContextImpl) WorkflowOutput() (string, any) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.workflowOutputName, c.workflowOutputData
 }
 
 // Tracer returns the OTel tracer.

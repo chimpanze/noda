@@ -90,7 +90,6 @@ func (r *Runtime) Start(ctx context.Context) error {
 	ctx, r.cancel = context.WithCancel(ctx)
 
 	for _, w := range r.workers {
-		w := w
 		concurrency := w.Concurrency
 		if concurrency < 1 {
 			concurrency = 1

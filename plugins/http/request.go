@@ -85,7 +85,11 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 
 	// Resolve body
 	var bodyReader io.Reader
-	if bodyVal, ok, _ := plugin.ResolveOptionalAny(nCtx, config, "body"); ok && bodyVal != nil {
+	bodyVal, bodyOk, bodyErr := plugin.ResolveOptionalAny(nCtx, config, "body")
+	if bodyErr != nil {
+		return "", nil, fmt.Errorf("http.request: resolve body: %w", bodyErr)
+	}
+	if bodyOk && bodyVal != nil {
 		switch v := bodyVal.(type) {
 		case string:
 			bodyReader = strings.NewReader(v)
@@ -107,7 +111,11 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	}
 
 	// Per-request timeout
-	if timeoutStr, ok, _ := plugin.ResolveOptionalString(nCtx, config, "timeout"); ok {
+	timeoutStr, timeoutOk, timeoutErr := plugin.ResolveOptionalString(nCtx, config, "timeout")
+	if timeoutErr != nil {
+		return "", nil, fmt.Errorf("http.request: resolve timeout: %w", timeoutErr)
+	}
+	if timeoutOk {
 		d, err := time.ParseDuration(timeoutStr)
 		if err != nil {
 			return "", nil, fmt.Errorf("http.request: invalid timeout %q: %w", timeoutStr, err)

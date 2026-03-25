@@ -24,10 +24,11 @@ type Gateway struct {
 }
 
 type gatewayConn struct {
-	id     string
-	url    string
-	ws     *websocket.Conn
-	config GatewayConfig
+	id      string
+	url     string
+	headers map[string][]string // saved for reconnection
+	ws      *websocket.Conn
+	config  GatewayConfig
 
 	mu              sync.Mutex
 	stopCh          chan struct{}
@@ -87,10 +88,11 @@ func (g *Gateway) Connect(ctx context.Context, payload map[string]any) (any, err
 	}
 
 	gc := &gatewayConn{
-		id:     id,
-		url:    wsURL,
-		ws:     conn,
-		stopCh: make(chan struct{}),
+		id:      id,
+		url:     wsURL,
+		headers: httpHeaders,
+		ws:      conn,
+		stopCh:  make(chan struct{}),
 	}
 
 	g.mu.Lock()
@@ -338,7 +340,7 @@ func (g *Gateway) reconnectLoop(gc *gatewayConn) {
 	for attempt := 1; attempt <= rcfg.MaxAttempts; attempt++ {
 		time.Sleep(delay)
 
-		conn, _, err := websocket.DefaultDialer.Dial(gc.url, nil)
+		conn, _, err := websocket.DefaultDialer.Dial(gc.url, gc.headers)
 		if err != nil {
 			g.logger.Debug("gateway reconnect failed", "module", g.module.Name, "id", gc.id, "attempt", attempt, "error", err)
 			switch rcfg.Backoff {

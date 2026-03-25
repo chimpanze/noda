@@ -537,7 +537,7 @@ func TestSend_MissingFromBothConfigAndMessage(t *testing.T) {
 		Subject: "Test",
 		Body:    "body",
 	}
-	_, err := svc.Send(msg)
+	_, err := svc.Send(context.Background(), msg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing 'from' address")
 }
@@ -649,7 +649,7 @@ func TestService_SetDialFn(t *testing.T) {
 		called = true
 		return nil, fmt.Errorf("test dial")
 	})
-	_, err := svc.dial()
+	_, err := svc.dialCtx(context.Background())
 	assert.True(t, called)
 	assert.Error(t, err)
 }

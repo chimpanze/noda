@@ -223,11 +223,18 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		}
 	}
 
-	// Identify terminal nodes (no outbound success edges).
-	// Nodes with only error edges are still terminal — error edges represent
-	// exceptional flow, so the node's output must be preserved for inspection.
+	// Identify terminal nodes (no non-error outbound edges).
+	// A node is terminal if it has no outbound edges other than "error" edges.
+	// This correctly handles nodes with outputs like "then"/"else", "done", etc.
 	for id := range g.Nodes {
-		if len(g.Adjacency[id]["success"]) == 0 {
+		hasNonErrorEdge := false
+		for output, targets := range g.Adjacency[id] {
+			if output != "error" && len(targets) > 0 {
+				hasNonErrorEdge = true
+				break
+			}
+		}
+		if !hasNonErrorEdge {
 			g.TerminalNodes = append(g.TerminalNodes, id)
 		}
 	}

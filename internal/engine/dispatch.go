@@ -7,6 +7,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // dispatchNode executes a single node: resolves services, calls Execute, stores output.
@@ -32,6 +33,13 @@ func dispatchNode(
 
 	// Create executor instance
 	executor := factory(node.Config)
+
+	// Inject sub-workflow runner if the executor needs it (control.loop, workflow.run)
+	if injectable, ok := executor.(api.SubWorkflowInjectable); ok {
+		if runner := execCtx.SubWorkflowRunner(); runner != nil {
+			injectable.InjectSubWorkflowRunner(runner)
+		}
+	}
 
 	// Resolve service slots
 	resolvedServices := make(map[string]any)
@@ -90,6 +98,11 @@ func dispatchNode(
 
 	// Intercept HTTPResponse if present
 	execCtx.InterceptResponse(data)
+
+	// Capture workflow.output result for sub-workflow callers
+	if node.Type == "workflow.output" {
+		execCtx.SetWorkflowOutput(output, data)
+	}
 
 	// Store output
 	execCtx.SetOutput(node.ID, data)

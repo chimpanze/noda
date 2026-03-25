@@ -107,6 +107,28 @@ func (r *ServiceRegistry) byPrefix(prefix string) map[string]any {
 	return result
 }
 
+// WithOverrides returns a new ServiceRegistry that delegates to the parent
+// but overrides specific services (used for database transactions in sub-workflows).
+func (r *ServiceRegistry) WithOverrides(overrides map[string]any) *ServiceRegistry {
+	child := &ServiceRegistry{
+		services: make(map[string]serviceEntry, len(r.services)),
+	}
+	r.mu.RLock()
+	for name, entry := range r.services {
+		child.services[name] = entry
+	}
+	child.order = make([]string, len(r.order))
+	copy(child.order, r.order)
+	r.mu.RUnlock()
+	for name, instance := range overrides {
+		if entry, ok := child.services[name]; ok {
+			entry.instance = instance
+			child.services[name] = entry
+		}
+	}
+	return child
+}
+
 // Count returns the number of registered services.
 func (r *ServiceRegistry) Count() int {
 	r.mu.RLock()

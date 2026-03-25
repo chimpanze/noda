@@ -45,9 +45,9 @@ func (e *convertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		return "", nil, fmt.Errorf("image.convert: %w", err)
 	}
 
-	format, ok := config["format"].(string)
-	if !ok {
-		return "", nil, fmt.Errorf("image.convert: missing required field 'format'")
+	format, err := plugin.ResolveString(nCtx, config, "format")
+	if err != nil {
+		return "", nil, fmt.Errorf("image.convert: %w", err)
 	}
 
 	imgType := parseFormat(format)

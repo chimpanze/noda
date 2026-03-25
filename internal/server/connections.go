@@ -139,7 +139,7 @@ func (s *Server) validateWorkflowRefs(endpoint string, workflowIDs ...string) er
 // buildWorkflowRunner creates a WorkflowRunner that uses the server's engine.
 func (s *Server) buildWorkflowRunner(triggerType string) api.WorkflowRunner {
 	return func(ctx context.Context, workflowID string, input map[string]any) error {
-		execCtx := engine.NewExecutionContext(
+		opts := []engine.ExecutionContextOption{
 			engine.WithInput(input),
 			engine.WithTrigger(api.TriggerData{
 				Type:    triggerType,
@@ -148,7 +148,11 @@ func (s *Server) buildWorkflowRunner(triggerType string) api.WorkflowRunner {
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(s.compiler),
 			engine.WithSecrets(s.secretsContext),
-		)
+		}
+		if s.subWorkflowRunner != nil {
+			opts = append(opts, engine.WithSubWorkflowRunner(s.subWorkflowRunner))
+		}
+		execCtx := engine.NewExecutionContext(opts...)
 		return s.runWorkflow(ctx, workflowID, execCtx)
 	}
 }

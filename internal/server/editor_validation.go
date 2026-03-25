@@ -9,8 +9,7 @@ import (
 // validateFile validates a single JSON config against its schema.
 func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 	var req struct {
-		Path    string `json:"path"`
-		Content any    `json:"content"`
+		Path string `json:"path"`
 	}
 	if err := c.Bind().JSON(&req); err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid request body"})
@@ -26,7 +25,10 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 
 	// Filter errors for the requested file
 	var filtered []map[string]any
-	absPath, _ := e.root.Resolve(req.Path)
+	absPath, err := e.root.Resolve(req.Path)
+	if err != nil {
+		return c.Status(403).JSON(map[string]any{"error": "invalid path"})
+	}
 	for _, ve := range errs {
 		if ve.FilePath == absPath {
 			filtered = append(filtered, map[string]any{

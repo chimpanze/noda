@@ -143,6 +143,8 @@ func ResolveMiddleware(names []string, timeout time.Duration) []Middleware {
 			result = append(result, &TimeoutMiddleware{Timeout: timeout})
 		case "worker.recover":
 			result = append(result, &RecoverMiddleware{})
+		default:
+			slog.Warn("unknown worker middleware, skipping", "name", name)
 		}
 	}
 	return result

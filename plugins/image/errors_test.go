@@ -167,7 +167,7 @@ func TestConvert_MissingFormat(t *testing.T) {
 		"output": "out.png",
 	}, services)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "missing required field 'format'")
+	assert.Contains(t, err.Error(), "missing required field")
 }
 
 func TestConvert_UnsupportedFormat(t *testing.T) {

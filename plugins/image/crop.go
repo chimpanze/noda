@@ -56,7 +56,7 @@ func (e *cropExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	}
 
 	gravity := bimg.GravityCentre
-	if g, ok := config["gravity"].(string); ok {
+	if g, gOk, _ := plugin.ResolveOptionalString(nCtx, config, "gravity"); gOk {
 		gravity = parseGravity(g)
 	}
 

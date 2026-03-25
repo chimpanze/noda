@@ -22,22 +22,23 @@ import (
 
 // Server wraps the Fiber app and Noda runtime dependencies.
 type Server struct {
-	app            *fiber.App
-	config         *config.ResolvedConfig
-	compiler       *expr.Compiler
-	services       *registry.ServiceRegistry
-	nodes          *registry.NodeRegistry
-	workflows      *engine.WorkflowCache
-	traceHub       *trace.EventHub
-	metrics        *metrics.Metrics
-	metricsHandler http.Handler
-	metricsPath    string
-	devMode        bool
-	connManagers   *connmgr.ManagerGroup
-	port           int
-	logger         *slog.Logger
-	secretsContext map[string]any
-	readyFlag      atomic.Bool
+	app               *fiber.App
+	config            *config.ResolvedConfig
+	compiler          *expr.Compiler
+	services          *registry.ServiceRegistry
+	nodes             *registry.NodeRegistry
+	workflows         *engine.WorkflowCache
+	traceHub          *trace.EventHub
+	metrics           *metrics.Metrics
+	metricsHandler    http.Handler
+	metricsPath       string
+	devMode           bool
+	connManagers      *connmgr.ManagerGroup
+	port              int
+	logger            *slog.Logger
+	secretsContext    map[string]any
+	readyFlag         atomic.Bool
+	subWorkflowRunner *engine.SubWorkflowRunnerImpl
 }
 
 // ServerOption configures a Server.
@@ -97,6 +98,15 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 	}
 	if s.compiler == nil {
 		s.compiler = expr.NewCompilerWithFunctions()
+	}
+
+	// Create sub-workflow runner for control.loop and workflow.run nodes
+	if s.workflows != nil {
+		s.subWorkflowRunner = &engine.SubWorkflowRunnerImpl{
+			Cache:    s.workflows,
+			Services: s.services,
+			Nodes:    s.nodes,
+		}
 	}
 
 	fiberCfg := fiber.Config{

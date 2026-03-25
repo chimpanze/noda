@@ -45,21 +45,15 @@ func (d *runDescriptor) OutputDescriptions() map[string]string {
 }
 
 // RunExecutor executes a sub-workflow.
-// SubWorkflowRunner is injected by the engine to avoid circular imports.
+// SubWorkflowRunner is injected by the engine via api.SubWorkflowInjectable.
 type RunExecutor struct {
-	Runner  SubWorkflowRunner
+	Runner  api.SubWorkflowRunner
 	outputs []string
 }
 
-// SubWorkflowRunner executes a sub-workflow and returns the output name and data.
-type SubWorkflowRunner interface {
-	RunSubWorkflow(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext) (outputName string, data any, err error)
-}
-
-// TransactionalRunner extends SubWorkflowRunner with service override support for transactions.
-type TransactionalRunner interface {
-	SubWorkflowRunner
-	RunSubWorkflowWithServices(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext, serviceOverrides map[string]any) (outputName string, data any, err error)
+// InjectSubWorkflowRunner implements api.SubWorkflowInjectable.
+func (e *RunExecutor) InjectSubWorkflowRunner(runner api.SubWorkflowRunner) {
+	e.Runner = runner
 }
 
 func newRunExecutor(config map[string]any) api.NodeExecutor {
@@ -127,7 +121,7 @@ func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 
 // executeWithTransaction wraps the sub-workflow in a database transaction.
 func (e *RunExecutor) executeWithTransaction(ctx context.Context, workflowID string, input any, nCtx api.ExecutionContext, services map[string]any) (string, any, error) {
-	txRunner, ok := e.Runner.(TransactionalRunner)
+	txRunner, ok := e.Runner.(api.TransactionalSubWorkflowRunner)
 	if !ok {
 		return "", nil, fmt.Errorf("workflow.run: runner does not support transactions")
 	}

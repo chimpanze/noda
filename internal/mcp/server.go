@@ -5,6 +5,8 @@
 package mcp
 
 import (
+	"log/slog"
+
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/mark3labs/mcp-go/server"
@@ -33,7 +35,9 @@ func NewServer(version string) *server.MCPServer {
 func buildNodeRegistry() *registry.NodeRegistry {
 	nodeReg := registry.NewNodeRegistry()
 	for _, p := range allPlugins() {
-		_ = nodeReg.RegisterFromPlugin(p)
+		if err := nodeReg.RegisterFromPlugin(p); err != nil {
+			slog.Warn("failed to register MCP plugin nodes", "plugin", p.Name(), "error", err)
+		}
 	}
 	return nodeReg
 }

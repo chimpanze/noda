@@ -33,6 +33,25 @@ type NodeExecutor interface {
 // Used by the connection manager and Wasm runtime to trigger workflow execution.
 type WorkflowRunner func(ctx context.Context, workflowID string, input map[string]any) error
 
+// SubWorkflowRunner executes a sub-workflow and returns the output name and data.
+// Used by control.loop and workflow.run nodes. Injected by the engine at dispatch time.
+type SubWorkflowRunner interface {
+	RunSubWorkflow(ctx context.Context, workflowID string, input any, parentCtx ExecutionContext) (outputName string, data any, err error)
+}
+
+// TransactionalSubWorkflowRunner extends SubWorkflowRunner with service override support
+// for database transaction wrapping.
+type TransactionalSubWorkflowRunner interface {
+	SubWorkflowRunner
+	RunSubWorkflowWithServices(ctx context.Context, workflowID string, input any, parentCtx ExecutionContext, serviceOverrides map[string]any) (outputName string, data any, err error)
+}
+
+// SubWorkflowInjectable is implemented by node executors that need a SubWorkflowRunner.
+// The engine calls InjectSubWorkflowRunner after creating the executor.
+type SubWorkflowInjectable interface {
+	InjectSubWorkflowRunner(runner SubWorkflowRunner)
+}
+
 // Standard output names used by most nodes.
 const (
 	OutputSuccess = "success"

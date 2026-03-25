@@ -39,15 +39,15 @@ func (d *loopDescriptor) OutputDescriptions() map[string]string {
 }
 
 // LoopExecutor handles iteration over collections.
-// The actual sub-workflow execution is injected via SubWorkflowRunner
+// The actual sub-workflow execution is injected via api.SubWorkflowRunner
 // to avoid circular imports with the engine package.
 type LoopExecutor struct {
-	Runner SubWorkflowRunner
+	Runner api.SubWorkflowRunner
 }
 
-// SubWorkflowRunner executes a sub-workflow. Injected by the engine.
-type SubWorkflowRunner interface {
-	RunSubWorkflow(ctx context.Context, workflowID string, input any, parentCtx api.ExecutionContext) (outputName string, data any, err error)
+// InjectSubWorkflowRunner implements api.SubWorkflowInjectable.
+func (e *LoopExecutor) InjectSubWorkflowRunner(runner api.SubWorkflowRunner) {
+	e.Runner = runner
 }
 
 func newLoopExecutor(config map[string]any) api.NodeExecutor {

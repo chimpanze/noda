@@ -26,8 +26,14 @@ func (p *DotEnvProvider) Name() string { return "dotenv" }
 func (p *DotEnvProvider) Load(_ context.Context) (map[string]string, error) {
 	merged := make(map[string]string)
 
-	absConfig, _ := filepath.Abs(p.ConfigDir)
-	cwd, _ := os.Getwd()
+	absConfig, err := filepath.Abs(p.ConfigDir)
+	if err != nil {
+		absConfig = p.ConfigDir
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		cwd = ""
+	}
 
 	// 1. .env in config directory
 	if f := filepath.Join(absConfig, ".env"); fileExists(f) {

@@ -74,6 +74,15 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 			instance = res.instance
 		case <-time.After(createTimeout):
 			errs = append(errs, fmt.Errorf("service %q: creation timed out after %s", name, createTimeout))
+			// Clean up the orphaned goroutine: if it eventually succeeds, close the resource.
+			go func(name string) {
+				if res := <-resultCh; res.err == nil && res.instance != nil {
+					if closer, ok := res.instance.(interface{ Close() error }); ok {
+						_ = closer.Close()
+					}
+					slog.Warn("timed-out service creation completed late, resource closed", "name", name)
+				}
+			}(name)
 			continue
 		}
 

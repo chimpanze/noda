@@ -64,8 +64,8 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 	if quality, ok, _ := plugin.ResolveOptionalInt(nCtx, config, "quality"); ok {
 		opts.Quality = quality
 	}
-	if format, ok := config["format"].(string); ok {
-		opts.Type = parseFormat(format)
+	if formatStr, fmtOk, _ := plugin.ResolveOptionalString(nCtx, config, "format"); fmtOk {
+		opts.Type = parseFormat(formatStr)
 	}
 
 	result, err := bimg.NewImage(data).Process(opts)

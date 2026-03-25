@@ -198,7 +198,10 @@ func NewSecretsManager(configDir, envFlag string) (*secrets.Manager, error) {
 // parseSecretsProviders reads the raw noda.json to determine which secret
 // providers to configure. Falls back to DotEnvProvider if no config found.
 func parseSecretsProviders(configDir, env string) []secrets.Provider {
-	absConfig, _ := filepath.Abs(configDir)
+	absConfig, err := filepath.Abs(configDir)
+	if err != nil {
+		absConfig = configDir // fall back to original if Abs fails
+	}
 	rootFile := filepath.Join(absConfig, "noda.json")
 
 	raw, err := os.ReadFile(rootFile)

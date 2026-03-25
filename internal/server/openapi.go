@@ -63,75 +63,79 @@ func GenerateOpenAPI(rc *config.ResolvedConfig) (*openapi3.T, error) {
 	}
 
 	// Build paths from routes
-	for _, route := range rc.Routes {
-		method, _ := route["method"].(string)
-		path, _ := route["path"].(string)
-		if method == "" || path == "" {
-			continue
-		}
+	for _, routeData := range rc.Routes {
+		// normalizeRoutes handles both single-route files and route group files
+		routes := normalizeRoutes(routeData)
+		for _, route := range routes {
+			method, _ := route["method"].(string)
+			path, _ := route["path"].(string)
+			if method == "" || path == "" {
+				continue
+			}
 
-		// Convert Fiber path params (:id) to OpenAPI ({id})
-		oaPath := fiberToOpenAPIPath(path)
+			// Convert Fiber path params (:id) to OpenAPI ({id})
+			oaPath := fiberToOpenAPIPath(path)
 
-		operation := &openapi3.Operation{
-			OperationID: routeToOperationID(route),
-		}
+			operation := &openapi3.Operation{
+				OperationID: routeToOperationID(route),
+			}
 
-		// Summary
-		if summary, ok := route["summary"].(string); ok {
-			operation.Summary = summary
-		}
+			// Summary
+			if summary, ok := route["summary"].(string); ok {
+				operation.Summary = summary
+			}
 
-		// Tags
-		if tags, ok := route["tags"].([]any); ok {
-			for _, t := range tags {
-				if s, ok := t.(string); ok {
-					operation.Tags = append(operation.Tags, s)
+			// Tags
+			if tags, ok := route["tags"].([]any); ok {
+				for _, t := range tags {
+					if s, ok := t.(string); ok {
+						operation.Tags = append(operation.Tags, s)
+					}
 				}
 			}
-		}
 
-		// Path parameters
-		addPathParams(operation, oaPath)
+			// Path parameters
+			addPathParams(operation, oaPath)
 
-		// Query parameters
-		if queryDef, ok := route["query"].(map[string]any); ok {
-			addQueryParams(operation, queryDef)
-		}
-
-		// Request body
-		if bodyDef, ok := route["body"].(map[string]any); ok {
-			addRequestBody(operation, bodyDef, rc)
-		}
-
-		// Response definitions
-		addResponses(operation, route, rc)
-
-		// Security (if route uses JWT middleware)
-		if hasJWTMiddleware(route) {
-			operation.Security = &openapi3.SecurityRequirements{
-				{"bearerAuth": {}},
+			// Query parameters
+			if queryDef, ok := route["query"].(map[string]any); ok {
+				addQueryParams(operation, queryDef)
 			}
-		}
 
-		// Add operation to path
-		pathItem := doc.Paths.Find(oaPath)
-		if pathItem == nil {
-			pathItem = &openapi3.PathItem{}
-			doc.Paths.Set(oaPath, pathItem)
-		}
+			// Request body
+			if bodyDef, ok := route["body"].(map[string]any); ok {
+				addRequestBody(operation, bodyDef, rc)
+			}
 
-		switch strings.ToUpper(method) {
-		case "GET":
-			pathItem.Get = operation
-		case "POST":
-			pathItem.Post = operation
-		case "PUT":
-			pathItem.Put = operation
-		case "PATCH":
-			pathItem.Patch = operation
-		case "DELETE":
-			pathItem.Delete = operation
+			// Response definitions
+			addResponses(operation, route, rc)
+
+			// Security (if route uses JWT middleware)
+			if hasJWTMiddleware(route) {
+				operation.Security = &openapi3.SecurityRequirements{
+					{"bearerAuth": {}},
+				}
+			}
+
+			// Add operation to path
+			pathItem := doc.Paths.Find(oaPath)
+			if pathItem == nil {
+				pathItem = &openapi3.PathItem{}
+				doc.Paths.Set(oaPath, pathItem)
+			}
+
+			switch strings.ToUpper(method) {
+			case "GET":
+				pathItem.Get = operation
+			case "POST":
+				pathItem.Post = operation
+			case "PUT":
+				pathItem.Put = operation
+			case "PATCH":
+				pathItem.Patch = operation
+			case "DELETE":
+				pathItem.Delete = operation
+			}
 		}
 	}
 

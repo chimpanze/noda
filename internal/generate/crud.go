@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -218,8 +219,15 @@ type colInfo struct {
 
 func parseColumns(model map[string]any) []colInfo {
 	cols, _ := model["columns"].(map[string]any)
+	// Sort column names for deterministic output across runs.
+	names := make([]string, 0, len(cols))
+	for name := range cols {
+		names = append(names, name)
+	}
+	sort.Strings(names)
 	var result []colInfo
-	for name, v := range cols {
+	for _, name := range names {
+		v := cols[name]
 		def, _ := v.(map[string]any)
 		if def == nil {
 			continue

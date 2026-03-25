@@ -2,6 +2,7 @@ package breaker
 
 import (
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/sony/gobreaker/v2"
@@ -56,11 +57,15 @@ func ParseConfig(cfg map[string]any) *Config {
 	if v, ok := cb["interval"].(string); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			c.Interval = d
+		} else {
+			slog.Warn("circuit_breaker: invalid interval duration", "value", v, "error", err)
 		}
 	}
 	if v, ok := cb["timeout"].(string); ok {
 		if d, err := time.ParseDuration(v); err == nil {
 			c.Timeout = d
+		} else {
+			slog.Warn("circuit_breaker: invalid timeout duration", "value", v, "error", err)
 		}
 	}
 	if v, ok := cb["threshold"].(float64); ok {

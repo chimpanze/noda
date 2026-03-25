@@ -40,7 +40,10 @@ func CallAsync(service, operation, label string, payload any) {
 		Payload:   payload,
 		Label:     label,
 	}
-	data, _ := activeCodec.Marshal(req)
+	data, err := activeCodec.Marshal(req)
+	if err != nil {
+		return // cannot report errors in async context; call is silently dropped
+	}
 	callAsync(data)
 }
 

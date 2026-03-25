@@ -606,7 +606,7 @@ func newMigrateCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configDir, _ := cmd.Flags().GetString("config")
-			migrationsDir := configDir + "/migrations"
+			migrationsDir := filepath.Join(configDir, "migrations")
 
 			upFile, downFile, err := migrate.Create(migrationsDir, args[0])
 			if err != nil {
@@ -877,6 +877,11 @@ func buildWorkflowRunner(
 	compiler *expr.Compiler,
 	secretsCtx map[string]any,
 ) api.WorkflowRunner {
+	subRunner := &engine.SubWorkflowRunnerImpl{
+		Cache:    cache,
+		Services: services,
+		Nodes:    nodes,
+	}
 	return func(ctx context.Context, workflowID string, input map[string]any) error {
 		graph, ok := cache.Get(workflowID)
 		if !ok {
@@ -891,6 +896,7 @@ func buildWorkflowRunner(
 			engine.WithWorkflowID(workflowID),
 			engine.WithCompiler(compiler),
 			engine.WithSecrets(secretsCtx),
+			engine.WithSubWorkflowRunner(subRunner),
 		)
 		return engine.ExecuteGraph(ctx, graph, execCtx, services, nodes)
 	}

@@ -11,8 +11,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-// MetricsConfig holds configuration for the metrics subsystem.
-type MetricsConfig struct {
+// Config holds configuration for the metrics subsystem.
+type Config struct {
 	Enabled bool   `json:"enabled"`
 	Path    string `json:"path"` // default "/metrics"
 }
@@ -147,8 +147,8 @@ func NewProvider() (*sdkmetric.MeterProvider, http.Handler, error) {
 
 // ParseConfig extracts metrics configuration from the root config map.
 // It looks for root["observability"]["metrics"].
-func ParseConfig(root map[string]any) MetricsConfig {
-	cfg := MetricsConfig{
+func ParseConfig(root map[string]any) Config {
+	cfg := Config{
 		Path: "/metrics",
 	}
 

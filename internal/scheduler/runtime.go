@@ -101,7 +101,6 @@ func (r *Runtime) Start() error {
 	r.cron = cron.New(opts...)
 
 	for _, sc := range r.schedules {
-		sc := sc
 		spec := sc.Cron
 
 		// Apply timezone if specified

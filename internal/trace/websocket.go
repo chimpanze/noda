@@ -2,6 +2,7 @@ package trace
 
 import (
 	"log/slog"
+	"sync"
 
 	"github.com/gofiber/contrib/v3/websocket"
 	"github.com/gofiber/fiber/v3"
@@ -31,7 +32,10 @@ func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) 
 		defer unsubscribe()
 
 		// Write loop — single goroutine owns all writes to the connection.
+		var writeWg sync.WaitGroup
+		writeWg.Add(1)
 		go func() {
+			defer writeWg.Done()
 			for {
 				select {
 				case <-done:
@@ -51,6 +55,7 @@ func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) 
 			}
 		}
 		close(done)
+		writeWg.Wait() // ensure write goroutine exits before handler returns
 		logger.Info("trace websocket client disconnected", "remote", c.RemoteAddr().String())
 	}))
 }
