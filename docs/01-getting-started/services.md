@@ -1,5 +1,7 @@
 # Service Wiring Guide
 
+## What Are Services?
+
 Services are named, configured connections to external systems -- databases, caches, file storage, email providers, and more. Noda creates each service at startup based on your `noda.json` configuration and injects them into workflows and nodes at runtime.
 
 ## Configuring Services
@@ -127,8 +129,8 @@ File storage backed by the local filesystem or in-memory. Used by `storage.*`, `
 }
 ```
 
-**Nodes:** `storage.read`, `storage.write`, `storage.list`
-**Also used by:** `upload.handle` (slot `destination`), `image.*` nodes (slots `source` and `destination`)
+**Nodes:** `storage.read`, `storage.write`, `storage.list`, `storage.delete`
+**Also used by:** `upload.handle` (slot `destination`), `image.*` nodes (slots `source` and `target`)
 
 ---
 
@@ -160,7 +162,7 @@ Redis Streams for event-driven workers. Used by workers and `event.emit`.
 
 ### Redis PubSub (`plugin: "pubsub"`)
 
-Redis Pub/Sub for real-time messaging.
+Redis Pub/Sub for real-time messaging. Used by `event.emit` (in pubsub mode) and for WebSocket/SSE cross-instance sync.
 
 | Field | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
@@ -178,6 +180,9 @@ Redis Pub/Sub for real-time messaging.
   }
 }
 ```
+
+**Nodes:** `event.emit` (in pubsub mode)
+**Also used by:** WebSocket/SSE cross-instance message routing
 
 ---
 
@@ -322,7 +327,8 @@ Different node families expect different slot names:
 | `storage` | `storage.*` nodes | `storage` |
 | `destination` | `upload.handle` | `storage` |
 | `source` | `image.*` nodes (input) | `storage` |
-| `destination` | `image.*` nodes (output) | `storage` |
+| `target` | `image.*` nodes (output) | `storage` |
+| `pubsub` | `event.emit` (pubsub mode) | `pubsub` |
 | `client` | `http.*` nodes | `http` |
 | `mailer` | `email.send` | `email` |
 | `stream` | `event.emit`, workers | `stream` |
@@ -395,7 +401,8 @@ In your workflows, each node picks the instance it needs:
 | `cache` | `cache.*` | `cache` | `url` |
 | `storage` | `storage.*` | `storage` | `backend`, `path` (local) |
 | `destination` | `upload.handle` | `storage` | `backend`, `path` (local) |
-| `source`, `destination` | `image.*` | `storage` | `backend`, `path` (local) |
+| `source`, `target` | `image.*` | `storage` | `backend`, `path` (local) |
+| `pubsub` | `event.emit` (pubsub mode) | `pubsub` | `url` |
 | `client` | `http.*` | `http` | (none required) |
 | `mailer` | `email.send` | `email` | `host` |
 | `stream` | `event.emit`, workers | `stream` | `url` |
