@@ -695,7 +695,7 @@ func TestRuntime_StartAndStopAll(t *testing.T) {
 
 	time.Sleep(200 * time.Millisecond)
 
-	rt.StopAll(context.Background())
+	_ = rt.StopAll(context.Background())
 
 	assert.NotEmpty(t, plugin.getCalls("initialize"))
 	assert.NotEmpty(t, plugin.getCalls("tick"))
@@ -715,7 +715,7 @@ func TestWasmService_Query(t *testing.T) {
 	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 10}, plugin)
 	require.NoError(t, err)
 	require.NoError(t, rt.StartAll(context.Background()))
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -734,7 +734,7 @@ func TestWasmService_SendCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, rt.StartAll(context.Background()))
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -1364,7 +1364,7 @@ func TestRuntime_StopAll_NoModules(t *testing.T) {
 	rt := NewRuntime(svcReg, nil, testLogger())
 
 	// Should not panic
-	rt.StopAll(context.Background())
+	_ = rt.StopAll(context.Background())
 }
 
 // --- Runtime: StartAll with no modules ---
@@ -1621,7 +1621,7 @@ func TestWasmService_Query_EmptyTimeout(t *testing.T) {
 	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 10}, plugin)
 	require.NoError(t, err)
 	require.NoError(t, rt.StartAll(context.Background()))
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -1642,7 +1642,7 @@ func TestWasmService_Query_InvalidTimeout(t *testing.T) {
 	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "game", TickRate: 10}, plugin)
 	require.NoError(t, err)
 	require.NoError(t, rt.StartAll(context.Background()))
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -2336,7 +2336,7 @@ func TestRuntime_StopAll_WithModuleError(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Should not panic, just log the error
-	rt.StopAll(context.Background())
+	_ = rt.StopAll(context.Background())
 }
 
 // --- HostDispatcher: SetModule ---

@@ -12,10 +12,10 @@ import (
 
 // validOnDeleteActions lists allowed ON DELETE actions for foreign keys.
 var validOnDeleteActions = map[string]bool{
-	"CASCADE":    true,
-	"SET NULL":   true,
-	"RESTRICT":   true,
-	"NO ACTION":  true,
+	"CASCADE":     true,
+	"SET NULL":    true,
+	"RESTRICT":    true,
+	"NO ACTION":   true,
 	"SET DEFAULT": true,
 }
 

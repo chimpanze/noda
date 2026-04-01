@@ -131,7 +131,7 @@ func TestWasmSend_MissingData(t *testing.T) {
 	plug := newMockPlugin()
 	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 20}, plug)
 	_ = rt.StartAll(context.Background())
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -166,7 +166,7 @@ func TestWasmQuery_MissingData(t *testing.T) {
 	plug.exports["query"] = true
 	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plug)
 	_ = rt.StartAll(context.Background())
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -192,7 +192,7 @@ func TestWasmQuery_DefaultTimeout(t *testing.T) {
 	}
 	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plug)
 	_ = rt.StartAll(context.Background())
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -220,7 +220,7 @@ func TestWasmSend(t *testing.T) {
 	plugin := newMockPlugin()
 	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 20}, plugin)
 	_ = rt.StartAll(context.Background())
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -268,7 +268,7 @@ func TestWasmQuery(t *testing.T) {
 	}
 	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 10}, plugin)
 	_ = rt.StartAll(context.Background())
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	time.Sleep(50 * time.Millisecond)
 
@@ -302,7 +302,7 @@ func TestWasmQuery_Timeout(t *testing.T) {
 	}
 	_, _ = rt.LoadModuleWithPlugin(wasmrt.ModuleConfig{Name: "game", TickRate: 1}, plugin) // slow tick rate
 	_ = rt.StartAll(context.Background())
-	defer rt.StopAll(context.Background())
+	defer func() { _ = rt.StopAll(context.Background()) }()
 
 	// Don't wait for tick to start - query should timeout
 	ws := wasmrt.NewWasmService(rt, "game")
