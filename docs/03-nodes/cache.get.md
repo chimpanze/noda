@@ -12,7 +12,7 @@ Retrieves a value from the cache.
 
 `success`, `error`
 
-Output: `{value: <any>}` (value is `nil` if key not found).
+Output: the cached value. Fires `error` with `NotFoundError` on cache miss (key does not exist).
 
 ## Behavior
 
