@@ -41,3 +41,37 @@ Inserts a new record into the specified table using the key-value pairs in `data
   }
 }
 ```
+
+### With data flow
+
+A registration workflow validates input, then creates a user record. The `transform.set` node prepares the data, and `db.create` inserts it.
+
+```json
+{
+  "create_user": {
+    "type": "db.create",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "users",
+      "data": {
+        "email": "{{ nodes.prepare.email }}",
+        "display_name": "{{ nodes.prepare.display_name }}",
+        "role": "{{ nodes.prepare.role }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.create_user`:
+```json
+{
+  "id": 42,
+  "email": "jane@example.com",
+  "display_name": "Jane Doe",
+  "role": "user",
+  "created_at": "2026-03-15T10:30:00Z"
+}
+```
+
+Downstream nodes access fields via `nodes.create_user.id` or `nodes.create_user.email`.

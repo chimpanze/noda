@@ -48,3 +48,42 @@ Builds and executes a SELECT query with `LIMIT 1`. Returns a single row object. 
   }
 }
 ```
+
+### With data flow
+
+A task detail endpoint receives a task ID from the route params, fetches the task, then uses the task's `user_id` to look up the assignee.
+
+```json
+{
+  "get_task": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "tasks",
+      "select": ["id", "title", "status", "user_id"],
+      "where": {
+        "id": "{{ input.task_id }}"
+      },
+      "required": true
+    }
+  },
+  "get_assignee": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "users",
+      "select": ["id", "display_name", "email"],
+      "where": {
+        "id": "{{ nodes.get_task.user_id }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.get_task`:
+```json
+{ "id": 7, "title": "Write tests", "status": "in_progress", "user_id": 3 }
+```
+
+Downstream nodes access fields via `nodes.get_task.title` or `nodes.get_assignee.display_name`.

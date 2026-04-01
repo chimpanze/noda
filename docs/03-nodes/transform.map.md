@@ -30,3 +30,29 @@ Resolves `collection` to an array. For each element, evaluates `expression` with
   }
 }
 ```
+
+### With data flow
+
+After fetching a list of users from the database, `transform.map` reshapes each row into a lighter API response format.
+
+```json
+{
+  "format_users": {
+    "type": "transform.map",
+    "config": {
+      "collection": "{{ nodes.list_users }}",
+      "expression": "{{ { 'id': $item.id, 'display_name': $item.first_name + ' ' + $item.last_name, 'email': $item.email } }}"
+    }
+  }
+}
+```
+
+Output stored as `nodes.format_users`:
+```json
+[
+  { "id": 1, "display_name": "Jane Doe", "email": "jane@example.com" },
+  { "id": 2, "display_name": "Bob Smith", "email": "bob@example.com" }
+]
+```
+
+Downstream nodes access the mapped array via `nodes.format_users` or individual items via `nodes.format_users[0].display_name`.

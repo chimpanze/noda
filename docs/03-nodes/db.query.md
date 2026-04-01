@@ -37,3 +37,31 @@ Executes the given SQL query with parameterized values against the configured da
   }
 }
 ```
+
+### With data flow
+
+A reporting workflow uses a raw query to aggregate task counts by status for a project fetched by an earlier node.
+
+```json
+{
+  "task_summary": {
+    "type": "db.query",
+    "services": { "database": "postgres" },
+    "config": {
+      "query": "SELECT status, COUNT(*) AS total FROM tasks WHERE project_id = $1 GROUP BY status ORDER BY total DESC",
+      "params": ["{{ nodes.get_project.id }}"]
+    }
+  }
+}
+```
+
+Output stored as `nodes.task_summary`:
+```json
+[
+  { "status": "open", "total": 15 },
+  { "status": "in_progress", "total": 8 },
+  { "status": "done", "total": 42 }
+]
+```
+
+Downstream nodes access fields via `nodes.task_summary[0].total` or iterate with `transform.map` over `nodes.task_summary`.

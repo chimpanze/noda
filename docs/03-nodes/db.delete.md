@@ -40,3 +40,30 @@ Deletes all rows in the specified table that match the `where` conditions. Retur
   }
 }
 ```
+
+### With data flow
+
+A workflow first verifies a task belongs to the authenticated user, then deletes it and returns a confirmation.
+
+```json
+{
+  "remove_task": {
+    "type": "db.delete",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "tasks",
+      "where": {
+        "id": "{{ nodes.verify_task.id }}",
+        "user_id": "{{ auth.user_id }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.remove_task`:
+```json
+{ "rows_affected": 1 }
+```
+
+Downstream nodes access `nodes.remove_task.rows_affected` to confirm the deletion occurred.

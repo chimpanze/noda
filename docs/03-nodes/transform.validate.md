@@ -36,3 +36,38 @@ Resolves `data`. Validates it against `schema`. If valid, fires `success` with t
   }
 }
 ```
+
+### With data flow
+
+A workflow collects computed values from multiple nodes and validates them before inserting into the database.
+
+```json
+{
+  "validate_order": {
+    "type": "transform.validate",
+    "config": {
+      "data": "{{ nodes.build_order }}",
+      "schema": {
+        "type": "object",
+        "properties": {
+          "product_id": { "type": "integer" },
+          "quantity": { "type": "integer", "minimum": 1 },
+          "shipping_address": { "type": "string", "minLength": 5 }
+        },
+        "required": ["product_id", "quantity", "shipping_address"]
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.validate_order` (on success, the data passes through unchanged):
+```json
+{
+  "product_id": 42,
+  "quantity": 3,
+  "shipping_address": "123 Main St, Springfield"
+}
+```
+
+Downstream nodes access fields via `nodes.validate_order.product_id`. On validation failure, the `error` output fires with a `ValidationError` containing field-level details.

@@ -42,3 +42,30 @@ Builds and executes a `SELECT COUNT(*)` query from the structured config fields.
   }
 }
 ```
+
+### With data flow
+
+A dashboard workflow counts tasks per status for a project fetched earlier, then builds a summary response.
+
+```json
+{
+  "count_open": {
+    "type": "db.count",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "tasks",
+      "where": {
+        "project_id": "{{ nodes.get_project.id }}",
+        "status": "open"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.count_open`:
+```json
+{ "count": 12 }
+```
+
+Downstream nodes access `nodes.count_open.count` to include the value in a response or conditional logic.

@@ -45,3 +45,34 @@ Updates all rows in the specified table that match the `where` conditions, setti
   }
 }
 ```
+
+### With data flow
+
+A workflow fetches a task to verify ownership, then updates its status based on request input.
+
+```json
+{
+  "update_status": {
+    "type": "db.update",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "tasks",
+      "data": {
+        "status": "{{ input.status }}",
+        "updated_at": "{{ now() }}"
+      },
+      "where": {
+        "id": "{{ nodes.verify_task.id }}",
+        "user_id": "{{ auth.user_id }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.update_status`:
+```json
+{ "rows_affected": 1 }
+```
+
+Downstream nodes access `nodes.update_status.rows_affected` to check whether any row was modified.
