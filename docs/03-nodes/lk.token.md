@@ -64,3 +64,43 @@ Creates a signed JWT access token using the LiveKit service credentials. The tok
   }
 }
 ```
+
+### With data flow
+
+A join-room endpoint verifies the room exists, then issues a token with the user's profile name.
+
+```json
+{
+  "get_user": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "users",
+      "where": { "id": "{{ auth.user_id }}" },
+      "select": ["id", "display_name"]
+    }
+  },
+  "issue_token": {
+    "type": "lk.token",
+    "services": { "livekit": "lk" },
+    "config": {
+      "identity": "{{ auth.user_id }}",
+      "room": "{{ input.room_name }}",
+      "name": "{{ nodes.get_user.display_name }}",
+      "ttl": "2h",
+      "grants": {
+        "canPublish": true,
+        "canSubscribe": true,
+        "canPublishData": true
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.issue_token`:
+```json
+{ "token": "eyJ...", "identity": "usr_42", "room": "meeting-abc" }
+```
+
+Downstream nodes access the token via `nodes.issue_token.token`.

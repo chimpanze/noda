@@ -46,3 +46,40 @@ Inserts a new record into the specified table. If a conflict occurs on the speci
   }
 }
 ```
+
+### With data flow
+
+A profile update workflow reads the authenticated user's ID and upserts their preferences. The result feeds into a response node.
+
+```json
+{
+  "save_preferences": {
+    "type": "db.upsert",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "user_preferences",
+      "data": {
+        "user_id": "{{ auth.user_id }}",
+        "timezone": "{{ nodes.validate_input.timezone }}",
+        "notifications_enabled": "{{ nodes.validate_input.notifications_enabled }}",
+        "updated_at": "{{ now() }}"
+      },
+      "conflict": "user_id",
+      "update": ["timezone", "notifications_enabled", "updated_at"]
+    }
+  }
+}
+```
+
+Output stored as `nodes.save_preferences`:
+```json
+{
+  "id": 8,
+  "user_id": 15,
+  "timezone": "Europe/Berlin",
+  "notifications_enabled": true,
+  "updated_at": "2026-03-20T14:00:00Z"
+}
+```
+
+Downstream nodes access fields via `nodes.save_preferences.timezone` or `nodes.save_preferences.id`.

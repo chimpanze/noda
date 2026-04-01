@@ -26,3 +26,40 @@ Produces the current time in the requested format. `"iso8601"` returns a string 
   }
 }
 ```
+
+### With data flow
+
+Generate a timestamp and attach it to a record being inserted.
+
+```json
+{
+  "now": {
+    "type": "util.timestamp",
+    "config": {
+      "format": "iso8601"
+    }
+  }
+}
+```
+
+Output stored as `nodes.now`:
+```json
+"2024-01-15T10:30:00Z"
+```
+
+A downstream node uses the timestamp:
+```json
+{
+  "save_event": {
+    "type": "db.insert",
+    "config": {
+      "table": "audit_log",
+      "data": {
+        "action": "{{ nodes.parse_action.type }}",
+        "user_id": "{{ auth.user_id }}",
+        "created_at": "{{ nodes.now }}"
+      }
+    }
+  }
+}
+```

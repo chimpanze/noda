@@ -42,3 +42,56 @@ On success, outputs:
   }
 }
 ```
+
+### With data flow
+
+A token refresh endpoint reads the stored refresh token from the database, refreshes the tokens, then updates the record with the new values.
+
+```json
+{
+  "get_session": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "sessions",
+      "where": { "user_id": "{{ auth.user_id }}" },
+      "required": true
+    }
+  },
+  "refresh": {
+    "type": "oidc.refresh",
+    "config": {
+      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
+      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
+      "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+      "refresh_token": "{{ nodes.get_session.refresh_token }}"
+    }
+  },
+  "update_session": {
+    "type": "db.update",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "sessions",
+      "where": { "user_id": "{{ auth.user_id }}" },
+      "data": {
+        "access_token": "{{ nodes.refresh.access_token }}",
+        "refresh_token": "{{ nodes.refresh.refresh_token }}",
+        "expires_at": "{{ nodes.refresh.expires_at }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.refresh`:
+```json
+{
+  "access_token": "ya29...",
+  "refresh_token": "1//0e...",
+  "id_token": "eyJ...",
+  "claims": { "sub": "10269", "email": "user@example.com" },
+  "expires_at": 1717203600
+}
+```
+
+Downstream nodes access the new tokens via `nodes.refresh.access_token`.

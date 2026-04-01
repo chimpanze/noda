@@ -41,3 +41,37 @@ Server-side mutes or unmutes a participant's published track. The participant an
   }
 }
 ```
+
+### With data flow
+
+A moderation endpoint fetches a participant, then mutes their audio track.
+
+```json
+{
+  "get_participant": {
+    "type": "lk.participantGet",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "identity": "{{ input.user_id }}"
+    }
+  },
+  "mute_audio": {
+    "type": "lk.muteTrack",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "identity": "{{ nodes.get_participant.identity }}",
+      "track_sid": "{{ input.track_sid }}",
+      "muted": true
+    }
+  }
+}
+```
+
+Output stored as `nodes.mute_audio`:
+```json
+{ "muted": true, "track_sid": "TR_xyz", "track_name": "microphone", "track_type": "AUDIO" }
+```
+
+Downstream nodes can check `nodes.mute_audio.muted` or `nodes.mute_audio.track_type`.

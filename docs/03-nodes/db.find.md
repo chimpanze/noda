@@ -53,3 +53,35 @@ SQL injection prevention: All database nodes validate SQL fragments to prevent i
   }
 }
 ```
+
+### With data flow
+
+A project dashboard workflow fetches a project by ID, then finds all tasks belonging to that project.
+
+```json
+{
+  "list_tasks": {
+    "type": "db.find",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "tasks",
+      "select": ["id", "title", "status", "assignee_id"],
+      "where": {
+        "project_id": "{{ nodes.get_project.id }}"
+      },
+      "order": "created_at DESC",
+      "limit": 50
+    }
+  }
+}
+```
+
+Output stored as `nodes.list_tasks`:
+```json
+[
+  { "id": 1, "title": "Design API schema", "status": "done", "assignee_id": 5 },
+  { "id": 2, "title": "Implement auth", "status": "in_progress", "assignee_id": 3 }
+]
+```
+
+Downstream nodes access fields via `nodes.list_tasks[0].title` or iterate with `transform.map` over `nodes.list_tasks`.

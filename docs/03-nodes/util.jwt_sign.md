@@ -37,3 +37,29 @@ Creates a JWT token with the specified claims, signs it using the given secret a
   }
 }
 ```
+
+### With data flow
+
+After authenticating a user, sign a token with their profile data from a previous lookup.
+
+```json
+{
+  "sign_token": {
+    "type": "util.jwt_sign",
+    "config": {
+      "claims": {
+        "sub": "{{ nodes.find_user.id }}",
+        "email": "{{ nodes.find_user.email }}",
+        "roles": "{{ nodes.find_user.roles }}"
+      },
+      "secret": "{{ secrets.JWT_SECRET }}",
+      "expiry": "1h"
+    }
+  }
+}
+```
+
+When `nodes.find_user` produced `{"id": 42, "email": "alice@example.com", "roles": ["admin"]}`, the claims are populated from that data. Output stored as `nodes.sign_token`:
+```json
+"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQyLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiZXhwIjoxNzA1MzE1MDAwfQ.signature"
+```

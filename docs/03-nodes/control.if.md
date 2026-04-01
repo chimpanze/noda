@@ -26,3 +26,25 @@ Resolves `condition`. If truthy, fires `then`. If falsy, fires `else`. If the ex
   }
 }
 ```
+
+### With data flow
+
+A database query returns a list of users; the condition branches on whether results exist.
+
+```json
+{
+  "check_results": {
+    "type": "control.if",
+    "config": {
+      "condition": "{{ nodes.find_users.total > 0 }}"
+    }
+  }
+}
+```
+
+When `nodes.find_users` produced `{"rows": [...], "total": 3}`, the condition resolves to `true` and the `then` output fires. Output stored as `nodes.check_results`:
+```json
+true
+```
+
+The `then` branch receives this value; the `else` branch would receive `false`.

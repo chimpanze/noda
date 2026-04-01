@@ -42,3 +42,49 @@ Reads the file stream from the trigger input (marked via the `files` array on th
   }
 }
 ```
+
+### With data flow
+
+Handle a document upload and store the resulting file metadata in the database.
+
+```json
+{
+  "handle_upload": {
+    "type": "upload.handle",
+    "services": { "destination": "documents-storage" },
+    "config": {
+      "max_size": 10485760,
+      "allowed_types": ["application/pdf", "image/*"],
+      "path": "{{ 'uploads/' + nodes.gen_id + '/' + trigger.filename }}",
+      "max_files": 1
+    }
+  }
+}
+```
+
+When `nodes.gen_id` produced `"a1b2c3d4"` and the uploaded file is `report.pdf` (2 MB), the file is stored at `uploads/a1b2c3d4/report.pdf`. Output stored as `nodes.handle_upload`:
+```json
+{
+  "path": "uploads/a1b2c3d4/report.pdf",
+  "size": 2097152,
+  "content_type": "application/pdf",
+  "filename": "report.pdf"
+}
+```
+
+A downstream node can save this metadata:
+```json
+{
+  "save_file_record": {
+    "type": "db.insert",
+    "config": {
+      "table": "files",
+      "data": {
+        "path": "{{ nodes.handle_upload.path }}",
+        "size": "{{ nodes.handle_upload.size }}",
+        "type": "{{ nodes.handle_upload.content_type }}"
+      }
+    }
+  }
+}
+```

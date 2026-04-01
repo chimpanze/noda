@@ -37,3 +37,31 @@ Recursion limit: `control.loop` and `workflow.run` share a maximum recursion dep
   }
 }
 ```
+
+### With data flow
+
+A query returns a list of orders; the loop enriches each one via a sub-workflow.
+
+```json
+{
+  "enrich_orders": {
+    "type": "control.loop",
+    "config": {
+      "collection": "{{ nodes.list_orders.rows }}",
+      "workflow": "enrich-order",
+      "input": {
+        "order_id": "{{ $item.id }}",
+        "customer_id": "{{ $item.customer_id }}"
+      }
+    }
+  }
+}
+```
+
+When `nodes.list_orders.rows` is `[{"id": 1, "customer_id": 42}, {"id": 2, "customer_id": 55}]`, each iteration receives its item as `input`. The sub-workflow's `workflow.output` result from each iteration is collected. Output stored as `nodes.enrich_orders`:
+```json
+[
+  { "id": 1, "customer_name": "Alice", "total": 99.50 },
+  { "id": 2, "customer_name": "Bob", "total": 45.00 }
+]
+```

@@ -30,3 +30,26 @@ Case names are static string literals. They define the node's output ports and m
   }
 }
 ```
+
+### With data flow
+
+A workflow receives a webhook event and routes it based on the event type from a previous node.
+
+```json
+{
+  "route_event": {
+    "type": "control.switch",
+    "config": {
+      "expression": "{{ nodes.parse_webhook.event_type }}",
+      "cases": ["order.created", "order.updated", "order.cancelled"]
+    }
+  }
+}
+```
+
+When `nodes.parse_webhook` produced `{"event_type": "order.updated", "payload": {...}}`, the expression resolves to `"order.updated"` and the matching case output fires. Output stored as `nodes.route_event`:
+```json
+"order.updated"
+```
+
+The `order.updated` branch continues; unmatched values fire `default`.

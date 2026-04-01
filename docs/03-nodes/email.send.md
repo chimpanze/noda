@@ -45,3 +45,27 @@ Resolves all expression fields. Sends the email through the configured SMTP serv
   }
 }
 ```
+
+### With data flow
+
+After a user resets their password, send a confirmation email using data from the user lookup.
+
+```json
+{
+  "send_confirmation": {
+    "type": "email.send",
+    "services": { "mailer": "smtp" },
+    "config": {
+      "to": "{{ nodes.find_user.email }}",
+      "subject": "Password reset successful",
+      "body": "<p>Hi {{ nodes.find_user.name }}, your password was reset at {{ nodes.reset_time }}.</p>",
+      "content_type": "html"
+    }
+  }
+}
+```
+
+When `nodes.find_user` produced `{"id": 42, "email": "alice@example.com", "name": "Alice"}` and `nodes.reset_time` produced `"2024-01-15T10:30:00Z"`, the email is sent to `alice@example.com`. Output stored as `nodes.send_confirmation`:
+```json
+{ "message_id": "abc-123-def" }
+```

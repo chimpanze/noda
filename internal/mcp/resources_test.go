@@ -40,6 +40,51 @@ func TestStaticDocHandler(t *testing.T) {
 		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
 	})
 
+	t.Run("expression-cookbook", func(t *testing.T) {
+		handler := staticDocHandler("01-getting-started/expression-cookbook.md")
+		req := makeReadResourceRequest("noda://docs/expression-cookbook")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
+	t.Run("services", func(t *testing.T) {
+		handler := staticDocHandler("01-getting-started/services.md")
+		req := makeReadResourceRequest("noda://docs/services")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
+	t.Run("workflow-patterns", func(t *testing.T) {
+		handler := staticDocHandler("04-guides/workflow-patterns.md")
+		req := makeReadResourceRequest("noda://docs/workflow-patterns")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
+	t.Run("authentication", func(t *testing.T) {
+		handler := staticDocHandler("04-guides/authentication.md")
+		req := makeReadResourceRequest("noda://docs/authentication")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
+	t.Run("testing-and-debugging", func(t *testing.T) {
+		handler := staticDocHandler("04-guides/testing-and-debugging.md")
+		req := makeReadResourceRequest("noda://docs/testing")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
 	t.Run("nonexistent file", func(t *testing.T) {
 		handler := staticDocHandler("nonexistent.md")
 		req := makeReadResourceRequest("noda://docs/nonexistent")

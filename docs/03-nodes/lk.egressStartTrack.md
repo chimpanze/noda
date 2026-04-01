@@ -43,3 +43,40 @@ Records a single audio or video track to the specified storage backend. Useful f
   }
 }
 ```
+
+### With data flow
+
+A record-track endpoint fetches a participant to verify they exist, then starts recording their specific track.
+
+```json
+{
+  "get_participant": {
+    "type": "lk.participantGet",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "identity": "{{ input.user_id }}"
+    }
+  },
+  "record_track": {
+    "type": "lk.egressStartTrack",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "track_sid": "{{ input.track_sid }}",
+      "output": {
+        "type": "s3",
+        "bucket": "recordings",
+        "filepath": "{{ 'tracks/' + nodes.get_participant.identity + '/' + input.track_sid + '.ogg' }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.record_track`:
+```json
+{ "egress_id": "EG_track1", "room_id": "RM_xyz", "room_name": "meeting-1", "status": "EGRESS_ACTIVE", "started_at": 1717200000 }
+```
+
+Downstream nodes access the egress ID via `nodes.record_track.egress_id`.

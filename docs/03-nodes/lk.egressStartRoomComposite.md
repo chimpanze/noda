@@ -61,3 +61,50 @@ Starts recording all audio/video tracks in the room as a composite layout. The r
   }
 }
 ```
+
+### With data flow
+
+A start-recording endpoint looks up the meeting, starts a room composite egress, then stores the egress ID for later stopping.
+
+```json
+{
+  "get_meeting": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "meetings",
+      "where": { "id": "{{ input.meeting_id }}" },
+      "required": true
+    }
+  },
+  "start_recording": {
+    "type": "lk.egressStartRoomComposite",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ nodes.get_meeting.room_name }}",
+      "layout": "grid-dark",
+      "output": {
+        "type": "s3",
+        "bucket": "recordings",
+        "filepath": "{{ nodes.get_meeting.room_name + '/' + $timestamp() + '.mp4' }}"
+      }
+    }
+  },
+  "save_egress": {
+    "type": "db.update",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "meetings",
+      "where": { "id": "{{ input.meeting_id }}" },
+      "data": { "egress_id": "{{ nodes.start_recording.egress_id }}" }
+    }
+  }
+}
+```
+
+Output stored as `nodes.start_recording`:
+```json
+{ "egress_id": "EG_abc123", "room_id": "RM_xyz", "room_name": "meeting-1", "status": "EGRESS_ACTIVE", "started_at": 1717200000 }
+```
+
+Downstream nodes access the egress ID via `nodes.start_recording.egress_id`.

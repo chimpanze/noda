@@ -43,3 +43,30 @@ Resolves `topic` and `payload`. Publishes the event to the service matching the 
   }
 }
 ```
+
+### With data flow
+
+After inserting an order, emit an event so worker processes can handle fulfillment asynchronously.
+
+```json
+{
+  "emit_order_event": {
+    "type": "event.emit",
+    "services": { "stream": "redis-stream" },
+    "config": {
+      "mode": "stream",
+      "topic": "orders.created",
+      "payload": {
+        "order_id": "{{ nodes.create_order.id }}",
+        "items": "{{ nodes.create_order.items }}",
+        "total": "{{ nodes.create_order.total }}"
+      }
+    }
+  }
+}
+```
+
+When `nodes.create_order` produced `{"id": 501, "items": [{"sku": "A1", "qty": 2}], "total": 79.98}`, the payload is populated from that data. Output stored as `nodes.emit_order_event`:
+```json
+{ "message_id": "1705312200000-0" }
+```

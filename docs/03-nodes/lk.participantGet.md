@@ -37,3 +37,38 @@ Retrieves a single participant from the room by identity. Fires `success` with t
   }
 }
 ```
+
+### With data flow
+
+A participant status endpoint fetches a participant from the room and returns their connection state.
+
+```json
+{
+  "get_participant": {
+    "type": "lk.participantGet",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "identity": "{{ input.user_id }}"
+    }
+  },
+  "respond": {
+    "type": "response.json",
+    "config": {
+      "body": {
+        "identity": "{{ nodes.get_participant.identity }}",
+        "name": "{{ nodes.get_participant.name }}",
+        "state": "{{ nodes.get_participant.state }}",
+        "joined_at": "{{ nodes.get_participant.joined_at }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.get_participant`:
+```json
+{ "sid": "PA_abc", "identity": "usr_42", "name": "Jane", "metadata": "{}", "state": "ACTIVE", "joined_at": 1717200000, "region": "us-east-1" }
+```
+
+Downstream nodes access fields via `nodes.get_participant.name` or `nodes.get_participant.state`.

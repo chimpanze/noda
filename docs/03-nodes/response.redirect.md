@@ -30,3 +30,25 @@ URL validation: URLs must start with `/` (relative), `http://`, or `https://` (a
   }
 }
 ```
+
+### With data flow
+
+After creating a resource, redirect the client to the new resource's URL.
+
+```json
+{
+  "redirect_to_order": {
+    "type": "response.redirect",
+    "config": {
+      "url": "{{ '/api/orders/' + string(nodes.create_order.id) }}",
+      "status": 302
+    }
+  }
+}
+```
+
+When `nodes.create_order` produced `{"id": 784, "status": "pending"}`, the URL resolves to `"/api/orders/784"`. The client receives:
+```
+HTTP/1.1 302 Found
+Location: /api/orders/784
+```
