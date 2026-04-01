@@ -111,17 +111,18 @@ Use the `util.jwt_sign` node to create JWT tokens in workflows:
 
 ```json
 {
-  "id": "sign-token",
-  "type": "util.jwt_sign",
-  "config": {
-    "claims": {
-      "sub": "{{ input.user_id }}",
-      "roles": "{{ input.roles }}",
-      "email": "{{ input.email }}"
-    },
-    "secret": "{{ $env('JWT_SECRET') }}",
-    "algorithm": "HS256",
-    "expiry": "24h"
+  "sign_token": {
+    "type": "util.jwt_sign",
+    "config": {
+      "claims": {
+        "sub": "{{ input.user_id }}",
+        "roles": "{{ input.roles }}",
+        "email": "{{ input.email }}"
+      },
+      "secret": "{{ $env('JWT_SECRET') }}",
+      "algorithm": "HS256",
+      "expiry": "24h"
+    }
   }
 }
 ```
@@ -164,61 +165,45 @@ A login workflow that validates credentials against the database and returns a J
 ```json
 {
   "id": "login",
-  "nodes": [
-    {
-      "id": "find-user",
+  "nodes": {
+    "find_user": {
       "type": "db.findOne",
+      "services": { "database": "main-db" },
       "config": {
-        "service": "main-db",
         "table": "users",
         "where": {
           "email": "{{ input.email }}"
         }
-      },
-      "outputs": {
-        "success": "check-password",
-        "error": "invalid-credentials"
       }
     },
-    {
-      "id": "check-password",
+    "check_password": {
       "type": "control.if",
       "config": {
-        "condition": "{{ find-user != nil and bcrypt_verify(input.password, find-user.password_hash) }}"
-      },
-      "outputs": {
-        "then": "sign-token",
-        "else": "invalid-credentials"
+        "condition": "{{ nodes.find_user != nil and bcrypt_verify(input.password, nodes.find_user.password_hash) }}"
       }
     },
-    {
-      "id": "sign-token",
+    "sign_token": {
       "type": "util.jwt_sign",
       "config": {
         "claims": {
-          "sub": "{{ find-user.id }}",
-          "roles": "{{ find-user.roles }}",
-          "email": "{{ find-user.email }}"
+          "sub": "{{ nodes.find_user.id }}",
+          "roles": "{{ nodes.find_user.roles }}",
+          "email": "{{ nodes.find_user.email }}"
         },
         "secret": "{{ $env('JWT_SECRET') }}",
         "expiry": "24h"
-      },
-      "outputs": {
-        "success": "respond-success"
       }
     },
-    {
-      "id": "respond-success",
+    "respond_success": {
       "type": "response.json",
       "config": {
         "status": 200,
         "body": {
-          "token": "{{ sign-token }}"
+          "token": "{{ nodes.sign_token.token }}"
         }
       }
     },
-    {
-      "id": "invalid-credentials",
+    "invalid_credentials": {
       "type": "response.error",
       "config": {
         "status": 401,
@@ -226,6 +211,13 @@ A login workflow that validates credentials against the database and returns a J
         "message": "Invalid email or password"
       }
     }
+  },
+  "edges": [
+    { "from": "find_user", "to": "check_password", "output": "success" },
+    { "from": "find_user", "to": "invalid_credentials", "output": "error" },
+    { "from": "check_password", "to": "sign_token", "output": "then" },
+    { "from": "check_password", "to": "invalid_credentials", "output": "else" },
+    { "from": "sign_token", "to": "respond_success", "output": "success" }
   ]
 }
 ```
@@ -268,24 +260,18 @@ A registration workflow that hashes the password and creates a user:
 ```json
 {
   "id": "register",
-  "nodes": [
-    {
-      "id": "check-existing",
+  "nodes": {
+    "check_existing": {
       "type": "db.findOne",
+      "services": { "database": "main-db" },
       "config": {
-        "service": "main-db",
         "table": "users",
         "where": {
           "email": "{{ input.email }}"
         }
-      },
-      "outputs": {
-        "success": "already-exists",
-        "error": "create-user"
       }
     },
-    {
-      "id": "already-exists",
+    "already_exists": {
       "type": "response.error",
       "config": {
         "status": 409,
@@ -293,11 +279,10 @@ A registration workflow that hashes the password and creates a user:
         "message": "An account with this email already exists"
       }
     },
-    {
-      "id": "create-user",
+    "create_user": {
       "type": "db.create",
+      "services": { "database": "main-db" },
       "config": {
-        "service": "main-db",
         "table": "users",
         "fields": {
           "email": "{{ input.email }}",
@@ -305,40 +290,30 @@ A registration workflow that hashes the password and creates a user:
           "password_hash": "{{ bcrypt_hash(input.password) }}",
           "roles": ["user"]
         }
-      },
-      "outputs": {
-        "success": "sign-token",
-        "error": "server-error"
       }
     },
-    {
-      "id": "sign-token",
+    "sign_token": {
       "type": "util.jwt_sign",
       "config": {
         "claims": {
-          "sub": "{{ create-user.id }}",
-          "roles": "{{ create-user.roles }}",
-          "email": "{{ create-user.email }}"
+          "sub": "{{ nodes.create_user.id }}",
+          "roles": "{{ nodes.create_user.roles }}",
+          "email": "{{ nodes.create_user.email }}"
         },
         "secret": "{{ $env('JWT_SECRET') }}",
         "expiry": "24h"
-      },
-      "outputs": {
-        "success": "respond-success"
       }
     },
-    {
-      "id": "respond-success",
+    "respond_success": {
       "type": "response.json",
       "config": {
         "status": 201,
         "body": {
-          "token": "{{ sign-token }}"
+          "token": "{{ nodes.sign_token.token }}"
         }
       }
     },
-    {
-      "id": "server-error",
+    "server_error": {
       "type": "response.error",
       "config": {
         "status": 500,
@@ -346,6 +321,13 @@ A registration workflow that hashes the password and creates a user:
         "message": "Registration failed"
       }
     }
+  },
+  "edges": [
+    { "from": "check_existing", "to": "already_exists", "output": "success" },
+    { "from": "check_existing", "to": "create_user", "output": "error" },
+    { "from": "create_user", "to": "sign_token", "output": "success" },
+    { "from": "create_user", "to": "server_error", "output": "error" },
+    { "from": "sign_token", "to": "respond_success", "output": "success" }
   ]
 }
 ```
@@ -433,47 +415,45 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
 ```json
 {
   "id": "oidc-login",
-  "nodes": [
-    {
-      "id": "gen-state",
+  "nodes": {
+    "gen_state": {
       "type": "transform.set",
       "config": {
         "fields": {
           "state": "{{ $uuid() }}"
         }
-      },
-      "outputs": { "success": "cache-state" }
+      }
     },
-    {
-      "id": "cache-state",
+    "cache_state": {
       "type": "cache.set",
+      "services": { "cache": "redis" },
       "config": {
-        "service": "redis",
-        "key": "{{ 'oidc_state:' + gen-state.state }}",
+        "key": "{{ 'oidc_state:' + nodes.gen_state.state }}",
         "value": "1",
-        "ttl": "5m"
-      },
-      "outputs": { "success": "build-url" }
+        "ttl": 300
+      }
     },
-    {
-      "id": "build-url",
+    "build_url": {
       "type": "oidc.auth_url",
       "config": {
         "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
         "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
         "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
-        "state": "{{ gen-state.state }}",
+        "state": "{{ nodes.gen_state.state }}",
         "scopes": ["openid", "profile", "email"]
-      },
-      "outputs": { "success": "redirect" }
+      }
     },
-    {
-      "id": "redirect",
+    "redirect": {
       "type": "response.redirect",
       "config": {
-        "url": "{{ build-url.url }}"
+        "url": "{{ nodes.build_url.url }}"
       }
     }
+  },
+  "edges": [
+    { "from": "gen_state", "to": "cache_state", "output": "success" },
+    { "from": "cache_state", "to": "build_url", "output": "success" },
+    { "from": "build_url", "to": "redirect", "output": "success" }
   ]
 }
 ```
@@ -483,32 +463,21 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
 ```json
 {
   "id": "oidc-callback",
-  "nodes": [
-    {
-      "id": "verify-state",
+  "nodes": {
+    "verify_state": {
       "type": "cache.get",
+      "services": { "cache": "redis" },
       "config": {
-        "service": "redis",
         "key": "{{ 'oidc_state:' + input.state }}"
-      },
-      "outputs": {
-        "success": "check-state",
-        "error": "invalid-state"
       }
     },
-    {
-      "id": "check-state",
+    "check_state": {
       "type": "control.if",
       "config": {
-        "condition": "{{ verify-state != nil }}"
-      },
-      "outputs": {
-        "then": "exchange-code",
-        "else": "invalid-state"
+        "condition": "{{ nodes.verify_state != nil }}"
       }
     },
-    {
-      "id": "exchange-code",
+    "exchange_code": {
       "type": "oidc.exchange",
       "config": {
         "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
@@ -516,51 +485,41 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
         "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
         "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
         "code": "{{ input.code }}"
-      },
-      "outputs": {
-        "success": "upsert-user",
-        "error": "exchange-failed"
       }
     },
-    {
-      "id": "upsert-user",
+    "upsert_user": {
       "type": "db.upsert",
+      "services": { "database": "main-db" },
       "config": {
-        "service": "main-db",
         "table": "users",
         "conflict": ["provider_id"],
         "fields": {
-          "provider_id": "{{ exchange-code.claims.sub }}",
-          "email": "{{ exchange-code.claims.email }}",
-          "name": "{{ exchange-code.claims.name }}",
-          "refresh_token": "{{ exchange-code.refresh_token }}"
+          "provider_id": "{{ nodes.exchange_code.claims.sub }}",
+          "email": "{{ nodes.exchange_code.claims.email }}",
+          "name": "{{ nodes.exchange_code.claims.name }}",
+          "refresh_token": "{{ nodes.exchange_code.refresh_token }}"
         }
-      },
-      "outputs": { "success": "sign-session-token" }
+      }
     },
-    {
-      "id": "sign-session-token",
+    "sign_session_token": {
       "type": "util.jwt_sign",
       "config": {
         "claims": {
-          "sub": "{{ upsert-user.id }}",
-          "email": "{{ upsert-user.email }}",
+          "sub": "{{ nodes.upsert_user.id }}",
+          "email": "{{ nodes.upsert_user.email }}",
           "roles": ["user"]
         },
         "secret": "{{ $env('JWT_SECRET') }}",
         "expiry": "24h"
-      },
-      "outputs": { "success": "redirect-to-app" }
-    },
-    {
-      "id": "redirect-to-app",
-      "type": "response.redirect",
-      "config": {
-        "url": "{{ $env('APP_URL') + '/?token=' + sign-session-token }}"
       }
     },
-    {
-      "id": "invalid-state",
+    "redirect_to_app": {
+      "type": "response.redirect",
+      "config": {
+        "url": "{{ $env('APP_URL') + '/?token=' + nodes.sign_session_token.token }}"
+      }
+    },
+    "invalid_state": {
       "type": "response.error",
       "config": {
         "status": 400,
@@ -568,8 +527,7 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
         "message": "Invalid or expired state parameter"
       }
     },
-    {
-      "id": "exchange-failed",
+    "exchange_failed": {
       "type": "response.error",
       "config": {
         "status": 401,
@@ -577,6 +535,16 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
         "message": "Failed to exchange authorization code"
       }
     }
+  },
+  "edges": [
+    { "from": "verify_state", "to": "check_state", "output": "success" },
+    { "from": "verify_state", "to": "invalid_state", "output": "error" },
+    { "from": "check_state", "to": "exchange_code", "output": "then" },
+    { "from": "check_state", "to": "invalid_state", "output": "else" },
+    { "from": "exchange_code", "to": "upsert_user", "output": "success" },
+    { "from": "exchange_code", "to": "exchange_failed", "output": "error" },
+    { "from": "upsert_user", "to": "sign_session_token", "output": "success" },
+    { "from": "sign_session_token", "to": "redirect_to_app", "output": "success" }
   ]
 }
 ```
@@ -587,13 +555,14 @@ Use `oidc.refresh` to obtain new tokens when the access token expires:
 
 ```json
 {
-  "id": "refresh-token",
-  "type": "oidc.refresh",
-  "config": {
-    "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-    "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-    "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
-    "refresh_token": "{{ input.refresh_token }}"
+  "refresh_token": {
+    "type": "oidc.refresh",
+    "config": {
+      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
+      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
+      "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+      "refresh_token": "{{ input.refresh_token }}"
+    }
   }
 }
 ```
@@ -875,14 +844,11 @@ Use `auth.roles` in workflow conditions to customize responses based on the user
 
 ```json
 {
-  "id": "check-admin",
-  "type": "control.if",
-  "config": {
-    "condition": "{{ 'admin' in auth.roles }}"
-  },
-  "outputs": {
-    "then": "respond-full",
-    "else": "respond-limited"
+  "check_admin": {
+    "type": "control.if",
+    "config": {
+      "condition": "{{ 'admin' in auth.roles }}"
+    }
   }
 }
 ```
@@ -895,12 +861,13 @@ Always include the user ID in database queries to ensure users only access their
 
 ```json
 {
-  "id": "list-tasks",
-  "type": "db.query",
-  "config": {
-    "service": "main-db",
-    "sql": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC",
-    "params": ["{{ input.user_id }}"]
+  "list_tasks": {
+    "type": "db.query",
+    "services": { "database": "main-db" },
+    "config": {
+      "sql": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC",
+      "params": ["{{ input.user_id }}"]
+    }
   }
 }
 ```
