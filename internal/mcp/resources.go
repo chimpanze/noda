@@ -22,6 +22,11 @@ func registerResources(s *server.MCPServer) {
 		{"noda://docs/quick-start", "Quick Start Guide", "How to get started with Noda in 5 minutes", "01-getting-started/quick-start.md"},
 		{"noda://docs/expressions", "Expression Reference", "Noda expression syntax, context variables, and built-in functions", "01-getting-started/expressions.md"},
 		{"noda://docs/data-flow", "Data Flow Guide", "How data flows through workflows: trigger input, node outputs, aliases, and data threading", "01-getting-started/data-flow.md"},
+		{"noda://docs/expression-cookbook", "Expression Cookbook", "Recipes for writing Noda expressions: function reference, type coercion, common patterns", "01-getting-started/expression-cookbook.md"},
+		{"noda://docs/services", "Service Wiring Guide", "How to configure and wire infrastructure services (database, cache, storage, etc.) to workflow nodes", "01-getting-started/services.md"},
+		{"noda://docs/workflow-patterns", "Workflow Patterns Guide", "Common workflow design patterns: error handling, parallelism, caching, sub-workflows", "04-guides/workflow-patterns.md"},
+		{"noda://docs/authentication", "Authentication Guide", "JWT, OIDC, and Casbin auth setup with complete login/register workflow examples", "04-guides/authentication.md"},
+		{"noda://docs/testing", "Testing & Debugging Guide", "How to write workflow tests, mock services, debug with dev mode, and fix common errors", "04-guides/testing-and-debugging.md"},
 	}
 
 	for _, r := range docResources {
