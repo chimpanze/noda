@@ -34,7 +34,7 @@ Reads the image from `source` storage, crops it to the specified dimensions from
   "type": "image.crop",
   "services": {
     "source": "uploads",
-    "destination": "processed"
+    "target": "processed"
   },
   "config": {
     "input": "{{ input.image_path }}",
@@ -64,7 +64,7 @@ A profile avatar workflow reads the uploaded image path from a previous node, cr
     "type": "image.crop",
     "services": {
       "source": "uploads",
-      "destination": "processed"
+      "target": "processed"
     },
     "config": {
       "input": "{{ nodes.handle_upload.path }}",

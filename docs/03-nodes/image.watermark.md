@@ -34,7 +34,7 @@ Reads the source image and watermark image from `source` storage, composites the
   "type": "image.watermark",
   "services": {
     "source": "uploads",
-    "destination": "processed"
+    "target": "processed"
   },
   "config": {
     "input": "{{ input.image_path }}",
@@ -56,7 +56,7 @@ A photo processing pipeline resizes the image first, then applies a watermark to
     "type": "image.resize",
     "services": {
       "source": "uploads",
-      "destination": "processed"
+      "target": "processed"
     },
     "config": {
       "input": "{{ input.image_path }}",
@@ -69,7 +69,7 @@ A photo processing pipeline resizes the image first, then applies a watermark to
     "type": "image.watermark",
     "services": {
       "source": "processed",
-      "destination": "processed"
+      "target": "processed"
     },
     "config": {
       "input": "{{ nodes.resize.path }}",

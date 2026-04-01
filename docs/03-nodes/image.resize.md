@@ -37,7 +37,7 @@ Reads from `source` storage at `input` path, writes to `destination` storage at 
   "type": "image.resize",
   "services": {
     "source": "uploads",
-    "destination": "processed"
+    "target": "processed"
   },
   "config": {
     "input": "{{ input.image_path }}",
@@ -67,7 +67,7 @@ An upload handler stores the original path, then a resize node reads it and a re
     "type": "image.resize",
     "services": {
       "source": "uploads",
-      "destination": "processed"
+      "target": "processed"
     },
     "config": {
       "input": "{{ nodes.handle_upload.path }}",

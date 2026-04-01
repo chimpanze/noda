@@ -33,7 +33,7 @@ Always crops to exact dimensions using smart crop. Reads from `source` storage, 
   "type": "image.thumbnail",
   "services": {
     "source": "uploads",
-    "destination": "thumbnails"
+    "target": "thumbnails"
   },
   "config": {
     "input": "{{ input.image_path }}",
@@ -65,7 +65,7 @@ After creating a database record for an uploaded image, the thumbnail node gener
     "type": "image.thumbnail",
     "services": {
       "source": "uploads",
-      "destination": "thumbnails"
+      "target": "thumbnails"
     },
     "config": {
       "input": "{{ nodes.save_record.path }}",

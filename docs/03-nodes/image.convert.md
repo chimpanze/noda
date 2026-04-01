@@ -33,7 +33,7 @@ Reads the image from `source` storage, converts it to the specified format, and 
   "type": "image.convert",
   "services": {
     "source": "uploads",
-    "destination": "processed"
+    "target": "processed"
   },
   "config": {
     "input": "{{ input.image_path }}",
@@ -62,7 +62,7 @@ An upload handler stores a PNG, then the convert node creates a WebP version for
     "type": "image.convert",
     "services": {
       "source": "uploads",
-      "destination": "processed"
+      "target": "processed"
     },
     "config": {
       "input": "{{ nodes.handle_upload.path }}",
