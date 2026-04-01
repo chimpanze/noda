@@ -119,6 +119,8 @@ When a scheduled workflow fails:
 
 The job timeout (default 5 minutes, configurable via `timeout`) cancels the workflow context if the job runs too long. This prevents stuck jobs from blocking the scheduler.
 
+Scheduled workflows do not automatically retry on failure. Each cron firing is independent -- if a job fails, it will run again at the next scheduled time. If you need retry logic, use retry configuration on individual nodes within the workflow (see [Workflow Patterns](../04-guides/workflow-patterns.md#retry-configuration)).
+
 ## Service Wiring
 
 Scheduled workflows can reference services defined in `noda.json` just like route-triggered workflows. Use `trigger.input` to pass static values or schedule metadata:
