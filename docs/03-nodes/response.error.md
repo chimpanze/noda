@@ -31,3 +31,33 @@ Produces an `HTTPResponse` with the body formatted as the standardized error str
   }
 }
 ```
+
+### With data flow
+
+A validation node found errors; respond with details from its output.
+
+```json
+{
+  "validation_error": {
+    "type": "response.error",
+    "config": {
+      "status": 422,
+      "code": "VALIDATION_FAILED",
+      "message": "{{ nodes.validate.errors[0].message }}",
+      "details": "{{ nodes.validate.errors }}"
+    }
+  }
+}
+```
+
+When `nodes.validate` produced `{"valid": false, "errors": [{"field": "email", "message": "Invalid email format"}]}`, the client receives:
+```json
+{
+  "error": {
+    "code": "VALIDATION_FAILED",
+    "message": "Invalid email format",
+    "details": [{"field": "email", "message": "Invalid email format"}],
+    "trace_id": "abc123"
+  }
+}
+```

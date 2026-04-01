@@ -26,3 +26,37 @@ Waits for the specified duration, respecting the `context.Context` deadline. If 
   }
 }
 ```
+
+### With data flow
+
+Wait before retrying a failed external API call. Upstream data passes through unchanged.
+
+```json
+{
+  "retry_delay": {
+    "type": "util.delay",
+    "config": {
+      "timeout": "3s"
+    }
+  }
+}
+```
+
+Output stored as `nodes.retry_delay`:
+```json
+null
+```
+
+The node produces no output data. A downstream retry node references the original failure:
+```json
+{
+  "retry_call": {
+    "type": "http.request",
+    "config": {
+      "method": "POST",
+      "url": "{{ nodes.build_request.url }}",
+      "body": "{{ nodes.build_request.payload }}"
+    }
+  }
+}
+```

@@ -42,3 +42,30 @@ Recursion limit: Recursive workflow calls (direct or indirect) are limited to a 
   }
 }
 ```
+
+### With data flow
+
+A parent workflow validates input and delegates creation to a sub-workflow, passing data from upstream nodes.
+
+```json
+{
+  "run_checkout": {
+    "type": "workflow.run",
+    "services": { "database": "postgres" },
+    "config": {
+      "workflow": "checkout",
+      "input": {
+        "cart_id": "{{ nodes.lookup_cart.id }}",
+        "items": "{{ nodes.lookup_cart.items }}",
+        "shipping_address": "{{ nodes.get_profile.address }}"
+      },
+      "transaction": true
+    }
+  }
+}
+```
+
+When `nodes.lookup_cart` produced `{"id": 88, "items": [{"sku": "X1", "qty": 1}]}` and `nodes.get_profile` produced `{"address": {"city": "Berlin"}}`, those values populate the sub-workflow's `input`. The sub-workflow's `workflow.output` name determines which output fires. Output stored as `nodes.run_checkout`:
+```json
+{ "order_id": 501, "status": "confirmed" }
+```
