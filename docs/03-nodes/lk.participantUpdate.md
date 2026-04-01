@@ -53,3 +53,41 @@ Updates the specified participant's metadata and/or permissions. Other participa
   }
 }
 ```
+
+### With data flow
+
+A promote-to-speaker endpoint fetches the participant's current info, then grants publish permissions.
+
+```json
+{
+  "get_participant": {
+    "type": "lk.participantGet",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "identity": "{{ input.user_id }}"
+    }
+  },
+  "promote": {
+    "type": "lk.participantUpdate",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "identity": "{{ nodes.get_participant.identity }}",
+      "metadata": "{{ toJSON({role: 'speaker'}) }}",
+      "permissions": {
+        "canPublish": true,
+        "canSubscribe": true,
+        "canPublishData": true
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.promote`:
+```json
+{ "sid": "PA_abc", "identity": "usr_42", "name": "Jane", "metadata": "{\"role\":\"speaker\"}", "state": "ACTIVE" }
+```
+
+Downstream nodes access the updated participant via `nodes.promote.metadata`.

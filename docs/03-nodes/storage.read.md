@@ -35,3 +35,35 @@ Reads the file at `path` from the configured storage service. Returns the file c
   }
 }
 ```
+
+### With data flow
+
+A document download endpoint looks up the file record in the database, then reads the file from storage using the stored path.
+
+```json
+{
+  "get_record": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "documents",
+      "where": { "id": "{{ input.doc_id }}" },
+      "required": true
+    }
+  },
+  "read_file": {
+    "type": "storage.read",
+    "services": { "storage": "files" },
+    "config": {
+      "path": "{{ nodes.get_record.storage_path }}"
+    }
+  }
+}
+```
+
+Output stored as `nodes.read_file`:
+```json
+{ "data": "<file contents>", "size": 24576, "content_type": "application/pdf" }
+```
+
+Downstream nodes access the file data via `nodes.read_file.data` or check `nodes.read_file.content_type`.

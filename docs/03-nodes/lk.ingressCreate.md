@@ -42,3 +42,37 @@ Creates an ingress endpoint that allows external sources to stream media into a 
   }
 }
 ```
+
+### With data flow
+
+A start-stream endpoint creates a LiveKit room, then sets up an RTMP ingress and returns the stream credentials.
+
+```json
+{
+  "create_room": {
+    "type": "lk.roomCreate",
+    "services": { "livekit": "lk" },
+    "config": {
+      "name": "{{ 'stream-' + $uuid() }}",
+      "empty_timeout": 300
+    }
+  },
+  "create_ingress": {
+    "type": "lk.ingressCreate",
+    "services": { "livekit": "lk" },
+    "config": {
+      "input_type": "rtmp",
+      "room": "{{ nodes.create_room.name }}",
+      "participant_identity": "{{ auth.user_id }}",
+      "participant_name": "{{ input.streamer_name }}"
+    }
+  }
+}
+```
+
+Output stored as `nodes.create_ingress`:
+```json
+{ "ingress_id": "IN_abc123", "url": "rtmp://livekit.example.com/live", "stream_key": "sk_xyz", "room": "stream-d4e5f6", "participant_identity": "usr_42", "input_type": "rtmp" }
+```
+
+Downstream nodes access the stream URL via `nodes.create_ingress.url` and `nodes.create_ingress.stream_key`.

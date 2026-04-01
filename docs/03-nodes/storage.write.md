@@ -37,3 +37,37 @@ Writes the resolved `data` to the configured storage service at the given `path`
   }
 }
 ```
+
+### With data flow
+
+A report generation workflow queries data, then writes the result as a JSON file to storage.
+
+```json
+{
+  "fetch_data": {
+    "type": "db.find",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "orders",
+      "where": { "status": "completed" },
+      "select": ["id", "total", "created_at"]
+    }
+  },
+  "save_report": {
+    "type": "storage.write",
+    "services": { "storage": "files" },
+    "config": {
+      "path": "{{ 'reports/' + $uuid() + '.json' }}",
+      "data": "{{ nodes.fetch_data }}",
+      "content_type": "application/json"
+    }
+  }
+}
+```
+
+Output stored as `nodes.save_report`:
+```json
+{ "path": "reports/a1b2c3d4.json", "size": 10240 }
+```
+
+Downstream nodes access the written file path via `nodes.save_report.path`.

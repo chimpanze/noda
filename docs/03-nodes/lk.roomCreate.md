@@ -41,3 +41,41 @@ Creates a new room on the LiveKit server. If a room with the same name already e
   }
 }
 ```
+
+### With data flow
+
+A meeting creation endpoint creates a LiveKit room and stores the room SID in the database.
+
+```json
+{
+  "create_room": {
+    "type": "lk.roomCreate",
+    "services": { "livekit": "lk" },
+    "config": {
+      "name": "{{ 'meeting-' + $uuid() }}",
+      "empty_timeout": 600,
+      "max_participants": "{{ input.max_participants }}",
+      "metadata": "{{ toJSON({host: auth.user_id}) }}"
+    }
+  },
+  "save_meeting": {
+    "type": "db.create",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "meetings",
+      "data": {
+        "room_sid": "{{ nodes.create_room.sid }}",
+        "room_name": "{{ nodes.create_room.name }}",
+        "host_id": "{{ auth.user_id }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.create_room`:
+```json
+{ "sid": "RM_abc123", "name": "meeting-d4e5f6", "empty_timeout": 600, "max_participants": 10, "metadata": "{\"host\":\"usr_42\"}", "num_participants": 0, "creation_time": 1717200000, "active_recording": false }
+```
+
+Downstream nodes access the room via `nodes.create_room.sid` or `nodes.create_room.name`.

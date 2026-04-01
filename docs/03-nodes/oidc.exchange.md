@@ -44,3 +44,48 @@ On success, outputs:
   }
 }
 ```
+
+### With data flow
+
+An OAuth callback endpoint exchanges the authorization code, then uses the returned claims to find or create a user record.
+
+```json
+{
+  "exchange": {
+    "type": "oidc.exchange",
+    "config": {
+      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
+      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
+      "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+      "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
+      "code": "{{ query.code }}"
+    }
+  },
+  "upsert_user": {
+    "type": "db.upsert",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "users",
+      "conflict": ["oidc_sub"],
+      "data": {
+        "oidc_sub": "{{ nodes.exchange.claims.sub }}",
+        "email": "{{ nodes.exchange.claims.email }}",
+        "name": "{{ nodes.exchange.claims.name }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.exchange`:
+```json
+{
+  "id_token": "eyJ...",
+  "access_token": "ya29...",
+  "refresh_token": "1//0e...",
+  "claims": { "sub": "10269", "email": "user@example.com", "name": "Jane" },
+  "expires_at": 1717200000
+}
+```
+
+Downstream nodes access identity fields via `nodes.exchange.claims.email` or `nodes.exchange.access_token`.

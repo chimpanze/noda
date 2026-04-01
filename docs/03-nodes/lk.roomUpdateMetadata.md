@@ -37,3 +37,36 @@ Replaces the metadata on the specified room. All participants receive a metadata
   }
 }
 ```
+
+### With data flow
+
+A room settings update endpoint merges new settings into the existing metadata and updates the room.
+
+```json
+{
+  "get_meeting": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "meetings",
+      "where": { "id": "{{ input.meeting_id }}" },
+      "required": true
+    }
+  },
+  "update_meta": {
+    "type": "lk.roomUpdateMetadata",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ nodes.get_meeting.room_name }}",
+      "metadata": "{{ toJSON(input.settings) }}"
+    }
+  }
+}
+```
+
+Output stored as `nodes.update_meta`:
+```json
+{ "sid": "RM_abc123", "name": "meeting-d4e5f6", "metadata": "{\"recording\":true}", "num_participants": 4 }
+```
+
+Downstream nodes access the updated room via `nodes.update_meta.metadata`.

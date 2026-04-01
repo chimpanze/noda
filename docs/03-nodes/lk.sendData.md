@@ -46,3 +46,46 @@ Sends a data message to participants in the room via LiveKit's data channel. Use
   }
 }
 ```
+
+### With data flow
+
+A chat message endpoint saves the message to the database, then broadcasts it to all participants in the room.
+
+```json
+{
+  "save_message": {
+    "type": "db.create",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "messages",
+      "data": {
+        "room": "{{ input.room_name }}",
+        "sender_id": "{{ auth.user_id }}",
+        "text": "{{ input.message }}"
+      }
+    }
+  },
+  "broadcast": {
+    "type": "lk.sendData",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}",
+      "data": {
+        "type": "chat",
+        "id": "{{ nodes.save_message.id }}",
+        "message": "{{ input.message }}",
+        "sender": "{{ auth.user_id }}"
+      },
+      "kind": "reliable",
+      "topic": "chat"
+    }
+  }
+}
+```
+
+Output stored as `nodes.broadcast`:
+```json
+{ "sent": true }
+```
+
+Downstream nodes can check `nodes.broadcast.sent` to confirm delivery.

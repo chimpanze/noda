@@ -40,3 +40,43 @@ On success, outputs `{ url, state }`. Use `response.redirect` to send the user t
   }
 }
 ```
+
+### With data flow
+
+A login flow generates a state token, caches it for CSRF verification, then builds the authorization URL and redirects the user.
+
+```json
+{
+  "gen_state": {
+    "type": "transform.set",
+    "config": {
+      "state": "{{ $uuid() }}"
+    }
+  },
+  "cache_state": {
+    "type": "cache.set",
+    "services": { "cache": "redis" },
+    "config": {
+      "key": "{{ 'oidc_state:' + nodes.gen_state.state }}",
+      "value": "1",
+      "ttl": 600
+    }
+  },
+  "build_url": {
+    "type": "oidc.auth_url",
+    "config": {
+      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
+      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
+      "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
+      "state": "{{ nodes.gen_state.state }}"
+    }
+  }
+}
+```
+
+Output stored as `nodes.build_url`:
+```json
+{ "url": "https://accounts.google.com/o/oauth2/v2/auth?client_id=...&state=...", "state": "a1b2c3" }
+```
+
+Downstream nodes use `nodes.build_url.url` to redirect the user via `response.redirect`.

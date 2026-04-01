@@ -33,3 +33,32 @@ Lists all active rooms on the LiveKit server. If `names` is provided, only rooms
   "config": {}
 }
 ```
+
+### With data flow
+
+An admin dashboard endpoint lists all active rooms and returns them with participant counts.
+
+```json
+{
+  "list_rooms": {
+    "type": "lk.roomList",
+    "services": { "livekit": "lk" },
+    "config": {}
+  },
+  "respond": {
+    "type": "response.json",
+    "config": {
+      "body": {
+        "rooms": "{{ nodes.list_rooms.rooms }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.list_rooms`:
+```json
+{ "rooms": [{ "sid": "RM_abc", "name": "meeting-1", "num_participants": 3 }, { "sid": "RM_def", "name": "meeting-2", "num_participants": 1 }] }
+```
+
+Downstream nodes access the list via `nodes.list_rooms.rooms`.

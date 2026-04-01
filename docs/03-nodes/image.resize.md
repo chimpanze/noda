@@ -48,3 +48,41 @@ Reads from `source` storage at `input` path, writes to `destination` storage at 
   }
 }
 ```
+
+### With data flow
+
+An upload handler stores the original path, then a resize node reads it and a response returns the result.
+
+```json
+{
+  "handle_upload": {
+    "type": "upload.handle",
+    "services": { "storage": "uploads" },
+    "config": {
+      "field": "image",
+      "path": "{{ 'originals/' + $uuid() + '.' + input.ext }}"
+    }
+  },
+  "resize": {
+    "type": "image.resize",
+    "services": {
+      "source": "uploads",
+      "destination": "processed"
+    },
+    "config": {
+      "input": "{{ nodes.handle_upload.path }}",
+      "output": "{{ 'resized/' + nodes.handle_upload.name + '.webp' }}",
+      "width": 800,
+      "height": 600,
+      "format": "webp"
+    }
+  }
+}
+```
+
+Output stored as `nodes.resize`:
+```json
+{ "path": "resized/photo.webp", "width": 800, "height": 600, "size": 45200 }
+```
+
+Downstream nodes access fields via `nodes.resize.path` or `nodes.resize.size`.

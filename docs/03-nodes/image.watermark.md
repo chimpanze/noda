@@ -45,3 +45,46 @@ Reads the source image and watermark image from `source` storage, composites the
   }
 }
 ```
+
+### With data flow
+
+A photo processing pipeline resizes the image first, then applies a watermark to the resized output.
+
+```json
+{
+  "resize": {
+    "type": "image.resize",
+    "services": {
+      "source": "uploads",
+      "destination": "processed"
+    },
+    "config": {
+      "input": "{{ input.image_path }}",
+      "output": "{{ 'resized/' + input.image_id + '.jpg' }}",
+      "width": 1200,
+      "height": 800
+    }
+  },
+  "watermark": {
+    "type": "image.watermark",
+    "services": {
+      "source": "processed",
+      "destination": "processed"
+    },
+    "config": {
+      "input": "{{ nodes.resize.path }}",
+      "output": "{{ 'final/' + input.image_id + '.jpg' }}",
+      "watermark": "assets/logo.png",
+      "opacity": 0.3,
+      "position": "bottom-right"
+    }
+  }
+}
+```
+
+Output stored as `nodes.watermark`:
+```json
+{ "path": "final/img_99.jpg", "width": 1200, "height": 800, "size": 102400 }
+```
+
+Downstream nodes access the watermarked image via `nodes.watermark.path`.

@@ -37,3 +37,35 @@ Lists all ingress endpoints. If `room` is provided, only ingress endpoints for t
   }
 }
 ```
+
+### With data flow
+
+A stream management endpoint lists all ingress endpoints for a room and returns them in the response.
+
+```json
+{
+  "list_ingress": {
+    "type": "lk.ingressList",
+    "services": { "livekit": "lk" },
+    "config": {
+      "room": "{{ input.room_name }}"
+    }
+  },
+  "respond": {
+    "type": "response.json",
+    "config": {
+      "body": {
+        "room": "{{ input.room_name }}",
+        "streams": "{{ nodes.list_ingress.items }}"
+      }
+    }
+  }
+}
+```
+
+Output stored as `nodes.list_ingress`:
+```json
+{ "items": [{ "ingress_id": "IN_abc", "url": "rtmp://livekit.example.com/live", "stream_key": "sk_xyz", "room": "stream-1", "input_type": "rtmp" }] }
+```
+
+Downstream nodes access the list via `nodes.list_ingress.items`.
