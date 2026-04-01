@@ -643,15 +643,11 @@ func TestHostDispatcher_AsyncDuplicateLabel(t *testing.T) {
 		Services: []string{"app-cache"},
 	}, dispatcher, testLogger())
 
-	// First call succeeds
-	err := dispatcher.CallAsync(context.Background(), HostCallRequest{
-		Service: "", Operation: "log",
-		Payload: map[string]any{"level": "info", "message": "test"},
-		Label:   "log1",
-	})
+	// Pre-register label directly to avoid race with async goroutine completion
+	err := dispatcher.module.RegisterAsyncLabel("log1")
 	require.NoError(t, err)
 
-	// Duplicate label fails
+	// Duplicate label via CallAsync fails
 	err = dispatcher.CallAsync(context.Background(), HostCallRequest{
 		Service: "", Operation: "log",
 		Payload: map[string]any{"level": "info", "message": "test2"},
