@@ -159,6 +159,7 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	case <-done:
 		return nil
 	case <-ctx.Done():
+		r.logger.Warn("worker shutdown deadline exceeded, some goroutines still running")
 		return ctx.Err()
 	}
 }

@@ -53,7 +53,6 @@ import (
 	"github.com/google/uuid"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
-	oteltrace "go.opentelemetry.io/otel/trace"
 	"gorm.io/gorm"
 )
 
@@ -301,49 +300,19 @@ func newStartCmd() *cobra.Command {
 			// Create and setup server (if requested)
 			var srv *server.Server
 			if runServer {
-				serverOpts := []server.ServerOption{
-					server.WithLogger(rtCtx.Logger),
-					server.WithWorkflowCache(rtCtx.WorkflowCache),
-					server.WithCompiler(rtCtx.Bootstrap.Compiler),
-					server.WithSecretsContext(rtCtx.SecretsCtx),
-				}
-				if metricsOpt != nil {
-					serverOpts = append(serverOpts, metricsOpt)
-				}
-				srv, err = server.NewServer(rtCtx.RC, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Nodes, serverOpts...)
+				srv, err = createServer(rtCtx, metricsOpt)
 				if err != nil {
-					return fmt.Errorf("creating server: %w", err)
-				}
-				if err := srv.Setup(); err != nil {
-					return fmt.Errorf("setting up server: %w", err)
-				}
-				if err := srv.RegisterOpenAPIRoutes(); err != nil {
-					rtCtx.Logger.Warn("OpenAPI generation failed", "error", err.Error())
+					return err
 				}
 			}
 
-			// Create workers if configured and requested (lifecycle manages start)
+			// Create workers (if requested, lifecycle manages start)
 			var workerRuntime *worker.Runtime
-			if runWorkers && len(rtCtx.RC.Workers) > 0 {
-				workerConfigs := worker.ParseWorkerConfigs(rtCtx.RC.Workers)
-				mw := resolveWorkerMiddleware(workerConfigs, 5*time.Minute)
-				var workerTracer oteltrace.Tracer
-				if rtCtx.TraceProvider != nil {
-					workerTracer = rtCtx.TraceProvider.Tracer()
+			if runWorkers {
+				workerRuntime, err = createWorkers(rtCtx)
+				if err != nil {
+					return err
 				}
-				workerRuntime = worker.NewRuntime(
-					workerConfigs,
-					rtCtx.Bootstrap.Services,
-					rtCtx.Bootstrap.Nodes,
-					rtCtx.RC.Workflows,
-					rtCtx.WorkflowCache,
-					mw,
-					rtCtx.Bootstrap.Compiler,
-					workerTracer,
-					rtCtx.Logger,
-					rtCtx.SecretsCtx,
-				)
-				slog.Info("workers configured", "consumers", len(workerConfigs))
 			}
 
 			// Create scheduler (if requested, lifecycle manages start)
@@ -387,6 +356,8 @@ func newStartCmd() *cobra.Command {
 				if err := srv.Start(); err != nil {
 					return err
 				}
+				// Wait for remaining components (workers, services, tracer) to finish shutting down.
+				<-doneCh
 				return nil
 			}
 
@@ -428,31 +399,19 @@ func newDevCmd() *cobra.Command {
 			_, metricsOpt := initMetrics(rtCtx.RC, rtCtx.Logger)
 
 			// Create and setup server with dev options
-			serverOpts := []server.ServerOption{
-				server.WithLogger(rtCtx.Logger),
-				server.WithWorkflowCache(rtCtx.WorkflowCache),
-				server.WithCompiler(rtCtx.Bootstrap.Compiler),
-				server.WithTraceHub(hub),
-				server.WithSecretsContext(rtCtx.SecretsCtx),
-			}
-			if metricsOpt != nil {
-				serverOpts = append(serverOpts, metricsOpt)
-			}
-			srv, err := server.NewServer(rtCtx.RC, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Nodes, serverOpts...)
+			srv, err := createServer(rtCtx, metricsOpt, server.WithTraceHub(hub))
 			if err != nil {
-				return fmt.Errorf("creating server: %w", err)
-			}
-			if err := srv.Setup(); err != nil {
-				return fmt.Errorf("setting up server: %w", err)
-			}
-			if err := srv.RegisterOpenAPIRoutes(); err != nil {
-				rtCtx.Logger.Warn("OpenAPI generation failed", "error", err.Error())
+				return err
 			}
 
 			// Register trace WebSocket endpoint (dev only)
 			trace.RegisterTraceWebSocket(srv.App(), hub, rtCtx.Logger)
 
-			// Start scheduler and wasm (always if configured in dev mode)
+			// Create runtimes (always if configured in dev mode, lifecycle manages start)
+			workerRuntime, err := createWorkers(rtCtx)
+			if err != nil {
+				return err
+			}
 			schedulerRT, err := createScheduler(rtCtx)
 			if err != nil {
 				return err
@@ -510,10 +469,11 @@ func newDevCmd() *cobra.Command {
 
 			// Lifecycle
 			slog.Info("watching for changes", "dir", configDir)
-			_, _, err = setupLifecycle(rtCtx, lifecycleComponents{
-				Server:      srv,
-				Scheduler:   schedulerRT,
-				WasmRuntime: wasmRT,
+			_, doneCh, err := setupLifecycle(rtCtx, lifecycleComponents{
+				Server:        srv,
+				WorkerRuntime: workerRuntime,
+				Scheduler:     schedulerRT,
+				WasmRuntime:   wasmRT,
 				ExtraComponents: []lifecycle.Component{
 					lifecycle.WatcherComponent(fileWatcher, reloader),
 				},
@@ -527,7 +487,12 @@ func newDevCmd() *cobra.Command {
 			slog.Info("dev server starting", "port", srv.Port())
 			slog.Info("trace websocket available", "path", "/ws/trace")
 			slog.Info("editor available", "path", "/editor/")
-			return srv.Start()
+			if err := srv.Start(); err != nil {
+				return err
+			}
+			// Wait for remaining components to finish shutting down.
+			<-doneCh
+			return nil
 		},
 	}
 

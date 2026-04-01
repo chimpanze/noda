@@ -113,7 +113,8 @@ func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
 	modelsDir := e.root.Join("models")
 	migrationsDir := e.root.Join("migrations")
 
-	upSQL, downSQL, err := generate.GenerateMigration(modelsDir, migrationsDir)
+	dialect := e.detectDBDialect()
+	upSQL, downSQL, err := generate.GenerateMigration(modelsDir, dialect)
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": err.Error()})
 	}
@@ -169,6 +170,31 @@ func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
 		"up_path":   e.root.Rel(upPath),
 		"down_path": e.root.Rel(downPath),
 	})
+}
+
+// detectDBDialect inspects the resolved config for a db service driver.
+// Returns "sqlite" if any db service uses the sqlite driver, otherwise "postgres".
+func (e *EditorAPI) detectDBDialect() string {
+	rc := e.resolvedConfig()
+	if rc == nil {
+		return "postgres"
+	}
+	services, _ := rc.Root["services"].(map[string]any)
+	for _, svc := range services {
+		svcMap, ok := svc.(map[string]any)
+		if !ok {
+			continue
+		}
+		pluginName, _ := svcMap["plugin"].(string)
+		if pluginName != "db" && pluginName != "postgres" {
+			continue
+		}
+		cfg, _ := svcMap["config"].(map[string]any)
+		if driver, _ := cfg["driver"].(string); driver == "sqlite" {
+			return "sqlite"
+		}
+	}
+	return "postgres"
 }
 
 // generateCRUD generates route, workflow, and schema files for a model.

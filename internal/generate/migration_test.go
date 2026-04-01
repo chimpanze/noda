@@ -43,7 +43,7 @@ func TestGenerateMigration_QuotedIdentifiers(t *testing.T) {
 	}
 
 	changes := diffModels(old, new)
-	up, down := changesToSQL(changes, new)
+	up, down := changesToSQL(changes, new, "postgres")
 
 	if !strings.Contains(up, `"order"`) {
 		t.Errorf("expected quoted table name in up SQL, got:\n%s", up)
@@ -193,7 +193,7 @@ func TestCreateTableSQL(t *testing.T) {
 		},
 	}
 
-	up, down := createTableSQL(model)
+	up, down := createTableSQL(model, "postgres")
 
 	if !strings.Contains(up, `CREATE TABLE "tasks"`) {
 		t.Errorf("expected CREATE TABLE \"tasks\" in up SQL, got:\n%s", up)
@@ -224,7 +224,7 @@ func TestCreateTableSQL_WithFK(t *testing.T) {
 		},
 	}
 
-	up, _ := createTableSQL(model)
+	up, _ := createTableSQL(model, "postgres")
 
 	if !strings.Contains(up, `FOREIGN KEY ("workspace_id") REFERENCES "workspaces" ("id") ON DELETE CASCADE`) {
 		t.Errorf("expected quoted FK constraint in up SQL, got:\n%s", up)
@@ -242,7 +242,7 @@ func TestCreateTableSQL_ManyToMany(t *testing.T) {
 		},
 	}
 
-	up, _ := createTableSQL(model)
+	up, _ := createTableSQL(model, "postgres")
 
 	if !strings.Contains(up, `CREATE TABLE IF NOT EXISTS "task_tags"`) {
 		t.Errorf("expected quoted junction table in up SQL, got:\n%s", up)
@@ -252,7 +252,6 @@ func TestCreateTableSQL_ManyToMany(t *testing.T) {
 func TestGenerateMigration_Integration(t *testing.T) {
 	dir := t.TempDir()
 	modelsDir := filepath.Join(dir, "models")
-	migrationsDir := filepath.Join(dir, "migrations")
 	if err := os.MkdirAll(modelsDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -271,7 +270,7 @@ func TestGenerateMigration_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	up, down, err := GenerateMigration(modelsDir, migrationsDir)
+	up, down, err := GenerateMigration(modelsDir, "postgres")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -290,12 +289,145 @@ func TestGenerateMigration_Integration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	up2, _, err := GenerateMigration(modelsDir, migrationsDir)
+	up2, _, err := GenerateMigration(modelsDir, "postgres")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if up2 != "" {
 		t.Errorf("expected empty up SQL after snapshot, got: %s", up2)
+	}
+}
+
+func TestSqliteType(t *testing.T) {
+	tests := []struct {
+		col  ColumnDef
+		want string
+	}{
+		{ColumnDef{Type: "uuid"}, "TEXT"},
+		{ColumnDef{Type: "text"}, "TEXT"},
+		{ColumnDef{Type: "varchar"}, "TEXT"},
+		{ColumnDef{Type: "varchar", MaxLength: 100}, "TEXT"},
+		{ColumnDef{Type: "integer"}, "INTEGER"},
+		{ColumnDef{Type: "int"}, "INTEGER"},
+		{ColumnDef{Type: "bigint"}, "INTEGER"},
+		{ColumnDef{Type: "boolean"}, "INTEGER"},
+		{ColumnDef{Type: "bool"}, "INTEGER"},
+		{ColumnDef{Type: "decimal"}, "REAL"},
+		{ColumnDef{Type: "timestamp"}, "TEXT"},
+		{ColumnDef{Type: "json"}, "TEXT"},
+		{ColumnDef{Type: "jsonb"}, "TEXT"},
+		{ColumnDef{Type: "serial"}, "INTEGER"},
+	}
+
+	for _, tt := range tests {
+		got := sqlType(tt.col, "sqlite")
+		if got != tt.want {
+			t.Errorf("sqlType(%q, sqlite) = %q, want %q", tt.col.Type, got, tt.want)
+		}
+	}
+}
+
+func TestCreateTableSQL_SQLite(t *testing.T) {
+	model := &ModelDef{
+		Table: "tasks",
+		Columns: map[string]ColumnDef{
+			"id":     {Type: "uuid", PrimaryKey: true},
+			"title":  {Type: "text", NotNull: true},
+			"active": {Type: "boolean", NotNull: true, Default: "FALSE"},
+		},
+		Timestamps: true,
+		Indexes: []IndexDef{
+			{Columns: []string{"active"}},
+		},
+	}
+
+	up, down := createTableSQL(model, "sqlite")
+
+	if !strings.Contains(up, `"id" TEXT NOT NULL`) {
+		t.Errorf("expected TEXT for uuid in SQLite, got:\n%s", up)
+	}
+	if !strings.Contains(up, `"active" INTEGER NOT NULL`) {
+		t.Errorf("expected INTEGER for boolean in SQLite, got:\n%s", up)
+	}
+	if !strings.Contains(up, `"created_at" TEXT NOT NULL DEFAULT (datetime('now'))`) {
+		t.Errorf("expected SQLite datetime default, got:\n%s", up)
+	}
+	if strings.Contains(down, "CASCADE") {
+		t.Errorf("SQLite DROP TABLE should not use CASCADE, got:\n%s", down)
+	}
+}
+
+func TestCreateTableSQL_SQLite_InlineFK(t *testing.T) {
+	model := &ModelDef{
+		Table: "tasks",
+		Columns: map[string]ColumnDef{
+			"id":           {Type: "uuid", PrimaryKey: true},
+			"workspace_id": {Type: "uuid", NotNull: true},
+		},
+		Relations: map[string]RelDef{
+			"workspace": {Type: "belongsTo", Table: "workspaces", ForeignKey: "workspace_id", OnDelete: "CASCADE"},
+		},
+	}
+
+	up, _ := createTableSQL(model, "sqlite")
+
+	// SQLite should have inline REFERENCES, not ALTER TABLE
+	if !strings.Contains(up, `REFERENCES "workspaces" ("id") ON DELETE CASCADE`) {
+		t.Errorf("expected inline FK reference in SQLite, got:\n%s", up)
+	}
+	if strings.Contains(up, "ALTER TABLE") {
+		t.Errorf("SQLite should not use ALTER TABLE for FKs, got:\n%s", up)
+	}
+}
+
+func TestChangesToSQL_SQLite_AlterColumn(t *testing.T) {
+	changes := []Change{
+		{Type: "alter_column", Table: "users", Column: "name",
+			OldCol: &ColumnDef{Type: "text"},
+			NewCol: &ColumnDef{Type: "varchar", MaxLength: 100}},
+	}
+
+	up, _ := changesToSQL(changes, nil, "sqlite")
+
+	if !strings.Contains(up, "-- ALTER COLUMN not supported in SQLite") {
+		t.Errorf("expected SQLite ALTER COLUMN comment, got:\n%s", up)
+	}
+}
+
+func TestGenerateMigration_SQLite_Integration(t *testing.T) {
+	dir := t.TempDir()
+	modelsDir := filepath.Join(dir, "models")
+	if err := os.MkdirAll(modelsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	model := ModelDef{
+		Table: "files",
+		Columns: map[string]ColumnDef{
+			"id":       {Type: "uuid", PrimaryKey: true},
+			"filename": {Type: "text", NotNull: true},
+			"size":     {Type: "integer", NotNull: true},
+		},
+		Timestamps: true,
+	}
+
+	data, _ := json.MarshalIndent(model, "", "  ")
+	if err := os.WriteFile(filepath.Join(modelsDir, "files.json"), data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	up, down, err := GenerateMigration(modelsDir, "sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(up, `"id" TEXT NOT NULL`) {
+		t.Errorf("expected TEXT for uuid in SQLite up SQL, got:\n%s", up)
+	}
+	if !strings.Contains(up, `(datetime('now'))`) {
+		t.Errorf("expected datetime('now') in SQLite up SQL, got:\n%s", up)
+	}
+	if strings.Contains(down, "CASCADE") {
+		t.Errorf("SQLite down SQL should not contain CASCADE, got:\n%s", down)
 	}
 }
 

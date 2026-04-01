@@ -44,7 +44,7 @@ func TestPlugin_Registration(t *testing.T) {
 	p := &Plugin{}
 	assert.Equal(t, "core.response", p.Name())
 	assert.Equal(t, "response", p.Prefix())
-	assert.Len(t, p.Nodes(), 3)
+	assert.Len(t, p.Nodes(), 4)
 	assert.False(t, p.HasServices())
 }
 

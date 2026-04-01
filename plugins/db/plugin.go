@@ -2,16 +2,19 @@ package db
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
-// Plugin implements the PostgreSQL database plugin.
+// Plugin implements the database plugin (PostgreSQL and SQLite).
 type Plugin struct{}
 
 func (p *Plugin) Name() string   { return "postgres" }
@@ -34,31 +37,36 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 }
 
 func (p *Plugin) CreateService(config map[string]any) (any, error) {
-	url, _ := config["url"].(string)
-	if url == "" {
-		return nil, fmt.Errorf("postgres: missing connection 'url'")
+	driver, _ := config["driver"].(string)
+	if driver == "" {
+		driver = "postgres"
 	}
 
 	gormConfig := &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	}
 
-	db, err := gorm.Open(postgres.Open(url), gormConfig)
+	var db *gorm.DB
+	var err error
+
+	switch driver {
+	case "postgres":
+		db, err = openPostgres(config, gormConfig)
+	case "sqlite":
+		db, err = openSQLite(config, gormConfig)
+	default:
+		return nil, fmt.Errorf("db: unsupported driver %q (supported: postgres, sqlite)", driver)
+	}
 	if err != nil {
-		return nil, fmt.Errorf("postgres: connect: %w", err)
+		return nil, err
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		return nil, fmt.Errorf("postgres: get sql.DB: %w", err)
+		return nil, fmt.Errorf("db: get sql.DB: %w", err)
 	}
 
-	// Sensible defaults (overridden by config below)
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetMaxIdleConns(5)
-	sqlDB.SetConnMaxLifetime(5 * time.Minute)
-
-	// Pool settings from config
+	// Pool settings from config (defaults set per-driver above)
 	if v, ok := plugin.ToInt(config["max_open"]); ok {
 		sqlDB.SetMaxOpenConns(v)
 	}
@@ -70,6 +78,65 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 			sqlDB.SetConnMaxLifetime(d)
 		}
 	}
+
+	return db, nil
+}
+
+func openPostgres(config map[string]any, gormConfig *gorm.Config) (*gorm.DB, error) {
+	url, _ := config["url"].(string)
+	if url == "" {
+		return nil, fmt.Errorf("db: postgres: missing connection 'url'")
+	}
+
+	db, err := gorm.Open(postgres.Open(url), gormConfig)
+	if err != nil {
+		return nil, fmt.Errorf("db: postgres: connect: %w", err)
+	}
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("db: postgres: get sql.DB: %w", err)
+	}
+
+	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetMaxIdleConns(5)
+	sqlDB.SetConnMaxLifetime(5 * time.Minute)
+
+	return db, nil
+}
+
+func openSQLite(config map[string]any, gormConfig *gorm.Config) (*gorm.DB, error) {
+	path, _ := config["path"].(string)
+	if path == "" {
+		return nil, fmt.Errorf("db: sqlite: missing 'path'")
+	}
+
+	// Ensure parent directory exists.
+	if dir := filepath.Dir(path); dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("db: sqlite: create directory: %w", err)
+		}
+	}
+
+	db, err := gorm.Open(sqlite.Open(path), gormConfig)
+	if err != nil {
+		return nil, fmt.Errorf("db: sqlite: open: %w", err)
+	}
+
+	// Enable WAL mode for better concurrent read performance.
+	db.Exec("PRAGMA journal_mode=WAL")
+	// Enable foreign key enforcement (off by default in SQLite).
+	db.Exec("PRAGMA foreign_keys=ON")
+
+	sqlDB, err := db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("db: sqlite: get sql.DB: %w", err)
+	}
+
+	// SQLite only supports a single writer; keep pool small.
+	sqlDB.SetMaxOpenConns(1)
+	sqlDB.SetMaxIdleConns(1)
+	sqlDB.SetConnMaxLifetime(0)
 
 	return db, nil
 }

@@ -205,10 +205,68 @@ func createWasm(rtCtx *runtimeContext) (*wasm.Runtime, error) {
 	return rt, nil
 }
 
+// createWorkers creates the worker runtime without starting it.
+// The lifecycle manager handles starting. Returns nil, nil if no workers are configured.
+func createWorkers(rtCtx *runtimeContext) (*worker.Runtime, error) {
+	if len(rtCtx.RC.Workers) == 0 {
+		return nil, nil
+	}
+
+	workerConfigs := worker.ParseWorkerConfigs(rtCtx.RC.Workers)
+	mw := resolveWorkerMiddleware(workerConfigs, 5*time.Minute)
+	var tracer oteltrace.Tracer
+	if rtCtx.TraceProvider != nil {
+		tracer = rtCtx.TraceProvider.Tracer()
+	}
+
+	rt := worker.NewRuntime(
+		workerConfigs,
+		rtCtx.Bootstrap.Services,
+		rtCtx.Bootstrap.Nodes,
+		rtCtx.RC.Workflows,
+		rtCtx.WorkflowCache,
+		mw,
+		rtCtx.Bootstrap.Compiler,
+		tracer,
+		rtCtx.Logger,
+		rtCtx.SecretsCtx,
+	)
+	slog.Info("workers configured", "consumers", len(workerConfigs))
+	return rt, nil
+}
+
+// createServer creates the HTTP server, runs Setup, and registers OpenAPI routes.
+// The server is returned ready but not started. Extra options (e.g. WithTraceHub)
+// are appended after the base options.
+func createServer(rtCtx *runtimeContext, metricsOpt server.ServerOption, extraOpts ...server.ServerOption) (*server.Server, error) {
+	serverOpts := []server.ServerOption{
+		server.WithLogger(rtCtx.Logger),
+		server.WithWorkflowCache(rtCtx.WorkflowCache),
+		server.WithCompiler(rtCtx.Bootstrap.Compiler),
+		server.WithSecretsContext(rtCtx.SecretsCtx),
+	}
+	if metricsOpt != nil {
+		serverOpts = append(serverOpts, metricsOpt)
+	}
+	serverOpts = append(serverOpts, extraOpts...)
+
+	srv, err := server.NewServer(rtCtx.RC, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Nodes, serverOpts...)
+	if err != nil {
+		return nil, fmt.Errorf("creating server: %w", err)
+	}
+	if err := srv.Setup(); err != nil {
+		return nil, fmt.Errorf("setting up server: %w", err)
+	}
+	if err := srv.RegisterOpenAPIRoutes(); err != nil {
+		rtCtx.Logger.Warn("OpenAPI generation failed", "error", err.Error())
+	}
+	return srv, nil
+}
+
 // lifecycleComponents holds the optional runtimes to register with the lifecycle manager.
 type lifecycleComponents struct {
 	Server        *server.Server
-	WorkerRuntime *worker.Runtime // nil in dev mode
+	WorkerRuntime *worker.Runtime
 	Scheduler     *scheduler.Runtime
 	WasmRuntime   *wasm.Runtime
 	// ExtraComponents are registered after wasm but before conn managers.
@@ -225,41 +283,59 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 	lc.SetRollbackDeadline(deadline)
 
 	doneCh := make(chan struct{})
-	sigCh := make(chan os.Signal, 1)
+	sigCh := make(chan os.Signal, 2)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigCh
 		slog.Info("shutting down")
+		go func() {
+			<-sigCh
+			slog.Warn("forced shutdown — received second signal")
+			os.Exit(1)
+		}()
 		lc.StopAll(deadline)
 		close(doneCh)
 	}()
 
-	// Register components in dependency order (shutdown is reverse).
+	// Register components so that shutdown (reverse order) matches the spec:
+	// 1. Stop HTTP server  2. Stop workers  3. Stop scheduler  4. Stop Wasm
+	// 5. Stop file watcher  6. Close connections  7. Close services  8. Flush telemetry
+	if rtCtx.TraceProvider != nil {
+		lc.Register(lifecycle.TracerComponent(rtCtx.TraceProvider))
+	}
+	lc.Register(lifecycle.ServiceRegistryComponent(rtCtx.Bootstrap.Services))
 	if comps.Server != nil {
-		lc.Register(lifecycle.ServerComponent(comps.Server))
-	}
-	if comps.WorkerRuntime != nil {
-		lc.Register(lifecycle.WorkerComponent(comps.WorkerRuntime))
-	}
-	if comps.Scheduler != nil {
-		lc.Register(lifecycle.SchedulerComponent(comps.Scheduler))
-	}
-	if comps.WasmRuntime != nil {
-		lc.Register(lifecycle.WasmComponent(comps.WasmRuntime))
+		lc.Register(lifecycle.ConnManagerComponent(comps.Server.ConnManagers()))
 	}
 	for _, c := range comps.ExtraComponents {
 		lc.Register(c)
 	}
-	if comps.Server != nil {
-		lc.Register(lifecycle.ConnManagerComponent(comps.Server.ConnManagers()))
+	if comps.WasmRuntime != nil {
+		lc.Register(lifecycle.WasmComponent(comps.WasmRuntime))
 	}
-	lc.Register(lifecycle.ServiceRegistryComponent(rtCtx.Bootstrap.Services))
-	if rtCtx.TraceProvider != nil {
-		lc.Register(lifecycle.TracerComponent(rtCtx.TraceProvider))
+	if comps.Scheduler != nil {
+		lc.Register(lifecycle.SchedulerComponent(comps.Scheduler))
+	}
+	if comps.WorkerRuntime != nil {
+		lc.Register(lifecycle.WorkerComponent(comps.WorkerRuntime))
+	}
+	if comps.Server != nil {
+		lc.Register(lifecycle.ServerComponent(comps.Server))
 	}
 
 	if err := lc.StartAll(context.Background()); err != nil {
 		return nil, nil, fmt.Errorf("lifecycle start: %w", err)
+	}
+
+	// Verify all services are reachable before marking ready (spec step 12).
+	if healthErrs := rtCtx.Bootstrap.Services.HealthCheckAll(); len(healthErrs) > 0 {
+		var msgs []string
+		for name, err := range healthErrs {
+			msgs = append(msgs, fmt.Sprintf("%s: %s", name, err))
+		}
+		lc.StopAll(parseShutdownDeadline(rtCtx.RC, 30*time.Second))
+		close(doneCh)
+		return nil, nil, fmt.Errorf("startup health check failed:\n  %s", strings.Join(msgs, "\n  "))
 	}
 
 	return lc, doneCh, nil

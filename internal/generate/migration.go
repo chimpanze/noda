@@ -111,7 +111,12 @@ type Change struct {
 }
 
 // GenerateMigration compares current models against a snapshot and produces SQL.
-func GenerateMigration(modelsDir, _ string) (upSQL, downSQL string, err error) {
+// dialect should be "postgres" or "sqlite". An empty string defaults to "postgres".
+func GenerateMigration(modelsDir, dialect string) (upSQL, downSQL string, err error) {
+	if dialect == "" {
+		dialect = "postgres"
+	}
+
 	current, err := loadModels(modelsDir)
 	if err != nil {
 		return "", "", fmt.Errorf("loading models: %w", err)
@@ -128,7 +133,7 @@ func GenerateMigration(modelsDir, _ string) (upSQL, downSQL string, err error) {
 		return "", "", nil
 	}
 
-	up, down := changesToSQL(changes, current)
+	up, down := changesToSQL(changes, current, dialect)
 	return up, down, nil
 }
 
@@ -370,6 +375,18 @@ func indexSet(indexes []IndexDef) map[string]IndexDef {
 
 // pgType maps model column types to PostgreSQL types.
 func pgType(col ColumnDef) string {
+	return sqlType(col, "postgres")
+}
+
+// sqlType maps model column types to SQL types for the given dialect.
+func sqlType(col ColumnDef, dialect string) string {
+	if dialect == "sqlite" {
+		return sqliteType(col)
+	}
+	return postgresType(col)
+}
+
+func postgresType(col ColumnDef) string {
 	switch col.Type {
 	case "uuid":
 		return "UUID"
@@ -406,7 +423,58 @@ func pgType(col ColumnDef) string {
 	}
 }
 
-func changesToSQL(changes []Change, allModels map[string]ModelDef) (string, string) {
+func sqliteType(col ColumnDef) string {
+	switch col.Type {
+	case "uuid":
+		return "TEXT"
+	case "text":
+		return "TEXT"
+	case "varchar":
+		return "TEXT"
+	case "integer", "int":
+		return "INTEGER"
+	case "bigint":
+		return "INTEGER"
+	case "boolean", "bool":
+		return "INTEGER"
+	case "decimal":
+		return "REAL"
+	case "timestamp":
+		return "TEXT"
+	case "json", "jsonb":
+		return "TEXT"
+	case "serial":
+		return "INTEGER"
+	default:
+		return "TEXT"
+	}
+}
+
+// defaultNow returns the dialect-specific default value for the current timestamp.
+func defaultNow(dialect string) string {
+	if dialect == "sqlite" {
+		return "(datetime('now'))"
+	}
+	return "NOW()"
+}
+
+// timestampType returns the dialect-specific timestamp column type.
+func timestampType(dialect string) string {
+	if dialect == "sqlite" {
+		return "TEXT"
+	}
+	return "TIMESTAMPTZ"
+}
+
+// fkColumnType returns the dialect-specific type for a foreign key column (used in junction tables).
+func fkColumnType(dialect string) string {
+	if dialect == "sqlite" {
+		return "TEXT"
+	}
+	return "UUID"
+}
+
+func changesToSQL(changes []Change, allModels map[string]ModelDef, dialect string) (string, string) {
 	var upParts, downParts []string
 
 	// Sort changes: create_table first, drop_table last, FK constraints after tables
@@ -441,24 +509,32 @@ func changesToSQL(changes []Change, allModels map[string]ModelDef) (string, stri
 	for _, ch := range changes {
 		switch ch.Type {
 		case "create_table":
-			up, down := createTableSQL(ch.Model)
+			up, down := createTableSQL(ch.Model, dialect)
 			upParts = append(upParts, up)
 			downParts = append([]string{down}, downParts...)
 
 		case "drop_table":
-			upParts = append(upParts, fmt.Sprintf("DROP TABLE IF EXISTS %s;", quoteIdent(ch.Table)))
+			if dialect == "sqlite" {
+				upParts = append(upParts, fmt.Sprintf("DROP TABLE IF EXISTS %s;", quoteIdent(ch.Table)))
+			} else {
+				upParts = append(upParts, fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", quoteIdent(ch.Table)))
+			}
 			if ch.Model != nil {
-				recreate, _ := createTableSQL(ch.Model)
+				recreate, _ := createTableSQL(ch.Model, dialect)
 				downParts = append(downParts, recreate)
 			}
 
 		case "add_column":
-			colSQL := fmt.Sprintf("%s %s", quoteIdent(ch.Column), pgType(*ch.NewCol))
+			colSQL := fmt.Sprintf("%s %s", quoteIdent(ch.Column), sqlType(*ch.NewCol, dialect))
 			if ch.NewCol.NotNull {
 				colSQL += " NOT NULL"
 			}
 			if ch.NewCol.Default != "" {
-				colSQL += " DEFAULT " + ch.NewCol.Default
+				def := ch.NewCol.Default
+				if dialect == "sqlite" && strings.EqualFold(def, "NOW()") {
+					def = defaultNow("sqlite")
+				}
+				colSQL += " DEFAULT " + def
 			}
 			upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s;", quoteIdent(ch.Table), colSQL))
 			downParts = append([]string{fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
@@ -466,7 +542,7 @@ func changesToSQL(changes []Change, allModels map[string]ModelDef) (string, stri
 		case "drop_column":
 			upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s DROP COLUMN %s;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
 			if ch.OldCol != nil {
-				colSQL := fmt.Sprintf("%s %s", quoteIdent(ch.Column), pgType(*ch.OldCol))
+				colSQL := fmt.Sprintf("%s %s", quoteIdent(ch.Column), sqlType(*ch.OldCol, dialect))
 				if ch.OldCol.NotNull {
 					colSQL += " NOT NULL"
 				}
@@ -477,29 +553,34 @@ func changesToSQL(changes []Change, allModels map[string]ModelDef) (string, stri
 			}
 
 		case "alter_column":
-			if ch.OldCol.Type != ch.NewCol.Type {
-				upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), pgType(*ch.NewCol)))
-				downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), pgType(*ch.OldCol))}, downParts...)
-			}
-			if ch.OldCol.NotNull != ch.NewCol.NotNull {
-				if ch.NewCol.NotNull {
-					upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
-					downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
-				} else {
-					upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
-					downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
+			if dialect == "sqlite" {
+				upParts = append(upParts, fmt.Sprintf("-- ALTER COLUMN not supported in SQLite; recreate table %s manually", quoteIdent(ch.Table)))
+				downParts = append([]string{fmt.Sprintf("-- ALTER COLUMN not supported in SQLite; recreate table %s manually", quoteIdent(ch.Table))}, downParts...)
+			} else {
+				if ch.OldCol.Type != ch.NewCol.Type {
+					upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), sqlType(*ch.NewCol, dialect)))
+					downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), sqlType(*ch.OldCol, dialect))}, downParts...)
 				}
-			}
-			if ch.OldCol.Default != ch.NewCol.Default {
-				if ch.NewCol.Default != "" {
-					upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), ch.NewCol.Default))
-				} else {
-					upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
+				if ch.OldCol.NotNull != ch.NewCol.NotNull {
+					if ch.NewCol.NotNull {
+						upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
+						downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
+					} else {
+						upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
+						downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET NOT NULL;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
+					}
 				}
-				if ch.OldCol.Default != "" {
-					downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), ch.OldCol.Default)}, downParts...)
-				} else {
-					downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
+				if ch.OldCol.Default != ch.NewCol.Default {
+					if ch.NewCol.Default != "" {
+						upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), ch.NewCol.Default))
+					} else {
+						upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT;", quoteIdent(ch.Table), quoteIdent(ch.Column)))
+					}
+					if ch.OldCol.Default != "" {
+						downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s SET DEFAULT %s;", quoteIdent(ch.Table), quoteIdent(ch.Column), ch.OldCol.Default)}, downParts...)
+					} else {
+						downParts = append([]string{fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s DROP DEFAULT;", quoteIdent(ch.Table), quoteIdent(ch.Column))}, downParts...)
+					}
 				}
 			}
 
@@ -522,33 +603,52 @@ func changesToSQL(changes []Change, allModels map[string]ModelDef) (string, stri
 			downParts = append(downParts, fmt.Sprintf("CREATE %sINDEX %s ON %s (%s);", unique, quoteIdent(idxName), quoteIdent(ch.Table), strings.Join(quoteIdentList(ch.Index.Columns), ", ")))
 
 		case "add_fk":
-			fkName := fmt.Sprintf("fk_%s_%s", ch.Table, ch.RelName)
-			onDelete := ""
-			if ch.Relation.OnDelete != "" {
-				onDelete = " ON DELETE " + ch.Relation.OnDelete
+			if dialect == "sqlite" {
+				// SQLite does not support ALTER TABLE ADD CONSTRAINT; FKs are inline in CREATE TABLE
+				upParts = append(upParts, fmt.Sprintf("-- FK %s on %s: SQLite requires foreign keys inline in CREATE TABLE", ch.RelName, quoteIdent(ch.Table)))
+			} else {
+				fkName := fmt.Sprintf("fk_%s_%s", ch.Table, ch.RelName)
+				onDelete := ""
+				if ch.Relation.OnDelete != "" {
+					onDelete = " ON DELETE " + ch.Relation.OnDelete
+				}
+				upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
+					quoteIdent(ch.Table), quoteIdent(fkName), quoteIdent(ch.Relation.ForeignKey), quoteIdent(ch.Relation.Table), quoteIdent("id"), onDelete))
+				downParts = append([]string{fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", quoteIdent(ch.Table), quoteIdent(fkName))}, downParts...)
 			}
-			upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
-				quoteIdent(ch.Table), quoteIdent(fkName), quoteIdent(ch.Relation.ForeignKey), quoteIdent(ch.Relation.Table), quoteIdent("id"), onDelete))
-			downParts = append([]string{fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", quoteIdent(ch.Table), quoteIdent(fkName))}, downParts...)
 
 		case "drop_fk":
-			fkName := fmt.Sprintf("fk_%s_%s", ch.Table, ch.RelName)
-			upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", quoteIdent(ch.Table), quoteIdent(fkName)))
-			onDelete := ""
-			if ch.Relation.OnDelete != "" {
-				onDelete = " ON DELETE " + ch.Relation.OnDelete
+			if dialect == "sqlite" {
+				upParts = append(upParts, fmt.Sprintf("-- DROP FK %s on %s: SQLite requires table recreation", ch.RelName, quoteIdent(ch.Table)))
+			} else {
+				fkName := fmt.Sprintf("fk_%s_%s", ch.Table, ch.RelName)
+				upParts = append(upParts, fmt.Sprintf("ALTER TABLE %s DROP CONSTRAINT IF EXISTS %s;", quoteIdent(ch.Table), quoteIdent(fkName)))
+				onDelete := ""
+				if ch.Relation.OnDelete != "" {
+					onDelete = " ON DELETE " + ch.Relation.OnDelete
+				}
+				downParts = append(downParts, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
+					quoteIdent(ch.Table), quoteIdent(fkName), quoteIdent(ch.Relation.ForeignKey), quoteIdent(ch.Relation.Table), quoteIdent("id"), onDelete))
 			}
-			downParts = append(downParts, fmt.Sprintf("ALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
-				quoteIdent(ch.Table), quoteIdent(fkName), quoteIdent(ch.Relation.ForeignKey), quoteIdent(ch.Relation.Table), quoteIdent("id"), onDelete))
 		}
 	}
 
 	return strings.Join(upParts, "\n"), strings.Join(downParts, "\n")
 }
 
-func createTableSQL(model *ModelDef) (string, string) {
+func createTableSQL(model *ModelDef, dialect string) (string, string) {
 	var lines []string
 	var pkCols []string
+
+	// Build a map of FK columns for inline REFERENCES (SQLite)
+	fkRefs := make(map[string]RelDef)
+	if dialect == "sqlite" {
+		for _, rel := range model.Relations {
+			if rel.Type == "belongsTo" {
+				fkRefs[rel.ForeignKey] = rel
+			}
+		}
+	}
 
 	// Sort columns for deterministic output
 	colNames := make([]string, 0, len(model.Columns))
@@ -559,7 +659,7 @@ func createTableSQL(model *ModelDef) (string, string) {
 
 	for _, name := range colNames {
 		col := model.Columns[name]
-		line := fmt.Sprintf("  %s %s", quoteIdent(name), pgType(col))
+		line := fmt.Sprintf("  %s %s", quoteIdent(name), sqlType(col, dialect))
 		if col.PrimaryKey {
 			pkCols = append(pkCols, name)
 		}
@@ -569,18 +669,28 @@ func createTableSQL(model *ModelDef) (string, string) {
 		if col.Default != "" {
 			line += " DEFAULT " + col.Default
 		}
+		// SQLite: inline FK references
+		if rel, ok := fkRefs[name]; ok {
+			onDelete := ""
+			if rel.OnDelete != "" {
+				onDelete = " ON DELETE " + rel.OnDelete
+			}
+			line += fmt.Sprintf(" REFERENCES %s (%s)%s", quoteIdent(rel.Table), quoteIdent("id"), onDelete)
+		}
 		lines = append(lines, line)
 	}
 
 	// Timestamps
 	if model.Timestamps {
-		lines = append(lines, fmt.Sprintf("  %s TIMESTAMPTZ NOT NULL DEFAULT NOW()", quoteIdent("created_at")))
-		lines = append(lines, fmt.Sprintf("  %s TIMESTAMPTZ NOT NULL DEFAULT NOW()", quoteIdent("updated_at")))
+		tsType := timestampType(dialect)
+		tsDefault := defaultNow(dialect)
+		lines = append(lines, fmt.Sprintf("  %s %s NOT NULL DEFAULT %s", quoteIdent("created_at"), tsType, tsDefault))
+		lines = append(lines, fmt.Sprintf("  %s %s NOT NULL DEFAULT %s", quoteIdent("updated_at"), tsType, tsDefault))
 	}
 
 	// Soft delete
 	if model.SoftDelete {
-		lines = append(lines, fmt.Sprintf("  %s TIMESTAMPTZ", quoteIdent("deleted_at")))
+		lines = append(lines, fmt.Sprintf("  %s %s", quoteIdent("deleted_at"), timestampType(dialect)))
 	}
 
 	// Primary key
@@ -600,7 +710,30 @@ func createTableSQL(model *ModelDef) (string, string) {
 		up += fmt.Sprintf("\nCREATE %sINDEX %s ON %s (%s);", unique, quoteIdent(idxName), quoteIdent(model.Table), strings.Join(quoteIdentList(idx.Columns), ", "))
 	}
 
-	// FK constraints from belongsTo relations
+	// FK constraints from belongsTo relations (PostgreSQL only — SQLite uses inline REFERENCES above)
+	if dialect != "sqlite" {
+		relNames := make([]string, 0, len(model.Relations))
+		for name := range model.Relations {
+			relNames = append(relNames, name)
+		}
+		sort.Strings(relNames)
+
+		for _, name := range relNames {
+			rel := model.Relations[name]
+			if rel.Type != "belongsTo" {
+				continue
+			}
+			fkName := fmt.Sprintf("fk_%s_%s", model.Table, name)
+			onDelete := ""
+			if rel.OnDelete != "" {
+				onDelete = " ON DELETE " + rel.OnDelete
+			}
+			up += fmt.Sprintf("\nALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
+				quoteIdent(model.Table), quoteIdent(fkName), quoteIdent(rel.ForeignKey), quoteIdent(rel.Table), quoteIdent("id"), onDelete)
+		}
+	}
+
+	// Junction tables for manyToMany
 	relNames := make([]string, 0, len(model.Relations))
 	for name := range model.Relations {
 		relNames = append(relNames, name)
@@ -609,31 +742,22 @@ func createTableSQL(model *ModelDef) (string, string) {
 
 	for _, name := range relNames {
 		rel := model.Relations[name]
-		if rel.Type != "belongsTo" {
-			continue
-		}
-		fkName := fmt.Sprintf("fk_%s_%s", model.Table, name)
-		onDelete := ""
-		if rel.OnDelete != "" {
-			onDelete = " ON DELETE " + rel.OnDelete
-		}
-		up += fmt.Sprintf("\nALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
-			quoteIdent(model.Table), quoteIdent(fkName), quoteIdent(rel.ForeignKey), quoteIdent(rel.Table), quoteIdent("id"), onDelete)
-	}
-
-	// Junction tables for manyToMany
-	for _, name := range relNames {
-		rel := model.Relations[name]
 		if rel.Type != "manyToMany" || rel.Junction == "" {
 			continue
 		}
-		up += fmt.Sprintf("\nCREATE TABLE IF NOT EXISTS %s (\n  %s UUID NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  %s UUID NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  PRIMARY KEY (%s, %s)\n);",
-			quoteIdent(rel.Junction), quoteIdent(rel.LocalKey), quoteIdent(model.Table), quoteIdent("id"),
-			quoteIdent(rel.ForeignKey), quoteIdent(rel.Table), quoteIdent("id"),
+		fkType := fkColumnType(dialect)
+		up += fmt.Sprintf("\nCREATE TABLE IF NOT EXISTS %s (\n  %s %s NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  %s %s NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  PRIMARY KEY (%s, %s)\n);",
+			quoteIdent(rel.Junction), quoteIdent(rel.LocalKey), fkType, quoteIdent(model.Table), quoteIdent("id"),
+			quoteIdent(rel.ForeignKey), fkType, quoteIdent(rel.Table), quoteIdent("id"),
 			quoteIdent(rel.LocalKey), quoteIdent(rel.ForeignKey))
 	}
 
-	down := fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", quoteIdent(model.Table))
+	var down string
+	if dialect == "sqlite" {
+		down = fmt.Sprintf("DROP TABLE IF EXISTS %s;", quoteIdent(model.Table))
+	} else {
+		down = fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", quoteIdent(model.Table))
+	}
 
 	return up, down
 }
