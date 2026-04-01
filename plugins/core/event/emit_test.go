@@ -355,6 +355,40 @@ func TestEmit_TopicExpression(t *testing.T) {
 	assert.Equal(t, "resolved-topic", streamSvc.published[0].topic)
 }
 
+func TestEmit_PayloadMapExpressionsResolved(t *testing.T) {
+	exec := &emitExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) {
+		switch expr {
+		case "{{ nodes.upload.path }}":
+			return "/files/abc/photo.jpg", nil
+		case "{{ nodes.upload.content_type }}":
+			return "image/jpeg", nil
+		default:
+			return expr, nil
+		}
+	}}
+	streamSvc := &mockStreamService{}
+
+	output, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"mode":  "stream",
+			"topic": "files.thumbnail",
+			"payload": map[string]any{
+				"path":         "{{ nodes.upload.path }}",
+				"content_type": "{{ nodes.upload.content_type }}",
+			},
+		},
+		map[string]any{"stream": streamSvc},
+	)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+
+	require.Len(t, streamSvc.published, 1)
+	payload := streamSvc.published[0].payload.(map[string]any)
+	assert.Equal(t, "/files/abc/photo.jpg", payload["path"])
+	assert.Equal(t, "image/jpeg", payload["content_type"])
+}
+
 func TestEmit_WithRealRedisStream(t *testing.T) {
 	mr := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: mr.Addr()})

@@ -7,6 +7,7 @@ COPY editor/package.json editor/package-lock.json* ./
 RUN npm ci
 
 COPY editor/ .
+COPY docs/ /docs
 RUN npm run build
 
 # Go builder stage

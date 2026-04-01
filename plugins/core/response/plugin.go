@@ -13,6 +13,7 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 		{Descriptor: &jsonDescriptor{}, Factory: newJSONExecutor},
 		{Descriptor: &redirectDescriptor{}, Factory: newRedirectExecutor},
 		{Descriptor: &errorDescriptor{}, Factory: newErrorExecutor},
+		{Descriptor: &fileDescriptor{}, Factory: newFileExecutor},
 	}
 }
 

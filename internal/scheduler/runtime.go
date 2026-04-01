@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"slices"
 	"sync"
 	"time"
@@ -189,6 +190,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			r.logger.Error("scheduler: job panicked",
 				"schedule_id", sc.ID,
 				"panic", fmt.Sprintf("%v", rv),
+				"stack", string(debug.Stack()),
 			)
 			r.recordRun(JobRun{
 				ScheduleID: sc.ID,
@@ -362,7 +364,9 @@ func (r *Runtime) recordRun(run JobRun) {
 	defer r.mu.Unlock()
 	r.history = append(r.history, run)
 	if len(r.history) > maxHistoryEntries {
-		// Drop the oldest entry (front of the slice)
+		if r.logger != nil {
+			r.logger.Info("scheduler: job history capped", "max", maxHistoryEntries)
+		}
 		r.history = r.history[len(r.history)-maxHistoryEntries:]
 	}
 }

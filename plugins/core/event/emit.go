@@ -55,7 +55,7 @@ func (e *emitExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("event.emit: %w", err)
 	}
 
-	payload, err := plugin.ResolveAny(nCtx, config, "payload")
+	payload, err := plugin.ResolveDeepAny(nCtx, config, "payload")
 	if err != nil {
 		return "", nil, fmt.Errorf("event.emit: %w", err)
 	}

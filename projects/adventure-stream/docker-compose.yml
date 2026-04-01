@@ -25,3 +25,11 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  caddy:
+    image: caddy
+    ports:
+      - "8081:80"
+    volumes:
+      - ./frontend/dist:/srv
+      - ./Caddyfile:/etc/caddy/Caddyfile

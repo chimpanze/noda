@@ -34,6 +34,11 @@ func writeHTTPResponse(c fiber.Ctx, resp *api.HTTPResponse) error {
 		return c.Send(nil)
 	}
 
+	// Binary body (e.g. from response.file) — send raw bytes.
+	if b, ok := resp.Body.([]byte); ok {
+		return c.Send(b)
+	}
+
 	return c.JSON(resp.Body)
 }
 

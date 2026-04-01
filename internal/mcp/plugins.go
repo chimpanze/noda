@@ -5,6 +5,7 @@ import (
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
+	coreoidc "github.com/chimpanze/noda/plugins/core/oidc"
 	"github.com/chimpanze/noda/plugins/core/response"
 	coresse "github.com/chimpanze/noda/plugins/core/sse"
 	corestorage "github.com/chimpanze/noda/plugins/core/storage"
@@ -14,12 +15,11 @@ import (
 	corewasm "github.com/chimpanze/noda/plugins/core/wasm"
 	"github.com/chimpanze/noda/plugins/core/workflow"
 	corews "github.com/chimpanze/noda/plugins/core/ws"
-	coreoidc "github.com/chimpanze/noda/plugins/core/oidc"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
-	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
+	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 )
 
 // corePlugins returns all plugins that provide node types.
