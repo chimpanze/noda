@@ -62,3 +62,4 @@ Thumbs.db
 /projects/adventure-stream/frontend/node_modules/
 /projects/adventure-stream/frontend/dist/
 /docs/superpowers/
+/.worktrees/
