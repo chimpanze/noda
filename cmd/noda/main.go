@@ -44,7 +44,6 @@ import (
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
-	imageplugin "github.com/chimpanze/noda/plugins/image"
 	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
@@ -55,6 +54,10 @@ import (
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
+
+// optionalPlugins holds plugins registered via build-tagged init() functions.
+// The image plugin is added here when built without the noimage tag.
+var optionalPlugins []api.Plugin
 
 // Build info set at build time via -ldflags.
 var (
@@ -728,7 +731,7 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 // (for the test runner, which only needs nodes) and registerCorePlugins
 // (for the full runtime, which also needs service-only plugins).
 func corePlugins() []api.Plugin {
-	return []api.Plugin{
+	plugins := []api.Plugin{
 		&control.Plugin{},
 		&transform.Plugin{},
 		&util.Plugin{},
@@ -739,7 +742,6 @@ func corePlugins() []api.Plugin {
 		&event.Plugin{},
 		&corestorage.Plugin{},
 		&upload.Plugin{},
-		&imageplugin.Plugin{},
 		&httpplugin.Plugin{},
 		&emailplugin.Plugin{},
 		&corews.Plugin{},
@@ -748,6 +750,7 @@ func corePlugins() []api.Plugin {
 		&coreoidc.Plugin{},
 		&livekitplugin.Plugin{},
 	}
+	return append(plugins, optionalPlugins...)
 }
 
 // serviceOnlyPlugins returns plugins that provide services but no nodes

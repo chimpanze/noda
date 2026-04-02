@@ -18,15 +18,17 @@ import (
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
-	imageplugin "github.com/chimpanze/noda/plugins/image"
 	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 )
+
+// optionalPlugins holds plugins registered via build-tagged init() functions.
+var optionalPlugins []api.Plugin
 
 // corePlugins returns all plugins that provide node types.
 // This mirrors cmd/noda/main.go corePlugins() but is self-contained
 // so the MCP package has no dependency on cmd/noda.
 func corePlugins() []api.Plugin {
-	return []api.Plugin{
+	plugins := []api.Plugin{
 		&control.Plugin{},
 		&transform.Plugin{},
 		&util.Plugin{},
@@ -37,7 +39,6 @@ func corePlugins() []api.Plugin {
 		&event.Plugin{},
 		&corestorage.Plugin{},
 		&upload.Plugin{},
-		&imageplugin.Plugin{},
 		&httpplugin.Plugin{},
 		&emailplugin.Plugin{},
 		&corews.Plugin{},
@@ -46,4 +47,5 @@ func corePlugins() []api.Plugin {
 		&coreoidc.Plugin{},
 		&livekitplugin.Plugin{},
 	}
+	return append(plugins, optionalPlugins...)
 }
