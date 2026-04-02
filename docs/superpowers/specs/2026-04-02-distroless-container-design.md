@@ -104,10 +104,9 @@ A `noimage` build tag conditionally excludes the image plugin, following the exi
 
 ### Go code changes
 
-1. **Default build** — `go build ./cmd/noda` (no `noimage` tag) still compiles with CGO and includes the image plugin. Existing tests pass: `go test ./cmd/noda/... ./internal/mcp/...`.
+1. **Default build** — `go build ./cmd/noda` (no `noimage` tag) still compiles with CGO and includes the image plugin.
 2. **Noimage build** — `CGO_ENABLED=0 go build -tags noimage ./cmd/noda` compiles successfully as a static binary.
-3. **Noimage tests** — `CGO_ENABLED=0 go test -tags noimage ./cmd/noda/... ./internal/mcp/...` passes. The image plugin is not registered.
-4. **Full test suite** — `go test ./...` still passes without regressions.
+3. **Full test suite** — `go test ./...` still passes without regressions (tests always run under the default build, never with `noimage`).
 
 ### Docker changes
 
