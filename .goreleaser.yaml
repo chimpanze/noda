@@ -1,12 +1,6 @@
 # yaml-language-server: $schema=https://goreleaser.com/static/schema.json
 version: 2
 
-before:
-  hooks:
-    - sh -c "cd editor && npm ci"
-    - sh -c "cd editor && npm run build"
-    - sh -c "rm -rf editorfs/dist && cp -r editor/dist editorfs/dist"
-
 builds:
   - id: noda
     main: ./cmd/noda
