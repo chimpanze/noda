@@ -6,10 +6,12 @@ import {
   Loader2,
   Wifi,
   WifiOff,
+  Download,
 } from "lucide-react";
 import { useTraceStore } from "@/stores/trace";
 import { useEditorStore } from "@/stores/editor";
 import type { Execution } from "@/types";
+import { TestExportModal } from "./TestExportModal";
 
 type Tab = "executions" | "detail";
 
@@ -28,6 +30,7 @@ export function TracePanel() {
 
   const [tab, setTab] = useState<Tab>("executions");
   const [showErrorsOnly, setShowErrorsOnly] = useState(false);
+  const [exportExecution, setExportExecution] = useState<Execution | null>(null);
 
   const activeExec = executions.find((e) => e.traceId === activeTraceId);
 
@@ -95,6 +98,7 @@ export function TracePanel() {
             executions={executions}
             activeTraceId={activeTraceId}
             onSelect={handleSelectExecution}
+            onExport={setExportExecution}
           />
         ) : (
           <NodeDetailView
@@ -106,6 +110,12 @@ export function TracePanel() {
           />
         )}
       </div>
+      {exportExecution && (
+        <TestExportModal
+          execution={exportExecution}
+          onClose={() => setExportExecution(null)}
+        />
+      )}
     </div>
   );
 }
@@ -145,10 +155,12 @@ function ExecutionList({
   executions,
   activeTraceId,
   onSelect,
+  onExport,
 }: {
   executions: Execution[];
   activeTraceId: string | null;
   onSelect: (id: string) => void;
+  onExport: (exec: Execution) => void;
 }) {
   if (executions.length === 0) {
     return (
@@ -181,6 +193,18 @@ function ExecutionList({
           <span className="text-xs text-gray-400 shrink-0">
             {formatTime(exec.startedAt)}
           </span>
+          {exec.status === "completed" && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onExport(exec);
+              }}
+              className="ml-auto p-1 text-gray-400 hover:text-blue-500"
+              title="Export as test"
+            >
+              <Download size={12} />
+            </button>
+          )}
         </button>
       ))}
     </div>
