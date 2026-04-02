@@ -1,0 +1,161 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install libvips (amd64 + arm64 cross-compile)
+        run: |
+          sudo dpkg --add-architecture arm64
+          # Add arm64 package sources
+          sudo sed -i 's/^deb /deb [arch=amd64] /' /etc/apt/sources.list.d/*.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+          sudo apt-get update
+          sudo apt-get install -y \
+            libvips-dev \
+            libvips-dev:arm64 \
+            gcc-aarch64-linux-gnu \
+            g++-aarch64-linux-gnu
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: editor/package-lock.json
+
+      - name: GoReleaser build (split)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --split
+        env:
+          GOOS: linux
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-linux
+          path: dist/**/*
+          retention-days: 1
+
+  build-darwin:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install libvips
+        run: brew install vips
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: editor/package-lock.json
+
+      - name: GoReleaser build (split)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --split
+        env:
+          GOOS: darwin
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-darwin
+          path: dist/**/*
+          retention-days: 1
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install libvips
+        shell: pwsh
+        run: |
+          $VIPS_VERSION = "8.16.1"
+          $VIPS_URL = "https://github.com/libvips/libvips/releases/download/v${VIPS_VERSION}/vips-dev-w64-all-${VIPS_VERSION}.zip"
+          Invoke-WebRequest -Uri $VIPS_URL -OutFile vips.zip
+          Expand-Archive vips.zip -DestinationPath C:\vips
+          $vipsDir = Get-ChildItem C:\vips -Directory | Select-Object -First 1
+          echo "PKG_CONFIG_PATH=$($vipsDir.FullName)\lib\pkgconfig" >> $env:GITHUB_ENV
+          echo "CGO_CFLAGS=-I$($vipsDir.FullName)\include" >> $env:GITHUB_ENV
+          echo "CGO_LDFLAGS=-L$($vipsDir.FullName)\lib" >> $env:GITHUB_ENV
+          echo "$($vipsDir.FullName)\bin" >> $env:GITHUB_PATH
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.25"
+          cache: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: editor/package-lock.json
+
+      - name: GoReleaser build (split)
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: build --split
+        env:
+          GOOS: windows
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: build-windows
+          path: dist/**/*
+          retention-days: 1
+
+  merge:
+    runs-on: ubuntu-latest
+    needs: [build-linux, build-darwin, build-windows]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: build-*
+          merge-multiple: true
+
+      - name: GoReleaser merge and release
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: continue --merge
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
