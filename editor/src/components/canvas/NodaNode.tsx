@@ -1,7 +1,9 @@
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import { AlertCircle, Loader2 } from "lucide-react";
 import { getCategoryStyle, getOutputColor } from "./nodeStyles";
+import { DataBadge } from "./DataBadge";
 import { useEditorStore } from "@/stores/editor";
+import { useSchemaStore } from "@/stores/schema";
 import { useTraceStore } from "@/stores/trace";
 import type { NodeExecState } from "@/types";
 
@@ -28,6 +30,9 @@ export function NodaNode({ data, selected, id }: NodeProps) {
   const validationErrors = useEditorStore((s) => s.validationErrors);
   const activeTraceId = useTraceStore((s) => s.activeTraceId);
   const getNodeState = useTraceStore((s) => s.getNodeState);
+  const getActiveExecution = useTraceStore((s) => s.getActiveExecution);
+  const getNodeOutputSchema = useSchemaStore((s) => s.getNodeOutputSchema);
+  const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
 
   // Validation errors
   const nodeErrors = validationErrors.filter(
@@ -41,6 +46,15 @@ export function NodaNode({ data, selected, id }: NodeProps) {
     : "idle";
 
   const execRing = execStateStyles[execState];
+
+  // Live data from active trace execution
+  const activeExecution = getActiveExecution();
+  const nodeTraceData = activeExecution?.nodeData.get(id);
+  const liveData = nodeTraceData?.data;
+
+  // Schema for this node
+  const nodeConfig = activeWorkflow?.nodes.find((n) => n.id === id)?.config as Record<string, unknown> | undefined;
+  const outputSchema = getNodeOutputSchema(id, nodeData.nodeType, nodeConfig);
 
   return (
     <div
@@ -122,6 +136,11 @@ export function NodaNode({ data, selected, id }: NodeProps) {
             />
           </div>
         ))}
+      </div>
+
+      {/* Data badge */}
+      <div className="px-3 pb-1.5">
+        <DataBadge data={liveData} outputSchema={outputSchema} />
       </div>
     </div>
   );
