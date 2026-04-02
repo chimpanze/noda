@@ -16,7 +16,7 @@ func TestScaffoldProject(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify directories
-	for _, d := range []string{"routes", "workflows", "schemas", "tests", "migrations"} {
+	for _, d := range []string{"routes", "workflows", "schemas", "tests", "migrations", ".claude"} {
 		info, err := os.Stat(filepath.Join(dir, d))
 		require.NoError(t, err, "directory %s should exist", d)
 		assert.True(t, info.IsDir())
@@ -32,6 +32,8 @@ func TestScaffoldProject(t *testing.T) {
 		"schemas/greeting.json",
 		"tests/hello.test.json",
 		"README.md",
+		"CLAUDE.md",
+		".claude/settings.json",
 	}
 	for _, f := range files {
 		data, err := os.ReadFile(filepath.Join(dir, f))
@@ -78,6 +80,10 @@ func TestScaffoldProject_ReadmeContainsName(t *testing.T) {
 	require.NoError(t, scaffoldProject(dir))
 
 	data, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "cool-api")
+
+	data, err = os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
 	require.NoError(t, err)
 	assert.Contains(t, string(data), "cool-api")
 }
