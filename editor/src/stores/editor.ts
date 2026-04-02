@@ -13,6 +13,10 @@ import * as api from "@/api/client";
 import * as history from "@/stores/history";
 import { showToast } from "@/utils/toast";
 import { autoLayout } from "@/components/canvas/autoLayout";
+import {
+  loadLearnedSchemasFromStorage,
+  useSchemaStore,
+} from "@/stores/schema";
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
@@ -278,6 +282,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       selectedNodeIds: new Set(),
       selectedEdgeIndex: null,
     });
+
+    const workflowId = (raw.id as string | undefined) ?? path;
+    const learned = loadLearnedSchemasFromStorage(workflowId);
+    useSchemaStore.setState({ _learnedSchemas: learned, _staleKeys: new Set() });
   },
 
   // Workflow mutations (all push history before mutating)
@@ -289,6 +297,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       n.id === nodeId ? { ...n, config } : n,
     );
     set({ activeWorkflow: { ...activeWorkflow, nodes } });
+    useSchemaStore.getState().markStale(get().activeWorkflowPath ?? "", nodeId);
     get()._debounceSave();
   },
 
