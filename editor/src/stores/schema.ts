@@ -159,9 +159,8 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
     return get()._previousSchemas[nodeId] ?? null;
   },
 
-  markStale: (workflowId, nodeId) => {
-    // workflowId is available for future use (e.g. namespaced stale keys)
-    void workflowId;
+  markStale: (_workflowId, nodeId) => {
+    // _staleKeys is scoped to the current workflow — reset on workflow switch in editor.ts loadWorkflow
     set((state) => {
       const newStaleKeys = new Set(state._staleKeys);
       newStaleKeys.add(nodeId);

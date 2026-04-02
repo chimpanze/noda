@@ -32,7 +32,8 @@ export function NodaEdge({
   // Get live data from the source node for this edge
   const activeExecution = useTraceStore((s) => s.getActiveExecution());
   const sourceNodeData = activeExecution?.nodeData.get(source);
-  const liveData = sourceNodeData?.data;
+  // Only show data on the edge that matches the source node's actual output port
+  const liveData = sourceNodeData?.output === output ? sourceNodeData?.data : undefined;
 
   // Check if this edge is active during trace
   const activeEdgeKeys = useTraceStore((s) => s.activeEdgeKeys);
