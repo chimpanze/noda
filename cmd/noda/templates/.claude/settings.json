@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "noda": {
+      "command": "noda",
+      "args": ["mcp"]
+    }
+  }
+}

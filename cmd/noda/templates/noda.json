@@ -1,0 +1,22 @@
+{
+  "server": {
+    "port": 3000,
+    "read_timeout": "30s",
+    "write_timeout": "30s",
+    "body_limit": 5242880
+  },
+  "services": {
+    "db": {
+      "plugin": "postgres",
+      "config": {
+        "url": "{{ $env('DATABASE_URL') }}"
+      }
+    },
+    "cache": {
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
+    }
+  }
+}
