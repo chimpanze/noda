@@ -9,6 +9,7 @@ import type {
   ModelInfo,
   VarInfo,
   ValidationResult,
+  JSONSchema,
 } from "@/types";
 
 const api = axios.create({
@@ -118,8 +119,8 @@ export async function getExpressionContext(
 }
 
 // Output schemas
-export async function fetchOutputSchemas(): Promise<Record<string, any>> {
-  const { data } = await api.get<{ schemas: Record<string, any> }>(
+export async function fetchOutputSchemas(): Promise<Record<string, JSONSchema>> {
+  const { data } = await api.get<{ schemas: Record<string, JSONSchema> }>(
     "/schemas/output",
   );
   return data.schemas;
