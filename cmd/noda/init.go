@@ -49,11 +49,13 @@ func scaffoldProject(name string) error {
 			return err
 		}
 
+		// Skip root "templates" entry
+		if path == "templates" {
+			return nil
+		}
+
 		// Strip the "templates/" prefix to get the relative output path
 		relPath := strings.TrimPrefix(path, "templates/")
-		if relPath == "" {
-			return nil // skip root "templates" entry
-		}
 
 		outPath := filepath.Join(name, relPath)
 
