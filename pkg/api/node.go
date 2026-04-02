@@ -17,6 +17,12 @@ type NodeDescriptor interface {
 	OutputDescriptions() map[string]string // describes data shape per output port
 }
 
+// NodeOutputSchemaProvider is optionally implemented by NodeDescriptor to declare
+// a static JSON Schema for the node's output data.
+type NodeOutputSchemaProvider interface {
+	OutputSchema() map[string]any
+}
+
 // NodeRegistration pairs a node descriptor with its factory function.
 type NodeRegistration struct {
 	Descriptor NodeDescriptor

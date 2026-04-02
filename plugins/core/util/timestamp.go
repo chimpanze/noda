@@ -32,6 +32,15 @@ func (d *timestampDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *timestampDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"oneOf": []any{
+			map[string]any{"type": "string", "description": "ISO 8601 timestamp (default)"},
+			map[string]any{"type": "integer", "description": "Unix timestamp (seconds or milliseconds)"},
+		},
+	}
+}
+
 type timestampExecutor struct{}
 
 func newTimestampExecutor(config map[string]any) api.NodeExecutor {

@@ -32,6 +32,18 @@ func (d *readDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *readDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"data":         map[string]any{"type": "string", "description": "File content as string"},
+			"size":         map[string]any{"type": "integer"},
+			"content_type": map[string]any{"type": "string"},
+		},
+		"required": []any{"data", "size", "content_type"},
+	}
+}
+
 type readExecutor struct{}
 
 func newReadExecutor(_ map[string]any) api.NodeExecutor { return &readExecutor{} }

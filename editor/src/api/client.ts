@@ -9,6 +9,7 @@ import type {
   ModelInfo,
   VarInfo,
   ValidationResult,
+  JSONSchema,
 } from "@/types";
 
 const api = axios.create({
@@ -115,6 +116,14 @@ export async function getExpressionContext(
     `/expressions/context?${params}`,
   );
   return data;
+}
+
+// Output schemas
+export async function fetchOutputSchemas(): Promise<Record<string, JSONSchema>> {
+  const { data } = await api.get<{ schemas: Record<string, JSONSchema> }>(
+    "/schemas/output",
+  );
+  return data.schemas;
 }
 
 // Services and plugins

@@ -33,6 +33,16 @@ func (d *getDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *getDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"value": map[string]any{},
+		},
+		"required": []any{"value"},
+	}
+}
+
 type getExecutor struct{}
 
 func newGetExecutor(_ map[string]any) api.NodeExecutor { return &getExecutor{} }

@@ -33,6 +33,16 @@ func (d *delDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *delDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"ok": map[string]any{"type": "boolean"},
+		},
+		"required": []any{"ok"},
+	}
+}
+
 type delExecutor struct{}
 
 func newDelExecutor(_ map[string]any) api.NodeExecutor { return &delExecutor{} }

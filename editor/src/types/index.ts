@@ -222,3 +222,21 @@ export interface MiddlewareInfo {
   config: Record<string, Record<string, unknown>>;
   instances: Record<string, MiddlewareInstance>;
 }
+
+export interface JSONSchema {
+  type?: string | string[];
+  properties?: Record<string, JSONSchema>;
+  required?: string[];
+  items?: JSONSchema;
+  oneOf?: JSONSchema[];
+  anyOf?: JSONSchema[];
+  description?: string;
+  enum?: unknown[];
+  default?: unknown;
+}
+
+export interface OutputSchema {
+  schema: JSONSchema;
+  source: "static" | "config-derived" | "runtime-learned";
+  stale: boolean;
+}

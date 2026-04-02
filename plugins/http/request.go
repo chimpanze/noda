@@ -39,6 +39,18 @@ func (d *requestDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *requestDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"status":  map[string]any{"type": "integer"},
+			"headers": map[string]any{"type": "object"},
+			"body":    map[string]any{},
+		},
+		"required": []any{"status", "headers", "body"},
+	}
+}
+
 type requestExecutor struct{}
 
 func newRequestExecutor(_ map[string]any) api.NodeExecutor { return &requestExecutor{} }

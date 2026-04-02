@@ -313,6 +313,112 @@ func TestCompile_InvalidTimeout(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid workflow timeout")
 }
 
+func TestExecuteGraph_WorkflowStartedTraceEvent(t *testing.T) {
+	var order []string
+	mu := &sync.Mutex{}
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"a": &orderTrackingExecutor{mu: mu, order: &order, nodeID: "a"},
+	})
+
+	wf := WorkflowConfig{
+		ID: "trace-started",
+		Nodes: map[string]NodeConfig{
+			"a": {Type: "test.a"},
+		},
+		Edges: []EdgeConfig{},
+	}
+
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+
+	var capturedEvents []struct {
+		eventType string
+		data      any
+	}
+	cb := func(eventType, nodeID, nodeType, output, errMsg string, data any) {
+		capturedEvents = append(capturedEvents, struct {
+			eventType string
+			data      any
+		}{eventType: eventType, data: data})
+	}
+
+	inputData := map[string]any{"user": "alice", "action": "login"}
+	authData := &api.AuthData{
+		UserID: "user-42",
+		Roles:  []string{"admin", "editor"},
+		Claims: map[string]any{"tenant": "acme"},
+	}
+
+	execCtx := NewExecutionContext(
+		WithInput(inputData),
+		WithAuth(authData),
+		WithTraceCallback(cb),
+	)
+	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.NoError(t, err)
+
+	// Find the workflow:started event
+	var startedEvent any
+	for _, ev := range capturedEvents {
+		if ev.eventType == "workflow:started" {
+			startedEvent = ev.data
+			break
+		}
+	}
+	require.NotNil(t, startedEvent, "workflow:started event not emitted")
+
+	payload, ok := startedEvent.(map[string]any)
+	require.True(t, ok, "workflow:started data must be map[string]any")
+
+	// Verify input is present
+	assert.Equal(t, inputData, payload["input"])
+
+	// Verify auth is present and correctly shaped
+	authPayload, ok := payload["auth"].(map[string]any)
+	require.True(t, ok, "auth must be map[string]any")
+	assert.Equal(t, "user-42", authPayload["user_id"])
+	assert.Equal(t, []string{"admin", "editor"}, authPayload["roles"])
+	assert.Equal(t, map[string]any{"tenant": "acme"}, authPayload["claims"])
+}
+
+func TestExecuteGraph_WorkflowStartedTraceEvent_NoAuth(t *testing.T) {
+	var order []string
+	mu := &sync.Mutex{}
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"a": &orderTrackingExecutor{mu: mu, order: &order, nodeID: "a"},
+	})
+
+	wf := WorkflowConfig{
+		ID: "trace-started-noauth",
+		Nodes: map[string]NodeConfig{
+			"a": {Type: "test.a"},
+		},
+		Edges: []EdgeConfig{},
+	}
+
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+
+	var startedData any
+	cb := func(eventType, nodeID, nodeType, output, errMsg string, data any) {
+		if eventType == "workflow:started" {
+			startedData = data
+		}
+	}
+
+	execCtx := NewExecutionContext(
+		WithInput(map[string]any{"key": "value"}),
+		WithTraceCallback(cb),
+	)
+	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.NoError(t, err)
+
+	require.NotNil(t, startedData)
+	payload := startedData.(map[string]any)
+	assert.Equal(t, map[string]any{"key": "value"}, payload["input"])
+	assert.Nil(t, payload["auth"])
+}
+
 // singleOutputResolver returns a fixed set of outputs for all types.
 type singleOutputResolver struct {
 	outputs []string

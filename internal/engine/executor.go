@@ -31,7 +31,10 @@ func ExecuteGraph(
 	defer func() { trace.EndWorkflowSpan(workflowSpan, workflowErr) }()
 
 	startTime := time.Now()
-	execCtx.EmitTrace(string(trace.EventWorkflowStarted), "", "", "", "", nil)
+	execCtx.EmitTrace(string(trace.EventWorkflowStarted), "", "", "", "", map[string]any{
+		"input": execCtx.Input(),
+		"auth":  execCtx.AuthMap(),
+	})
 	execCtx.Log("info", "workflow started", map[string]any{
 		"trigger_type": execCtx.Trigger().Type,
 	})

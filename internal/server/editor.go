@@ -92,6 +92,7 @@ func (e *EditorAPI) Register(app *fiber.App) {
 	api.Get("/services", e.listServices)
 	api.Get("/plugins", e.listPlugins)
 	api.Get("/schemas", e.listSchemas)
+	api.Get("/schemas/output", e.listOutputSchemas)
 	api.Get("/middleware", e.listMiddleware)
 }
 

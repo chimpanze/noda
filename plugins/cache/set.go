@@ -35,6 +35,16 @@ func (d *setDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *setDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"ok": map[string]any{"type": "boolean"},
+		},
+		"required": []any{"ok"},
+	}
+}
+
 type setExecutor struct{}
 
 func newSetExecutor(_ map[string]any) api.NodeExecutor { return &setExecutor{} }

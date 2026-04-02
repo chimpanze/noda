@@ -36,6 +36,16 @@ func (d *sendDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *sendDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"sent": map[string]any{"type": "boolean"},
+		},
+		"required": []any{"sent"},
+	}
+}
+
 type sendExecutor struct{}
 
 func newSendExecutor(_ map[string]any) api.NodeExecutor { return &sendExecutor{} }
