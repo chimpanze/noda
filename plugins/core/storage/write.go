@@ -33,6 +33,12 @@ func (d *writeDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *writeDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+	}
+}
+
 type writeExecutor struct{}
 
 func newWriteExecutor(_ map[string]any) api.NodeExecutor { return &writeExecutor{} }

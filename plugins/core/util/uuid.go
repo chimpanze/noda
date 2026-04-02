@@ -19,6 +19,13 @@ func (d *uuidDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+func (d *uuidDescriptor) OutputSchema() map[string]any {
+	return map[string]any{
+		"type":        "string",
+		"description": "UUID v4 string",
+	}
+}
+
 type uuidExecutor struct{}
 
 func newUUIDExecutor(config map[string]any) api.NodeExecutor {
