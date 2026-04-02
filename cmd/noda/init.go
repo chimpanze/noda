@@ -13,6 +13,7 @@ import (
 )
 
 // templates/* excludes dotfiles; list them explicitly.
+//
 //go:embed templates/* templates/.env.example templates/.claude/settings.json
 var templateFS embed.FS
 
