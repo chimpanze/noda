@@ -102,10 +102,18 @@ A `noimage` build tag conditionally excludes the image plugin, following the exi
 
 ## Testing
 
-1. **Local smoke test** — build both variants, verify they start and respond on `/health/live`.
-2. **Image inspection** — verify the slim image has no shell (`docker run --entrypoint sh` should fail), verify the full image still has libvips.
-3. **Build tag test** — `go build -tags noimage ./cmd/noda` succeeds with `CGO_ENABLED=0` locally.
-4. **CI validation** — the pipeline builds and pushes both variants; build failures are caught by the existing job structure.
+### Go code changes
+
+1. **Default build** — `go build ./cmd/noda` (no `noimage` tag) still compiles with CGO and includes the image plugin. Existing tests pass: `go test ./cmd/noda/... ./internal/mcp/...`.
+2. **Noimage build** — `CGO_ENABLED=0 go build -tags noimage ./cmd/noda` compiles successfully as a static binary.
+3. **Noimage tests** — `CGO_ENABLED=0 go test -tags noimage ./cmd/noda/... ./internal/mcp/...` passes. The image plugin is not registered.
+4. **Full test suite** — `go test ./...` still passes without regressions.
+
+### Docker changes
+
+5. **Local smoke test** — build both variants (`docker build --build-arg VARIANT=slim` and `VARIANT=full`), verify they start and respond on `/health/live`.
+6. **Image inspection** — verify the slim image has no shell (`docker run --entrypoint sh` should fail), verify the full image still has libvips.
+7. **CI validation** — the pipeline builds and pushes both variants; build failures are caught by the existing job structure.
 
 ## Files Changed
 
