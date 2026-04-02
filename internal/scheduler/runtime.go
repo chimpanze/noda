@@ -274,18 +274,10 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			})
 			return
 		}
-		defer func() {
-			// Use a fresh context for lock release since the job context may have expired.
-			releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer releaseCancel()
-			if err := releaseLockKey(releaseCtx, lockSvc, lockKey, lockToken); err != nil {
-				r.logger.Warn("scheduler: lock release failed",
-					"schedule_id", sc.ID,
-					"trace_id", traceID,
-					"error", err.Error(),
-				)
-			}
-		}()
+		// Do NOT release the lock after execution. The lock key is scoped to a
+		// time window (truncated to the minute), so it must be held until the TTL
+		// expires to prevent another instance from executing in the same window.
+		_ = lockToken
 	}
 
 	// Build trigger metadata for expressions
