@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TraceEvent, Execution, NodeExecState } from "@/types";
+import { useSchemaStore } from "./schema";
 
 const MAX_EXECUTIONS = 50;
 
@@ -43,7 +44,14 @@ export const useTraceStore = create<TraceState>((set, get) => ({
   activeEdgeKeys: new Set(),
   setActiveTraceId: (id) => set({ activeTraceId: id }),
 
-  processEvent: (event) =>
+  processEvent: (event) => {
+    if (event.type === "node:completed" && event.data !== undefined) {
+      useSchemaStore.getState().updateLearnedSchema(
+        event.workflow_id,
+        event.node_id!,
+        event.data,
+      );
+    }
     set((state) => {
       const executions = [...state.executions];
       let exec = executions.find((e) => e.traceId === event.trace_id);
@@ -115,7 +123,8 @@ export const useTraceStore = create<TraceState>((set, get) => ({
         activeTraceId: exec.traceId,
         activeEdgeKeys: newActiveEdgeKeys,
       };
-    }),
+    });
+  },
 
   clearExecutions: () =>
     set({ executions: [], activeTraceId: null, activeEdgeKeys: new Set() }),

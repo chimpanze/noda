@@ -117,6 +117,14 @@ export async function getExpressionContext(
   return data;
 }
 
+// Output schemas
+export async function fetchOutputSchemas(): Promise<Record<string, any>> {
+  const { data } = await api.get<{ schemas: Record<string, any> }>(
+    "/schemas/output",
+  );
+  return data.schemas;
+}
+
 // Services and plugins
 export async function listServices(): Promise<ServiceInfo[]> {
   const { data } = await api.get<{ services: ServiceInfo[] }>("/services");

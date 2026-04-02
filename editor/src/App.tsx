@@ -29,6 +29,7 @@ import { ToastContainer } from "@/components/panels/Toast";
 import { ConnectionOverlay } from "@/components/panels/ConnectionOverlay";
 import { ValidationSummary } from "@/components/panels/ValidationSummary";
 import { useEditorStore } from "@/stores/editor";
+import { useSchemaStore } from "@/stores/schema";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useValidation } from "@/hooks/useValidation";
 import { connectTrace, disconnectTrace } from "@/api/traceClient";
@@ -38,6 +39,7 @@ export default function App() {
   const loadFiles = useEditorStore((s) => s.loadFiles);
   const loadNodeTypes = useEditorStore((s) => s.loadNodeTypes);
   const loadVars = useEditorStore((s) => s.loadVars);
+  const loadStaticSchemas = useSchemaStore((s) => s.loadStaticSchemas);
   const selectedNodeId = useEditorStore((s) => s.selectedNodeId);
   const selectedEdgeIndex = useEditorStore((s) => s.selectedEdgeIndex);
   const activeWorkflow = useEditorStore((s) => s.activeWorkflow);
@@ -48,9 +50,10 @@ export default function App() {
     loadFiles();
     loadNodeTypes();
     loadVars();
+    loadStaticSchemas();
     connectTrace();
     return () => disconnectTrace();
-  }, [loadFiles, loadNodeTypes, loadVars]);
+  }, [loadFiles, loadNodeTypes, loadVars, loadStaticSchemas]);
 
   // Warn before navigating away with unsaved changes
   useEffect(() => {
