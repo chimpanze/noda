@@ -185,6 +185,19 @@ func (c *ExecutionContextImpl) Input() any { return c.input }
 // Auth returns the auth data, or nil if not authenticated.
 func (c *ExecutionContextImpl) Auth() *api.AuthData { return c.auth }
 
+// AuthMap returns the auth data as a plain map suitable for trace payloads.
+// Returns nil if no auth data is set.
+func (c *ExecutionContextImpl) AuthMap() map[string]any {
+	if c.auth == nil {
+		return nil
+	}
+	return map[string]any{
+		"user_id": c.auth.UserID,
+		"roles":   c.auth.Roles,
+		"claims":  c.auth.Claims,
+	}
+}
+
 // Trigger returns the trigger data including trace ID.
 func (c *ExecutionContextImpl) Trigger() api.TriggerData { return c.trigger }
 
