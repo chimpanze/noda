@@ -26,9 +26,12 @@ jobs:
         run: |
           if [ "${{ matrix.goarch }}" = "arm64" ]; then
             sudo dpkg --add-architecture arm64
+            # Restrict existing sources to amd64 only (security.ubuntu.com has no arm64)
+            for f in /etc/apt/sources.list.d/*.sources; do
+              [ -f "$f" ] && sudo sed -i '/^Architectures:/d; /^Types:/a Architectures: amd64' "$f"
+            done
             # Add arm64 sources from ports.ubuntu.com (the only mirror serving arm64)
-            # Keep existing sources amd64-only by NOT modifying their Architectures field
-            cat <<SOURCES | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
+            sudo tee /etc/apt/sources.list.d/arm64-ports.sources <<SOURCES
           Types: deb
           URIs: http://ports.ubuntu.com/ubuntu-ports
           Suites: $(lsb_release -cs) $(lsb_release -cs)-updates $(lsb_release -cs)-security
