@@ -1,0 +1,47 @@
+# [[.ProjectName]]
+
+A Noda project — configuration-driven API runtime. Edit JSON config files, not application code.
+
+## Project Structure
+
+- `noda.json` — Server config: port, services, auth, CORS
+- `routes/` — API route definitions (HTTP method, path, middleware, workflow binding)
+- `workflows/` — Workflow definitions (chains of nodes that process requests)
+- `schemas/` — JSON Schemas for request/response validation
+- `tests/` — Workflow test suites (run with `noda test`)
+- `migrations/` — Database migrations (managed with `noda migrate`)
+
+## Key Concepts
+
+- **Nodes** are the building blocks (e.g. `db.query`, `transform.set`, `response.json`)
+- **Workflows** chain nodes together — each node's output is available to subsequent nodes
+- **Expressions** use `{{ }}` syntax to reference data: `{{ input.name }}`, `{{ nodes.myQuery[0].id }}`
+- **Services** (database, cache, storage) are declared in `noda.json` and wired to nodes automatically
+
+## Working With This Project
+
+- Edit JSON config files — no Go code needed for standard patterns
+- `noda dev` — start with hot reload
+- `noda test` — run workflow tests
+- `noda validate` — check config files for errors
+- `noda generate openapi` — generate OpenAPI spec from routes
+
+## MCP Tools
+
+The Noda MCP server is connected and provides tools for:
+- Listing available node types and their schemas
+- Validating config files and expressions
+- Explaining workflow execution and data flow
+- Getting example configs for common patterns (CRUD, auth, websocket, etc.)
+
+Use these tools to discover what's possible and validate your changes.
+
+## Common Tasks
+
+**Add a new endpoint:** Create a route file in `routes/` binding a path to a workflow, then create the workflow in `workflows/`.
+
+**Add database access:** Ensure `noda.json` has a `db` service configured, then use `db.query` / `db.exec` nodes in your workflow.
+
+**Add request validation:** Create a JSON Schema in `schemas/` and reference it in your route's `request.schema` field.
+
+**Add a test:** Create a test file in `tests/` with input data and expected output assertions.
