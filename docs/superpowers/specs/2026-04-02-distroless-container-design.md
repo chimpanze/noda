@@ -80,15 +80,40 @@ The `VARIANT` build arg is passed via the `build-args` input on `docker/build-pu
 - `full`: creates `noda` user with `groupadd`/`useradd`, runs as `noda` (unchanged).
 - `slim`: runs as the built-in `nonroot` user (uid 65534) provided by the distroless base.
 
+### Build Tag for Image Plugin Exclusion
+
+The `plugins/image` package imports `bimg`, which requires CGO. Building with `CGO_ENABLED=0` will fail unless the image plugin is excluded at compile time.
+
+A `noimage` build tag conditionally excludes the image plugin, following the existing `embed_editor` pattern in the codebase.
+
+**Two registration points need splitting:**
+
+1. **`cmd/noda/`** — the image plugin import and `&imageplugin.Plugin{}` in the plugin list.
+   - `cmd/noda/plugins_image.go` (`//go:build !noimage`) — adds the image plugin to the plugin list.
+   - `cmd/noda/plugins_noimage.go` (`//go:build noimage`) — no-op stub.
+
+2. **`internal/mcp/`** — the image plugin import and entry in `corePlugins()`.
+   - `internal/mcp/plugins_image.go` (`//go:build !noimage`) — adds the image plugin.
+   - `internal/mcp/plugins_noimage.go` (`//go:build noimage`) — no-op stub.
+
+**Mechanism:** Each build-tagged file provides an `init()` function that appends `&imageplugin.Plugin{}` to a package-level slice. The `corePlugins()` functions (in `main.go` and `plugins.go`) read from this slice rather than hardcoding the image plugin entry. The `noimage` variant files are empty stubs that register nothing.
+
+**Dockerfile integration:** The slim variant builds with `-tags noimage,embed_editor` and `CGO_ENABLED=0`. The full variant builds with `-tags embed_editor` and `CGO_ENABLED=1` (current behavior).
+
 ## Testing
 
-No Go code changes. Validation is:
-
 1. **Local smoke test** — build both variants, verify they start and respond on `/health/live`.
-2. **Image inspection** — verify slim has no shell (`docker run --entrypoint sh` should fail), verify full still has libvips.
-3. **CI validation** — the pipeline builds and pushes both variants; build failures are caught by the existing job structure.
+2. **Image inspection** — verify the slim image has no shell (`docker run --entrypoint sh` should fail), verify the full image still has libvips.
+3. **Build tag test** — `go build -tags noimage ./cmd/noda` succeeds with `CGO_ENABLED=0` locally.
+4. **CI validation** — the pipeline builds and pushes both variants; build failures are caught by the existing job structure.
 
 ## Files Changed
 
+- `cmd/noda/plugins_image.go` — new, `//go:build !noimage`, registers image plugin
+- `cmd/noda/plugins_noimage.go` — new, `//go:build noimage`, no-op stub
+- `cmd/noda/main.go` — remove hardcoded image plugin import and registration
+- `internal/mcp/plugins_image.go` — new, `//go:build !noimage`, registers image plugin
+- `internal/mcp/plugins_noimage.go` — new, `//go:build noimage`, no-op stub
+- `internal/mcp/plugins.go` — remove hardcoded image plugin import and registration
 - `Dockerfile` — restructure with `VARIANT` build arg, conditional stages
 - `.github/workflows/docker.yml` — add variant to matrix, update tagging and artifact names, split merge job by variant
