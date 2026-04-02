@@ -1,12 +1,24 @@
 package main
 
 import (
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
+	"text/template"
 
 	"github.com/spf13/cobra"
 )
+
+// templates/* excludes dotfiles; list them explicitly.
+//go:embed templates/* templates/.env.example templates/.claude/settings.json
+var templateFS embed.FS
+
+type projectData struct {
+	ProjectName string
+}
 
 func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -23,220 +35,68 @@ func newInitCmd() *cobra.Command {
 }
 
 func scaffoldProject(name string) error {
-	// Create project directory
-	if err := os.MkdirAll(name, 0755); err != nil {
-		return fmt.Errorf("create project directory: %w", err)
+	data := projectData{
+		ProjectName: filepath.Base(name),
 	}
 
-	dirs := []string{
-		"routes",
-		"workflows",
-		"schemas",
-		"tests",
-		"migrations",
+	// Also create the migrations directory (empty, not in templates)
+	if err := os.MkdirAll(filepath.Join(name, "migrations"), 0755); err != nil {
+		return fmt.Errorf("create migrations directory: %w", err)
 	}
-	for _, d := range dirs {
-		if err := os.MkdirAll(filepath.Join(name, d), 0755); err != nil {
-			return fmt.Errorf("create %s directory: %w", d, err)
+
+	err := fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-	}
 
-	files := map[string]string{
-		"noda.json":             nodaJSON,
-		".env.example":          envExample,
-		"docker-compose.yml":    dockerCompose,
-		"routes/api.json":       sampleRoute,
-		"workflows/hello.json":  sampleWorkflow,
-		"schemas/greeting.json": sampleSchema,
-		"tests/hello.test.json": sampleTest,
-		"README.md":             readmeTemplate(name),
-	}
-
-	for path, content := range files {
-		fullPath := filepath.Join(name, path)
-		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
-			return fmt.Errorf("write %s: %w", path, err)
+		// Strip the "templates/" prefix to get the relative output path
+		relPath := strings.TrimPrefix(path, "templates/")
+		if relPath == "" {
+			return nil // skip root "templates" entry
 		}
+
+		outPath := filepath.Join(name, relPath)
+
+		if d.IsDir() {
+			return os.MkdirAll(outPath, 0755)
+		}
+
+		content, err := templateFS.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read template %s: %w", path, err)
+		}
+
+		// Process .tmpl files with text/template
+		if strings.HasSuffix(relPath, ".tmpl") {
+			outPath = strings.TrimSuffix(outPath, ".tmpl")
+			tmpl, err := template.New(filepath.Base(path)).Delims("[[", "]]").Parse(string(content))
+			if err != nil {
+				return fmt.Errorf("parse template %s: %w", path, err)
+			}
+			var buf strings.Builder
+			if err := tmpl.Execute(&buf, data); err != nil {
+				return fmt.Errorf("execute template %s: %w", path, err)
+			}
+			content = []byte(buf.String())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(outPath), 0755); err != nil {
+			return fmt.Errorf("create directory for %s: %w", outPath, err)
+		}
+
+		return os.WriteFile(outPath, content, 0644)
+	})
+	if err != nil {
+		return fmt.Errorf("scaffold project: %w", err)
 	}
 
-	fmt.Printf("✓ Project %q created\n", name)
+	fmt.Printf("✓ Project %q created\n", filepath.Base(name))
 	fmt.Println()
 	fmt.Println("  Get started:")
-	fmt.Printf("    cd %s\n", name)
+	fmt.Printf("    cd %s\n", filepath.Base(name))
 	fmt.Println("    cp .env.example .env")
 	fmt.Println("    docker compose up -d")
 	fmt.Println("    noda dev")
 	fmt.Println()
 	return nil
-}
-
-const nodaJSON = `{
-  "server": {
-    "port": 3000,
-    "read_timeout": "30s",
-    "write_timeout": "30s",
-    "body_limit": 5242880
-  },
-  "services": {
-    "db": {
-      "plugin": "postgres",
-      "config": {
-        "url": "{{ $env('DATABASE_URL') }}"
-      }
-    },
-    "cache": {
-      "plugin": "cache",
-      "config": {
-        "url": "{{ $env('REDIS_URL') }}"
-      }
-    }
-  }
-}
-`
-
-const envExample = `# Database
-DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
-# JWT
-JWT_SECRET=change-me-in-production
-`
-
-const dockerCompose = `services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: noda
-      POSTGRES_PASSWORD: noda
-      POSTGRES_DB: noda
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-volumes:
-  pgdata:
-`
-
-const sampleRoute = `{
-  "id": "hello-route",
-  "method": "POST",
-  "path": "/api/hello",
-  "body": {
-    "schema": { "$ref": "schemas/greeting" }
-  },
-  "trigger": {
-    "workflow": "hello",
-    "input": {
-      "name": "{{ body.name }}"
-    }
-  }
-}
-`
-
-const sampleWorkflow = `{
-  "id": "hello",
-  "nodes": {
-    "greet": {
-      "type": "transform.set",
-      "config": {
-        "fields": {
-          "message": "Hello, {{ input.name }}!"
-        }
-      }
-    },
-    "respond": {
-      "type": "response.json",
-      "config": {
-        "status": 200,
-        "body": {
-          "greeting": "{{ nodes.greet.message }}"
-        }
-      }
-    }
-  },
-  "edges": [
-    { "from": "greet", "to": "respond", "output": "success" }
-  ]
-}
-`
-
-const sampleSchema = `{
-  "greeting": {
-    "type": "object",
-    "properties": {
-      "name": {
-        "type": "string",
-        "minLength": 1,
-        "maxLength": 100
-      }
-    },
-    "required": ["name"]
-  }
-}
-`
-
-const sampleTest = `{
-  "id": "hello-test",
-  "workflow": "hello",
-  "tests": [
-    {
-      "name": "greets by name",
-      "input": { "name": "World" },
-      "expect": {
-        "status": "success",
-        "outputs": {
-          "respond": {
-            "Body": {
-              "greeting": "Hello, World!"
-            }
-          }
-        }
-      }
-    }
-  ]
-}
-`
-
-func readmeTemplate(name string) string {
-	return fmt.Sprintf(`# %s
-
-A [Noda](https://github.com/chimpanze/noda) project.
-
-## Getting Started
-
-`+"```"+`bash
-# Start infrastructure
-cp .env.example .env
-docker compose up -d
-
-# Run in development mode
-noda dev
-
-# Run tests
-noda test
-
-# Validate config
-noda validate --verbose
-`+"```"+`
-
-## Project Structure
-
-`+"```"+`
-noda.json           — main configuration (server, services, security)
-routes/             — HTTP route definitions
-workflows/          — workflow definitions
-schemas/            — JSON schemas for validation
-tests/              — workflow test suites
-migrations/         — database migrations
-docker-compose.yml  — local infrastructure
-`+"```"+`
-`, name)
 }

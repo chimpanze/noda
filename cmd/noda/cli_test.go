@@ -82,6 +82,24 @@ func TestScaffoldProject_ReadmeContainsName(t *testing.T) {
 	assert.Contains(t, string(data), "cool-api")
 }
 
+func TestScaffoldProject_AIAssistance(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+	require.NoError(t, scaffoldProject(dir))
+
+	// CLAUDE.md should exist and contain project guidance
+	data, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), "Noda project")
+	assert.Contains(t, string(data), "MCP Tools")
+
+	// .claude/settings.json should exist with MCP config
+	data, err = os.ReadFile(filepath.Join(dir, ".claude", "settings.json"))
+	require.NoError(t, err)
+	assert.Contains(t, string(data), `"noda"`)
+	assert.Contains(t, string(data), `"command"`)
+	assert.Contains(t, string(data), `"mcp"`)
+}
+
 func TestScaffoldProject_DuplicateIsIdempotent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
 	require.NoError(t, scaffoldProject(dir))
