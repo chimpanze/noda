@@ -1,15 +1,24 @@
 import { useState } from "react";
 import type { OutputSchema } from "../../types";
 import { schemaToCompactLabel, dataToCompactLabel } from "../../lib/schemaInference";
+import { detectSchemaDiff, diffToLabel } from "../../lib/dataDiff";
+import { useSchemaStore } from "../../stores/schema";
 
 interface DataBadgeProps {
   data?: unknown;
   outputSchema?: OutputSchema | null;
   compact?: boolean;
+  nodeId?: string;
 }
 
-export function DataBadge({ data, outputSchema, compact }: DataBadgeProps) {
+export function DataBadge({ data, outputSchema, compact, nodeId }: DataBadgeProps) {
   const [expanded, setExpanded] = useState(false);
+
+  const getPreviousSchema = useSchemaStore((s) => s.getPreviousSchema);
+  const previousSchema = nodeId ? getPreviousSchema(nodeId) : null;
+  const currentSchema = outputSchema?.schema;
+  const diff = previousSchema && currentSchema ? detectSchemaDiff(previousSchema, currentSchema) : null;
+  const diffLabel = diff ? diffToLabel(diff) : null;
 
   const hasData = data !== undefined;
   const label = hasData
@@ -25,7 +34,7 @@ export function DataBadge({ data, outputSchema, compact }: DataBadgeProps) {
   const isSchemaOnly = !hasData && outputSchema;
 
   return (
-    <div className="relative">
+    <div className="relative flex flex-col items-start">
       <button
         onClick={() => !compact && setExpanded(!expanded)}
         className={`
@@ -44,6 +53,12 @@ export function DataBadge({ data, outputSchema, compact }: DataBadgeProps) {
       >
         {label}
       </button>
+
+      {diffLabel && (
+        <div className="text-[9px] text-orange-500 font-mono mt-0.5 max-w-[180px] truncate" title={diffLabel}>
+          {diffLabel}
+        </div>
+      )}
 
       {expanded && hasData && !compact && (
         <div

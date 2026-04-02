@@ -21,7 +21,9 @@ interface SchemaState {
   ) => void;
   clearLearnedSchemas: (workflowId: string) => void;
   markStale: (workflowId: string, nodeId: string) => void;
+  getPreviousSchema: (nodeId: string) => JSONSchema | null;
   _learnedSchemas: Record<string, JSONSchema>;
+  _previousSchemas: Record<string, JSONSchema>;
   _staleKeys: Set<string>;
 }
 
@@ -50,6 +52,7 @@ export function loadLearnedSchemasFromStorage(
 export const useSchemaStore = create<SchemaState>((set, get) => ({
   staticSchemas: {},
   _learnedSchemas: {},
+  _previousSchemas: {},
   _staleKeys: new Set<string>(),
 
   loadStaticSchemas: async () => {
@@ -115,8 +118,14 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
       const newStaleKeys = new Set(state._staleKeys);
       newStaleKeys.delete(nodeId);
 
+      // Save previous schema before overwriting
+      const previous = state._learnedSchemas[nodeId];
+
       return {
         _learnedSchemas: { ...state._learnedSchemas, [nodeId]: merged },
+        _previousSchemas: previous
+          ? { ...state._previousSchemas, [nodeId]: previous }
+          : state._previousSchemas,
         _staleKeys: newStaleKeys,
       };
     });
@@ -144,6 +153,10 @@ export const useSchemaStore = create<SchemaState>((set, get) => ({
       }
       return { _learnedSchemas: newLearnedSchemas };
     });
+  },
+
+  getPreviousSchema: (nodeId) => {
+    return get()._previousSchemas[nodeId] ?? null;
   },
 
   markStale: (workflowId, nodeId) => {
