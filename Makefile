@@ -1,4 +1,4 @@
-.PHONY: build build-editor build-go test test-race test-coverage lint fmt dev clean migrate-up migrate-down \
+.PHONY: build build-editor build-go install test test-race test-coverage lint fmt dev clean migrate-up migrate-down \
 	bench bench-expr bench-engine bench-config bench-plugins bench-registry bench-save bench-compare \
 	loadtest loadtest-baseline
 
@@ -15,6 +15,17 @@ build-go:
 		-X main.Commit=$$(git rev-parse --short HEAD 2>/dev/null || echo unknown) \
 		-X main.BuildTime=$$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
 		-o dist/noda ./cmd/noda
+
+install: build
+	@if [ -w /usr/local/bin ]; then \
+		cp dist/noda /usr/local/bin/noda; \
+	elif command -v sudo >/dev/null 2>&1; then \
+		sudo cp dist/noda /usr/local/bin/noda; \
+	else \
+		mkdir -p $(HOME)/.local/bin; \
+		cp dist/noda $(HOME)/.local/bin/noda; \
+		echo "Installed to $(HOME)/.local/bin/noda"; \
+	fi
 
 test:
 	go test ./... -race -count=1
