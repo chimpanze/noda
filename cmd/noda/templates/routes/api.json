@@ -1,0 +1,14 @@
+{
+  "id": "hello-route",
+  "method": "POST",
+  "path": "/api/hello",
+  "body": {
+    "schema": { "$ref": "schemas/greeting" }
+  },
+  "trigger": {
+    "workflow": "hello",
+    "input": {
+      "name": "{{ body.name }}"
+    }
+  }
+}
