@@ -26,14 +26,15 @@ jobs:
         run: |
           if [ "${{ matrix.goarch }}" = "arm64" ]; then
             sudo dpkg --add-architecture arm64
-            # Only add arch qualifier to Ubuntu official sources, not third-party
-            for f in /etc/apt/sources.list.d/ubuntu.sources; do
-              if [ -f "$f" ]; then
-                sudo sed -i 's/^Architectures:.*/Architectures: amd64 arm64/' "$f"
-              fi
-            done
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs) main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64.list
-            echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports $(lsb_release -cs)-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64.list
+            # Add arm64 sources from ports.ubuntu.com (the only mirror serving arm64)
+            # Keep existing sources amd64-only by NOT modifying their Architectures field
+            cat <<SOURCES | sudo tee /etc/apt/sources.list.d/arm64-ports.sources
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: $(lsb_release -cs) $(lsb_release -cs)-updates $(lsb_release -cs)-security
+          Components: main restricted universe multiverse
+          Architectures: arm64
+          SOURCES
             sudo apt-get update
             sudo apt-get install -y libvips-dev:arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
           else
@@ -202,19 +203,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install libvips
-        shell: pwsh
-        run: |
-          $VIPS_VERSION = "8.17.0"
-          $VIPS_URL = "https://github.com/libvips/build-win64-mxe/releases/download/v${VIPS_VERSION}/vips-dev-w64-all-${VIPS_VERSION}.zip"
-          Invoke-WebRequest -Uri $VIPS_URL -OutFile vips.zip
-          Expand-Archive vips.zip -DestinationPath C:\vips
-          $vipsDir = Get-ChildItem C:\vips -Directory | Select-Object -First 1
-          echo "PKG_CONFIG_PATH=$($vipsDir.FullName)\lib\pkgconfig" >> $env:GITHUB_ENV
-          echo "CGO_CFLAGS=-I$($vipsDir.FullName)\include" >> $env:GITHUB_ENV
-          echo "CGO_LDFLAGS=-L$($vipsDir.FullName)\lib" >> $env:GITHUB_ENV
-          echo "$($vipsDir.FullName)\bin" >> $env:GITHUB_PATH
-
       - uses: actions/setup-go@v6
         with:
           go-version: "1.25"
@@ -233,17 +221,17 @@ jobs:
           if (Test-Path editorfs/dist) { Remove-Item -Recurse -Force editorfs/dist }
           Copy-Item -Recurse editor/dist editorfs/dist
 
-      - name: Build binary
+      - name: Build binary (slim — no image plugin)
         shell: pwsh
         env:
-          CGO_ENABLED: "1"
+          CGO_ENABLED: "0"
           GOOS: windows
           GOARCH: amd64
         run: |
           $VERSION = "${{ github.ref_name }}".TrimStart("v")
           $COMMIT = git rev-parse --short HEAD
           $BUILD_TIME = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-          go build -tags embed_editor -ldflags `
+          go build -tags "embed_editor,noimage" -ldflags `
             "-X main.Version=${VERSION} -X main.Commit=${COMMIT} -X main.BuildTime=${BUILD_TIME}" `
             -o noda.exe ./cmd/noda
 
