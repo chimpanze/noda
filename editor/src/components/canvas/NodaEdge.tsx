@@ -5,6 +5,7 @@ import {
   EdgeLabelRenderer,
 } from "@xyflow/react";
 import { useTraceStore } from "@/stores/trace";
+import { DataBadge } from "./DataBadge";
 
 export interface NodaEdgeData {
   output: string;
@@ -27,6 +28,11 @@ export function NodaEdge({
   const isError = edgeData?.output === "error";
   const hasRetry = edgeData?.retry != null;
   const output = edgeData?.output ?? "success";
+
+  // Get live data from the source node for this edge
+  const activeExecution = useTraceStore((s) => s.getActiveExecution());
+  const sourceNodeData = activeExecution?.nodeData.get(source);
+  const liveData = sourceNodeData?.data;
 
   // Check if this edge is active during trace
   const activeEdgeKeys = useTraceStore((s) => s.activeEdgeKeys);
@@ -86,6 +92,20 @@ export function NodaEdge({
             }}
           >
             retry ×{edgeData!.retry!.attempts}
+          </div>
+        </EdgeLabelRenderer>
+      )}
+      {liveData !== undefined && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: "all",
+            }}
+            className="nodrag nopan"
+          >
+            <DataBadge data={liveData} compact />
           </div>
         </EdgeLabelRenderer>
       )}
