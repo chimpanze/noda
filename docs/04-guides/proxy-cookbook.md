@@ -105,7 +105,29 @@ For endpoints that return raw bytes — invoice PDFs, box screenshots — pipe `
 
 ## 4. Remapping 403 → 401 at the public edge
 
-Internal services often return 403 when they don't know who the caller is. At the public edge you want 401 so clients retry with credentials. Today this is manual with `control.if`:
+Internal services often return 403 when they don't know who the caller is. At the public edge you want 401 so clients retry with credentials. Declare the remap once on the route group:
+
+```json
+{
+  "middleware": {
+    "response.status_remap": {
+      "map": { "403": 401 }
+    }
+  },
+  "middleware_presets": {
+    "public": ["security.cors", "response.status_remap"]
+  },
+  "route_groups": {
+    "/api/public": { "middleware_preset": "public" }
+  }
+}
+```
+
+Every route under `/api/public` gets the 403→401 rewrite automatically. Workflow logic never sees the remapped status — it's applied on the way out the door.
+
+### Advanced: per-endpoint remap in the workflow
+
+If a single endpoint needs logic that branches on the upstream status (e.g. log differently, trigger a refresh workflow), do it in the workflow itself with `control.if`:
 
 ```json
 {
@@ -137,7 +159,7 @@ Internal services often return 403 when they don't know who the caller is. At th
 }
 ```
 
-A dedicated helper is tracked at `FR-proxy-status-remap.md`.
+The middleware approach is the right default; reach for the workflow pattern only when you need per-endpoint branching.
 
 ## 5. Proxying 3+ backends — one shared workflow?
 
