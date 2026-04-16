@@ -281,6 +281,38 @@ Catches panics in downstream middleware/handlers and returns `500`. Should appea
 
 Generates an `X-Request-Id` if the inbound request has none, sets it on the response, and stores it in the Fiber context. Trigger mapping picks it up as `trigger.request_id`. No config.
 
+### response.status_remap
+
+Rewrites the outgoing HTTP status code based on a static map. Runs after the workflow's response has been set; unmapped statuses pass through unchanged. Body, headers, and content-type are left untouched.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `map` | object | yes | Keys are stringified upstream status codes (100–599); values are integer outgoing status codes (100–599). Must be non-empty. A self-map (e.g. `"403": 403`) is rejected as a configuration mistake. |
+
+Common use case — remap upstream `403` to `401` at the public edge so clients retry with credentials:
+
+```json
+{
+  "middleware": {
+    "response.status_remap": {
+      "map": { "403": 401, "502": 503 }
+    }
+  },
+  "middleware_presets": {
+    "public": ["security.cors", "response.status_remap"]
+  },
+  "route_groups": {
+    "/api/public": { "middleware_preset": "public" }
+  }
+}
+```
+
+Ordering: place `response.status_remap` *before* `compress`, `etag`, or any access-logging middleware that should observe the rewritten status.
+
+`WWW-Authenticate` is not auto-added on remapped `401` responses. Pair with `security.headers` or set the header explicitly in `response.error` when needed.
+
+Observability: each remap increments the `http.status_remaps.total` counter with `from` and `to` labels.
+
 ### security.cors
 
 CORS headers and automatic `OPTIONS` preflight registration on routes whose chain includes this middleware.
