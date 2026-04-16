@@ -36,14 +36,34 @@ The root config file. All fields are optional except where noted.
 }
 ```
 
+**Prometheus metrics** are served on the same port at `/metrics` when enabled via `observability.metrics.enabled`. See [Observability](../04-guides/observability.md) for the metric list and scrape config.
+
 ## services
 
 Map of service instance name to service config. Each service connects to an external system via a plugin.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `plugin` | string | yes | Plugin identifier: `db`, `cache`, `storage`, `stream`, `pubsub`, `http`, `email`, `lk` |
+| `plugin` | string | yes | Plugin identifier — see table below |
 | `config` | object | yes | Plugin-specific configuration |
+
+### Built-in plugin identifiers
+
+Use the exact identifier in the left column when writing `"plugin": "..."`. A wrong name (e.g. `"redis"` instead of `"cache"`) fails at startup with an `unknown plugin` error.
+
+| Identifier | Connects to | Node prefix | Use case |
+|---|---|---|---|
+| `db` | PostgreSQL | `db.*` | Relational queries, transactions |
+| `cache` | Redis | `cache.*` | Key/value cache, TTL |
+| `stream` | Redis Streams | `stream.*` | Durable event streams with consumer groups |
+| `pubsub` | Redis Pub/Sub | `pubsub.*` | Fire-and-forget broadcast |
+| `storage` | Local FS / S3 (via Afero) | `storage.*` | File read/write/list/delete |
+| `http` | Outbound HTTP | `http.*` | Call external APIs; use `base_url` + relative URLs |
+| `email` | SMTP | `email.*` | Send mail |
+| `image` | libvips (via bimg) | `image.*` | Resize, convert, metadata |
+| `lk` | LiveKit | `lk.*` | Video rooms, room tokens |
+
+Node types use the **prefix** column (e.g. `db.query`, `http.get`). The plugin identifier goes in `noda.json`; node types go in workflows.
 
 ### Database Service (`plugin: "db"`)
 

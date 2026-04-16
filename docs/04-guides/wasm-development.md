@@ -7,10 +7,47 @@ This guide covers building Wasm modules that run inside Noda's Wasm runtime.
 Noda's Wasm runtime is built on [Extism](https://extism.org/) (using Wazero). Wasm modules run in a sandboxed tick loop and can interact with Noda services (storage, cache, WebSocket, HTTP, etc.) through host functions.
 
 Use cases for Wasm modules:
+- **Pure-function helpers** — formatting, masking, validation, or any small pure function the expression engine doesn't provide (phone E.164, PII redaction, custom checksums). See [Query-only modules](#query-only-modules) below.
 - **Game servers** — tick-based game loops at 20+ Hz
 - **Bot integrations** — Discord, Slack, or custom protocol gateways
 - **Stateful services** — in-memory state with external service access
 - **Custom protocols** — any logic that doesn't fit the workflow model
+
+### Wasm vs. Feature Request — which should I reach for?
+
+- **Generic and reusable** (`padStart`, a new crypto primitive, a commonly-needed string function) → open a feature request. A built-in is faster than shipping a Wasm module per project.
+- **Domain-specific** (phone formatting with your country's quirks, redaction tuned to your PII fields, your company's signing protocol) → Wasm. Don't wait for Noda to learn your business rules.
+
+## Query-only modules
+
+When you just need a pure function for a workflow expression, export only `initialize` and `query`. No `tick`, no state, no `tick_rate` in config.
+
+```json
+{
+  "wasm_runtimes": {
+    "helpers": { "module": "wasm/helpers.wasm" }
+  }
+}
+```
+
+```go
+//go:wasmexport initialize
+func initialize() int32 {
+    if _, err := noda.GetInitInput(); err != nil { return noda.Fail(err) }
+    return 0
+}
+
+//go:wasmexport query
+func query() int32 {
+    raw := pdk.Input()
+    // ... parse raw, compute result ...
+    return noda.Output(map[string]any{"value": result})
+}
+```
+
+Noda detects the missing `tick` export and skips the tick loop entirely. `tick_rate` and `tick_timeout` are ignored for query-only modules.
+
+See [`examples/wasm-helpers/`](../../examples/wasm-helpers) for a complete runnable example with phone-E.164 and masking helpers.
 
 ## Module Exports
 

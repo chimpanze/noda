@@ -1,0 +1,29 @@
+{
+  "id": "format-phone",
+  "name": "Format phone number to E.164",
+  "nodes": {
+    "format": {
+      "type": "wasm.query",
+      "services": { "runtime": "helpers" },
+      "config": {
+        "data": {
+          "op": "format_phone_e164",
+          "value": "{{ input.raw }}",
+          "default_cc": "{{ input.default_cc ?? '49' }}"
+        },
+        "timeout": "2s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "body": {
+          "formatted": "{{ nodes.format.value }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "format", "to": "respond" }
+  ]
+}

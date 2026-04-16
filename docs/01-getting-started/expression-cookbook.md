@@ -118,6 +118,26 @@ Use the nil-coalescing operator `??` to provide defaults:
 }
 ```
 
+#### `??` vs `||` — use `??`, never `||`
+
+Coming from JavaScript or Python, developers often reach for `||` as a fallback. **In Noda expressions, `||` is strictly a boolean operator** — `a || "default"` where `a` is a string produces a compile error (`mismatched types string and string`). Use `??` for every fallback that isn't genuinely boolean.
+
+| Expression | Result |
+|---|---|
+| `nil ?? "x"` | `"x"` |
+| `"" ?? "x"` | `""` — empty string is **not** nil |
+| `false ?? "x"` | `false` — false is **not** nil |
+| `0 ?? "x"` | `0` — zero is **not** nil |
+| `nil \|\| true` | compile error when either side isn't bool |
+
+If you need a truthy-style fallback (treat empty string / zero as missing), write it explicitly:
+
+```
+{{ input.page != "" ? input.page : 1 }}
+```
+
+Finally: accessing a top-level identifier that isn't in the expression env (e.g., `{{ env.FOO }}`) is a compile error or silently returns nil, depending on strict mode. `??` doesn't rescue missing names — it only rescues `nil` values of existing names.
+
 ### Coercion Functions
 
 Use `toInt()` and `toFloat()` to convert query parameters and other string values to numbers:

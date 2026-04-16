@@ -1,0 +1,13 @@
+{
+  "id": "format-phone",
+  "method": "POST",
+  "path": "/api/format-phone",
+  "summary": "Format a raw phone string to E.164",
+  "trigger": {
+    "workflow": "format-phone",
+    "input": {
+      "raw": "{{ body.raw }}",
+      "default_cc": "{{ body.default_cc }}"
+    }
+  }
+}

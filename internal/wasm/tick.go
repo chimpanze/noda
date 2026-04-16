@@ -5,22 +5,27 @@ import (
 	"time"
 )
 
-// tickLoop runs the tick loop at the configured rate.
+// tickLoop runs the tick loop at the configured rate. If the module has no
+// `tick` export (query-only helper modules), the ticker is not started — the
+// loop only services the query channel.
 func (m *Module) tickLoop() {
-	interval := time.Second / time.Duration(m.tickRate)
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
+	var tickerC <-chan time.Time
+	if m.Plugin.FunctionExists("tick") {
+		interval := time.Second / time.Duration(m.tickRate)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		tickerC = ticker.C
+	}
 
 	for {
 		select {
 		case <-m.stopCh:
 			return
 
-		case <-ticker.C:
+		case <-tickerC:
 			m.executeTick()
 
 		case req := <-m.queryCh:
-			// Process query/command between ticks
 			m.processQuery(req)
 		}
 	}

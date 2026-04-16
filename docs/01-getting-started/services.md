@@ -227,6 +227,8 @@ Circuit breaker fields (inside `circuit_breaker`):
 
 **Nodes:** `http.request`, `http.get`, `http.post`
 
+> **Use `base_url` + relative paths.** Set the host once on the service, then use relative URLs (`/users/{{ input.id }}`) in every `http.*` node. Do **not** put `{{ $env('API_URL') }}/users/...` inside per-workflow URLs — `$env()` doesn't resolve in workflow expressions anyway (it's root-config-only), and centralizing the host makes environment switching trivial. For a full proxy walkthrough see the [proxy cookbook](../04-guides/proxy-cookbook.md).
+
 ---
 
 ### Email (`plugin: "email"`)

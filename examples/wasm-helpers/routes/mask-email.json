@@ -1,0 +1,12 @@
+{
+  "id": "mask-email",
+  "method": "POST",
+  "path": "/api/mask-email",
+  "summary": "Redact middle of an email for logging",
+  "trigger": {
+    "workflow": "mask-email",
+    "input": {
+      "email": "{{ body.email }}"
+    }
+  }
+}

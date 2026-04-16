@@ -33,6 +33,44 @@ Apply middleware presets to URL path prefixes. Defined in `noda.json` under `rou
 }
 ```
 
+## security.cors (alias: `cors`)
+
+Adds CORS headers to responses. Configured under `security.cors` in `noda.json`.
+
+```json
+{
+  "security": {
+    "cors": {
+      "allow_origins": "https://app.example.com,https://admin.example.com",
+      "allow_methods": "GET,POST,PUT,DELETE,OPTIONS",
+      "allow_headers": "Content-Type,Authorization,X-Request-Id",
+      "allow_credentials": true
+    }
+  }
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `allow_origins` | string | Comma-separated list of allowed origins. Wildcard `*` works but **cannot** be combined with `allow_credentials: true` (rejected at startup). |
+| `allow_methods` | string | Comma-separated allowed HTTP methods |
+| `allow_headers` | string | Comma-separated headers the client may send |
+| `allow_credentials` | bool | Allow cookies / Authorization header on cross-origin requests |
+
+If `allow_origins` is omitted, Noda defaults to `localhost` only and logs a warning — don't ship with no origins configured.
+
+Apply via preset or per-route:
+
+```json
+{
+  "middleware_presets": {
+    "public": ["security.cors", "rate_limit"]
+  }
+}
+```
+
+A route whose middleware chain includes `security.cors` also gets an auto-registered `OPTIONS` handler for CORS preflight.
+
 ## auth.oidc
 
 Validates OIDC ID tokens from external identity providers (Google, Keycloak, Auth0, Okta, etc.). Uses OIDC discovery to fetch provider configuration and JWKS keys automatically. Populates the same authentication locals as `auth.jwt`, so Casbin authorization and trigger input mapping work identically.
