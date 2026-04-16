@@ -118,9 +118,8 @@ func TestBuildMiddleware_RequestID(t *testing.T) {
 }
 
 func TestBuildMiddleware_Logger_IncludesRequestID(t *testing.T) {
-	// The logger factory writes to os.Stdout by default and exposes no config
-	// knob for the stream. Redirect stdout into a pipe so the test can inspect
-	// the access log line.
+	// BuildMiddleware("logger", ...) captures os.Stdout when constructing the
+	// handler, so the pipe must be wired into os.Stdout *before* that call.
 	origStdout := os.Stdout
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
