@@ -38,6 +38,9 @@ type Metrics struct {
 
 	// Panics
 	PanicsRecovered metric.Int64Counter
+
+	// Status remaps
+	StatusRemaps metric.Int64Counter
 }
 
 // NewMetrics creates all metric instruments on the given meter.
@@ -118,6 +121,14 @@ func NewMetrics(meter metric.Meter) (*Metrics, error) {
 	// Panic metrics
 	m.PanicsRecovered, err = meter.Int64Counter("panics.recovered.total",
 		metric.WithDescription("Total number of recovered panics"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	// Status remap metrics
+	m.StatusRemaps, err = meter.Int64Counter("http.status_remaps.total",
+		metric.WithDescription("Total number of outgoing HTTP status code remaps"),
 	)
 	if err != nil {
 		return nil, err

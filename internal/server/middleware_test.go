@@ -517,3 +517,26 @@ func TestBuildMiddleware_JWT_RSA_PublicKeyFile(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 }
+
+func TestBuildMiddleware_StatusRemap_Instance(t *testing.T) {
+	h, err := BuildMiddleware("response.status_remap:public", map[string]any{
+		"middleware_instances": map[string]any{
+			"response.status_remap:public": map[string]any{
+				"type": "response.status_remap",
+				"config": map[string]any{
+					"map": map[string]any{"403": float64(401)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	app := fiber.New()
+	app.Use(h)
+	app.Get("/forbidden", func(c fiber.Ctx) error { return c.Status(403).SendString("nope") })
+
+	req := httptest.NewRequest("GET", "/forbidden", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 401, resp.StatusCode)
+}
