@@ -1,0 +1,8 @@
+{
+  "wasm_runtimes": {
+    "helpers": {
+      "module": "wasm/helpers.wasm",
+      "encoding": "json"
+    }
+  }
+}

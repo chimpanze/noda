@@ -67,6 +67,18 @@ Create `workflows/hello.json`:
 noda start
 ```
 
+### Variables, env, and secrets
+
+Three mechanisms, one rule: pick by **where** the value is read.
+
+| Where | Syntax | Purpose |
+|---|---|---|
+| `noda.json` | `{{ $env('NAME') }}` | env vars at config-load time (DSNs, service URLs) |
+| Workflow expressions | `{{ secrets.NAME }}` | secrets at runtime (API keys, JWT secrets) |
+| Anywhere (non-secret shared names) | `{{ $var('NAME') }}` | from `vars.json` (topics, tables, service names) |
+
+`$env()` does not work in workflows. `env.NAME` is not a Noda pattern at all. Full reference: [Variables](../02-config/variables.md).
+
 ## 5. Make a Request
 
 ```bash

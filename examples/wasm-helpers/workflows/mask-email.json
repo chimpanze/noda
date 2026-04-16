@@ -1,0 +1,31 @@
+{
+  "id": "mask-email",
+  "name": "Mask email for logs",
+  "nodes": {
+    "mask": {
+      "type": "wasm.query",
+      "services": { "runtime": "helpers" },
+      "config": {
+        "data": {
+          "op": "mask",
+          "value": "{{ input.email }}",
+          "keep_start": 2,
+          "keep_end": 4,
+          "mask_char": "*"
+        },
+        "timeout": "2s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "body": {
+          "masked": "{{ nodes.mask.value }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "mask", "to": "respond" }
+  ]
+}

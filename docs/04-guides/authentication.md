@@ -4,6 +4,8 @@ This guide covers securing Noda APIs with JWT tokens, OIDC providers, and Casbin
 
 ## JWT Authentication
 
+> **Using RS256, RS384, RS512, ES256, ES384, or ES512?** Skip to [Asymmetric keys (RSA / ECDSA)](#asymmetric-keys-rsa--ecdsa) below — Noda supports both inline (`public_key`) and file-based (`public_key_file`) keys.
+
 ### Configuration
 
 Add JWT settings to `noda.json` under `security.jwt`:
@@ -28,7 +30,9 @@ Add JWT settings to `noda.json` under `security.jwt`:
 
 Supported algorithms: `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `ES256`, `ES384`, `ES512`.
 
-For RSA or ECDSA algorithms, provide a public key instead of a secret:
+### Asymmetric keys (RSA / ECDSA)
+
+For RSA or ECDSA algorithms, provide a public key instead of a secret. Either inline or as a file:
 
 ```json
 {
@@ -36,6 +40,19 @@ For RSA or ECDSA algorithms, provide a public key instead of a secret:
     "jwt": {
       "algorithm": "RS256",
       "public_key_file": "/etc/noda/jwt-public.pem"
+    }
+  }
+}
+```
+
+Or inline:
+
+```json
+{
+  "security": {
+    "jwt": {
+      "algorithm": "RS256",
+      "public_key": "-----BEGIN PUBLIC KEY-----\n...\n-----END PUBLIC KEY-----"
     }
   }
 }
@@ -759,7 +776,7 @@ Group middleware into reusable presets for consistent security across routes:
 ```json
 {
   "middleware_presets": {
-    "public": ["cors", "rate_limit"],
+    "public": ["security.cors", "limiter"],
     "authenticated": ["auth.jwt"],
     "admin": ["auth.jwt", "casbin.enforce"],
     "oidc-authenticated": ["auth.oidc"],
@@ -797,7 +814,7 @@ Mix public and protected routes by placing them in different route groups or by 
 ```json
 {
   "middleware_presets": {
-    "public": ["cors"],
+    "public": ["security.cors"],
     "authenticated": ["auth.jwt"]
   },
   "route_groups": {

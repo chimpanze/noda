@@ -110,7 +110,7 @@
           "config": { "type": "object" },
           "tick_timeout": { "type": "string", "description": "Max duration for a single tick call (e.g. '5s', '500ms'). Default: 10x tick budget." }
         },
-        "required": ["module", "tick_rate"]
+        "required": ["module"]
       }
     },
     "secrets": {

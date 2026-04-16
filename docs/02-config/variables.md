@@ -1,5 +1,15 @@
 # Variables
 
+> **TL;DR — three mechanisms, use the right one:**
+>
+> | Where you are | Use |
+> |---|---|
+> | In `noda.json` / root config | `{{ $env('NAME') }}` — loaded from providers (`.env`, process env) at config load time |
+> | In a workflow expression | `{{ secrets.NAME }}` — runtime lookup from the same providers |
+> | Anywhere, for non-secret shared names (topics, tables, service names) | `{{ $var('NAME') }}` — from `vars.json` |
+>
+> **Using `$env()` in a workflow?** It won't resolve — `$env()` is root-config-only. Use `secrets.NAME` instead. `env.NAME` is **not** a Noda pattern; it will silently evaluate to nil (or error in strict mode) and will never read your `.env`.
+
 ## Shared Variables (`vars.json`)
 
 Define named values in a `vars.json` file at the project root to avoid repeating strings across config files:
@@ -79,7 +89,7 @@ Use `$env('VAR_NAME')` in any string value in the root config to reference envir
 }
 ```
 
-**Note:** `$env()` only resolves in `noda.json` (and its overlay). In workflow expressions, use `secrets.VAR_NAME` instead to access secret values at runtime.
+**Note:** `$env()` only resolves in `noda.json` (and its overlay). In workflow expressions, use `secrets.VAR_NAME` instead to access secret values at runtime. There is no `env.VAR_NAME` mechanism — writing that in a workflow will silently evaluate to nil (or fail in strict mode).
 
 ### `.env` File
 

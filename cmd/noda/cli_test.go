@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -104,6 +105,29 @@ func TestScaffoldProject_AIAssistance(t *testing.T) {
 	assert.Contains(t, string(data), `"noda"`)
 	assert.Contains(t, string(data), `"command"`)
 	assert.Contains(t, string(data), `"mcp"`)
+}
+
+func TestScaffoldProject_NodaJSONHasDefaultGlobalMiddleware(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "myapp")
+	require.NoError(t, scaffoldProject(dir))
+
+	data, err := os.ReadFile(filepath.Join(dir, "noda.json"))
+	require.NoError(t, err)
+
+	var cfg map[string]any
+	require.NoError(t, json.Unmarshal(data, &cfg))
+
+	gm, ok := cfg["global_middleware"].([]any)
+	require.True(t, ok, "noda.json should declare global_middleware as an array, got %T", cfg["global_middleware"])
+
+	names := make([]string, 0, len(gm))
+	for _, v := range gm {
+		s, ok := v.(string)
+		require.True(t, ok, "global_middleware entry %v should be a string", v)
+		names = append(names, s)
+	}
+
+	assert.Equal(t, []string{"recover", "requestid", "logger"}, names)
 }
 
 func TestScaffoldProject_DuplicateIsIdempotent(t *testing.T) {

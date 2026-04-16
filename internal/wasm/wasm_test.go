@@ -3148,3 +3148,39 @@ func TestModule_IsWorkflowAllowed(t *testing.T) {
 	m2 := &Module{Config: ModuleConfig{}}
 	assert.False(t, m2.IsWorkflowAllowed("anything"))
 }
+
+// TestModule_QueryOnly covers pure-function helper modules that export only
+// `initialize` and `query` (no `tick`). These modules have no `tick_rate` in
+// their config and must not run a tick loop against the missing export.
+func TestModule_QueryOnly(t *testing.T) {
+	plugin := newMockPlugin()
+	plugin.exports = map[string]bool{
+		"initialize": true,
+		"query":      true,
+	}
+	plugin.responses["query"] = mockResponse{
+		exitCode: 0,
+		data:     []byte(`{"formatted":"+4930123"}`),
+	}
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	// TickRate 0 — as produced by parseWasmModuleConfig when tick_rate is omitted.
+	m, err := NewModule("helpers", plugin, ModuleConfig{Name: "helpers"}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+
+	resp, err := m.Query(context.Background(), map[string]any{"op": "format_phone"}, 2*time.Second)
+	require.NoError(t, err)
+	respMap, ok := resp.(map[string]any)
+	require.True(t, ok, "expected map response, got %T", resp)
+	assert.Equal(t, "+4930123", respMap["formatted"])
+
+	time.Sleep(50 * time.Millisecond)
+	require.NoError(t, m.Stop(context.Background()))
+
+	// No tick calls should have been made against a module that doesn't export tick.
+	assert.Empty(t, plugin.getCalls("tick"))
+}

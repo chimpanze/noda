@@ -117,6 +117,41 @@ func TestBuildMiddleware_RequestID(t *testing.T) {
 	assert.NotEmpty(t, resp.Header.Get("X-Request-Id"))
 }
 
+func TestBuildMiddleware_Logger_IncludesRequestID(t *testing.T) {
+	// BuildMiddleware("logger", ...) captures os.Stdout when constructing the
+	// handler, so the pipe must be wired into os.Stdout *before* that call.
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = origStdout })
+
+	ridHandler, err := BuildMiddleware("requestid", nil)
+	require.NoError(t, err)
+	logHandler, err := BuildMiddleware("logger", nil)
+	require.NoError(t, err)
+
+	app := fiber.New()
+	app.Use(ridHandler)
+	app.Use(logHandler)
+	app.Get("/test", func(c fiber.Ctx) error { return c.SendString("ok") })
+
+	req := httptest.NewRequest("GET", "/test", nil)
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	rid := resp.Header.Get("X-Request-Id")
+	require.NotEmpty(t, rid, "requestid middleware should set X-Request-Id response header")
+
+	require.NoError(t, w.Close())
+	captured, err := io.ReadAll(r)
+	require.NoError(t, err)
+
+	assert.Contains(t, string(captured), "request_id="+rid,
+		"logger output %q should contain request_id=%s", string(captured), rid)
+}
+
 func TestBuildMiddleware_CORS(t *testing.T) {
 	app := fiber.New()
 	h, err := BuildMiddleware("security.cors", map[string]any{
