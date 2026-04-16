@@ -43,7 +43,7 @@ Apply a preset (or a literal list) to all routes whose path starts with a prefix
 }
 ```
 
-If a route matches multiple group prefixes, the *first* match wins — and Go map iteration order is non-deterministic, so don't rely on overlap behavior. Define disjoint prefixes (e.g. `/api/admin` and `/api/public`) rather than nested ones (`/api` and `/api/admin`).
+If a route matches multiple group prefixes, the *first* match wins — and Go map iteration order is non-deterministic, so don't rely on overlap behavior. Define disjoint prefixes (e.g. `/api/admin` and `/api/public`) rather than nested ones (`/api` and `/api/admin`). If you need different middleware on a subset of routes under a shared prefix, use route-level `middleware_preset` (or `middleware`) on the inner routes instead of overlapping group prefixes.
 
 ### Route-level middleware
 
@@ -60,7 +60,7 @@ Individual routes specify middleware directly via `middleware` (a list) or `midd
 
 ### Resolution order
 
-For each route, Noda builds the middleware chain in this order: group middleware → route preset → route-level `middleware`. Duplicates are removed while preserving the first occurrence. Global middleware is *not* part of this per-route chain — it is applied separately via `app.Use()`.
+For each route, Noda builds the middleware chain in this order: group middleware → route preset → route-level `middleware`. Duplicates are removed while preserving the first occurrence. Global middleware is *not* part of this per-route chain — it is applied separately via `app.Use()`. A single route may set both `middleware_preset` and `middleware` — both contribute to the chain, in that order, and duplicates are dropped.
 
 (Source: `internal/server/presets.go:18-64`.)
 
@@ -167,6 +167,19 @@ Config under `security.casbin` (per `internal/server/casbin.go`):
 | `role_links` | array of string arrays | no | Role assignments (grouping policies), each as `[gtype, ...params]`. Example: `["g", "alice", "admin"]`. |
 | `tenant_param` | string | no | If set, enforcement uses 4 args (`sub, tenant, obj, act`). The tenant value is read from the route param of this name, falling back to the query string. |
 
+```json
+{
+  "security": {
+    "casbin": {
+      "model": "auth/model.conf",
+      "policies": [
+        ["p", "admin", "/api/*", "*"]
+      ]
+    }
+  }
+}
+```
+
 ### compress
 
 Gzip/deflate response compression. No config.
@@ -210,6 +223,8 @@ Per-IP request rate limiting.
   }
 }
 ```
+
+Config lives under `middleware.limiter` — there is no `security.*` alternative path for this middleware (unlike `security.cors`, `security.jwt`, etc.).
 
 ### livekit.webhook
 
@@ -256,7 +271,7 @@ To provide credentials explicitly (instead of using the lk service config):
 
 ### logger
 
-Writes one access log line per request to stdout. Includes `time`, `ip`, `status`, `method`, `path`, `request_id` (set by `requestid`), and `latency`. No config.
+Writes one access log line per request to stdout. Includes `time`, `ip`, `status`, `method`, `path`, `request_id` (set by `requestid`), and `latency`. No config. Omitting `requestid` from the chain leaves the `request_id` field empty — it does not error.
 
 ### recover
 
@@ -272,12 +287,12 @@ CORS headers and automatic `OPTIONS` preflight registration on routes whose chai
 
 Config under `security.cors`:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `allow_origins` | string | Comma-separated list of allowed origins. Wildcard `*` works but **cannot** be combined with `allow_credentials: true` (rejected at startup). Defaults to localhost-only with a startup warning when omitted. |
-| `allow_methods` | string | Comma-separated allowed HTTP methods. |
-| `allow_headers` | string | Comma-separated headers the client may send. |
-| `allow_credentials` | bool | Allow cookies / `Authorization` header on cross-origin requests. |
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `allow_origins` | string | no | Comma-separated list of allowed origins. Wildcard `*` works but **cannot** be combined with `allow_credentials: true` (rejected at startup). Defaults to localhost-only with a startup warning when omitted. |
+| `allow_methods` | string | no | Comma-separated allowed HTTP methods. |
+| `allow_headers` | string | no | Comma-separated headers the client may send. |
+| `allow_credentials` | bool | no | Allow cookies / `Authorization` header on cross-origin requests. |
 
 ```json
 {
@@ -306,6 +321,17 @@ Config under `security.csrf` — fields the factory reads (per `internal/server/
 | `cookie_same_site` | string | `Strict` / `Lax` / `None`. |
 | `cookie_session_only` | bool | Don't persist past session. |
 | `single_use_token` | bool | Rotate token after each use. |
+
+```json
+{
+  "security": {
+    "csrf": {
+      "cookie_secure": true,
+      "cookie_same_site": "Strict"
+    }
+  }
+}
+```
 
 ### security.headers
 
@@ -396,3 +422,5 @@ Cancels handler execution if it exceeds a deadline.
   }
 }
 ```
+
+> Add routes under `/api/google/` and `/api/keycloak/` respectively — each will receive the corresponding OIDC middleware from its group.
