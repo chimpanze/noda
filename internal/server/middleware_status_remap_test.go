@@ -1,13 +1,18 @@
 package server
 
 import (
+	"context"
 	"io"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/attribute"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 func TestBuildMiddleware_StatusRemap_MissingMap(t *testing.T) {
@@ -165,4 +170,54 @@ func TestBuildMiddleware_StatusRemap_PreservesBodyAndHeaders(t *testing.T) {
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
 	assert.Equal(t, `{"error":"forbidden","detail":"no session"}`, string(body))
+}
+
+func TestBuildMiddleware_StatusRemap_MetricIncrements(t *testing.T) {
+	reader := sdkmetric.NewManualReader()
+	provider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	meter := provider.Meter("test")
+	m, err := metrics.NewMetrics(meter)
+	require.NoError(t, err)
+
+	h, err := BuildMiddleware("response.status_remap", map[string]any{
+		"middleware": map[string]any{
+			"response.status_remap": map[string]any{
+				"map": map[string]any{"403": float64(401)},
+			},
+		},
+		"_metrics": m,
+	})
+	require.NoError(t, err)
+
+	app := fiber.New()
+	app.Use(h)
+	app.Get("/forbidden", func(c fiber.Ctx) error { return c.Status(403).SendString("nope") })
+	app.Get("/ok", func(c fiber.Ctx) error { return c.Status(200).SendString("ok") })
+
+	// Fire one remap and one passthrough.
+	_, _ = app.Test(httptest.NewRequest("GET", "/forbidden", nil))
+	_, _ = app.Test(httptest.NewRequest("GET", "/ok", nil))
+
+	var rm metricdata.ResourceMetrics
+	require.NoError(t, reader.Collect(context.Background(), &rm))
+
+	var sum int64
+	for _, sm := range rm.ScopeMetrics {
+		for _, metric := range sm.Metrics {
+			if metric.Name != "http.status_remaps.total" {
+				continue
+			}
+			data, ok := metric.Data.(metricdata.Sum[int64])
+			require.True(t, ok)
+			for _, dp := range data.DataPoints {
+				sum += dp.Value
+				// Labels: from=403, to=401
+				fromAttr, _ := dp.Attributes.Value(attribute.Key("from"))
+				toAttr, _ := dp.Attributes.Value(attribute.Key("to"))
+				assert.Equal(t, "403", fromAttr.AsString())
+				assert.Equal(t, "401", toAttr.AsString())
+			}
+		}
+	}
+	assert.Equal(t, int64(1), sum, "expected exactly one remap to be counted")
 }
