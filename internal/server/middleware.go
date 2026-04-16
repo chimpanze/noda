@@ -29,21 +29,22 @@ type MiddlewareFactory func(config map[string]any, rootConfig map[string]any) (f
 
 // middlewareRegistry maps middleware names to their factory functions.
 var middlewareRegistry = map[string]MiddlewareFactory{
-	"recover":          newRecoverMiddleware,
-	"logger":           newLoggerMiddleware,
-	"requestid":        newRequestIDMiddleware,
-	"security.cors":    newCORSMiddleware,
-	"security.headers": newHelmetMiddleware,
-	"security.csrf":    newCSRFMiddleware,
-	"limiter":          newLimiterMiddleware,
-	"timeout":          newTimeoutMiddleware,
-	"compress":         newCompressMiddleware,
-	"etag":             newETagMiddleware,
-	"auth.jwt":         newJWTMiddleware,
-	"auth.oidc":        newOIDCMiddleware,
-	"casbin.enforce":   newCasbinMiddleware,
-	"livekit.webhook":  newLiveKitWebhookMiddleware,
-	"idempotency":      newIdempotencyMiddleware,
+	"recover":               newRecoverMiddleware,
+	"logger":                newLoggerMiddleware,
+	"requestid":             newRequestIDMiddleware,
+	"security.cors":         newCORSMiddleware,
+	"security.headers":      newHelmetMiddleware,
+	"security.csrf":         newCSRFMiddleware,
+	"limiter":               newLimiterMiddleware,
+	"timeout":               newTimeoutMiddleware,
+	"compress":              newCompressMiddleware,
+	"etag":                  newETagMiddleware,
+	"auth.jwt":              newJWTMiddleware,
+	"auth.oidc":             newOIDCMiddleware,
+	"casbin.enforce":        newCasbinMiddleware,
+	"livekit.webhook":       newLiveKitWebhookMiddleware,
+	"idempotency":           newIdempotencyMiddleware,
+	"response.status_remap": newStatusRemapMiddleware,
 }
 
 // ParseMiddlewareName splits a middleware name into its base type and instance.
