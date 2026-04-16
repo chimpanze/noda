@@ -144,7 +144,15 @@ func newRecoverMiddleware(_ map[string]any, rootConfig map[string]any) (fiber.Ha
 }
 
 func newLoggerMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error) {
-	return fiberlogger.New(), nil
+	return fiberlogger.New(fiberlogger.Config{
+		Stream: os.Stdout,
+		Format: "${time} ${ip} ${status} ${method} ${path} request_id=${request_id} ${latency}\n",
+		CustomTags: map[string]fiberlogger.LogFunc{
+			"request_id": func(output fiberlogger.Buffer, c fiber.Ctx, _ *fiberlogger.Data, _ string) (int, error) {
+				return output.WriteString(requestid.FromContext(c))
+			},
+		},
+	}), nil
 }
 
 func newRequestIDMiddleware(_ map[string]any, _ map[string]any) (fiber.Handler, error) {
