@@ -43,7 +43,7 @@ Apply a preset (or a literal list) to all routes whose path starts with a prefix
 }
 ```
 
-If a route matches multiple group prefixes, the *first* match wins — and Go map iteration order is non-deterministic, so don't rely on overlap behavior. Define disjoint prefixes (e.g. `/api/admin` and `/api/public`) rather than nested ones (`/api` and `/api/admin`). If you need different middleware on a subset of routes under a shared prefix, use route-level `middleware_preset` (or `middleware`) on the inner routes instead of overlapping group prefixes.
+If a route matches multiple group prefixes, the winner is non-deterministic (Go map iteration). Define disjoint prefixes (e.g. `/api/admin` and `/api/public`) rather than nested ones (`/api` and `/api/admin`). If you need different middleware on a subset of routes under a shared prefix, use route-level `middleware_preset` (or `middleware`) on the inner routes instead of overlapping group prefixes.
 
 ### Route-level middleware
 

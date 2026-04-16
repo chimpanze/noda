@@ -242,13 +242,13 @@ Named collections of middleware for reuse across routes and route groups.
 {
   "middleware_presets": {
     "authenticated": ["auth.jwt"],
-    "public": ["cors", "rate_limit"],
-    "admin": ["auth.jwt", "auth.casbin"]
+    "public": ["security.cors", "limiter"],
+    "admin": ["auth.jwt", "casbin.enforce"]
   }
 }
 ```
 
-Available middleware: `auth.jwt`, `auth.casbin`, `cors`, `rate_limit`, `helmet`, `compress`, `etag`.
+See [`docs/02-config/middleware.md`](middleware.md) for the canonical list of registered middleware names.
 
 ## route_groups
 

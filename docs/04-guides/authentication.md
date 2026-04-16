@@ -776,7 +776,7 @@ Group middleware into reusable presets for consistent security across routes:
 ```json
 {
   "middleware_presets": {
-    "public": ["cors", "rate_limit"],
+    "public": ["security.cors", "limiter"],
     "authenticated": ["auth.jwt"],
     "admin": ["auth.jwt", "casbin.enforce"],
     "oidc-authenticated": ["auth.oidc"],
@@ -814,7 +814,7 @@ Mix public and protected routes by placing them in different route groups or by 
 ```json
 {
   "middleware_presets": {
-    "public": ["cors"],
+    "public": ["security.cors"],
     "authenticated": ["auth.jwt"]
   },
   "route_groups": {
