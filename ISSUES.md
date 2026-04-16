@@ -14,7 +14,6 @@ Tester hit these while building with Noda. The features exist — the discoverab
 
 - **Query param forwarding** — `{{ query }}` is available in the request context, but tester concluded "no way to forward query params". Needs an explicit example for the common proxy/pagination pattern.
 - **Binary response passthrough** — `http.get → response.file` works end-to-end, but tester wasn't sure. Needs a documented PDF/image passthrough example.
-- **403 → 401 remapping** — pattern works via `control.if` on proxy status, but boilerplate is heavy. Either document the pattern or add a helper.
 
 ## Observability
 
