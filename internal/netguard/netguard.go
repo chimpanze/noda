@@ -129,7 +129,7 @@ func (p Policy) checkHostWithLookup(ctx context.Context, host string, lookup loo
 		return ip, nil
 	}
 
-	return nil, fmt.Errorf("%w: host %q resolved to no allowed addresses", ErrDenied, host)
+	return nil, fmt.Errorf("%w: host %q resolved to no allowed addresses (set allow_private_networks: true or add to allowed_hosts to permit)", ErrDenied, host)
 }
 
 // IPDenied reports whether ip is denied by the policy. Use this when a

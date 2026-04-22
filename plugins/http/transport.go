@@ -46,7 +46,7 @@ func newTransport(policy netguard.Policy, base *http.Transport) *http.Transport 
 		// If host is already an IP literal, skip resolution but still check it.
 		if ip := net.ParseIP(host); ip != nil {
 			if policy.IPDenied(ip) {
-				return nil, fmt.Errorf("%w: %s", netguard.ErrDenied, ip)
+				return nil, fmt.Errorf("%w: %s (set allow_private_networks: true or add hostname to allowed_hosts to permit)", netguard.ErrDenied, ip)
 			}
 			return dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
 		}

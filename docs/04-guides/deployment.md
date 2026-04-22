@@ -410,6 +410,15 @@ CSRF protection is not enabled by default because API-only deployments (mobile a
 
 ## Outbound network policy
 
+> **⚠️ Breaking change for existing deployments.** Workflows that
+> previously used the `http` plugin to reach `localhost`,
+> `127.0.0.1`, RFC1918 (`10.x`, `172.16-31.x`, `192.168.x`), or
+> internal cluster IPs (`100.64.x`) will now fail with
+> `netguard: destination denied by policy`. To re-enable, set
+> `allow_private_networks: true` on the affected service config,
+> or list specific hostnames in `allowed_hosts`. See the HTTP
+> Client Service options in `docs/02-config/noda-json.md`.
+
 The `http` plugin enforces an outbound-network policy on every request to
 prevent SSRF. By default, requests resolved to any of these IP ranges are
 denied:
