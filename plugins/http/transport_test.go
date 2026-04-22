@@ -1,8 +1,6 @@
 package http
 
 import (
-	"context"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,8 +48,4 @@ func TestNewTransport_DialContextRejectsBeforeDial(t *testing.T) {
 	_, err := client.Get("http://10.0.0.1:80/")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, netguard.ErrDenied)
-
-	// Use _ = context.Background just to keep the import; the test above doesn't use it.
-	_ = context.Background()
-	_ = net.IPv4zero
 }
