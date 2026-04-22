@@ -1,13 +1,69 @@
 package image
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"image"
+	_ "image/gif"  // header decoder
+	_ "image/jpeg" // header decoder
+	_ "image/png"  // header decoder
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 )
+
+const (
+	// maxImageBytes is the hard ceiling on input file size before any decode.
+	maxImageBytes = 20 << 20 // 20 MiB
+
+	// maxImagePixels is the hard ceiling on pixel count (width * height).
+	// 50 megapixels accommodates 8K-class images with headroom.
+	maxImagePixels = 50_000_000
+)
+
+// validateImageInput rejects inputs that exceed the byte-size or pixel-count
+// ceilings, before the bytes reach libvips. Returns *api.ValidationError on
+// rejection.
+func validateImageInput(data []byte) error {
+	if len(data) > maxImageBytes {
+		return &api.ValidationError{
+			Field:   "input",
+			Message: fmt.Sprintf("image exceeds %d bytes (got %d)", maxImageBytes, len(data)),
+		}
+	}
+
+	// Stdlib header parse for PNG/JPEG/GIF (no pixel decode).
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err == nil {
+		if int64(cfg.Width)*int64(cfg.Height) > maxImagePixels {
+			return &api.ValidationError{
+				Field:   "input",
+				Message: fmt.Sprintf("image dimensions %dx%d exceed %d pixels", cfg.Width, cfg.Height, maxImagePixels),
+			}
+		}
+		return nil
+	}
+
+	// Fallback: WebP/AVIF/TIFF — let libvips read the header.
+	// bimg.Size() invokes vips_image_new_from_buffer, which is metadata-only
+	// for headers it understands.
+	size, sizeErr := bimg.NewImage(data).Size()
+	if sizeErr != nil {
+		return &api.ValidationError{
+			Field:   "input",
+			Message: fmt.Sprintf("unrecognised image format: %v", sizeErr),
+		}
+	}
+	if int64(size.Width)*int64(size.Height) > maxImagePixels {
+		return &api.ValidationError{
+			Field:   "input",
+			Message: fmt.Sprintf("image dimensions %dx%d exceed %d pixels", size.Width, size.Height, maxImagePixels),
+		}
+	}
+	return nil
+}
 
 // Common service deps: source and target storage.
 var imageServiceDeps = map[string]api.ServiceDep{
@@ -32,6 +88,9 @@ func readSourceImage(ctx context.Context, services map[string]any, nCtx api.Exec
 	data, err := source.Read(ctx, inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("read source image %q: %w", inputPath, err)
+	}
+	if err := validateImageInput(data); err != nil {
+		return nil, err
 	}
 	return data, nil
 }
