@@ -587,3 +587,85 @@ func TestRequestExecutor_MissingMethod(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required field \"method\"")
 }
+
+func TestCreateService_DefaultRedirectsStripAuth(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, "strip_auth", svc.redirectMode)
+	assert.Equal(t, 10, svc.maxRedirects)
+	assert.False(t, svc.allowPrivateNetworks)
+	assert.Empty(t, svc.allowedHosts)
+}
+
+func TestCreateService_RedirectsNone(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"redirects": "none"})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, "none", svc.redirectMode)
+}
+
+func TestCreateService_RedirectsSameOrigin(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"redirects": "same_origin"})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, "same_origin", svc.redirectMode)
+}
+
+func TestCreateService_InvalidRedirects(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{"redirects": "always_follow"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "redirects")
+}
+
+func TestCreateService_MaxRedirectsOutOfRange(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{"max_redirects": float64(51)})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max_redirects")
+}
+
+func TestCreateService_MaxRedirectsNegative(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{"max_redirects": float64(-1)})
+	require.Error(t, err)
+}
+
+func TestCreateService_AllowPrivateNetworks(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"allow_private_networks": true})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.True(t, svc.allowPrivateNetworks)
+}
+
+func TestCreateService_AllowedHosts(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{
+		"allowed_hosts": []any{"internal.svc", "metrics.local"},
+	})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, []string{"internal.svc", "metrics.local"}, svc.allowedHosts)
+}
+
+func TestCreateService_AllowedHostsRejectsScheme(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{
+		"allowed_hosts": []any{"http://internal.svc"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_hosts")
+}
+
+func TestCreateService_AllowedHostsRejectsPath(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{
+		"allowed_hosts": []any{"internal.svc/path"},
+	})
+	require.Error(t, err)
+}
