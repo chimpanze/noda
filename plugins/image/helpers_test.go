@@ -180,12 +180,14 @@ func TestValidateImageInput_AcceptsModerateImage(t *testing.T) {
 }
 
 func TestValidateImageInput_BimgFallbackForUnknownFormat(t *testing.T) {
-	// Random bytes that are not a recognised image: image.DecodeConfig
-	// returns ErrFormat. The bimg fallback also fails. Should return *some*
-	// error (not panic).
+	// Random bytes are not a recognised image: image.DecodeConfig
+	// returns ErrFormat, then the bimg fallback also fails. We don't
+	// assert the error TYPE (depends on bimg's wrapping), only that
+	// the validator surfaces an error rather than silently passing
+	// the bytes through.
 	random := bytes.Repeat([]byte{0xab, 0xcd}, 100)
-	_ = validateImageInput(random) // don't assert error type — depends on bimg behaviour
-	// Key invariant: doesn't panic.
+	err := validateImageInput(random)
+	require.Error(t, err)
 }
 
 // keep bimg import used elsewhere
