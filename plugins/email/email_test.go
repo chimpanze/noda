@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -652,4 +653,35 @@ func TestService_SetDialFn(t *testing.T) {
 	_, err := svc.dialCtx(context.Background())
 	assert.True(t, called)
 	assert.Error(t, err)
+}
+
+func TestResolveRecipients_RejectsInvalidAddress(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	_, err := resolveRecipients(execCtx, map[string]any{
+		"to": "not an email",
+	}, "to")
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "to[0]", ve.Field)
+}
+
+func TestResolveRecipients_RejectsInvalidInList(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	_, err := resolveRecipients(execCtx, map[string]any{
+		"to": []any{"good@example.com", "bad-email"},
+	}, "to")
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "to[1]", ve.Field)
+}
+
+func TestResolveRecipients_AcceptsRFC5322Names(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": "Alice Example <alice@example.com>",
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Alice Example <alice@example.com>"}, result)
 }

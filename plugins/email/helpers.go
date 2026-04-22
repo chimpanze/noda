@@ -3,6 +3,7 @@ package email
 import (
 	"crypto/rand"
 	"fmt"
+	"net/mail"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -18,6 +19,7 @@ func resolveRecipients(nCtx api.ExecutionContext, config map[string]any, key str
 		return nil, nil
 	}
 
+	var addrs []string
 	switch v := raw.(type) {
 	case string:
 		val, err := nCtx.Resolve(v)
@@ -26,19 +28,39 @@ func resolveRecipients(nCtx api.ExecutionContext, config map[string]any, key str
 		}
 		switch r := val.(type) {
 		case string:
-			return []string{r}, nil
+			addrs = []string{r}
 		case []any:
-			return anySliceToStrings(r, key)
+			a, err := anySliceToStrings(r, key)
+			if err != nil {
+				return nil, err
+			}
+			addrs = a
 		case []string:
-			return r, nil
+			addrs = r
+		default:
+			return nil, fmt.Errorf("field %q resolved to %T, expected string or []string", key, val)
 		}
-		return nil, fmt.Errorf("field %q resolved to %T, expected string or []string", key, val)
 	case []any:
-		return anySliceToStrings(v, key)
+		a, err := anySliceToStrings(v, key)
+		if err != nil {
+			return nil, err
+		}
+		addrs = a
 	case []string:
-		return v, nil
+		addrs = v
+	default:
+		return nil, fmt.Errorf("field %q has invalid type %T", key, raw)
 	}
-	return nil, fmt.Errorf("field %q has invalid type %T", key, raw)
+
+	for i, a := range addrs {
+		if _, err := mail.ParseAddress(a); err != nil {
+			return nil, &api.ValidationError{
+				Field:   fmt.Sprintf("%s[%d]", key, i),
+				Message: fmt.Sprintf("invalid email address %q: %v", a, err),
+			}
+		}
+	}
+	return addrs, nil
 }
 
 func anySliceToStrings(items []any, key string) ([]string, error) {
