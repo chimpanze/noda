@@ -132,6 +132,12 @@ func (p Policy) checkHostWithLookup(ctx context.Context, host string, lookup loo
 	return nil, fmt.Errorf("%w: host %q resolved to no allowed addresses", ErrDenied, host)
 }
 
+// IPDeniedExported reports whether ip is denied by the policy. Exported
+// for callers that already have an IP literal (no DNS lookup needed).
+func (p Policy) IPDeniedExported(ip net.IP) bool {
+	return p.ipDenied(ip)
+}
+
 // ipDenied returns true if the IP must not be dialed under this policy.
 func (p Policy) ipDenied(ip net.IP) bool {
 	if ip == nil {
