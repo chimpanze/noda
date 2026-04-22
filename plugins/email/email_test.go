@@ -685,3 +685,40 @@ func TestResolveRecipients_AcceptsRFC5322Names(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"Alice Example <alice@example.com>"}, result)
 }
+
+func TestSend_RejectsOver100CombinedRecipients(t *testing.T) {
+	// 60 to + 30 cc + 11 bcc = 101 total → must reject.
+	to := make([]any, 60)
+	for i := range to {
+		to[i] = fmt.Sprintf("u%d@example.com", i)
+	}
+	cc := make([]any, 30)
+	for i := range cc {
+		cc[i] = fmt.Sprintf("c%d@example.com", i)
+	}
+	bcc := make([]any, 11)
+	for i := range bcc {
+		bcc[i] = fmt.Sprintf("b%d@example.com", i)
+	}
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	executor := &sendExecutor{}
+
+	// Build a fake email service that points at an unreachable SMTP host.
+	// We expect the cap to fire BEFORE any network IO, so the unreachable
+	// host never matters.
+	svc, err := (&Plugin{}).CreateService(map[string]any{
+		"host": "127.0.0.1", "port": float64(25), "from": "noreply@example.com",
+	})
+	require.NoError(t, err)
+	services := map[string]any{"mailer": svc}
+
+	_, _, err = executor.Execute(context.Background(), execCtx, map[string]any{
+		"to": to, "cc": cc, "bcc": bcc,
+		"subject": "test", "body": "hi",
+	}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Contains(t, ve.Field, "to+cc+bcc")
+}

@@ -8,6 +8,9 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 )
 
+// maxEmailRecipients caps the combined to+cc+bcc count per message.
+const maxEmailRecipients = 100
+
 var emailServiceDeps = map[string]api.ServiceDep{
 	"mailer": {Prefix: "email", Required: true},
 }
