@@ -68,3 +68,13 @@ The `error` port fires if the file does not exist or the delete operation fails 
 ```
 
 After `delete_account` succeeds, `delete_avatar` removes the associated file from storage. If the file does not exist, the `error` output fires -- wire it to a no-op or log node if the missing file is acceptable.
+
+## Path constraints
+
+- Paths must be relative (no leading `/`).
+- Paths must not contain `..` segments that escape the storage root.
+- Paths must not contain NUL bytes.
+
+For the `local` backend, the configured root directory must be a real
+directory — not a symlink. This is enforced at service creation. Admins
+should not create symlinks under the storage root either.
