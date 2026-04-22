@@ -1,10 +1,13 @@
 package netguard
 
 import (
+	"context"
+	"errors"
 	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIPDenied_Loopback(t *testing.T) {
@@ -63,4 +66,73 @@ func TestIPDenied_MetadataIPsAlwaysBlocked(t *testing.T) {
 	p := Policy{AllowPrivateNetworks: true}
 	assert.True(t, p.ipDenied(net.ParseIP("169.254.169.254")), "AWS/GCP/Azure metadata must remain blocked")
 	assert.True(t, p.ipDenied(net.ParseIP("100.100.100.200")), "Alibaba metadata must remain blocked")
+}
+
+func TestCheckHost_PublicIPLiteralAllowed(t *testing.T) {
+	p := Policy{}
+	ip, err := p.checkHostWithLookup(context.Background(), "8.8.8.8", func(_ context.Context, host string) ([]net.IPAddr, error) {
+		return []net.IPAddr{{IP: net.ParseIP(host)}}, nil
+	})
+	require.NoError(t, err)
+	assert.True(t, ip.Equal(net.ParseIP("8.8.8.8")))
+}
+
+func TestCheckHost_PrivateIPLiteralDenied(t *testing.T) {
+	p := Policy{}
+	_, err := p.checkHostWithLookup(context.Background(), "10.0.0.1", func(_ context.Context, host string) ([]net.IPAddr, error) {
+		return []net.IPAddr{{IP: net.ParseIP(host)}}, nil
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDenied)
+}
+
+func TestCheckHost_AllowedHostsBypassesPrivate(t *testing.T) {
+	p := Policy{AllowedHosts: []string{"internal.svc"}}
+	ip, err := p.checkHostWithLookup(context.Background(), "internal.svc", func(_ context.Context, _ string) ([]net.IPAddr, error) {
+		return []net.IPAddr{{IP: net.ParseIP("10.0.0.5")}}, nil
+	})
+	require.NoError(t, err)
+	assert.True(t, ip.Equal(net.ParseIP("10.0.0.5")))
+}
+
+func TestCheckHost_AllowedHostsDoesNotBypassMetadata(t *testing.T) {
+	p := Policy{AllowedHosts: []string{"sneaky"}}
+	_, err := p.checkHostWithLookup(context.Background(), "sneaky", func(_ context.Context, _ string) ([]net.IPAddr, error) {
+		return []net.IPAddr{{IP: net.ParseIP("169.254.169.254")}}, nil
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDenied)
+}
+
+func TestCheckHost_PicksFirstAllowedIP(t *testing.T) {
+	p := Policy{}
+	ip, err := p.checkHostWithLookup(context.Background(), "mixed", func(_ context.Context, _ string) ([]net.IPAddr, error) {
+		return []net.IPAddr{
+			{IP: net.ParseIP("10.0.0.1")},
+			{IP: net.ParseIP("8.8.8.8")},
+		}, nil
+	})
+	require.NoError(t, err)
+	assert.True(t, ip.Equal(net.ParseIP("8.8.8.8")))
+}
+
+func TestCheckHost_AllPrivateDenied(t *testing.T) {
+	p := Policy{}
+	_, err := p.checkHostWithLookup(context.Background(), "all-private", func(_ context.Context, _ string) ([]net.IPAddr, error) {
+		return []net.IPAddr{
+			{IP: net.ParseIP("10.0.0.1")},
+			{IP: net.ParseIP("192.168.1.1")},
+		}, nil
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrDenied)
+}
+
+func TestCheckHost_ResolverError(t *testing.T) {
+	p := Policy{}
+	_, err := p.checkHostWithLookup(context.Background(), "broken", func(_ context.Context, _ string) ([]net.IPAddr, error) {
+		return nil, errors.New("dns broken")
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "dns broken")
 }

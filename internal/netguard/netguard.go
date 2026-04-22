@@ -4,6 +4,7 @@
 package netguard
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -82,6 +83,53 @@ func ipIsMetadata(ip net.IP) bool {
 		}
 	}
 	return false
+}
+
+// CheckHost resolves host (a bare hostname or IP literal — no port) and
+// returns the first IP that is allowed by the policy. The caller MUST dial
+// the returned IP literal directly to defeat DNS rebinding.
+func (p Policy) CheckHost(ctx context.Context, host string) (net.IP, error) {
+	resolver := p.Resolver
+	if resolver == nil {
+		resolver = net.DefaultResolver
+	}
+	return p.checkHostWithLookup(ctx, host, resolver.LookupIPAddr)
+}
+
+// lookupFn matches resolver.LookupIPAddr; injected for tests.
+type lookupFn func(ctx context.Context, host string) ([]net.IPAddr, error)
+
+func (p Policy) checkHostWithLookup(ctx context.Context, host string, lookup lookupFn) (net.IP, error) {
+	// If the AllowedHosts list contains this hostname, skip the
+	// private-network deny but still apply metadata + always-denied checks.
+	hostAllowed := false
+	for _, h := range p.AllowedHosts {
+		if h == host {
+			hostAllowed = true
+			break
+		}
+	}
+
+	addrs, err := lookup(ctx, host)
+	if err != nil {
+		return nil, fmt.Errorf("netguard: resolve %q: %w", host, err)
+	}
+
+	for _, a := range addrs {
+		ip := a.IP
+		if ipIsMetadata(ip) {
+			continue
+		}
+		if ipInBlocks(ip, alwaysDenied) {
+			continue
+		}
+		if !p.AllowPrivateNetworks && !hostAllowed && ipInBlocks(ip, privateBlocks) {
+			continue
+		}
+		return ip, nil
+	}
+
+	return nil, fmt.Errorf("%w: host %q resolved to no allowed addresses", ErrDenied, host)
 }
 
 // ipDenied returns true if the IP must not be dialed under this policy.
