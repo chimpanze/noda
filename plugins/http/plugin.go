@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/breaker"
+	"github.com/chimpanze/noda/internal/netguard"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -109,7 +110,15 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		maxRedirects = n
 	}
 
-	client := &http.Client{Timeout: timeout}
+	policy := netguard.Policy{
+		AllowPrivateNetworks: allowPrivate,
+		AllowedHosts:         allowedHosts,
+	}
+	client := &http.Client{
+		Timeout:       timeout,
+		Transport:     newTransport(policy, nil),
+		CheckRedirect: buildCheckRedirect(redirectMode, maxRedirects),
+	}
 
 	svc := &Service{
 		client:               client,

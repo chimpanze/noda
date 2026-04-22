@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/internal/netguard"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -668,4 +669,38 @@ func TestCreateService_AllowedHostsRejectsPath(t *testing.T) {
 		"allowed_hosts": []any{"internal.svc/path"},
 	})
 	require.Error(t, err)
+}
+
+func TestCreateService_HTTPClient_BlocksLoopbackByDefault(t *testing.T) {
+	// Spin up a local httptest server.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+
+	_, err = svc.client.Get(srv.URL)
+	require.Error(t, err, "default-deny should block loopback")
+	assert.ErrorIs(t, err, netguard.ErrDenied)
+}
+
+func TestCreateService_HTTPClient_AllowPrivateOpensLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"allow_private_networks": true})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+
+	resp, err := svc.client.Get(srv.URL)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
