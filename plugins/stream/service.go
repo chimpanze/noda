@@ -86,9 +86,18 @@ func (s *Service) Publish(ctx context.Context, topic string, payload any) (strin
 // The handler receives the message ID and deserialized payload.
 // Auto-creates the consumer group if it doesn't exist.
 //
-// Every reclaimInterval read cycles, Subscribe also calls XAUTOCLAIM
-// to reclaim messages from crashed consumers (idle > reclaimMinIdle).
+// Handlers MUST call Ack on success. Unacked messages stay pending
+// in the consumer group; after reclaimMinIdle (60s), other consumers
+// reclaim them via XAUTOCLAIM and the handler is invoked again on a
+// different consumer — at-least-once delivery semantics.
+//
+// Every reclaimInterval read cycles, Subscribe calls XAUTOCLAIM to
+// reclaim messages from crashed consumers (idle > reclaimMinIdle).
 // Reclaimed messages flow through the same handler callback.
+//
+// End-to-end latency from a consumer crashing to another consumer
+// re-attempting the message is approximately reclaimMinIdle (60s)
+// + reclaimInterval × Block (≈20s) = ~80s.
 func (s *Service) Subscribe(ctx context.Context, topic, group, consumer string, handler func(messageID string, payload any) error) error {
 	// Auto-create consumer group (MKSTREAM creates the stream too)
 	err := s.client.XGroupCreateMkStream(ctx, topic, group, "0").Err()
