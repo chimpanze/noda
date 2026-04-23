@@ -42,7 +42,7 @@ func TestRedirect_NoneReturns3xx(t *testing.T) {
 
 	resp, err := client.Get(first.URL)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusFound, resp.StatusCode)
 	assert.Equal(t, final.URL, resp.Header.Get("Location"))
 }
@@ -59,7 +59,7 @@ func TestRedirect_StripAuthRemovesHeaderCrossOrigin(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer secret")
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, "", resp.Header.Get("X-Echo-Auth"), "Authorization should be stripped on cross-origin redirect")
 }
 
@@ -86,7 +86,7 @@ func TestRedirect_StripAuthKeepsHeaderSameOrigin(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer secret")
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, "Bearer secret", resp.Header.Get("X-Echo-Auth"))
 }
 
@@ -139,7 +139,7 @@ func TestRedirect_StripAuthRemovesXKey(t *testing.T) {
 	req.Header.Set("X-Api-Key", "k1")
 	resp, err := client.Do(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, "", resp.Header.Get("X-Echo-Key"))
 }
 
