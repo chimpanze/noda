@@ -8,19 +8,25 @@ import (
 	"time"
 )
 
-// createTimeout bounds how long InitializeServices waits for a plugin's
-// CreateService to return before declaring the service initialisation
-// failed. Var (not const) so tests can override it.
-var createTimeout = 30 * time.Second
+// defaultCreateTimeout bounds how long InitializeServices waits for a
+// plugin's CreateService to return before declaring the service
+// initialisation failed. Applied when the caller passes a zero duration.
+const defaultCreateTimeout = 30 * time.Second
 
 // InitializeServices creates service instances from the root config's "services" map.
 // Each service entry must have a "plugin" field referencing a registered plugin prefix.
 //
-// The supplied ctx bounds the cleanup goroutine spawned on createTimeout —
+// createTimeout bounds the wait for each plugin's CreateService call. A
+// zero value falls back to defaultCreateTimeout.
+//
+// The supplied ctx bounds the cleanup goroutine spawned on timeout —
 // when ctx is cancelled (typically at lifecycle shutdown), any cleanup
 // goroutine still waiting for a hung CreateService exits, abandoning the
 // late result rather than leaking.
-func InitializeServices(ctx context.Context, servicesConfig map[string]any, plugins *PluginRegistry) (*ServiceRegistry, []error) {
+func InitializeServices(ctx context.Context, servicesConfig map[string]any, plugins *PluginRegistry, createTimeout time.Duration) (*ServiceRegistry, []error) {
+	if createTimeout <= 0 {
+		createTimeout = defaultCreateTimeout
+	}
 	registry := NewServiceRegistry()
 	var errs []error
 

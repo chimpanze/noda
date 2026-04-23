@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/expr"
@@ -43,6 +44,10 @@ type BootstrapOptions struct {
 	// DryRun skips service creation (no database connections, no external calls).
 	// Used by the validate command to check config without requiring live services.
 	DryRun bool
+
+	// CreateTimeout bounds how long InitializeServices waits for each
+	// plugin's CreateService call. Zero falls back to defaultCreateTimeout.
+	CreateTimeout time.Duration
 }
 
 // Bootstrap initializes the full plugin/service/node pipeline from a resolved config.
@@ -77,7 +82,7 @@ func Bootstrap(ctx context.Context, rc *config.ResolvedConfig, plugins *PluginRe
 	if !opt.DryRun {
 		if servicesMap, ok := rc.Root["services"].(map[string]any); ok {
 			var svcErrs []error
-			services, svcErrs = InitializeServices(ctx, servicesMap, plugins)
+			services, svcErrs = InitializeServices(ctx, servicesMap, plugins, opt.CreateTimeout)
 			allErrors = append(allErrors, svcErrs...)
 		}
 	}

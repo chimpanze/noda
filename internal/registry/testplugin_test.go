@@ -125,7 +125,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 			"plugin": "kv",
 		},
 	}
-	services, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	services, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Empty(t, errs)
 
 	// 3. Register nodes

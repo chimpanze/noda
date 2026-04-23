@@ -55,7 +55,7 @@ func TestInitializeServices_Success(t *testing.T) {
 		},
 	}
 
-	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	assert.Empty(t, errs)
 
 	inst, ok := registry.Get("main-db")
@@ -72,7 +72,7 @@ func TestInitializeServices_UnknownPlugin(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "unknown plugin")
 	assert.Contains(t, errs[0].Error(), "nonexistent")
@@ -93,7 +93,7 @@ func TestInitializeServices_CreateFailure(t *testing.T) {
 		"other":   map[string]any{"plugin": "db"},
 	}
 
-	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	// Both should fail but both are attempted
 	assert.Len(t, errs, 2)
 }
@@ -107,7 +107,7 @@ func TestInitializeServices_MissingPluginField(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "plugin")
 }
@@ -120,7 +120,7 @@ func TestHealthCheckAll_Healthy(t *testing.T) {
 		"main-db": map[string]any{"plugin": "db"},
 	}
 
-	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Empty(t, errs)
 
 	healthErrs := registry.HealthCheckAll()
@@ -141,7 +141,7 @@ func TestHealthCheckAll_Unhealthy(t *testing.T) {
 		"main-db": map[string]any{"plugin": "db"},
 	}
 
-	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Empty(t, errs)
 
 	healthErrs := registry.HealthCheckAll()
@@ -193,18 +193,14 @@ func TestInitializeServices_HungCreate_GoroutineExitsOnShutdown(t *testing.T) {
 	plugins := NewPluginRegistry()
 	require.NoError(t, plugins.Register(hung))
 
-	// Override createTimeout to make the test fast.
-	old := createTimeout
-	createTimeout = 100 * time.Millisecond
-	t.Cleanup(func() { createTimeout = old })
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	servicesConfig := map[string]any{
 		"hung": map[string]any{"plugin": "hungplugin"},
 	}
 
-	_, errs := InitializeServices(ctx, servicesConfig, plugins)
+	// Short timeout to make the test fast.
+	_, errs := InitializeServices(ctx, servicesConfig, plugins, 100*time.Millisecond)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "timed out")
 

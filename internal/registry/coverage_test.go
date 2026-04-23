@@ -719,7 +719,7 @@ func TestInitializeServices_NonMapConfig(t *testing.T) {
 		"bad-svc": "not-a-map",
 	}
 
-	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "config must be a map")
 }
@@ -735,7 +735,7 @@ func TestInitializeServices_PluginWithoutServices(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "does not support services")
 }
@@ -762,7 +762,7 @@ func TestInitializeServices_InnerConfigExtraction(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	assert.Empty(t, errs)
 	assert.Equal(t, "localhost", receivedConfig["host"])
 	assert.Equal(t, 5432, receivedConfig["port"])
