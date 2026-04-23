@@ -36,7 +36,7 @@ func TestNewTransport_AllowsLoopbackWhenAllowPrivate(t *testing.T) {
 
 	resp, err := client.Get(srv.URL)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
