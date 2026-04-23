@@ -3,6 +3,7 @@ package storage
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/spf13/afero"
@@ -32,6 +33,14 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		}
 		if err := os.MkdirAll(path, 0755); err != nil {
 			return nil, fmt.Errorf("storage: create path %q: %w", path, err)
+		}
+		fi, err := os.Lstat(path)
+		if err != nil {
+			return nil, fmt.Errorf("storage: stat base path %q: %w", path, err)
+		}
+		if fi.Mode()&os.ModeSymlink != 0 {
+			real, _ := filepath.EvalSymlinks(path)
+			return nil, fmt.Errorf("storage: base path %q must not be a symlink (resolved to %q)", path, real)
 		}
 		fs := afero.NewBasePathFs(afero.NewOsFs(), path)
 		return &Service{fs: fs, backend: "local"}, nil

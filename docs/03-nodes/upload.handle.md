@@ -88,3 +88,17 @@ A downstream node can save this metadata:
   }
 }
 ```
+
+## Path validation
+
+`storage_path` (resolved from the `path` config field) must be a relative
+path within the destination storage root. The following are rejected at
+node execution:
+
+- empty path
+- absolute paths (e.g. `/etc/passwd`)
+- paths containing NUL bytes
+- paths whose `filepath.Clean` form starts with `..` (i.e. would escape upward)
+
+These checks happen before any byte is written. The destination storage
+service applies the same checks again as defence-in-depth.

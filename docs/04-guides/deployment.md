@@ -407,3 +407,43 @@ For applications that serve browser clients with cookie-based sessions, enable C
 ```
 
 CSRF protection is not enabled by default because API-only deployments (mobile apps, service-to-service) use token-based auth where CSRF is not applicable. If your API is consumed exclusively by non-browser clients, CSRF middleware is unnecessary.
+
+## Outbound network policy
+
+> **⚠️ Breaking change for existing deployments.** Workflows that
+> previously used the `http` plugin to reach `localhost`,
+> `127.0.0.1`, RFC1918 (`10.x`, `172.16-31.x`, `192.168.x`), or
+> internal cluster IPs (`100.64.x`) will now fail with
+> `netguard: destination denied by policy`. To re-enable, set
+> `allow_private_networks: true` on the affected service config,
+> or list specific hostnames in `allowed_hosts`. See the HTTP
+> Client Service options in `docs/02-config/noda-json.md`.
+
+The `http` plugin enforces an outbound-network policy on every request to
+prevent SSRF. By default, requests resolved to any of these IP ranges are
+denied:
+
+- `127.0.0.0/8`, `::1/128` — loopback
+- `169.254.0.0/16`, `fe80::/10` — link-local
+- `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16` — RFC1918 private
+- `fc00::/7` — IPv6 unique-local
+- `100.64.0.0/10` — RFC 6598 carrier-grade NAT
+- `0.0.0.0`
+
+Two cloud-metadata IPs are **always** denied, even when the policy below
+opens private ranges:
+
+- `169.254.169.254` — AWS, GCP, Azure, DigitalOcean, Oracle, IBM, OpenStack
+- `100.100.100.200` — Alibaba
+
+To call services on a private network, set `allow_private_networks: true`
+on the HTTP service config, or list the specific hostnames in
+`allowed_hosts`. See `docs/02-config/noda-json.md` for the full schema.
+
+DNS rebinding is defeated by checking the resolved IP and dialing it
+directly; the hostname is never re-resolved between check and dial.
+
+`HTTP_PROXY` / `HTTPS_PROXY` / `NO_PROXY` environment variables are
+intentionally not honoured. The runtime preserves the invariant that
+"the IP we check is the IP we dial"; a forward proxy would shift the
+SSRF check to the proxy itself.

@@ -67,3 +67,13 @@ Output stored as `nodes.list_files`:
 ```
 
 Downstream nodes access the file list via `nodes.list_files.paths`.
+
+## Path constraints
+
+- Paths must be relative (no leading `/`).
+- Paths must not contain `..` segments that escape the storage root.
+- Paths must not contain NUL bytes.
+
+For the `local` backend, the configured root directory must be a real
+directory — not a symlink. This is enforced at service creation. Admins
+should not create symlinks under the storage root either.

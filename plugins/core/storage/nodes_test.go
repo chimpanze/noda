@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/pkg/api"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -244,6 +245,73 @@ func TestStorageWrite_InvalidDataType(t *testing.T) {
 	}, services)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "storage.write: data must be string or bytes")
+}
+
+// --- Path validation tests (pathutil.ValidateRelative) ---
+
+func TestStorageRead_RejectsNULBytePath(t *testing.T) {
+	services, _ := newTestServices(t)
+	ctx := context.Background()
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newReadExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{"path": "evil\x00.txt"}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "path", ve.Field)
+}
+
+func TestStorageWrite_RejectsNULBytePath(t *testing.T) {
+	services, _ := newTestServices(t)
+	ctx := context.Background()
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newWriteExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{"path": "evil\x00.txt", "data": "hi"}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "path", ve.Field)
+}
+
+func TestStorageDelete_RejectsNULBytePath(t *testing.T) {
+	services, _ := newTestServices(t)
+	ctx := context.Background()
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newDeleteExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{"path": "evil\x00.txt"}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "path", ve.Field)
+}
+
+func TestStorageList_RejectsNULBytePrefix(t *testing.T) {
+	services, _ := newTestServices(t)
+	ctx := context.Background()
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newListExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{"prefix": "evil\x00prefix"}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "prefix", ve.Field)
+}
+
+func TestStorageRead_RejectsPathTraversal(t *testing.T) {
+	services, _ := newTestServices(t)
+	ctx := context.Background()
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+
+	e := newReadExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{"path": "../secret.txt"}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "path", ve.Field)
 }
 
 // --- Descriptor tests ---

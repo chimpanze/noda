@@ -67,3 +67,26 @@ func (r Root) Join(elem ...string) string {
 	parts := append([]string{r.abs}, elem...)
 	return filepath.Join(parts...)
 }
+
+// ValidateRelative rejects paths that are empty, absolute, contain NUL bytes,
+// or escape upward via "..". Returns nil for safe relative paths.
+//
+// This is a free function rather than a Root method because callers (e.g.
+// upload nodes) validate user-supplied paths *before* they have a Root to
+// resolve against — the storage backend is what owns the root in those cases.
+func ValidateRelative(p string) error {
+	if p == "" {
+		return fmt.Errorf("empty path")
+	}
+	if strings.ContainsRune(p, 0) {
+		return fmt.Errorf("path contains NUL byte")
+	}
+	if filepath.IsAbs(p) {
+		return fmt.Errorf("absolute path not allowed: %q", p)
+	}
+	cleaned := filepath.Clean(p)
+	if cleaned == ".." || strings.HasPrefix(cleaned, "../") || strings.HasPrefix(cleaned, `..\`) {
+		return fmt.Errorf("path escapes root: %q", p)
+	}
+	return nil
+}

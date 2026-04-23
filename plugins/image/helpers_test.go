@@ -1,10 +1,16 @@
 package image
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"testing"
 
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseFormat(t *testing.T) {
@@ -119,3 +125,70 @@ func TestCalculatePosition_WatermarkLargerThanImage(t *testing.T) {
 	assert.Equal(t, 0, left)
 	assert.Equal(t, 0, top)
 }
+
+// makeTinyPNG returns the bytes of a 1×1 black PNG.
+func makeTinyPNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	img.Set(0, 0, color.Black)
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	return buf.Bytes()
+}
+
+// makeLargeDimensionPNG returns the bytes of a real PNG with the given dimensions.
+func makeLargeDimensionPNG(t *testing.T, w, h int) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	var buf bytes.Buffer
+	require.NoError(t, png.Encode(&buf, img))
+	return buf.Bytes()
+}
+
+func TestValidateImageInput_TooManyBytes(t *testing.T) {
+	huge := bytes.Repeat([]byte{0xff}, maxImageBytes+1)
+	err := validateImageInput(huge)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "input", ve.Field)
+}
+
+func TestValidateImageInput_AcceptsTinyPNG(t *testing.T) {
+	require.NoError(t, validateImageInput(makeTinyPNG(t)))
+}
+
+func TestValidateImageInput_RejectsHighPixelCount(t *testing.T) {
+	// 8000 × 8000 = 64 MP > maxImagePixels (50 MP)
+	data := makeLargeDimensionPNG(t, 8000, 8000)
+	if len(data) > maxImageBytes {
+		// If encoding produced a >20MB file, the byte-size check fires first
+		// (still a valid rejection, just not the test we wanted). Skip.
+		t.Skipf("8000x8000 PNG encoded to %d bytes, exceeds size cap; pixel check not exercised here", len(data))
+	}
+	err := validateImageInput(data)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "input", ve.Field)
+}
+
+func TestValidateImageInput_AcceptsModerateImage(t *testing.T) {
+	// 1000 × 1000 = 1 MP — well within the cap.
+	data := makeLargeDimensionPNG(t, 1000, 1000)
+	require.NoError(t, validateImageInput(data))
+}
+
+func TestValidateImageInput_BimgFallbackForUnknownFormat(t *testing.T) {
+	// Random bytes are not a recognised image: image.DecodeConfig
+	// returns ErrFormat, then the bimg fallback also fails. We don't
+	// assert the error TYPE (depends on bimg's wrapping), only that
+	// the validator surfaces an error rather than silently passing
+	// the bytes through.
+	random := bytes.Repeat([]byte{0xab, 0xcd}, 100)
+	err := validateImageInput(random)
+	require.Error(t, err)
+}
+
+// keep bimg import used elsewhere
+var _ = bimg.JPEG

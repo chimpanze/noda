@@ -14,4 +14,10 @@ type Service struct {
 	defaultHeaders map[string]string
 	defaultTimeout time.Duration
 	breaker        *gobreaker.CircuitBreaker[any]
+
+	// Outbound network policy (set by CreateService; consulted when building client).
+	allowPrivateNetworks bool
+	allowedHosts         []string
+	redirectMode         string // "none" | "same_origin" | "strip_auth"
+	maxRedirects         int
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -54,6 +55,10 @@ func (e *writeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 	path, err := plugin.ResolveString(nCtx, config, "path")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.write: %w", err)
+	}
+
+	if err := pathutil.ValidateRelative(path); err != nil {
+		return "", nil, &api.ValidationError{Field: "path", Message: err.Error()}
 	}
 
 	rawData, err := plugin.ResolveAny(nCtx, config, "data")

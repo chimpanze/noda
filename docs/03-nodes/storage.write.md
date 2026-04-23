@@ -71,3 +71,13 @@ Output stored as `nodes.save_report`:
 ```
 
 Downstream nodes access the written file path via `nodes.save_report.path`.
+
+## Path constraints
+
+- Paths must be relative (no leading `/`).
+- Paths must not contain `..` segments that escape the storage root.
+- Paths must not contain NUL bytes.
+
+For the `local` backend, the configured root directory must be a real
+directory — not a symlink. This is enforced at service creation. Admins
+should not create symlinks under the storage root either.

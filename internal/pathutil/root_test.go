@@ -137,3 +137,60 @@ func TestJoin(t *testing.T) {
 	assert.Equal(t, filepath.Join(root.String(), "models"), root.Join("models"))
 	assert.Equal(t, filepath.Join(root.String(), "a", "b"), root.Join("a", "b"))
 }
+
+func TestValidateRelative_Empty(t *testing.T) {
+	err := ValidateRelative("")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "empty")
+}
+
+func TestValidateRelative_NULByte(t *testing.T) {
+	err := ValidateRelative("foo\x00bar")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "NUL")
+}
+
+func TestValidateRelative_Absolute(t *testing.T) {
+	err := ValidateRelative("/etc/passwd")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "absolute")
+}
+
+func TestValidateRelative_DotDotOnly(t *testing.T) {
+	err := ValidateRelative("..")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escape")
+}
+
+func TestValidateRelative_DotDotPrefix(t *testing.T) {
+	err := ValidateRelative("../etc/passwd")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escape")
+}
+
+func TestValidateRelative_DotDotMiddle(t *testing.T) {
+	// filepath.Clean("foo/../bar") == "bar" — that's allowed, no escape
+	err := ValidateRelative("foo/../bar")
+	require.NoError(t, err)
+}
+
+func TestValidateRelative_DotDotMiddleEscapes(t *testing.T) {
+	// filepath.Clean("foo/../../bar") == "../bar" — that escapes
+	err := ValidateRelative("foo/../../bar")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "escape")
+}
+
+func TestValidateRelative_OK(t *testing.T) {
+	cases := []string{
+		"file.txt",
+		"dir/file.txt",
+		"a/b/c/d.bin",
+		"./file.txt",
+	}
+	for _, p := range cases {
+		t.Run(p, func(t *testing.T) {
+			require.NoError(t, ValidateRelative(p))
+		})
+	}
+}

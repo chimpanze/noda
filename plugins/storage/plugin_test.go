@@ -3,6 +3,8 @@ package storage
 import (
 	"bytes"
 	"context"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -386,4 +388,30 @@ func TestMultipleInstances(t *testing.T) {
 	// svcB should not see svcA's files
 	_, err = svcB.Read(ctx, "a.txt")
 	assert.Error(t, err)
+}
+
+func TestPlugin_CreateService_RejectsSymlinkedBase(t *testing.T) {
+	// Create a real directory and a symlink that points at it.
+	realDir := t.TempDir()
+	parent := t.TempDir()
+	link := filepath.Join(parent, "link")
+	require.NoError(t, os.Symlink(realDir, link))
+
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{
+		"backend": "local",
+		"path":    link,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "symlink")
+}
+
+func TestPlugin_CreateService_AcceptsRealDir(t *testing.T) {
+	dir := t.TempDir()
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{
+		"backend": "local",
+		"path":    dir,
+	})
+	require.NoError(t, err)
 }

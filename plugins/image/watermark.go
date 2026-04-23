@@ -59,6 +59,9 @@ func (e *watermarkExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 	if err != nil {
 		return "", nil, fmt.Errorf("image.watermark: read watermark %q: %w", wmPath, err)
 	}
+	if err := validateImageInput(wmData); err != nil {
+		return "", nil, err
+	}
 
 	// bimg's watermark support is text-based; for image overlay we use
 	// a two-step approach: resize watermark, then overlay with vips.
