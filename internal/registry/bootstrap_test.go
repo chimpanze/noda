@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -25,7 +26,7 @@ func TestBootstrap_ValidConfig(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	result, errs := Bootstrap(rc, plugins)
+	result, errs := Bootstrap(context.Background(), rc, plugins)
 	assert.Empty(t, errs)
 	assert.NotNil(t, result)
 	assert.Contains(t, result.Nodes.AllTypes(), "db.query")
@@ -46,7 +47,7 @@ func TestBootstrap_UnknownNodeType(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	_, errs := Bootstrap(rc, plugins)
+	_, errs := Bootstrap(context.Background(), rc, plugins)
 	require.NotEmpty(t, errs)
 }
 
@@ -78,6 +79,6 @@ func TestBootstrap_InvalidServiceRef(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	_, errs := Bootstrap(rc, plugins)
+	_, errs := Bootstrap(context.Background(), rc, plugins)
 	require.NotEmpty(t, errs)
 }

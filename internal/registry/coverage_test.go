@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -557,7 +558,7 @@ func TestBootstrap_DryRunMode(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	result, errs := Bootstrap(rc, plugins, BootstrapOptions{DryRun: true})
+	result, errs := Bootstrap(context.Background(), rc, plugins, BootstrapOptions{DryRun: true})
 	assert.Empty(t, errs)
 	assert.NotNil(t, result)
 	assert.Contains(t, result.Nodes.AllTypes(), "db.query")
@@ -578,7 +579,7 @@ func TestBootstrap_DryRunValidationError(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	_, errs := Bootstrap(rc, plugins, BootstrapOptions{DryRun: true})
+	_, errs := Bootstrap(context.Background(), rc, plugins, BootstrapOptions{DryRun: true})
 	require.NotEmpty(t, errs)
 }
 
@@ -598,7 +599,7 @@ func TestBootstrap_ServiceInitFromConfig(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	result, errs := Bootstrap(rc, plugins)
+	result, errs := Bootstrap(context.Background(), rc, plugins)
 	assert.Empty(t, errs)
 	assert.NotNil(t, result)
 	_, ok := result.Services.Get("main-db")
@@ -627,7 +628,7 @@ func TestBootstrap_ServiceInitError(t *testing.T) {
 		Connections: map[string]map[string]any{},
 	}
 
-	_, errs := Bootstrap(rc, plugins)
+	_, errs := Bootstrap(context.Background(), rc, plugins)
 	require.NotEmpty(t, errs)
 }
 
@@ -646,7 +647,7 @@ func TestBootstrap_DeferredServiceErrors(t *testing.T) {
 		},
 	}
 
-	_, errs := Bootstrap(rc, plugins)
+	_, errs := Bootstrap(context.Background(), rc, plugins)
 	require.NotEmpty(t, errs)
 }
 
@@ -718,7 +719,7 @@ func TestInitializeServices_NonMapConfig(t *testing.T) {
 		"bad-svc": "not-a-map",
 	}
 
-	_, errs := InitializeServices(servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "config must be a map")
 }
@@ -734,7 +735,7 @@ func TestInitializeServices_PluginWithoutServices(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "does not support services")
 }
@@ -761,7 +762,7 @@ func TestInitializeServices_InnerConfigExtraction(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins)
 	assert.Empty(t, errs)
 	assert.Equal(t, "localhost", receivedConfig["host"])
 	assert.Equal(t, 5432, receivedConfig["port"])

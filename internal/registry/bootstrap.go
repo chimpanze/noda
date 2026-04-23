@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -47,7 +48,7 @@ type BootstrapOptions struct {
 // Bootstrap initializes the full plugin/service/node pipeline from a resolved config.
 // It registers all built-in plugins, creates services, registers internal services,
 // and runs startup validation.
-func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...BootstrapOptions) (*BootstrapResult, []error) {
+func Bootstrap(ctx context.Context, rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...BootstrapOptions) (*BootstrapResult, []error) {
 	var opt BootstrapOptions
 	if len(opts) > 0 {
 		opt = opts[0]
@@ -76,7 +77,7 @@ func Bootstrap(rc *config.ResolvedConfig, plugins *PluginRegistry, opts ...Boots
 	if !opt.DryRun {
 		if servicesMap, ok := rc.Root["services"].(map[string]any); ok {
 			var svcErrs []error
-			services, svcErrs = InitializeServices(servicesMap, plugins)
+			services, svcErrs = InitializeServices(ctx, servicesMap, plugins)
 			allErrors = append(allErrors, svcErrs...)
 		}
 	}

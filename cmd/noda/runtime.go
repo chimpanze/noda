@@ -82,7 +82,7 @@ func initRuntime(configDir, envFlag string, opts initOptions) (*runtimeContext, 
 	if err := registerCorePlugins(plugins); err != nil {
 		return nil, err
 	}
-	bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
+	bootstrap, bootstrapErrs := registry.Bootstrap(context.Background(), rc, plugins)
 	if len(bootstrapErrs) > 0 {
 		var errMsgs []string
 		for _, e := range bootstrapErrs {
