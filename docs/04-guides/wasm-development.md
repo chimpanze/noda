@@ -457,3 +457,26 @@ Wasm modules run in a sandboxed Wazero runtime with multiple layers of access co
 
 ### Lifecycle Context
 - Async operations (`noda_call_async`, `trigger_workflow`) are bound to the module's lifecycle context, not a detached background context — they are cancelled if the module shuts down
+
+## Resource limits
+
+### Runaway compute
+
+Noda's only enforcement against a Wasm module's runaway computation is
+a wall-clock timeout (`wasmCallTimeout`, currently 30 seconds per call,
+plus a per-tick `TickTimeout` configurable per module). There is **no
+instruction-level metering** ("fuel"), even though some Wasm runtimes
+support it.
+
+This is a deliberate limitation of the underlying runtime: Noda uses
+Extism on top of wazero, and wazero does not support fuel metering as
+a design choice (the maintainers prefer context-cancellation-based
+deadlines). Extism v1.7.1 likewise exposes only a wall-clock `Timeout`
+field on its manifest.
+
+If your module needs to perform a long synchronous computation, raise
+its `TickTimeout` and split the work across multiple ticks rather than
+doing it in a single long call. If a module misbehaves and exhausts
+CPU, the only process-wide signal is the 30-second timeout; tighter
+bounds require either upstream fuel support in Extism/wazero or
+running each module in a separate process.
