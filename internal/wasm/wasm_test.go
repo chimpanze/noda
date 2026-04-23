@@ -3189,36 +3189,29 @@ func TestModule_QueryOnly(t *testing.T) {
 // --- Race fix: Stop-while-CallAsync-in-flight ---
 
 // blockingCacheService is a test-only api.CacheService whose Get blocks until
-// the provided context is cancelled OR release is closed. It signals "started"
-// the moment Get is entered so the test knows the host call is in flight.
+// release is closed. It signals "started" the moment Get is entered so the
+// test knows the host call is in flight.
 //
-// The service honours context cancellation so that when Module.Stop cancels
-// lifecycleCtx the in-flight goroutine unblocks. With the Add(1)/Done() fix in
-// CallAsync, Stop's outstandingCalls.Wait() actually waits for the goroutine;
-// without it the wait is a no-op and Stop returns while the goroutine is still
-// alive — goleak.VerifyNone then catches the leaked goroutine.
+// Crucially, Get does NOT honour context cancellation. This means when
+// Module.Stop cancels lifecycleCtx, the in-flight goroutine is NOT released
+// via ctx.Done(). Only closing release unblocks it. This forces Stop to
+// genuinely wait at outstandingCalls.Wait() — proving that the Add(1)/Done()
+// fix in CallAsync is what keeps Stop blocked, not lifecycle cancellation.
 type blockingCacheService struct {
 	release chan struct{}
 	started chan struct{}
 }
 
-func (s *blockingCacheService) Get(ctx context.Context, _ string) (any, error) {
+func (s *blockingCacheService) Get(_ context.Context, _ string) (any, error) {
 	close(s.started)
-	select {
-	case <-s.release:
-		return "ok", nil
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+	<-s.release
+	return "ok", nil
 }
 func (s *blockingCacheService) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
 func (s *blockingCacheService) Del(_ context.Context, _ string) error                { return nil }
 func (s *blockingCacheService) Exists(_ context.Context, _ string) (bool, error)     { return false, nil }
 
 func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
-	// goleak.VerifyNone is the key assertion: without the Add(1)/Done() fix,
-	// the async goroutine is not tracked in outstandingCalls and Stop returns
-	// before it exits — leaving a leaked goroutine that goleak detects.
 	defer goleak.VerifyNone(t)
 
 	release := make(chan struct{})
@@ -3241,9 +3234,8 @@ func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 	require.NoError(t, m.Initialize(context.Background()))
 	m.Start()
 
-	// Fire async call. CallAsync returns immediately; the host call
-	// goroutine runs in the background and blocks inside Get waiting
-	// for either release or context cancellation.
+	// Fire async call — host call goroutine enters blockingCacheService.Get
+	// and blocks on `release`. ctx cancellation will NOT release it.
 	err = dispatcher.CallAsync(context.Background(), HostCallRequest{
 		Label:     "x",
 		Service:   "blocker",
@@ -3252,24 +3244,44 @@ func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Wait until the host call is actually executing — deterministic.
+	// Wait until the host call is actually executing.
 	<-started
 
-	// Stop cancels lifecycleCtx which unblocks the goroutine via ctx.Done().
-	// With the fix (Add(1)/Done() in CallAsync + Wait before map clear):
-	//   Stop blocks at outstandingCalls.Wait() until the goroutine exits, then
-	//   clears the maps — clean teardown, no ghost write, no leak.
-	// Without the fix:
-	//   outstandingCalls.Wait() is a no-op (nothing was Added), Stop returns
-	//   while goroutine is still alive — goleak.VerifyNone below fails.
+	// Begin Stop in another goroutine. With the fix, it MUST block at
+	// outstandingCalls.Wait() because:
+	//  - CallAsync's Add(1) means the WG counter is non-zero
+	//  - blockingCacheService.Get does not honor ctx.Done(), so
+	//    lifecycleCancel() does NOT release the goroutine
+	// Without the fix (no Add(1)), Wait returns immediately and Stop
+	// completes — at which point the still-running goroutine eventually
+	// wakes after `release` is closed and either panics on the cleared
+	// map (if the stopping guard is also missing) or is detected as a
+	// leak by goleak.VerifyNone at test end.
 	stopDone := make(chan struct{})
 	go func() { _ = m.Stop(context.Background()); close(stopDone) }()
 
+	// Prove Stop is genuinely blocked on outstandingCalls.Wait() —
+	// give it a generous moment to attempt completion. With the fix,
+	// it MUST still be blocked here. Without the fix, stopDone has
+	// already fired (goroutine still alive but Wait returned).
 	select {
 	case <-stopDone:
-		// success — Stop completed (and with the fix, waited for goroutine)
+		t.Fatal("Stop completed while CallAsync goroutine was still in flight; outstandingCalls.Wait() did not block")
+	case <-time.After(200 * time.Millisecond):
+		// Expected: Stop is correctly blocked on the WaitGroup.
+	}
+
+	// Now release the host call. Its result write is either accepted
+	// before the map clear (the wait completed, then cleared) OR
+	// dropped by the stopping guard. Neither path may panic.
+	close(release)
+
+	// Stop must complete cleanly within a reasonable timeout.
+	select {
+	case <-stopDone:
+		// success
 	case <-time.After(5 * time.Second):
-		t.Fatal("Stop did not complete; outstandingCalls Wait may have hung")
+		t.Fatal("Stop did not complete after release; outstandingCalls Wait may have hung")
 	}
 	// goleak.VerifyNone (deferred above) verifies the async goroutine exited.
 }
