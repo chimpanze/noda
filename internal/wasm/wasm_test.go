@@ -18,6 +18,7 @@ import (
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // stubPlugin implements api.Plugin for service registry tests.
@@ -3183,4 +3184,92 @@ func TestModule_QueryOnly(t *testing.T) {
 
 	// No tick calls should have been made against a module that doesn't export tick.
 	assert.Empty(t, plugin.getCalls("tick"))
+}
+
+// --- Race fix: Stop-while-CallAsync-in-flight ---
+
+// blockingCacheService is a test-only api.CacheService whose Get blocks until
+// the provided context is cancelled OR release is closed. It signals "started"
+// the moment Get is entered so the test knows the host call is in flight.
+//
+// The service honours context cancellation so that when Module.Stop cancels
+// lifecycleCtx the in-flight goroutine unblocks. With the Add(1)/Done() fix in
+// CallAsync, Stop's outstandingCalls.Wait() actually waits for the goroutine;
+// without it the wait is a no-op and Stop returns while the goroutine is still
+// alive — goleak.VerifyNone then catches the leaked goroutine.
+type blockingCacheService struct {
+	release chan struct{}
+	started chan struct{}
+}
+
+func (s *blockingCacheService) Get(ctx context.Context, _ string) (any, error) {
+	close(s.started)
+	select {
+	case <-s.release:
+		return "ok", nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+func (s *blockingCacheService) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
+func (s *blockingCacheService) Del(_ context.Context, _ string) error                { return nil }
+func (s *blockingCacheService) Exists(_ context.Context, _ string) (bool, error)     { return false, nil }
+
+func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
+	// goleak.VerifyNone is the key assertion: without the Add(1)/Done() fix,
+	// the async goroutine is not tracked in outstandingCalls and Stop returns
+	// before it exits — leaving a leaked goroutine that goleak detects.
+	defer goleak.VerifyNone(t)
+
+	release := make(chan struct{})
+	started := make(chan struct{})
+	bsvc := &blockingCacheService{release: release, started: started}
+
+	svcReg := registry.NewServiceRegistry()
+	require.NoError(t, svcReg.Register("blocker", bsvc, nil))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+
+	m, err := NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 20,
+		Services: []string{"blocker"},
+	}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+
+	// Fire async call. CallAsync returns immediately; the host call
+	// goroutine runs in the background and blocks inside Get waiting
+	// for either release or context cancellation.
+	err = dispatcher.CallAsync(context.Background(), HostCallRequest{
+		Label:     "x",
+		Service:   "blocker",
+		Operation: "get",
+		Payload:   map[string]any{"key": "k"},
+	})
+	require.NoError(t, err)
+
+	// Wait until the host call is actually executing — deterministic.
+	<-started
+
+	// Stop cancels lifecycleCtx which unblocks the goroutine via ctx.Done().
+	// With the fix (Add(1)/Done() in CallAsync + Wait before map clear):
+	//   Stop blocks at outstandingCalls.Wait() until the goroutine exits, then
+	//   clears the maps — clean teardown, no ghost write, no leak.
+	// Without the fix:
+	//   outstandingCalls.Wait() is a no-op (nothing was Added), Stop returns
+	//   while goroutine is still alive — goleak.VerifyNone below fails.
+	stopDone := make(chan struct{})
+	go func() { _ = m.Stop(context.Background()); close(stopDone) }()
+
+	select {
+	case <-stopDone:
+		// success — Stop completed (and with the fix, waited for goroutine)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not complete; outstandingCalls Wait may have hung")
+	}
+	// goleak.VerifyNone (deferred above) verifies the async goroutine exited.
 }

@@ -99,9 +99,12 @@ func (d *HostDispatcher) CallAsync(ctx context.Context, req HostCallRequest) err
 		return nil
 	}
 
-	// Launch async operation
+	// Launch async operation. Track the goroutine in outstandingCalls so
+	// Stop() can wait for it before tearing down the result maps.
 	label := req.Label
+	d.module.outstandingCalls.Add(1)
 	go func() {
+		defer d.module.outstandingCalls.Done()
 		result, err := d.Call(d.module.lifecycleCtx, HostCallRequest{
 			Service:   req.Service,
 			Operation: req.Operation,

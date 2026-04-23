@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -60,6 +61,10 @@ type Module struct {
 	lifecycleCtx     context.Context
 	lifecycleCancel  context.CancelFunc
 	outstandingCalls sync.WaitGroup
+
+	// stopping is set by Stop() before the async-result maps are cleared.
+	// AddAsyncResult checks it to drop late-arriving writes silently.
+	stopping atomic.Bool
 
 	// Outbound gateway connections
 	gateway *Gateway
@@ -183,6 +188,9 @@ func (m *Module) Stop(ctx context.Context) error {
 	close(m.stopCh)
 	m.mu.Unlock()
 
+	// Mark as stopping so AddAsyncResult drops late writes.
+	m.stopping.Store(true)
+
 	// Cancel lifecycle context to unblock any in-flight callWithTimeout calls
 	m.lifecycleCancel()
 
@@ -199,6 +207,22 @@ func (m *Module) Stop(ctx context.Context) error {
 	// Cancel the temporary context
 	m.lifecycleCancel()
 
+	// Wait for outstanding async-call goroutines BEFORE clearing the maps
+	// they write into. With the Add(1)/Done() wrapping in CallAsync this
+	// actually waits for the right things; without it the wait was a no-op.
+	done := make(chan struct{})
+	go func() {
+		m.outstandingCalls.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		// Timed out — at most one goroutine leaks but the maps are about
+		// to be cleared so any late write goes into a fresh empty map.
+		// The stopping flag (set above) makes AddAsyncResult drop quietly.
+	}
+
 	// Clear pending async state
 	m.mu.Lock()
 	m.pendingLabels = make(map[string]bool)
@@ -210,17 +234,6 @@ func (m *Module) Stop(ctx context.Context) error {
 
 	// Close plugin
 	_ = m.Plugin.Close(ctx)
-
-	// Wait for outstanding goroutines with timeout
-	done := make(chan struct{})
-	go func() {
-		m.outstandingCalls.Wait()
-		close(done)
-	}()
-	select {
-	case <-done:
-	case <-time.After(5 * time.Second):
-	}
 
 	return err
 }
@@ -342,7 +355,14 @@ func (m *Module) ClearTimer(name string) {
 }
 
 // AddAsyncResult stores the result of an async call for the next tick.
+// Drops the write silently (debug log) if the module is in the post-Stop
+// state — protects against the rare race where an async goroutine wakes
+// after Stop's outstandingCalls wait has timed out.
 func (m *Module) AddAsyncResult(label string, result *AsyncResponse) {
+	if m.stopping.Load() {
+		slog.Debug("dropping async result on stopped module", "module", m.Name, "label", label)
+		return
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.asyncResults[label] = result
