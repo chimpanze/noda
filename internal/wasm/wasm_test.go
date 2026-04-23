@@ -3208,8 +3208,8 @@ func (s *blockingCacheService) Get(_ context.Context, _ string) (any, error) {
 	return "ok", nil
 }
 func (s *blockingCacheService) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
-func (s *blockingCacheService) Del(_ context.Context, _ string) error                { return nil }
-func (s *blockingCacheService) Exists(_ context.Context, _ string) (bool, error)     { return false, nil }
+func (s *blockingCacheService) Del(_ context.Context, _ string) error               { return nil }
+func (s *blockingCacheService) Exists(_ context.Context, _ string) (bool, error)    { return false, nil }
 
 func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 	defer goleak.VerifyNone(t)

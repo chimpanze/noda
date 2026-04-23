@@ -173,12 +173,12 @@ type hungPlugin struct {
 	released chan struct{}
 }
 
-func (p *hungPlugin) Name() string                                    { return "hungplugin" }
-func (p *hungPlugin) Prefix() string                                  { return "hungplugin" }
-func (p *hungPlugin) HasServices() bool                               { return true }
-func (p *hungPlugin) Nodes() []api.NodeRegistration                   { return nil }
-func (p *hungPlugin) HealthCheck(_ any) error                         { return nil }
-func (p *hungPlugin) Shutdown(_ any) error                            { return nil }
+func (p *hungPlugin) Name() string                  { return "hungplugin" }
+func (p *hungPlugin) Prefix() string                { return "hungplugin" }
+func (p *hungPlugin) HasServices() bool             { return true }
+func (p *hungPlugin) Nodes() []api.NodeRegistration { return nil }
+func (p *hungPlugin) HealthCheck(_ any) error       { return nil }
+func (p *hungPlugin) Shutdown(_ any) error          { return nil }
 func (p *hungPlugin) CreateService(_ map[string]any) (any, error) {
 	<-p.released
 	return struct{}{}, nil
