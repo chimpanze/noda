@@ -2,6 +2,7 @@ package http
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -78,6 +79,11 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 			}
 			if s == "" {
 				return nil, fmt.Errorf("http: allowed_hosts[%d] is empty", i)
+			}
+			// IP literals never match in CheckHost (they short-circuit DNS); listing one
+			// here silently has no effect. Reject to surface the mis-config.
+			if net.ParseIP(s) != nil {
+				return nil, fmt.Errorf("http: allowed_hosts[%d] %q is an IP literal; allowed_hosts applies to hostnames only. Use allow_private_networks: true if you need to reach private IPs", i, s)
 			}
 			allowedHosts = append(allowedHosts, s)
 		}

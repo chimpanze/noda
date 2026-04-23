@@ -52,7 +52,9 @@ var privateBlocks = mustParseCIDRs([]string{
 
 // alwaysDenied are absolute regardless of policy.
 var alwaysDenied = mustParseCIDRs([]string{
-	"0.0.0.0/32", // Unspecified IPv4
+	"0.0.0.0/32",         // Unspecified IPv4
+	"::/128",             // Unspecified IPv6
+	"255.255.255.255/32", // IPv4 limited broadcast
 })
 
 func mustParseCIDRs(cidrs []string) []*net.IPNet {

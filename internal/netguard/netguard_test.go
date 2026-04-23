@@ -46,6 +46,19 @@ func TestIPDenied_CGN(t *testing.T) {
 func TestIPDenied_Unspecified(t *testing.T) {
 	p := Policy{}
 	assert.True(t, p.ipDenied(net.ParseIP("0.0.0.0")))
+	assert.True(t, p.ipDenied(net.ParseIP("::")))
+}
+
+func TestIPDenied_Broadcast(t *testing.T) {
+	p := Policy{}
+	assert.True(t, p.ipDenied(net.ParseIP("255.255.255.255")))
+}
+
+func TestIPDenied_AlwaysDeniedNotLiftedByAllowPrivate(t *testing.T) {
+	p := Policy{AllowPrivateNetworks: true}
+	assert.True(t, p.ipDenied(net.ParseIP("0.0.0.0")), "unspecified IPv4 always blocked")
+	assert.True(t, p.ipDenied(net.ParseIP("::")), "unspecified IPv6 always blocked")
+	assert.True(t, p.ipDenied(net.ParseIP("255.255.255.255")), "IPv4 broadcast always blocked")
 }
 
 func TestIPDenied_PublicAllowed(t *testing.T) {

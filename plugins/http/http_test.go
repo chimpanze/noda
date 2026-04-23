@@ -671,6 +671,21 @@ func TestCreateService_AllowedHostsRejectsPath(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCreateService_AllowedHostsRejectsIPLiteral(t *testing.T) {
+	p := &Plugin{}
+	// IPv4 literals short-circuit DNS in the transport, so they never consult
+	// AllowedHosts. Accepting them here would silently do nothing — reject
+	// at config-parse time so the operator sees the mis-config.
+	// (IPv6 literals are already rejected by the ":" check as non-bare hostnames.)
+	for _, bad := range []string{"10.0.0.1", "127.0.0.1", "1.2.3.4"} {
+		_, err := p.CreateService(map[string]any{
+			"allowed_hosts": []any{bad},
+		})
+		require.Error(t, err, "expected rejection for %q", bad)
+		assert.Contains(t, err.Error(), "IP literal")
+	}
+}
+
 func TestCreateService_HTTPClient_BlocksLoopbackByDefault(t *testing.T) {
 	// Spin up a local httptest server.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
