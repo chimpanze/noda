@@ -177,7 +177,10 @@ func (m *Module) Start() {
 	go func() { m.tickLoop(); close(m.tickDone) }()
 }
 
-// Stop halts the tick loop and calls shutdown.
+// Stop halts the tick loop and calls shutdown. After Stop returns, the
+// Module is single-use: the stopping flag is not reset, so any subsequent
+// call to AddAsyncResult silently drops. Construct a new Module via
+// Runtime.LoadModule to restart.
 func (m *Module) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	if !m.running {

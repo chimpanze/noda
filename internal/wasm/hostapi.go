@@ -170,7 +170,11 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		}
 		input, _ := payload["input"].(map[string]any)
 		if d.runner != nil {
-			go func() { _ = d.runner(d.module.lifecycleCtx, workflowID, input) }()
+			d.module.outstandingCalls.Add(1)
+			go func() {
+				defer d.module.outstandingCalls.Done()
+				_ = d.runner(d.module.lifecycleCtx, workflowID, input)
+			}()
 		}
 		return map[string]any{"status": "triggered"}, nil
 
