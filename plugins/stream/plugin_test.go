@@ -190,3 +190,70 @@ func TestService_SubscribeCancellation(t *testing.T) {
 	err := <-done
 	assert.ErrorIs(t, err, context.Canceled)
 }
+
+func TestService_Subscribe_ReclaimsAbandonedMessages(t *testing.T) {
+	svc, mr := newTestService(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Publish one message.
+	id, err := svc.Publish(ctx, "events", map[string]any{"n": 1})
+	require.NoError(t, err)
+	require.NotEmpty(t, id)
+
+	// Worker A: reads the message, never acks (simulates crash).
+	workerAStarted := make(chan struct{})
+	workerADone := make(chan struct{})
+	go func() {
+		defer close(workerADone)
+		ctxA, cancelA := context.WithCancel(ctx)
+		defer cancelA()
+		_ = svc.Subscribe(ctxA, "events", "g1", "consumer-a",
+			func(_ string, _ any) error {
+				close(workerAStarted)
+				cancelA() // stop worker A immediately, no ack
+				return ctxA.Err()
+			})
+	}()
+
+	select {
+	case <-workerAStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("worker A did not start")
+	}
+	<-workerADone
+
+	// Confirm the message is pending in the group.
+	pending, err := svc.PendingCount(ctx, "events", "g1")
+	require.NoError(t, err)
+	require.Equal(t, int64(1), pending, "message should be pending after worker A abandoned it")
+
+	// Advance miniredis clock past reclaimMinIdle (60s).
+	// FastForward only moves TTL expiry, not the internal clock used by
+	// XAUTOCLAIM idle-time checks. SetTime advances that clock explicitly.
+	mr.SetTime(time.Now().Add(reclaimMinIdle + 5*time.Second))
+
+	// Worker B: should reclaim and ack.
+	received := make(chan string, 1)
+	ctxB, cancelB := context.WithCancel(ctx)
+	defer cancelB()
+	go func() {
+		_ = svc.Subscribe(ctxB, "events", "g1", "consumer-b",
+			func(msgID string, _ any) error {
+				received <- msgID
+				if err := svc.Ack(ctxB, "events", "g1", msgID); err != nil {
+					return err
+				}
+				cancelB()
+				return nil
+			})
+	}()
+
+	select {
+	case got := <-received:
+		assert.Equal(t, id, got, "worker B should reclaim the same message worker A abandoned")
+	case <-time.After(30 * time.Second):
+		t.Fatal("worker B did not reclaim abandoned message within 30s")
+	}
+}

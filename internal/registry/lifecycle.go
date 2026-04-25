@@ -8,9 +8,25 @@ import (
 	"time"
 )
 
+// defaultCreateTimeout bounds how long InitializeServices waits for a
+// plugin's CreateService to return before declaring the service
+// initialisation failed. Applied when the caller passes a zero duration.
+const defaultCreateTimeout = 30 * time.Second
+
 // InitializeServices creates service instances from the root config's "services" map.
 // Each service entry must have a "plugin" field referencing a registered plugin prefix.
-func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) (*ServiceRegistry, []error) {
+//
+// createTimeout bounds the wait for each plugin's CreateService call. A
+// zero value falls back to defaultCreateTimeout.
+//
+// The supplied ctx bounds the cleanup goroutine spawned on timeout —
+// when ctx is cancelled (typically at lifecycle shutdown), any cleanup
+// goroutine still waiting for a hung CreateService exits, abandoning the
+// late result rather than leaking.
+func InitializeServices(ctx context.Context, servicesConfig map[string]any, plugins *PluginRegistry, createTimeout time.Duration) (*ServiceRegistry, []error) {
+	if createTimeout <= 0 {
+		createTimeout = defaultCreateTimeout
+	}
 	registry := NewServiceRegistry()
 	var errs []error
 
@@ -53,7 +69,6 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 		}
 
 		// Create service with timeout to fail fast if external dependencies are unreachable.
-		const createTimeout = 30 * time.Second
 		type createResult struct {
 			instance any
 			err      error
@@ -74,13 +89,20 @@ func InitializeServices(servicesConfig map[string]any, plugins *PluginRegistry) 
 			instance = res.instance
 		case <-time.After(createTimeout):
 			errs = append(errs, fmt.Errorf("service %q: creation timed out after %s", name, createTimeout))
-			// Clean up the orphaned goroutine: if it eventually succeeds, close the resource.
+			// Cleanup goroutine: wait for the orphan to complete OR for ctx
+			// shutdown. On ctx shutdown, abandon the result (we'll leak the
+			// underlying call goroutine, but not the cleanup one).
 			go func(name string) {
-				if res := <-resultCh; res.err == nil && res.instance != nil {
-					if closer, ok := res.instance.(interface{ Close() error }); ok {
-						_ = closer.Close()
+				select {
+				case res := <-resultCh:
+					if res.err == nil && res.instance != nil {
+						if closer, ok := res.instance.(interface{ Close() error }); ok {
+							_ = closer.Close()
+						}
+						slog.Warn("timed-out service creation completed late, resource closed", "name", name)
 					}
-					slog.Warn("timed-out service creation completed late, resource closed", "name", name)
+				case <-ctx.Done():
+					slog.Warn("timed-out service creation cleanup abandoned at shutdown", "name", name)
 				}
 			}(name)
 			continue

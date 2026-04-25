@@ -119,19 +119,19 @@ Verified by reading the cited source on `feat/adventure-stream-android` (2026-04
 |----|---------|--------|-------|
 | C1 | SSRF | ✅ Shipped (this branch) | `request.go:141` calls `http.NewRequestWithContext` then `client.Do` with no URL validation. `plugin.go:58` builds `&http.Client{Timeout: timeout}` — no `CheckRedirect`, so Go's default follows redirects with auth headers preserved. |
 | C2 | Header injection | ✅ Shipped (this branch) | `resolve.go:319` `result[k] = fmt.Sprintf("%v", val)` with no CRLF stripping. The non-string branch at line 312 has the same problem. Used by `response.json`, `response.error`, `response.file`, and `http.request`. |
-| C3 | Wasm CallAsync | ✅ Confirmed | `hostapi.go:104` `go func()` with no `m.outstandingCalls.Add(1)`. Worse: `module.go:203-206` clears `pendingLabels` and `asyncResults` *before* waiting on `outstandingCalls` at line 215-223 — even tracked goroutines would write into already-cleared maps. |
+| C3 | Wasm CallAsync | ✅ Shipped (this branch) | `hostapi.go:104` `go func()` with no `m.outstandingCalls.Add(1)`. Worse: `module.go:203-206` clears `pendingLabels` and `asyncResults` *before* waiting on `outstandingCalls` at line 215-223 — even tracked goroutines would write into already-cleared maps. |
 | C4 | DB transactions | ✅ Confirmed | `plugin.go:39-83` returns a `*gorm.DB` per service. Every node calls `db.WithContext(ctx).<op>` — no transaction handle is plumbed across nodes. Genuine design gap. |
 | H5 | Backpressure drops | ⚠ Partial | SSE drop confirmed (`sse.go:118-120` `default → "sse buffer full"` on 64-channel). Trace sync fan-out confirmed (`events.go:94-96`). Worker shutdown is more nuanced: `wg.Wait` actually does block on processMessage, but `r.cancel()` cancels the ctx that `XAck` (`runtime.go:326`) uses, so on shutdown an in-flight message becomes "processed but not acked" and stays pending. |
 | H6 | Image validation | ✅ Shipped (this branch) | `helpers.go:32` `source.Read` returns raw bytes; subsequent ops (`resize`, `crop`, etc.) call `bimg.NewImage(data)` with no size/dimension check. `writeTargetImage` even calls `bimg.NewImage(data).Size()` *after* writing to storage. |
 | H7 | OIDC audience | ❌ **False positive** | go-oidc v3.17.0 `oidc/verify.go:296-298` shows `if !v.config.SkipClientIDCheck && v.config.ClientID != "" { contains(t.Audience, v.config.ClientID) }`. Setting `&gooidc.Config{ClientID: clientID}` **does** verify the audience claim. The agent didn't read the library. |
 | H8 | AND-join error masking | ⚠ By design | `executor.go:116` `firstErr.CompareAndSwap(nil, err); cancel(); return`. This is intentional first-error semantics. Concurrent failures racing `CompareAndSwap` is the explicit design, not a bug. Could improve UX with multierror, but not a correctness issue. |
 | H9 | Storage path traversal | ✅ Shipped (this branch) | `validatePath` only blocks `..`/`../` after `Clean` (`service.go:17-22`). However, `plugin.go:36` uses `afero.NewBasePathFs(NewOsFs(), path)`, which Afero documents as preventing escapes (joining all paths under base). Absolute paths are *probably* contained by BasePathFs but no defense-in-depth check exists. **Symlink concern is real** — BasePathFs does not protect against symlinks within the base FS pointing outside it. |
-| H10 | Stream pending | ✅ Confirmed | `service.go:55-61` uses `XReadGroup` with `>` only. No `XAUTOCLAIM`, no consumer heartbeat, no idle reclaim anywhere in the package. |
+| H10 | Stream pending | ✅ Shipped (this branch) | `service.go:55-61` uses `XReadGroup` with `>` only. No `XAUTOCLAIM`, no consumer heartbeat, no idle reclaim anywhere in the package. |
 | H11 | Email/LiveKit validation | ✅ Shipped (this branch) | `helpers.go:14-54` `resolveRecipients` accepts string or []string and returns them unmodified — no syntactic validation, no per-message recipient cap. SMTP layer would surface a server-side error but no local guard exists. LiveKit not re-verified but likely same shape. |
 | H12 | SQL injection surface | ⚠ Partial | `validate.go:80-97` `ValidateSQLFragment` blocks `;`, `--`, `/*`, and a denylist of keywords (DROP/DELETE/INSERT/UPDATE/ALTER/CREATE/EXEC/UNION/SELECT/GRANT/REVOKE/TRUNCATE) as whole words. This is *reasonable* — subqueries and second-statement attacks are blocked. Risk reduces to predicate-tampering (e.g. `1=1 OR x=y`) on JOIN ON / WHERE / HAVING when those clauses come from expressions. Raw `db.query`/`db.exec` (`query.go:55`) accept any resolved string — that's a foot-gun, not a bug, but downgrade severity to **medium** unless the team wants opt-in gating. |
 | H13 | Lifecycle timing | ⚠ Partial | (a) `lifecycle.go:101` `context.WithTimeout(context.Background(), budget)` ignores outer ctx — **confirmed**. (b) Devmode `reload.go:96-114` releases lock before invoking `onReload` — **confirmed** TOCTOU window between new config visible and cache invalidated. (c) Server adapter no-op claim is real but mostly harmless: `runtime.go:340-364` shows `srv.Start()` blocks *after* lifecycle is up, and `app.ShutdownWithContext` triggered by `Stop` cleanly returns `app.Listen`. The flow is unconventional but works. |
-| H14 | Wasm fuel | ✅ Confirmed | `runtime.go:66-77` builds Extism manifest with `MemoryPages` only. No `extism.PluginConfig` field for fuel/instruction metering is set. Coarse `wasmCallTimeout` (~30s) is the only escape hatch. |
-| H15 | Service goroutine leak | ⚠ Confirmed but contextual | `lifecycle.go:75-86` cleanup goroutine reads from `resultCh` (buffered 1). If `CreateService` eventually returns, cleanup runs and closes the resource. If it never returns, **the goroutine leaks** but there is no resource to close anyway. Real bug only on hung-but-eventually-completing creates, which are rare. |
+| H14 | Wasm fuel | 🚫 Not implementable | Verified during runtime-hardening design (2026-04-23): Extism go-sdk v1.7.1 does not expose any fuel/instruction-metering API, and the underlying wazero runtime deliberately rejects fuel metering as a feature. Only a wall-clock `manifest.Timeout` is available (which Noda already duplicates via its `wasmCallTimeout` constant). Revisit if Extism upstream adds metering. |
+| H15 | Service goroutine leak | ✅ Shipped (this branch) | `lifecycle.go:75-86` cleanup goroutine reads from `resultCh` (buffered 1). If `CreateService` eventually returns, cleanup runs and closes the resource. If it never returns, **the goroutine leaks** but there is no resource to close anyway. Real bug only on hung-but-eventually-completing creates, which are rare. |
 | H16 | Upload path | ✅ Shipped (this branch) | `handle.go:148-151` uses `storagePath` directly; `fmt.Sprintf("%s_%d", storagePath, i)` for multifile. No traversal check at this layer. Mitigated downstream by storage `validatePath`, so escape requires also defeating H9's BasePathFs containment — risk reduces to *medium*. |
 
 **Summary:** of 16 Critical/High items, **11 fully confirmed**, **3 partial/contextual** (H5, H9, H12), **1 by-design** (H8), **1 false positive** (H7).
@@ -147,10 +147,18 @@ H11 (email recipient validation), H16 (upload path) — see commits
 `7b860ab..263e01f` on branch `feat/security-hardening`. Spec at
 `docs/superpowers/specs/2026-04-22-security-hardening-design.md` (gitignored).
 
+## Shipped 2026-04-25
+
+C3 (Wasm CallAsync lifetime), H10 (stream pending reclaim), H15 (service-creation
+goroutine cleanup) — see commits on branch `feat/runtime-hardening`. Spec at
+`docs/superpowers/specs/2026-04-23-runtime-hardening-design.md` (gitignored).
+
+H14 (Wasm per-call fuel) was reclassified as not-implementable during this
+spec's design phase; see its row above.
+
 ## Still open
 
-C3 (Wasm CallAsync lifetime), C4 (DB transactions), H5 (silent backpressure
-drops), H8 (AND-join error masking — by design), H10 (stream pending reclaim),
-H12 (SQL injection surface — partial), H13 (lifecycle timing), H14 (Wasm fuel),
-H15 (service-creation goroutine leak). To be addressed in a separate
-"runtime correctness" spec/plan.
+- **C4 (DB transactions)** — to be addressed in a standalone spec; biggest single design choice in the codebase (engine-driven vs explicit `db.tx.*` nodes).
+- **H5 (silent backpressure drops in SSE/trace/worker)** + **H13 (lifecycle context plumbing & devmode TOCTOU)** — to be addressed in a paired "backpressure & lifecycle" spec. H15's introduction of `ctx context.Context` to `Bootstrap`/`InitializeServices` is the precedent that spec will build on.
+- **H8 (AND-join error masking)** — by design, no action planned. May be revisited if user feedback shows the first-error semantics is confusing.
+- **H12 (SQL injection surface — partial)** — `ValidateSQLFragment` blocks `;`, `--`, `/*`, and 12 keywords; predicate-tampering on `WHERE`/`HAVING`/`JOIN ON` from expression-resolved input is the residual risk. Ship-blocker only if a workflow config user-input flow is found that exposes raw `db.query`/`db.exec` to untrusted callers. Track separately if such a flow ships.

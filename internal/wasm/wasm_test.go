@@ -18,6 +18,7 @@ import (
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // stubPlugin implements api.Plugin for service registry tests.
@@ -3183,4 +3184,104 @@ func TestModule_QueryOnly(t *testing.T) {
 
 	// No tick calls should have been made against a module that doesn't export tick.
 	assert.Empty(t, plugin.getCalls("tick"))
+}
+
+// --- Race fix: Stop-while-CallAsync-in-flight ---
+
+// blockingCacheService is a test-only api.CacheService whose Get blocks until
+// release is closed. It signals "started" the moment Get is entered so the
+// test knows the host call is in flight.
+//
+// Crucially, Get does NOT honour context cancellation. This means when
+// Module.Stop cancels lifecycleCtx, the in-flight goroutine is NOT released
+// via ctx.Done(). Only closing release unblocks it. This forces Stop to
+// genuinely wait at outstandingCalls.Wait() — proving that the Add(1)/Done()
+// fix in CallAsync is what keeps Stop blocked, not lifecycle cancellation.
+type blockingCacheService struct {
+	release chan struct{}
+	started chan struct{}
+}
+
+func (s *blockingCacheService) Get(_ context.Context, _ string) (any, error) {
+	close(s.started)
+	<-s.release
+	return "ok", nil
+}
+func (s *blockingCacheService) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
+func (s *blockingCacheService) Del(_ context.Context, _ string) error               { return nil }
+func (s *blockingCacheService) Exists(_ context.Context, _ string) (bool, error)    { return false, nil }
+
+func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	release := make(chan struct{})
+	started := make(chan struct{})
+	bsvc := &blockingCacheService{release: release, started: started}
+
+	svcReg := registry.NewServiceRegistry()
+	require.NoError(t, svcReg.Register("blocker", bsvc, nil))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+
+	m, err := NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 20,
+		Services: []string{"blocker"},
+	}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+
+	// Fire async call — host call goroutine enters blockingCacheService.Get
+	// and blocks on `release`. ctx cancellation will NOT release it.
+	err = dispatcher.CallAsync(context.Background(), HostCallRequest{
+		Label:     "x",
+		Service:   "blocker",
+		Operation: "get",
+		Payload:   map[string]any{"key": "k"},
+	})
+	require.NoError(t, err)
+
+	// Wait until the host call is actually executing.
+	<-started
+
+	// Begin Stop in another goroutine. With the fix, it MUST block at
+	// outstandingCalls.Wait() because:
+	//  - CallAsync's Add(1) means the WG counter is non-zero
+	//  - blockingCacheService.Get does not honor ctx.Done(), so
+	//    lifecycleCancel() does NOT release the goroutine
+	// Without the fix (no Add(1)), Wait returns immediately and Stop
+	// completes — at which point the still-running goroutine eventually
+	// wakes after `release` is closed and either panics on the cleared
+	// map (if the stopping guard is also missing) or is detected as a
+	// leak by goleak.VerifyNone at test end.
+	stopDone := make(chan struct{})
+	go func() { _ = m.Stop(context.Background()); close(stopDone) }()
+
+	// Prove Stop is genuinely blocked on outstandingCalls.Wait() —
+	// give it a generous moment to attempt completion. With the fix,
+	// it MUST still be blocked here. Without the fix, stopDone has
+	// already fired (goroutine still alive but Wait returned).
+	select {
+	case <-stopDone:
+		t.Fatal("Stop completed while CallAsync goroutine was still in flight; outstandingCalls.Wait() did not block")
+	case <-time.After(200 * time.Millisecond):
+		// Expected: Stop is correctly blocked on the WaitGroup.
+	}
+
+	// Now release the host call. Its result write is either accepted
+	// before the map clear (the wait completed, then cleared) OR
+	// dropped by the stopping guard. Neither path may panic.
+	close(release)
+
+	// Stop must complete cleanly within a reasonable timeout.
+	select {
+	case <-stopDone:
+		// success
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop did not complete after release; outstandingCalls Wait may have hung")
+	}
+	// goleak.VerifyNone (deferred above) verifies the async goroutine exited.
 }

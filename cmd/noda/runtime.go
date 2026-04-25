@@ -82,7 +82,14 @@ func initRuntime(configDir, envFlag string, opts initOptions) (*runtimeContext, 
 	if err := registerCorePlugins(plugins); err != nil {
 		return nil, err
 	}
-	bootstrap, bootstrapErrs := registry.Bootstrap(rc, plugins)
+	// Background is intentional: initRuntime runs before setupLifecycle, so no
+	// lifecycle root ctx exists yet. If Bootstrap hangs past createTimeout, it
+	// returns an error → initRuntime returns error → cobra exits → process
+	// terminates, so the cleanup goroutine the cleared-via-ctx fix protects
+	// against is functionally moot here. The protection is meaningful when
+	// InitializeServices is called in a context that actually has a root ctx
+	// (the test in lifecycle_test.go exercises it).
+	bootstrap, bootstrapErrs := registry.Bootstrap(context.Background(), rc, plugins)
 	if len(bootstrapErrs) > 0 {
 		var errMsgs []string
 		for _, e := range bootstrapErrs {

@@ -53,3 +53,26 @@ scrape_configs:
 ## Tracing
 
 OpenTelemetry tracing is also enabled. Spans are emitted for HTTP requests, workflow executions, and each node execution. Configure an OTLP exporter via standard `OTEL_EXPORTER_*` environment variables.
+
+## Stream consumers
+
+### Stream consumer auto-reclaim
+
+`stream.Subscribe` automatically reclaims pending messages from crashed
+consumer-group members. Every 10 read cycles, each consumer calls
+`XAUTOCLAIM` for messages idle longer than 60 seconds and re-delivers
+them through the same handler.
+
+The 60-second threshold is shorter than the default per-message worker
+handler timeout (5 minutes), so legitimate slow handlers don't get
+their messages stolen mid-flight — but it's short enough that crashed
+consumers don't tie up messages for hours.
+
+Handlers MUST call `Ack` on success. Without an Ack, the message stays
+pending and will be re-delivered to another consumer after 60 seconds
+— at-least-once delivery semantics. End-to-end latency from a
+consumer crash to another consumer re-attempting is approximately
+`reclaimMinIdle` (60s) + `reclaimInterval × Block` (~20s) = **~80s**.
+
+This is always-on — there is no config knob in v1. If you need a
+different threshold, file an issue describing the use case.

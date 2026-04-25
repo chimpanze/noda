@@ -1,12 +1,15 @@
 package registry
 
 import (
+	"context"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // servicePlugin implements api.Plugin with service support for lifecycle testing.
@@ -52,7 +55,7 @@ func TestInitializeServices_Success(t *testing.T) {
 		},
 	}
 
-	registry, errs := InitializeServices(servicesConfig, plugins)
+	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	assert.Empty(t, errs)
 
 	inst, ok := registry.Get("main-db")
@@ -69,7 +72,7 @@ func TestInitializeServices_UnknownPlugin(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "unknown plugin")
 	assert.Contains(t, errs[0].Error(), "nonexistent")
@@ -90,7 +93,7 @@ func TestInitializeServices_CreateFailure(t *testing.T) {
 		"other":   map[string]any{"plugin": "db"},
 	}
 
-	_, errs := InitializeServices(servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	// Both should fail but both are attempted
 	assert.Len(t, errs, 2)
 }
@@ -104,7 +107,7 @@ func TestInitializeServices_MissingPluginField(t *testing.T) {
 		},
 	}
 
-	_, errs := InitializeServices(servicesConfig, plugins)
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "plugin")
 }
@@ -117,7 +120,7 @@ func TestHealthCheckAll_Healthy(t *testing.T) {
 		"main-db": map[string]any{"plugin": "db"},
 	}
 
-	registry, errs := InitializeServices(servicesConfig, plugins)
+	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Empty(t, errs)
 
 	healthErrs := registry.HealthCheckAll()
@@ -138,7 +141,7 @@ func TestHealthCheckAll_Unhealthy(t *testing.T) {
 		"main-db": map[string]any{"plugin": "db"},
 	}
 
-	registry, errs := InitializeServices(servicesConfig, plugins)
+	registry, errs := InitializeServices(context.Background(), servicesConfig, plugins, 0)
 	require.Empty(t, errs)
 
 	healthErrs := registry.HealthCheckAll()
@@ -162,4 +165,53 @@ func TestShutdownAll_ReverseOrder(t *testing.T) {
 	errs := registry.ShutdownAll(t.Context())
 	assert.Empty(t, errs)
 	assert.Equal(t, []string{"second", "first"}, shutdownLog)
+}
+
+// hungPlugin is a test-only api.Plugin whose CreateService blocks until
+// the released channel is closed.
+type hungPlugin struct {
+	released chan struct{}
+}
+
+func (p *hungPlugin) Name() string                  { return "hungplugin" }
+func (p *hungPlugin) Prefix() string                { return "hungplugin" }
+func (p *hungPlugin) HasServices() bool             { return true }
+func (p *hungPlugin) Nodes() []api.NodeRegistration { return nil }
+func (p *hungPlugin) HealthCheck(_ any) error       { return nil }
+func (p *hungPlugin) Shutdown(_ any) error          { return nil }
+func (p *hungPlugin) CreateService(_ map[string]any) (any, error) {
+	<-p.released
+	return struct{}{}, nil
+}
+
+func TestInitializeServices_HungCreate_GoroutineExitsOnShutdown(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	released := make(chan struct{})
+	hung := &hungPlugin{released: released}
+
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(hung))
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	servicesConfig := map[string]any{
+		"hung": map[string]any{"plugin": "hungplugin"},
+	}
+
+	// Short timeout to make the test fast.
+	_, errs := InitializeServices(ctx, servicesConfig, plugins, 100*time.Millisecond)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "timed out")
+
+	// Cancel — cleanup goroutine should observe ctx.Done() and exit.
+	cancel()
+
+	// Brief scheduler hint so the goroutine actually exits before goleak runs.
+	time.Sleep(50 * time.Millisecond)
+
+	// Now release. Cleanup goroutine has already exited; this just lets
+	// the underlying CreateService goroutine finish (and it's tracked
+	// only by the runtime, not by us).
+	close(released)
 }

@@ -163,7 +163,7 @@ func newValidateCmd() *cobra.Command {
 			if err := registerCorePlugins(plugins); err != nil {
 				return err
 			}
-			_, bootstrapErrs := registry.Bootstrap(rc, plugins, registry.BootstrapOptions{DryRun: true})
+			_, bootstrapErrs := registry.Bootstrap(context.Background(), rc, plugins, registry.BootstrapOptions{DryRun: true})
 			if len(bootstrapErrs) > 0 {
 				var errMsgs []string
 				for _, e := range bootstrapErrs {
