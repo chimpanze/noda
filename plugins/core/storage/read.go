@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -59,6 +60,10 @@ func (e *readExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	path, err := plugin.ResolveString(nCtx, config, "path")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.read: %w", err)
+	}
+
+	if err := pathutil.ValidateRelative(path); err != nil {
+		return "", nil, &api.ValidationError{Field: "path", Message: err.Error()}
 	}
 
 	data, err := svc.Read(ctx, path)

@@ -146,11 +146,31 @@ Node types use the **prefix** column (e.g. `db.query`, `http.get`). The plugin i
 
 ### HTTP Client Service (`plugin: "http"`)
 
-| Config Field | Type | Required | Description |
-|-------------|------|----------|-------------|
-| `base_url` | string | no | Base URL prepended to all requests |
-| `timeout` | string | no | Default request timeout |
-| `headers` | object | no | Default headers for all requests |
+| Config Field | Type | Default | Description |
+|-------------|------|---------|-------------|
+| `timeout` | string | `"30s"` | Per-request timeout (Go duration). |
+| `base_url` | string | `""` | Prepended to relative URLs. Must use `http://` or `https://`. |
+| `headers` | object | `{}` | Default headers applied to every request. |
+| `allow_private_networks` | bool | `false` | If true, lifts the deny on RFC1918 / loopback / link-local / IPv6-ULA / CGN. The two cloud-metadata IPs remain blocked. |
+| `allowed_hosts` | []string | `[]` | Exact hostname bypass for the deny list. No globs. The two cloud-metadata IPs remain blocked even if a hostname here resolves to one. |
+| `redirects` | string | `"strip_auth"` | One of `"none"` (don't follow), `"same_origin"` (follow within same scheme/host/port), `"strip_auth"` (follow, removing `Authorization`/`Cookie`/`Proxy-Authorization`/`X-Api-Key`/`X-Auth-Token` and any `X-*-Token`/`X-*-Key` on cross-origin hops). |
+| `max_redirects` | int | `10` | Hop limit for `same_origin` and `strip_auth`. Range `[0, 50]`. |
+
+Example for an HTTP service that needs to call an internal `/metrics` endpoint:
+
+```json
+{
+  "services": {
+    "internal": {
+      "plugin": "http",
+      "config": {
+        "base_url": "http://prometheus.internal",
+        "allowed_hosts": ["prometheus.internal"]
+      }
+    }
+  }
+}
+```
 
 ### LiveKit Service (`plugin: "lk"`)
 

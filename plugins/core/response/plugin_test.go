@@ -1000,6 +1000,61 @@ func TestJSONExecutor_InlineCookieArrayMultiple(t *testing.T) {
 	assert.Equal(t, "c", resp.Cookies[2].Name)
 }
 
+// --- File Executor: filename injection rejection ---
+
+func TestFileExecutor_RejectsCRLFInFilename(t *testing.T) {
+	exec := newFileExecutor(nil)
+	mCtx := newResolveContext(map[string]any{
+		"bad-name": "evil\nname",
+	})
+
+	_, _, err := exec.Execute(context.Background(), mCtx, map[string]any{
+		"data":         []byte("hello"),
+		"content_type": "application/octet-stream",
+		"filename":     "bad-name",
+	}, nil)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "filename", ve.Field)
+	assert.Contains(t, ve.Message, "CR")
+}
+
+func TestFileExecutor_RejectsQuoteInFilename(t *testing.T) {
+	exec := newFileExecutor(nil)
+	mCtx := newResolveContext(map[string]any{
+		"quote-name": `evil"name`,
+	})
+
+	_, _, err := exec.Execute(context.Background(), mCtx, map[string]any{
+		"data":         []byte("hello"),
+		"content_type": "application/octet-stream",
+		"filename":     "quote-name",
+	}, nil)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "filename", ve.Field)
+	assert.Contains(t, ve.Message, "double-quote")
+}
+
+func TestFileExecutor_ValidFilenameSucceeds(t *testing.T) {
+	exec := newFileExecutor(nil)
+	mCtx := newResolveContext(map[string]any{
+		"safe-name": "report.pdf",
+	})
+
+	output, data, err := exec.Execute(context.Background(), mCtx, map[string]any{
+		"data":         []byte("pdf content"),
+		"content_type": "application/pdf",
+		"filename":     "safe-name",
+	}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	resp := data.(*api.HTTPResponse)
+	assert.Equal(t, `attachment; filename="report.pdf"`, resp.Headers["Content-Disposition"])
+}
+
 // --- JSON Executor: empty inline cookie array ---
 
 func TestJSONExecutor_EmptyInlineCookieArray(t *testing.T) {

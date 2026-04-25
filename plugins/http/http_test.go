@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/internal/netguard"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -586,4 +587,135 @@ func TestRequestExecutor_MissingMethod(t *testing.T) {
 	}, services)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing required field \"method\"")
+}
+
+func TestCreateService_DefaultRedirectsStripAuth(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, "strip_auth", svc.redirectMode)
+	assert.Equal(t, 10, svc.maxRedirects)
+	assert.False(t, svc.allowPrivateNetworks)
+	assert.Empty(t, svc.allowedHosts)
+}
+
+func TestCreateService_RedirectsNone(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"redirects": "none"})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, "none", svc.redirectMode)
+}
+
+func TestCreateService_RedirectsSameOrigin(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"redirects": "same_origin"})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, "same_origin", svc.redirectMode)
+}
+
+func TestCreateService_InvalidRedirects(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{"redirects": "always_follow"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "redirects")
+}
+
+func TestCreateService_MaxRedirectsOutOfRange(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{"max_redirects": float64(51)})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "max_redirects")
+}
+
+func TestCreateService_MaxRedirectsNegative(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{"max_redirects": float64(-1)})
+	require.Error(t, err)
+}
+
+func TestCreateService_AllowPrivateNetworks(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"allow_private_networks": true})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.True(t, svc.allowPrivateNetworks)
+}
+
+func TestCreateService_AllowedHosts(t *testing.T) {
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{
+		"allowed_hosts": []any{"internal.svc", "metrics.local"},
+	})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+	assert.Equal(t, []string{"internal.svc", "metrics.local"}, svc.allowedHosts)
+}
+
+func TestCreateService_AllowedHostsRejectsScheme(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{
+		"allowed_hosts": []any{"http://internal.svc"},
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "allowed_hosts")
+}
+
+func TestCreateService_AllowedHostsRejectsPath(t *testing.T) {
+	p := &Plugin{}
+	_, err := p.CreateService(map[string]any{
+		"allowed_hosts": []any{"internal.svc/path"},
+	})
+	require.Error(t, err)
+}
+
+func TestCreateService_AllowedHostsRejectsIPLiteral(t *testing.T) {
+	p := &Plugin{}
+	// IPv4 literals short-circuit DNS in the transport, so they never consult
+	// AllowedHosts. Accepting them here would silently do nothing — reject
+	// at config-parse time so the operator sees the mis-config.
+	// (IPv6 literals are already rejected by the ":" check as non-bare hostnames.)
+	for _, bad := range []string{"10.0.0.1", "127.0.0.1", "1.2.3.4"} {
+		_, err := p.CreateService(map[string]any{
+			"allowed_hosts": []any{bad},
+		})
+		require.Error(t, err, "expected rejection for %q", bad)
+		assert.Contains(t, err.Error(), "IP literal")
+	}
+}
+
+func TestCreateService_HTTPClient_BlocksLoopbackByDefault(t *testing.T) {
+	// Spin up a local httptest server.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+
+	_, err = svc.client.Get(srv.URL)
+	require.Error(t, err, "default-deny should block loopback")
+	assert.ErrorIs(t, err, netguard.ErrDenied)
+}
+
+func TestCreateService_HTTPClient_AllowPrivateOpensLoopback(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	p := &Plugin{}
+	rawSvc, err := p.CreateService(map[string]any{"allow_private_networks": true})
+	require.NoError(t, err)
+	svc := rawSvc.(*Service)
+
+	resp, err := svc.client.Get(srv.URL)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }

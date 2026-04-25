@@ -3,6 +3,7 @@ package response
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -80,6 +81,12 @@ func (e *fileExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, con
 			return "", nil, fmt.Errorf("response.file: filename: %w", err)
 		}
 		if name, ok := resolved.(string); ok && name != "" {
+			if strings.ContainsAny(name, "\r\n\"") {
+				return "", nil, &api.ValidationError{
+					Field:   "filename",
+					Message: "filename must not contain CR, LF, or double-quote characters",
+				}
+			}
 			headers["Content-Disposition"] = fmt.Sprintf(`attachment; filename="%s"`, name)
 		}
 	}

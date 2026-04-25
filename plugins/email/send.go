@@ -79,6 +79,14 @@ func (e *sendExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("email.send: %w", err)
 	}
 
+	combined := len(to) + len(cc) + len(bcc)
+	if combined > maxEmailRecipients {
+		return "", nil, &api.ValidationError{
+			Field:   "to+cc+bcc",
+			Message: fmt.Sprintf("combined recipient count %d exceeds maximum %d", combined, maxEmailRecipients),
+		}
+	}
+
 	contentType := "html"
 	if ct, ok := config["content_type"].(string); ok {
 		contentType = ct

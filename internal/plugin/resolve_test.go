@@ -710,3 +710,52 @@ func TestResolveHeaders_NonStringResolvedValue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "99", result["X-Num"])
 }
+
+func TestResolveHeaders_RejectsCR(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(string) (any, error) { return "v1\rinjected: yes", nil }}
+	_, err := ResolveHeaders(nCtx, map[string]any{
+		"headers": map[string]any{"X-Test": "expr"},
+	})
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "headers.X-Test", ve.Field)
+	assert.Contains(t, ve.Message, "CR/LF")
+}
+
+func TestResolveHeaders_RejectsLF(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(string) (any, error) { return "v1\ninjected: yes", nil }}
+	_, err := ResolveHeaders(nCtx, map[string]any{
+		"headers": map[string]any{"X-Test": "expr"},
+	})
+	require.Error(t, err)
+	var ve *api.ValidationError
+	assert.ErrorAs(t, err, &ve)
+}
+
+func TestResolveHeaders_RejectsCRLF(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(string) (any, error) { return "v1\r\ninjected: yes", nil }}
+	_, err := ResolveHeaders(nCtx, map[string]any{
+		"headers": map[string]any{"X-Test": "expr"},
+	})
+	require.Error(t, err)
+}
+
+func TestResolveHeaders_RejectsCRLFInNonStringValue(t *testing.T) {
+	// Non-string config value gets stringified via fmt.Sprintf("%v", ...).
+	// Construct a value whose stringification contains CR or LF.
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+	_, err := ResolveHeaders(nCtx, map[string]any{
+		"headers": map[string]any{"X-Test": []string{"a", "b\nc"}},
+	})
+	require.Error(t, err)
+}
+
+func TestResolveHeaders_AllowsNormalValues(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(string) (any, error) { return "Bearer abc123", nil }}
+	headers, err := ResolveHeaders(nCtx, map[string]any{
+		"headers": map[string]any{"Authorization": "expr"},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Bearer abc123", headers["Authorization"])
+}

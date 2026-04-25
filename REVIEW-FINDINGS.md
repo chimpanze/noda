@@ -140,14 +140,14 @@ The other thing the agents systematically did *not* do was check vendored librar
 
 ---
 
-## Shipped 2026-04-22
+## Shipped 2026-04-23
 
 C1 (SSRF), C2 (header injection), H6 (image bombs), H9 (storage symlinks),
 H11 (email recipient validation), H16 (upload path) — see commits
 `7b860ab..263e01f` on branch `feat/security-hardening`. Spec at
 `docs/superpowers/specs/2026-04-22-security-hardening-design.md` (gitignored).
 
-## Shipped 2026-04-23
+## Shipped 2026-04-25
 
 C3 (Wasm CallAsync lifetime), H10 (stream pending reclaim), H15 (service-creation
 goroutine cleanup) — see commits on branch `feat/runtime-hardening`. Spec at

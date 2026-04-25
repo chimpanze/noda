@@ -1,10 +1,12 @@
 package image
 
 import (
+	"bytes"
 	"context"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/h2non/bimg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -214,6 +216,31 @@ func TestWatermark_MissingInputFile(t *testing.T) {
 	}, services)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "image.watermark")
+}
+
+func TestWatermark_OversizedWatermarkRejected(t *testing.T) {
+	services, svc := newTestServices(t)
+	ctx := context.Background()
+
+	// Write a valid base image.
+	img := createTestPNG(t)
+	require.NoError(t, svc.Write(ctx, "base.png", img))
+
+	// Write a watermark that exceeds the byte ceiling.
+	oversized := bytes.Repeat([]byte{0xff}, maxImageBytes+1)
+	require.NoError(t, svc.Write(ctx, "big_wm.bin", oversized))
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	e := newWatermarkExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{
+		"input":     "base.png",
+		"output":    "out.png",
+		"watermark": "big_wm.bin",
+	}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve, "expected ValidationError for oversized watermark")
+	assert.Equal(t, "input", ve.Field)
 }
 
 // createSmallPNG creates a small 20x20 PNG for use as watermark.

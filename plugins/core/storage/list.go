@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -46,6 +47,10 @@ func (e *listExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	prefix, err := plugin.ResolveString(nCtx, config, "prefix")
 	if err != nil {
 		return "", nil, fmt.Errorf("storage.list: %w", err)
+	}
+
+	if err := pathutil.ValidateRelative(prefix); err != nil {
+		return "", nil, &api.ValidationError{Field: "prefix", Message: err.Error()}
 	}
 
 	paths, err := svc.List(ctx, prefix)

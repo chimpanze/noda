@@ -38,7 +38,8 @@ func TestE2E_OutboundHTTPCall(t *testing.T) {
 	// Create HTTP service
 	hp := &httpplugin.Plugin{}
 	rawHTTPSvc, err := hp.CreateService(map[string]any{
-		"timeout": float64(10),
+		"timeout":                float64(10),
+		"allow_private_networks": true,
 	})
 	require.NoError(t, err)
 
@@ -120,7 +121,9 @@ func TestE2E_HTTPPostOutbound(t *testing.T) {
 	defer externalAPI.Close()
 
 	hp := &httpplugin.Plugin{}
-	rawHTTPSvc, err := hp.CreateService(map[string]any{})
+	rawHTTPSvc, err := hp.CreateService(map[string]any{
+		"allow_private_networks": true,
+	})
 	require.NoError(t, err)
 
 	svcReg := registry.NewServiceRegistry()
@@ -195,7 +198,9 @@ func TestE2E_HTTPTimeout(t *testing.T) {
 	defer slowAPI.Close()
 
 	hp := &httpplugin.Plugin{}
-	rawHTTPSvc, err := hp.CreateService(map[string]any{})
+	rawHTTPSvc, err := hp.CreateService(map[string]any{
+		"allow_private_networks": true,
+	})
 	require.NoError(t, err)
 
 	svcReg := registry.NewServiceRegistry()

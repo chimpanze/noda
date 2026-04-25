@@ -526,3 +526,89 @@ func TestUploadHandle_EmptyAllowedTypes(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "success", output)
 }
+
+// ---- storagePath validation tests (Task 12) ----
+
+func TestHandle_RejectsAbsolutePath(t *testing.T) {
+	svc := newMemStorage(t)
+	fh := makeFileHeader("test.txt", "text/plain", []byte("hello"))
+	require.NotNil(t, fh)
+
+	config := map[string]any{
+		"max_size":      float64(1024),
+		"allowed_types": []any{"text/plain; charset=utf-8"},
+		"path":          "/etc/passwd",
+	}
+
+	_, _, err := execUpload(t, svc, fh, config)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "storage_path", ve.Field)
+}
+
+func TestHandle_RejectsDotDotPath(t *testing.T) {
+	svc := newMemStorage(t)
+	fh := makeFileHeader("test.txt", "text/plain", []byte("hello"))
+	require.NotNil(t, fh)
+
+	config := map[string]any{
+		"max_size":      float64(1024),
+		"allowed_types": []any{"text/plain; charset=utf-8"},
+		"path":          "../../etc/passwd",
+	}
+
+	_, _, err := execUpload(t, svc, fh, config)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "storage_path", ve.Field)
+}
+
+func TestHandle_RejectsNULByte(t *testing.T) {
+	svc := newMemStorage(t)
+	fh := makeFileHeader("test.txt", "text/plain", []byte("hello"))
+	require.NotNil(t, fh)
+
+	config := map[string]any{
+		"max_size":      float64(1024),
+		"allowed_types": []any{"text/plain; charset=utf-8"},
+		"path":          "ok\x00.txt",
+	}
+
+	_, _, err := execUpload(t, svc, fh, config)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+}
+
+func TestHandle_RejectsEmptyPath(t *testing.T) {
+	svc := newMemStorage(t)
+	fh := makeFileHeader("test.txt", "text/plain", []byte("hello"))
+	require.NotNil(t, fh)
+
+	config := map[string]any{
+		"max_size":      float64(1024),
+		"allowed_types": []any{"text/plain; charset=utf-8"},
+		"path":          "",
+	}
+
+	_, _, err := execUpload(t, svc, fh, config)
+	require.Error(t, err)
+}
+
+func TestHandle_AcceptsSafePath(t *testing.T) {
+	svc := newMemStorage(t)
+	fh := makeFileHeader("test.txt", "text/plain", []byte("hello"))
+	require.NotNil(t, fh)
+
+	config := map[string]any{
+		"max_size":      float64(1024),
+		"allowed_types": []any{"text/plain; charset=utf-8"},
+		"path":          "uploads/test.txt",
+	}
+
+	output, _, err := execUpload(t, svc, fh, config)
+	require.NoError(t, err)
+	assert.Equal(t, api.OutputSuccess, output)
+}

@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/engine"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -652,4 +653,72 @@ func TestService_SetDialFn(t *testing.T) {
 	_, err := svc.dialCtx(context.Background())
 	assert.True(t, called)
 	assert.Error(t, err)
+}
+
+func TestResolveRecipients_RejectsInvalidAddress(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	_, err := resolveRecipients(execCtx, map[string]any{
+		"to": "not an email",
+	}, "to")
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "to[0]", ve.Field)
+}
+
+func TestResolveRecipients_RejectsInvalidInList(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	_, err := resolveRecipients(execCtx, map[string]any{
+		"to": []any{"good@example.com", "bad-email"},
+	}, "to")
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Equal(t, "to[1]", ve.Field)
+}
+
+func TestResolveRecipients_AcceptsRFC5322Names(t *testing.T) {
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	result, err := resolveRecipients(execCtx, map[string]any{
+		"to": "Alice Example <alice@example.com>",
+	}, "to")
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Alice Example <alice@example.com>"}, result)
+}
+
+func TestSend_RejectsOver100CombinedRecipients(t *testing.T) {
+	// 60 to + 30 cc + 11 bcc = 101 total → must reject.
+	to := make([]any, 60)
+	for i := range to {
+		to[i] = fmt.Sprintf("u%d@example.com", i)
+	}
+	cc := make([]any, 30)
+	for i := range cc {
+		cc[i] = fmt.Sprintf("c%d@example.com", i)
+	}
+	bcc := make([]any, 11)
+	for i := range bcc {
+		bcc[i] = fmt.Sprintf("b%d@example.com", i)
+	}
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	executor := &sendExecutor{}
+
+	// Build a fake email service that points at an unreachable SMTP host.
+	// We expect the cap to fire BEFORE any network IO, so the unreachable
+	// host never matters.
+	svc, err := (&Plugin{}).CreateService(map[string]any{
+		"host": "127.0.0.1", "port": float64(25), "from": "noreply@example.com",
+	})
+	require.NoError(t, err)
+	services := map[string]any{"mailer": svc}
+
+	_, _, err = executor.Execute(context.Background(), execCtx, map[string]any{
+		"to": to, "cc": cc, "bcc": bcc,
+		"subject": "test", "body": "hi",
+	}, services)
+	require.Error(t, err)
+	var ve *api.ValidationError
+	require.ErrorAs(t, err, &ve)
+	assert.Contains(t, ve.Field, "to+cc+bcc")
 }

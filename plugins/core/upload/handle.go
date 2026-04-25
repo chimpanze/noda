@@ -8,6 +8,7 @@ import (
 	"mime/multipart"
 	"net/http"
 
+	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -141,6 +142,14 @@ func (e *handleExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 			return "", nil, &api.ValidationError{
 				Field:   fieldName,
 				Message: fmt.Sprintf("file type %q not allowed", detectedType),
+			}
+		}
+
+		// Validate storagePath before use (reject empty, absolute, NUL, and ".." escapes)
+		if err := pathutil.ValidateRelative(storagePath); err != nil {
+			return "", nil, &api.ValidationError{
+				Field:   "storage_path",
+				Message: err.Error(),
 			}
 		}
 

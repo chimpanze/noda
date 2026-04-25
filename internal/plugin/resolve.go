@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -296,6 +297,8 @@ func ResolveOptionalArray(nCtx api.ExecutionContext, config map[string]any, key 
 // ResolveHeaders resolves a "headers" config field as a map of string→string.
 // Each value is resolved as an expression. Non-string resolved values are
 // formatted via fmt.Sprintf. Returns nil if the field is absent.
+// Returns an error if any resolved header value contains CR or LF characters,
+// preventing HTTP header injection attacks.
 func ResolveHeaders(nCtx api.ExecutionContext, config map[string]any) (map[string]string, error) {
 	raw, ok := config["headers"]
 	if !ok {
@@ -309,14 +312,32 @@ func ResolveHeaders(nCtx api.ExecutionContext, config map[string]any) (map[strin
 	for k, v := range m {
 		expr, ok := v.(string)
 		if !ok {
-			result[k] = fmt.Sprintf("%v", v)
+			s := fmt.Sprintf("%v", v)
+			if err := assertNoCRLF(k, s); err != nil {
+				return nil, err
+			}
+			result[k] = s
 			continue
 		}
 		val, err := nCtx.Resolve(expr)
 		if err != nil {
 			return nil, fmt.Errorf("resolve header %q: %w", k, err)
 		}
-		result[k] = fmt.Sprintf("%v", val)
+		s := fmt.Sprintf("%v", val)
+		if err := assertNoCRLF(k, s); err != nil {
+			return nil, err
+		}
+		result[k] = s
 	}
 	return result, nil
+}
+
+func assertNoCRLF(headerName, value string) error {
+	if strings.ContainsAny(value, "\r\n") {
+		return &api.ValidationError{
+			Field:   "headers." + headerName,
+			Message: "header value contains CR/LF (potential header injection)",
+		}
+	}
+	return nil
 }
