@@ -76,6 +76,7 @@ func NewEventHub() *EventHub {
 // fully exited.
 func (h *EventHub) Subscribe(fn Subscriber) func() {
 	inbox := bounded.New[[]byte](traceInboxCapacity, bounded.DropOldest)
+	//nolint:gosec // cancel is stored in slot and invoked by the unsubscribe closure returned below
 	ctx, cancel := context.WithCancel(context.Background())
 	slot := &subscriberSlot{
 		fn:     fn,
