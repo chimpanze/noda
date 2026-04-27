@@ -1,9 +1,12 @@
 package trace
 
 import (
+	"context"
 	"encoding/json"
 	"sync"
 	"time"
+
+	"github.com/chimpanze/noda/internal/bounded"
 )
 
 // EventType identifies the kind of trace event.
@@ -39,60 +42,98 @@ type Event struct {
 // Subscriber receives trace events.
 type Subscriber func(data []byte)
 
-// EventHub broadcasts trace events to all connected subscribers.
+// traceInboxCapacity is the bounded inbox size per subscriber.
+// Events are small (~few hundred bytes) and subscribers are few
+// (dev-mode editor websocket clients). 256 is generous.
+const traceInboxCapacity = 256
+
+type subscriberSlot struct {
+	fn     Subscriber
+	inbox  *bounded.Queue[[]byte]
+	cancel context.CancelFunc
+	done   chan struct{}
+}
+
+// EventHub broadcasts trace events to all connected subscribers via
+// per-subscriber goroutines and bounded inboxes (DropOldest). Emit is
+// non-blocking; slow subscribers see drops in their own inbox without
+// affecting others.
 type EventHub struct {
 	mu          sync.RWMutex
-	subscribers map[uint64]Subscriber
+	subscribers map[uint64]*subscriberSlot
 	nextID      uint64
 }
 
 // NewEventHub creates a new event hub.
 func NewEventHub() *EventHub {
 	return &EventHub{
-		subscribers: make(map[uint64]Subscriber),
+		subscribers: make(map[uint64]*subscriberSlot),
 	}
 }
 
 // Subscribe registers a subscriber and returns an unsubscribe function.
+// The unsubscribe function blocks until the subscriber goroutine has
+// fully exited.
 func (h *EventHub) Subscribe(fn Subscriber) func() {
+	inbox := bounded.New[[]byte](traceInboxCapacity, bounded.DropOldest)
+	ctx, cancel := context.WithCancel(context.Background())
+	slot := &subscriberSlot{
+		fn:     fn,
+		inbox:  inbox,
+		cancel: cancel,
+		done:   make(chan struct{}),
+	}
+
 	h.mu.Lock()
 	id := h.nextID
 	h.nextID++
-	h.subscribers[id] = fn
+	h.subscribers[id] = slot
 	h.mu.Unlock()
+
+	go func() {
+		defer close(slot.done)
+		for {
+			data, ok := slot.inbox.Pop(ctx)
+			if !ok {
+				return
+			}
+			fn(data)
+		}
+	}()
 
 	return func() {
 		h.mu.Lock()
 		delete(h.subscribers, id)
 		h.mu.Unlock()
+		slot.cancel()
+		slot.inbox.Close()
+		<-slot.done
 	}
 }
 
-// Emit sends a trace event to all subscribers.
+// Emit sends a trace event to all subscribers. Non-blocking — events are
+// enqueued to per-subscriber bounded inboxes.
 func (h *EventHub) Emit(event Event) {
 	if event.Timestamp == "" {
 		event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
-
-	// Redact sensitive values from trace data before broadcasting
 	if m, ok := event.Data.(map[string]any); ok {
 		event.Data = redactSecrets(m)
 	}
-
 	data, err := json.Marshal(event)
 	if err != nil {
 		return
 	}
 
 	h.mu.RLock()
-	subs := make([]Subscriber, 0, len(h.subscribers))
-	for _, fn := range h.subscribers {
-		subs = append(subs, fn)
+	subs := make([]*subscriberSlot, 0, len(h.subscribers))
+	for _, s := range h.subscribers {
+		subs = append(subs, s)
 	}
 	h.mu.RUnlock()
 
-	for _, fn := range subs {
-		fn(data)
+	for _, s := range subs {
+		s.inbox.Push(data)
 	}
 }
 
