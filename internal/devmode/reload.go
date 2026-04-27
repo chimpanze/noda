@@ -94,9 +94,9 @@ func (r *Reloader) HandleChange(path string) {
 	}
 
 	r.mu.Lock()
-	r.config = rc
-	r.mu.Unlock()
+	defer r.mu.Unlock()
 
+	r.config = rc
 	r.logger.Info("config reloaded successfully", "files", rc.FileCount)
 
 	if r.hub != nil {
