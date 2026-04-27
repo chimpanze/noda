@@ -300,7 +300,9 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 			slog.Warn("forced shutdown — received second signal")
 			os.Exit(1)
 		}()
-		lc.StopAll(deadline)
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), deadline)
+		defer shutdownCancel()
+		lc.StopAll(shutdownCtx)
 		close(doneCh)
 	}()
 
@@ -340,7 +342,9 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 		for name, err := range healthErrs {
 			msgs = append(msgs, fmt.Sprintf("%s: %s", name, err))
 		}
-		lc.StopAll(parseShutdownDeadline(rtCtx.RC, 30*time.Second))
+		shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), parseShutdownDeadline(rtCtx.RC, 30*time.Second))
+		defer shutdownCancel()
+		lc.StopAll(shutdownCtx)
 		close(doneCh)
 		return nil, nil, fmt.Errorf("startup health check failed:\n  %s", strings.Join(msgs, "\n  "))
 	}

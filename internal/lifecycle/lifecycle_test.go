@@ -90,7 +90,9 @@ func TestStopAll_ReverseOrder(t *testing.T) {
 
 	require.NoError(t, lc.StartAll(context.Background()))
 	log = nil // reset
-	lc.StopAll(30 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	lc.StopAll(ctx)
 
 	assert.Equal(t, []string{"stop:c", "stop:b", "stop:a"}, log)
 }
@@ -105,7 +107,9 @@ func TestStopAll_ContinuesOnError(t *testing.T) {
 
 	require.NoError(t, lc.StartAll(context.Background()))
 	log = nil
-	lc.StopAll(30 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	lc.StopAll(ctx)
 
 	// Both stopped despite b's error
 	assert.Equal(t, []string{"stop:b", "stop:a"}, log)
@@ -117,7 +121,72 @@ func TestStopAll_NoStarted(t *testing.T) {
 	lc := New(testLogger())
 	lc.Register(&mockComponent{name: "a"})
 	// Never called StartAll, so StopAll should be a no-op
-	lc.StopAll(5 * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	lc.StopAll(ctx)
+}
+
+type fakeComponent struct {
+	name    string
+	startFn func(context.Context) error
+	stopFn  func(context.Context) error
+}
+
+func (f *fakeComponent) Name() string { return f.name }
+func (f *fakeComponent) Start(ctx context.Context) error {
+	if f.startFn != nil {
+		return f.startFn(ctx)
+	}
+	return nil
+}
+func (f *fakeComponent) Stop(ctx context.Context) error {
+	if f.stopFn != nil {
+		return f.stopFn(ctx)
+	}
+	return nil
+}
+
+func TestStopAll_PropagatesParentCancel(t *testing.T) {
+	lc := New(testLogger())
+
+	stopCalled := make(chan context.Context, 2)
+	lc.Register(&fakeComponent{
+		name: "first",
+		stopFn: func(ctx context.Context) error {
+			stopCalled <- ctx
+			// Block until ctx is done so parent-cancel observation is forced.
+			<-ctx.Done()
+			return ctx.Err()
+		},
+	})
+	lc.Register(&fakeComponent{
+		name: "second",
+		stopFn: func(ctx context.Context) error {
+			stopCalled <- ctx
+			return nil
+		},
+	})
+
+	require.NoError(t, lc.StartAll(context.Background()))
+
+	parent, cancelParent := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancelParent()
+
+	doneStop := make(chan struct{})
+	go func() {
+		lc.StopAll(parent)
+		close(doneStop)
+	}()
+
+	// Wait until "second" (reverse order: stops first) is in Stop.
+	<-stopCalled
+	cancelParent()
+
+	select {
+	case <-doneStop:
+	case <-time.After(2 * time.Second):
+		t.Fatal("StopAll did not return after parent ctx cancelled")
+	}
 }
 
 func TestRegisterOrder(t *testing.T) {
