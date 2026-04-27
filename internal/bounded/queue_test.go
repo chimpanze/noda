@@ -2,6 +2,7 @@ package bounded
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -151,4 +152,61 @@ func TestClose_Idempotent(t *testing.T) {
 	q := New[int](2, DropNewest)
 	q.Close()
 	q.Close() // must not panic
+}
+
+func TestQueue_RaceProducersConsumer(t *testing.T) {
+	const (
+		producers     = 100
+		pushesPerProd = 100
+		bufferCap     = 64
+	)
+	q := New[int](bufferCap, DropNewest)
+
+	// Single consumer accumulates received values until Close.
+	received := make(map[int]int) // value -> count
+	var rmu sync.Mutex
+	consumerDone := make(chan struct{})
+	go func() {
+		defer close(consumerDone)
+		for {
+			v, ok := q.Pop(context.Background())
+			if !ok {
+				return
+			}
+			rmu.Lock()
+			received[v]++
+			rmu.Unlock()
+		}
+	}()
+
+	// Spawn producers.
+	var wg sync.WaitGroup
+	for p := 0; p < producers; p++ {
+		wg.Add(1)
+		go func(prodID int) {
+			defer wg.Done()
+			base := prodID * pushesPerProd
+			for i := 0; i < pushesPerProd; i++ {
+				q.Push(base + i)
+			}
+		}(p)
+	}
+	wg.Wait()
+
+	// Allow consumer to drain anything still in the buffer.
+	time.Sleep(50 * time.Millisecond)
+	q.Close()
+	<-consumerDone
+
+	// Verify: total accepted == total pushed - dropped, no value seen twice.
+	rmu.Lock()
+	defer rmu.Unlock()
+	totalAccepted := 0
+	for _, c := range received {
+		assert.Equal(t, 1, c, "no duplicates")
+		totalAccepted++
+	}
+	totalPushed := producers * pushesPerProd
+	assert.Equal(t, uint64(totalPushed-totalAccepted), q.Dropped(),
+		"accepted + dropped == pushed")
 }
