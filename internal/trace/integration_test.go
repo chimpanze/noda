@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
@@ -147,6 +148,13 @@ func TestEventHub_WithTraceCallback(t *testing.T) {
 
 	err = engine.ExecuteGraph(context.Background(), graph, execCtx, registry.NewServiceRegistry(), nodeReg)
 	require.NoError(t, err)
+
+	// Emit is now async; wait for the subscriber goroutine to deliver all events.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) >= 4
+	}, 2*time.Second, 5*time.Millisecond)
 
 	mu.Lock()
 	defer mu.Unlock()

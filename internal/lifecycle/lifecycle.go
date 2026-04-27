@@ -62,7 +62,9 @@ func (l *Lifecycle) StartAll(ctx context.Context) error {
 			l.mu.Lock()
 			l.started = i
 			l.mu.Unlock()
-			l.StopAll(l.rollbackDeadline)
+			rbCtx, rbCancel := context.WithTimeout(context.Background(), l.rollbackDeadline)
+			defer rbCancel()
+			l.StopAll(rbCtx)
 			return fmt.Errorf("starting %s: %w", c.Name(), err)
 		}
 	}
@@ -74,9 +76,11 @@ func (l *Lifecycle) StartAll(ctx context.Context) error {
 }
 
 // StopAll stops all started components in reverse registration order.
-// The deadline is divided evenly across components, with unused budget
-// rolling forward to the next component.
-func (l *Lifecycle) StopAll(deadline time.Duration) {
+// The parent ctx's deadline (or rollbackDeadline if it has none) is
+// divided across components, with unused budget rolling forward to
+// the next component. Parent cancellation propagates to each component's
+// Stop call.
+func (l *Lifecycle) StopAll(parent context.Context) {
 	l.mu.Lock()
 	started := l.started
 	components := make([]Component, started)
@@ -88,17 +92,30 @@ func (l *Lifecycle) StopAll(deadline time.Duration) {
 		return
 	}
 
-	remaining := deadline
-	perComponent := deadline / time.Duration(started)
+	var totalBudget time.Duration
+	if deadline, ok := parent.Deadline(); ok {
+		totalBudget = time.Until(deadline)
+		if totalBudget < 0 {
+			totalBudget = 0
+		}
+	} else {
+		totalBudget = l.rollbackDeadline
+	}
+
+	perComponent := totalBudget / time.Duration(started)
+	remaining := totalBudget
 
 	for i := started - 1; i >= 0; i-- {
 		c := components[i]
 		l.logger.Info("stopping component", "name", c.Name())
 
-		budget := min(perComponent, remaining)
+		budget := perComponent
+		if budget > remaining {
+			budget = remaining
+		}
 
 		start := time.Now()
-		ctx, cancel := context.WithTimeout(context.Background(), budget)
+		ctx, cancel := context.WithTimeout(parent, budget)
 		if err := c.Stop(ctx); err != nil {
 			l.logger.Error("component stop failed", "name", c.Name(), "error", err)
 		}

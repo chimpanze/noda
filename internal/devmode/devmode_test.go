@@ -159,6 +159,14 @@ func TestReloader_HandleChange_Valid(t *testing.T) {
 
 	r.HandleChange(filepath.Join(dir, "noda.json"))
 
+	// Events are delivered asynchronously via per-subscriber inbox goroutine;
+	// allow a brief window for the goroutine to drain the inbox.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(events) == 1
+	}, time.Second, 5*time.Millisecond)
+
 	assert.Equal(t, int32(1), reloadCalled.Load())
 	assert.NotNil(t, r.Config())
 
@@ -200,6 +208,14 @@ func TestReloader_HandleChange_Invalid(t *testing.T) {
 
 	r.HandleChange(filepath.Join(dir, "noda.json"))
 
+	// Events are delivered asynchronously via per-subscriber inbox goroutine;
+	// allow a brief window for the goroutine to drain the inbox.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(events) == 1
+	}, time.Second, 5*time.Millisecond)
+
 	// Should NOT have called reload
 	assert.Equal(t, int32(0), reloadCalled.Load())
 
@@ -234,6 +250,68 @@ func TestReloader_Config_ThreadSafe(t *testing.T) {
 }
 
 // --- Shutdown tests ---
+
+func TestReloader_ConfigVisibleOnlyAfterOnReloadCompletes(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "noda.json"), map[string]any{
+		"server": map[string]any{"port": 3000},
+	})
+
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+
+	r := NewReloader(dir, "", initial, nil, slog.Default())
+
+	// onReload sets a "in progress" flag, sleeps, clears the flag.
+	var inProgress atomic.Bool
+	r.OnReload(func(rc *config.ResolvedConfig) {
+		inProgress.Store(true)
+		time.Sleep(50 * time.Millisecond)
+		inProgress.Store(false)
+	})
+
+	// Reader: continuously reads Config(); record any (config, inProgress) sample.
+	var (
+		mu         sync.Mutex
+		violations int
+	)
+	stopReader := make(chan struct{})
+	readerDone := make(chan struct{})
+	originalConfig := r.Config()
+
+	go func() {
+		defer close(readerDone)
+		for {
+			select {
+			case <-stopReader:
+				return
+			default:
+			}
+			cur := r.Config()
+			progress := inProgress.Load()
+			// Violation: reader sees a *new* config pointer while onReload
+			// is still in flight.
+			if cur != originalConfig && progress {
+				mu.Lock()
+				violations++
+				mu.Unlock()
+			}
+		}
+	}()
+
+	// Trigger the reload (synchronous — blocks until onReload completes).
+	r.HandleChange(filepath.Join(dir, "noda.json"))
+
+	close(stopReader)
+	<-readerDone
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 0, violations,
+		"reader observed new config while onReload was still running")
+}
 
 // --- helpers ---
 

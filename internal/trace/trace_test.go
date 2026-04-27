@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace/noop"
+	"go.uber.org/goleak"
 )
 
 func TestNewProvider_Disabled(t *testing.T) {
@@ -99,33 +101,28 @@ func TestEndWorkflowSpan_WithError(t *testing.T) {
 func TestEventHub_Subscribe_Emit(t *testing.T) {
 	hub := NewEventHub()
 
-	var received []Event
 	var mu sync.Mutex
+	var received []Event
 	unsub := hub.Subscribe(func(data []byte) {
 		var e Event
-		_ = json.Unmarshal(data, &e)
+		require.NoError(t, json.Unmarshal(data, &e))
 		mu.Lock()
 		received = append(received, e)
 		mu.Unlock()
 	})
 	defer unsub()
 
-	hub.Emit(Event{
-		Type:       EventWorkflowStarted,
-		TraceID:    "t1",
-		WorkflowID: "wf1",
-	})
-	hub.Emit(Event{
-		Type:       EventNodeEntered,
-		TraceID:    "t1",
-		WorkflowID: "wf1",
-		NodeID:     "n1",
-		NodeType:   "transform.set",
-	})
+	hub.Emit(Event{Type: EventWorkflowStarted, TraceID: "t1", WorkflowID: "wf1"})
+	hub.Emit(Event{Type: EventNodeEntered, TraceID: "t1", WorkflowID: "wf1", NodeID: "n1", NodeType: "transform.set"})
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(received) == 2
+	}, time.Second, 5*time.Millisecond)
 
 	mu.Lock()
 	defer mu.Unlock()
-	require.Len(t, received, 2)
 	assert.Equal(t, EventWorkflowStarted, received[0].Type)
 	assert.Equal(t, "t1", received[0].TraceID)
 	assert.Equal(t, EventNodeEntered, received[1].Type)
@@ -135,45 +132,88 @@ func TestEventHub_Subscribe_Emit(t *testing.T) {
 func TestEventHub_Unsubscribe(t *testing.T) {
 	hub := NewEventHub()
 
+	var mu sync.Mutex
 	count := 0
 	unsub := hub.Subscribe(func(data []byte) {
+		mu.Lock()
 		count++
+		mu.Unlock()
 	})
 
 	hub.Emit(Event{Type: EventWorkflowStarted})
-	assert.Equal(t, 1, count)
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return count == 1
+	}, time.Second, 5*time.Millisecond)
 
 	unsub()
 	hub.Emit(Event{Type: EventWorkflowCompleted})
+
+	// Give enough time for a spurious delivery; count must stay at 1.
+	time.Sleep(30 * time.Millisecond)
+	mu.Lock()
 	assert.Equal(t, 1, count) // no more events after unsub
+	mu.Unlock()
 }
 
 func TestEventHub_MultipleSubscribers(t *testing.T) {
 	hub := NewEventHub()
 
+	var mu1, mu2 sync.Mutex
 	var count1, count2 int
-	unsub1 := hub.Subscribe(func(data []byte) { count1++ })
-	unsub2 := hub.Subscribe(func(data []byte) { count2++ })
+	unsub1 := hub.Subscribe(func(data []byte) {
+		mu1.Lock()
+		count1++
+		mu1.Unlock()
+	})
+	unsub2 := hub.Subscribe(func(data []byte) {
+		mu2.Lock()
+		count2++
+		mu2.Unlock()
+	})
 	defer unsub1()
 	defer unsub2()
 
 	hub.Emit(Event{Type: EventNodeCompleted})
-	assert.Equal(t, 1, count1)
-	assert.Equal(t, 1, count2)
+
+	require.Eventually(t, func() bool {
+		mu1.Lock()
+		c1 := count1
+		mu1.Unlock()
+		mu2.Lock()
+		c2 := count2
+		mu2.Unlock()
+		return c1 == 1 && c2 == 1
+	}, time.Second, 5*time.Millisecond)
+
 	assert.Equal(t, 2, hub.subscriberCount())
 }
 
 func TestEventHub_EmitSetsTimestamp(t *testing.T) {
 	hub := NewEventHub()
 
+	var mu sync.Mutex
 	var received Event
 	unsub := hub.Subscribe(func(data []byte) {
+		mu.Lock()
 		_ = json.Unmarshal(data, &received)
+		mu.Unlock()
 	})
 	defer unsub()
 
 	hub.Emit(Event{Type: EventWorkflowStarted})
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return received.Timestamp != ""
+	}, time.Second, 5*time.Millisecond)
+
+	mu.Lock()
 	assert.NotEmpty(t, received.Timestamp)
+	mu.Unlock()
 }
 
 func TestEventHub_SubscriberCount(t *testing.T) {
@@ -240,9 +280,12 @@ func TestParseConfig_WrongTypes(t *testing.T) {
 func TestEventHub_EmitPreservesExistingTimestamp(t *testing.T) {
 	hub := NewEventHub()
 
+	var mu sync.Mutex
 	var received Event
 	unsub := hub.Subscribe(func(data []byte) {
+		mu.Lock()
 		_ = json.Unmarshal(data, &received)
+		mu.Unlock()
 	})
 	defer unsub()
 
@@ -250,7 +293,16 @@ func TestEventHub_EmitPreservesExistingTimestamp(t *testing.T) {
 		Type:      EventWorkflowStarted,
 		Timestamp: "2025-01-01T00:00:00Z",
 	})
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return received.Timestamp != ""
+	}, time.Second, 5*time.Millisecond)
+
+	mu.Lock()
 	assert.Equal(t, "2025-01-01T00:00:00Z", received.Timestamp)
+	mu.Unlock()
 }
 
 func TestEventHub_EmitNoSubscribers(t *testing.T) {
@@ -262,9 +314,12 @@ func TestEventHub_EmitNoSubscribers(t *testing.T) {
 func TestEventHub_EmitAllFields(t *testing.T) {
 	hub := NewEventHub()
 
+	var mu sync.Mutex
 	var received Event
 	unsub := hub.Subscribe(func(data []byte) {
+		mu.Lock()
 		_ = json.Unmarshal(data, &received)
+		mu.Unlock()
 	})
 	defer unsub()
 
@@ -281,6 +336,14 @@ func TestEventHub_EmitAllFields(t *testing.T) {
 		Data:       map[string]any{"key": "val"},
 	})
 
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return received.Type != ""
+	}, time.Second, 5*time.Millisecond)
+
+	mu.Lock()
+	defer mu.Unlock()
 	assert.Equal(t, EventNodeCompleted, received.Type)
 	assert.Equal(t, "t1", received.TraceID)
 	assert.Equal(t, "wf1", received.WorkflowID)
@@ -296,7 +359,6 @@ func TestEventHub_EmitAllFields(t *testing.T) {
 func TestEventHub_ConcurrentEmitAndSubscribe(t *testing.T) {
 	hub := NewEventHub()
 
-	var wg sync.WaitGroup
 	var mu sync.Mutex
 	count := 0
 
@@ -307,6 +369,7 @@ func TestEventHub_ConcurrentEmitAndSubscribe(t *testing.T) {
 	})
 	defer unsub()
 
+	var wg sync.WaitGroup
 	for i := 0; i < 50; i++ {
 		wg.Add(1)
 		go func() {
@@ -315,6 +378,13 @@ func TestEventHub_ConcurrentEmitAndSubscribe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+
+	// All 50 events were enqueued; wait for async delivery.
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return count == 50
+	}, 2*time.Second, 5*time.Millisecond)
 
 	mu.Lock()
 	assert.Equal(t, 50, count)
@@ -393,4 +463,49 @@ func TestNewProvider_OTLP_NoEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, p)
 	assert.NoError(t, p.Shutdown(context.Background()))
+}
+
+// --- New async/leak tests ---
+
+func TestEventHub_SlowSubscriberDoesNotBlockOthers(t *testing.T) {
+	hub := NewEventHub()
+
+	fastReceived := make(chan struct{}, 100)
+	unsubFast := hub.Subscribe(func(data []byte) {
+		fastReceived <- struct{}{}
+	})
+	defer unsubFast()
+
+	slowGate := make(chan struct{})
+	unsubSlow := hub.Subscribe(func(data []byte) {
+		<-slowGate // simulate a stuck subscriber
+	})
+	defer func() { close(slowGate); unsubSlow() }()
+
+	// Emit 50 events from the calling goroutine.
+	start := time.Now()
+	for i := 0; i < 50; i++ {
+		hub.Emit(Event{Type: EventNodeEntered, NodeID: "n"})
+	}
+	emitElapsed := time.Since(start)
+	assert.Less(t, emitElapsed, 250*time.Millisecond,
+		"Emit must not block on slow subscriber; took %s", emitElapsed)
+
+	// Fast subscriber must still see all 50 events.
+	for i := 0; i < 50; i++ {
+		select {
+		case <-fastReceived:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("fast subscriber stalled after %d events", i)
+		}
+	}
+}
+
+func TestEventHub_NoGoroutineLeakOnUnsubscribe(t *testing.T) {
+	defer goleak.VerifyNone(t)
+
+	hub := NewEventHub()
+	unsub := hub.Subscribe(func(data []byte) {})
+	hub.Emit(Event{Type: EventNodeEntered, NodeID: "n"})
+	unsub()
 }

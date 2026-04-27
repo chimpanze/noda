@@ -634,6 +634,65 @@ func TestDeserializePayload_JSONArray(t *testing.T) {
 	assert.Len(t, arr, 3)
 }
 
+func TestRuntime_XAckLandsDuringShutdown(t *testing.T) {
+	client, svcReg, nodeReg, _ := newTestSetup(t)
+
+	const topic, group = "ack-shutdown-topic", "ack-shutdown-group"
+
+	// slow-workflow uses util.delay to introduce a deterministic ~200ms delay.
+	// We publish a message, give the worker time to start processing, call Stop
+	// with a 2s budget, and verify the message was acked (pending count == 0).
+	workflows := map[string]map[string]any{
+		"slow-workflow": {
+			"nodes": map[string]any{
+				"wait": map[string]any{
+					"type":   "util.delay",
+					"config": map[string]any{"timeout": "200ms"},
+				},
+			},
+			"edges": []any{},
+		},
+	}
+
+	rt := NewRuntime(
+		[]WorkerConfig{{
+			ID:         "ack-shutdown-worker",
+			StreamSvc:  "main-stream",
+			Topic:      topic,
+			Group:      group,
+			WorkflowID: "slow-workflow",
+		}},
+		svcReg, nodeReg, workflows,
+		nil, nil, nil, nil, nil, nil,
+	)
+
+	// Auto-create the consumer group before publishing.
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+
+	// Publish a message.
+	id, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic,
+		Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	require.NoError(t, rt.Start(context.Background()))
+
+	// Give the worker a beat to pick up the message and enter the handler.
+	time.Sleep(50 * time.Millisecond)
+
+	// Begin Stop with a 2s budget — well over the 200ms handler delay.
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer stopCancel()
+	require.NoError(t, rt.Stop(stopCtx))
+
+	// The message should have been acked: pending count == 0.
+	pending, err := client.XPending(context.Background(), topic, group).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), pending.Count,
+		"message %s should be acked after graceful shutdown", id)
+}
+
 // fakeService is a service that does not implement RedisClientProvider.
 type fakeService struct{}
 

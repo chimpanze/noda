@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
@@ -54,6 +55,7 @@ type Runtime struct {
 
 	started bool
 	cancel  context.CancelFunc
+	opCtx   atomic.Pointer[context.Context] // operation ctx for handler + XAck
 	wg      sync.WaitGroup
 }
 
@@ -98,6 +100,8 @@ func (r *Runtime) Start(ctx context.Context) error {
 		return nil
 	}
 	r.started = true
+	parent := ctx
+	r.opCtx.Store(&parent)
 	ctx, r.cancel = context.WithCancel(ctx)
 
 	for _, w := range r.workers {
@@ -147,6 +151,11 @@ func (r *Runtime) Start(ctx context.Context) error {
 // Stop gracefully shuts down all workers and waits for in-flight processing.
 // If ctx is cancelled before all workers finish, Stop returns ctx.Err().
 func (r *Runtime) Stop(ctx context.Context) error {
+	// Swap opCtx to the shutdown ctx BEFORE cancelling the read loop so that
+	// any in-flight handler + XAck picks up the shutdown deadline budget rather
+	// than the already-cancelled read ctx.
+	shutdown := ctx
+	r.opCtx.Store(&shutdown)
 	if r.cancel != nil {
 		r.cancel()
 	}
@@ -212,12 +221,20 @@ const defaultMessageTimeout = 5 * time.Minute
 
 // processMessage handles a single message: maps input, runs workflow, acks/nacks.
 func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
+	// Snapshot the operation ctx. This is either the original parent ctx (set in
+	// Start) or the Stop ctx (swapped in Stop before r.cancel fires). Using opCtx
+	// instead of the read-loop ctx ensures that in-flight handlers and XAck calls
+	// survive r.cancel() and run to completion within the shutdown deadline.
+	opCtxPtr := r.opCtx.Load()
+	procCtx := *opCtxPtr
+
 	timeout := w.Timeout
 	if timeout == 0 {
 		timeout = defaultMessageTimeout
 	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
+	procCtx, cancel := context.WithTimeout(procCtx, timeout)
 	defer cancel()
+	// ctx is kept as the read-loop ctx but is not used for processing below.
 
 	traceID := uuid.New().String()
 	start := time.Now()
@@ -250,7 +267,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 			"error", err.Error(),
 		)
 		// Ack the message to prevent infinite retry of bad mappings
-		if err := client.XAck(ctx, w.Topic, w.Group, msg.ID).Err(); err != nil {
+		if err := client.XAck(procCtx, w.Topic, w.Group, msg.ID).Err(); err != nil {
 			r.logger.Error("worker ack failed after bad mapping",
 				"worker_id", w.ID,
 				"message_id", msg.ID,
@@ -297,7 +314,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	}
 
 	// Execute
-	wfErr := handler(ctx)
+	wfErr := handler(procCtx)
 
 	duration := time.Since(start)
 
@@ -312,9 +329,9 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 
 		// Check dead letter
 		if w.DeadLetter != nil && w.DeadLetter.After > 0 {
-			attempts := r.getDeliveryAttempts(ctx, client, w.Topic, w.Group, msg.ID)
+			attempts := r.getDeliveryAttempts(procCtx, client, w.Topic, w.Group, msg.ID)
 			if attempts >= int64(w.DeadLetter.After) {
-				r.moveToDeadLetter(ctx, client, w, msg, traceID, wfErr)
+				r.moveToDeadLetter(procCtx, client, w, msg, traceID, wfErr)
 				return
 			}
 		}
@@ -323,7 +340,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	}
 
 	// Success — ack the message
-	if err := client.XAck(ctx, w.Topic, w.Group, msg.ID).Err(); err != nil {
+	if err := client.XAck(procCtx, w.Topic, w.Group, msg.ID).Err(); err != nil {
 		r.logger.Error("worker ack failed",
 			"worker_id", w.ID,
 			"message_id", msg.ID,
