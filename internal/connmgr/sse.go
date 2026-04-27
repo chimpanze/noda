@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/chimpanze/noda/internal/bounded"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
@@ -87,14 +88,26 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 
 	channel := resolveChannelPattern(h.compiler, h.config.ChannelPattern, params, userID, h.logger)
 
-	// Event channel for pushing SSE events to the client.
-	// The done channel signals that the connection is closing, preventing
-	// sends on the events channel after it is closed.
+	// Bounded queue for the publisher (SSEFn). Drops on full are reported
+	// to the publisher (preserved contract). A funnel goroutine drains the
+	// queue into the regular `events` channel below so the reader's
+	// existing select-with-ticker structure stays intact.
 	const sseEventBuffer = 64
-	events := make(chan sseEvent, sseEventBuffer)
+	q := bounded.New[sseEvent](sseEventBuffer, bounded.DropNewest)
+	events := make(chan sseEvent, 1)
 	done := make(chan struct{})
+	// popCtx is cancelled when closeDone fires, which unblocks q.Pop in the
+	// funnel goroutine. It is created here (synchronously) so we never touch
+	// the Fiber ctx from inside the SendStreamWriter goroutine.
+	popCtx, popCancel := context.WithCancel(context.Background())
 	var closeOnce sync.Once
-	closeDone := func() { closeOnce.Do(func() { close(done) }) }
+	closeDone := func() {
+		closeOnce.Do(func() {
+			close(done)
+			q.Close()
+			popCancel()
+		})
+	}
 
 	conn := &Conn{
 		ID:       connID,
@@ -110,14 +123,15 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 				return fmt.Errorf("connection closed")
 			default:
 			}
-			select {
-			case events <- sseEvent{Event: event, Data: data, ID: id}:
-				return nil
-			case <-done:
-				return fmt.Errorf("connection closed")
-			default:
-				return fmt.Errorf("sse buffer full")
+			if !q.Push(sseEvent{Event: event, Data: data, ID: id}) {
+				select {
+				case <-done:
+					return fmt.Errorf("connection closed")
+				default:
+					return fmt.Errorf("sse buffer full")
+				}
 			}
+			return nil
 		},
 		CloseFn: func() error {
 			closeDone()
@@ -151,6 +165,24 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 					h.logger.Error("on_disconnect workflow failed", "workflow", h.config.OnDisconnect, "error", err)
 				}
 				disconnectCancel()
+			}
+		}()
+
+		// Funnel: bounded queue → events channel so the existing select
+		// over `events` and `ticker.C` works unchanged. popCtx is cancelled
+		// by closeDone, which also closes the queue, ensuring q.Pop returns.
+		go func() {
+			defer close(events)
+			for {
+				evt, ok := q.Pop(popCtx)
+				if !ok {
+					return
+				}
+				select {
+				case events <- evt:
+				case <-done:
+					return
+				}
 			}
 		}()
 

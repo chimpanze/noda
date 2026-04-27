@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/chimpanze/noda/internal/bounded"
 	fastwebsocket "github.com/fasthttp/websocket"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -1700,4 +1701,15 @@ func TestWriteSSEEvent_LongStrings(t *testing.T) {
 	output := buf.String()
 	assert.Contains(t, output, "event: big-event\n")
 	assert.Contains(t, output, "data: "+longData)
+}
+
+func TestSSEFn_DropsAndCountsOnFull(t *testing.T) {
+	// We can't easily exercise the full Fiber handler in a unit test, so
+	// we verify the underlying queue behavior directly: 100 pushes into a
+	// 64-cap DropNewest queue with no reader yields exactly 36 drops.
+	q := bounded.New[sseEvent](64, bounded.DropNewest)
+	for i := 0; i < 100; i++ {
+		q.Push(sseEvent{Event: "x", Data: "y"})
+	}
+	assert.Equal(t, uint64(36), q.Dropped())
 }
