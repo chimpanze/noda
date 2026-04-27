@@ -4,6 +4,7 @@
 package bounded
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 )
@@ -93,4 +94,61 @@ func (q *Queue[T]) tryPop() (T, bool) {
 	v := q.buf[0]
 	q.buf = q.buf[1:]
 	return v, true
+}
+
+// Pop returns the next value. It blocks until a value is available, ctx
+// is cancelled, or Close is called. Returns (value, true) on success or
+// (zero, false) on cancel/close.
+func (q *Queue[T]) Pop(ctx context.Context) (T, bool) {
+	var zero T
+
+	// Fast path: try once without spawning the watcher.
+	q.mu.Lock()
+	if len(q.buf) > 0 {
+		v := q.buf[0]
+		q.buf = q.buf[1:]
+		q.mu.Unlock()
+		return v, true
+	}
+	if q.closed.Load() {
+		q.mu.Unlock()
+		return zero, false
+	}
+	q.mu.Unlock()
+
+	// Pre-cancelled ctx: skip the watcher allocation.
+	if ctx.Err() != nil {
+		return zero, false
+	}
+
+	// Slow path: register a context watcher that broadcasts on cancel
+	// to wake the Pop goroutine.
+	stop := make(chan struct{})
+	defer close(stop)
+	go func() {
+		select {
+		case <-ctx.Done():
+			q.mu.Lock()
+			q.cond.Broadcast()
+			q.mu.Unlock()
+		case <-stop:
+		}
+	}()
+
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	for {
+		if len(q.buf) > 0 {
+			v := q.buf[0]
+			q.buf = q.buf[1:]
+			return v, true
+		}
+		if q.closed.Load() {
+			return zero, false
+		}
+		if ctx.Err() != nil {
+			return zero, false
+		}
+		q.cond.Wait()
+	}
 }

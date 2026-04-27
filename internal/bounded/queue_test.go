@@ -1,7 +1,9 @@
 package bounded
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,4 +59,46 @@ func TestPush_DropOldest_EvictsHeadOnFull(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, 2, got1)
 	assert.Equal(t, 3, got2)
+}
+
+func TestPop_BlocksUntilPush(t *testing.T) {
+	q := New[int](2, DropNewest)
+	got := make(chan int, 1)
+	go func() {
+		v, ok := q.Pop(context.Background())
+		require.True(t, ok)
+		got <- v
+	}()
+
+	// Brief delay to ensure Pop is parked.
+	time.Sleep(20 * time.Millisecond)
+	require.True(t, q.Push(42))
+
+	select {
+	case v := <-got:
+		assert.Equal(t, 42, v)
+	case <-time.After(time.Second):
+		t.Fatal("Pop did not return after Push")
+	}
+}
+
+func TestPop_ReturnsFalseOnCtxCancel(t *testing.T) {
+	q := New[int](2, DropNewest)
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan struct{})
+	go func() {
+		_, ok := q.Pop(ctx)
+		assert.False(t, ok)
+		close(done)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Pop did not return after ctx cancel")
+	}
 }
