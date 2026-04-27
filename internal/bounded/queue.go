@@ -80,3 +80,17 @@ func (q *Queue[T]) Push(v T) bool {
 func (q *Queue[T]) Dropped() uint64 {
 	return q.dropped.Load()
 }
+
+// tryPop returns (value, true) if a value was available, or (zero, false)
+// otherwise. Test-only non-blocking helper. Do not export.
+func (q *Queue[T]) tryPop() (T, bool) {
+	var zero T
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	if len(q.buf) == 0 {
+		return zero, false
+	}
+	v := q.buf[0]
+	q.buf = q.buf[1:]
+	return v, true
+}
