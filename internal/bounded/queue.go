@@ -152,3 +152,15 @@ func (q *Queue[T]) Pop(ctx context.Context) (T, bool) {
 		q.cond.Wait()
 	}
 }
+
+// Close prevents further Push and unblocks all parked Pop callers.
+// Subsequent Push returns false; Pop drains any remaining buffered
+// values and then returns (zero, false). Idempotent.
+func (q *Queue[T]) Close() {
+	if !q.closed.CompareAndSwap(false, true) {
+		return
+	}
+	q.mu.Lock()
+	q.cond.Broadcast()
+	q.mu.Unlock()
+}

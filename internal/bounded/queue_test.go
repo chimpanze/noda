@@ -102,3 +102,53 @@ func TestPop_ReturnsFalseOnCtxCancel(t *testing.T) {
 		t.Fatal("Pop did not return after ctx cancel")
 	}
 }
+
+func TestClose_UnblocksParkedPop(t *testing.T) {
+	q := New[int](2, DropNewest)
+
+	done := make(chan struct{})
+	go func() {
+		_, ok := q.Pop(context.Background())
+		assert.False(t, ok)
+		close(done)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	q.Close()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Pop did not return after Close")
+	}
+}
+
+func TestClose_PushAfterCloseReturnsFalse(t *testing.T) {
+	q := New[int](2, DropNewest)
+	q.Close()
+	assert.False(t, q.Push(1))
+}
+
+func TestClose_PopDrainsRemainingThenReturnsFalse(t *testing.T) {
+	q := New[int](2, DropNewest)
+	require.True(t, q.Push(1))
+	require.True(t, q.Push(2))
+	q.Close()
+
+	v1, ok := q.Pop(context.Background())
+	require.True(t, ok)
+	assert.Equal(t, 1, v1)
+
+	v2, ok := q.Pop(context.Background())
+	require.True(t, ok)
+	assert.Equal(t, 2, v2)
+
+	_, ok = q.Pop(context.Background())
+	assert.False(t, ok)
+}
+
+func TestClose_Idempotent(t *testing.T) {
+	q := New[int](2, DropNewest)
+	q.Close()
+	q.Close() // must not panic
+}
