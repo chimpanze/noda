@@ -1,0 +1,10 @@
+{
+  "id": "transform-merge",
+  "workflow": "transform-merge",
+  "tests": [
+    { "name": "appends arrays", "input": { "a": [1, 2], "b": [3] },
+      "expect": { "status": "success", "output": { "agg.count": 3 } } },
+    { "name": "errors on empty inputs", "input": { "a": [], "b": [] },
+      "expect": { "status": "success", "output": { "agg.count": 0 } } }
+  ]
+}

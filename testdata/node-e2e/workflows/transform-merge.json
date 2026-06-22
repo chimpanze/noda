@@ -1,0 +1,8 @@
+{
+  "id": "transform-merge",
+  "nodes": {
+    "mrg": { "type": "transform.merge", "config": { "mode": "append", "inputs": ["{{ input.a }}", "{{ input.b }}"] } },
+    "agg": { "type": "transform.set", "config": { "fields": { "count": "{{ len(nodes.mrg) }}" } } }
+  },
+  "edges": [ { "from": "mrg", "to": "agg" } ]
+}

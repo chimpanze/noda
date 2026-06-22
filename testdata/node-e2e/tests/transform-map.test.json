@@ -1,0 +1,10 @@
+{
+  "id": "transform-map",
+  "workflow": "transform-map",
+  "tests": [
+    { "name": "doubles each item", "input": { "items": [1, 2, 3] },
+      "expect": { "status": "success", "output": { "agg.first": 2, "agg.count": 3 } } },
+    { "name": "errors when collection is not an array", "input": { "items": "nope" },
+      "expect": { "status": "error", "error_node": "map" } }
+  ]
+}
