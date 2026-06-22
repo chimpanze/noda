@@ -1,0 +1,8 @@
+{
+  "id": "response-json",
+  "workflow": "response-json",
+  "tests": [
+    { "name": "builds 200 json response", "input": { "name": "Ann" },
+      "expect": { "status": "success", "outputs": { "resp": { "Status": 200, "Body": { "ok": true, "name": "Ann" } } } } }
+  ]
+}
