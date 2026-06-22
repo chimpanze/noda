@@ -71,4 +71,7 @@ func TestWasmQuery_Engine(t *testing.T) {
 	out, err := runWasmNode(t, "wasm.query", map[string]any{"data": map[string]any{"type": "get_state"}}, svc)
 	require.NoError(t, err)
 	require.NotNil(t, out)
+	resultMap, ok := out.(map[string]any)
+	require.True(t, ok, "query result should be a map[string]any")
+	assert.Equal(t, "ok", resultMap["state"], "queried data should flow back to node output")
 }
