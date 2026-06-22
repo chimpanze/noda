@@ -1,0 +1,8 @@
+{
+  "id": "workflow-run",
+  "workflow": "workflow-run",
+  "tests": [
+    { "name": "runs sub-workflow and returns its output", "input": { "x": 3 },
+      "expect": { "status": "success", "output": { "call.result": 30 } } }
+  ]
+}

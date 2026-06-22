@@ -1,0 +1,8 @@
+{
+  "id": "workflow-output",
+  "workflow": "workflow-output",
+  "tests": [
+    { "name": "emits named output data", "input": { "m": "hi" },
+      "expect": { "status": "success", "output": { "out.msg": "hi" } } }
+  ]
+}
