@@ -1,0 +1,12 @@
+{
+  "id": "control-switch",
+  "workflow": "control-switch",
+  "tests": [
+    { "name": "routes free", "input": { "tier": "free" },
+      "expect": { "status": "success", "output": { "f.plan": "free-plan" } } },
+    { "name": "routes pro", "input": { "tier": "pro" },
+      "expect": { "status": "success", "output": { "p.plan": "pro-plan" } } },
+    { "name": "routes default", "input": { "tier": "enterprise" },
+      "expect": { "status": "success", "output": { "d.plan": "default-plan" } } }
+  ]
+}
