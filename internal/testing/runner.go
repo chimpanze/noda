@@ -121,10 +121,24 @@ func runTestCase(
 			Claims: tc.Auth.Claims,
 		}))
 	}
+	// Service registry is shared by the main workflow and any sub-workflows.
+	svcReg := registry.NewServiceRegistry()
+
+	// Inject a sub-workflow runner so control.loop and workflow.run execute
+	// end-to-end. Best-effort: if the project's workflows cannot all be compiled
+	// with the test resolver (e.g. they contain unmocked plugin nodes), skip
+	// injection and fall back to prior behavior (nil runner).
+	if cache, cacheErr := engine.NewWorkflowCache(rc.Workflows, resolver); cacheErr == nil {
+		opts = append(opts, engine.WithSubWorkflowRunner(&engine.SubWorkflowRunnerImpl{
+			Cache:    cache,
+			Services: svcReg,
+			Nodes:    testNodeReg,
+		}))
+	}
+
 	execCtx := engine.NewExecutionContext(opts...)
 
 	// Execute
-	svcReg := registry.NewServiceRegistry()
 	execErr := engine.ExecuteGraph(context.Background(), graph, execCtx, svcReg, testNodeReg)
 
 	// Build actual result

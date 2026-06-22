@@ -116,7 +116,21 @@ func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 		return "", nil, err
 	}
 
-	return outputName, data, nil
+	return e.routeOutput(outputName), data, nil
+}
+
+// routeOutput maps the sub-workflow's terminal output name onto one of this
+// node's declared output ports. When the sub-workflow's workflow.output name
+// matches a declared branch (e.g. "approved"/"rejected" wired via setOutputs),
+// it is used directly; otherwise the result routes through the default
+// "success" port. The data is preserved either way.
+func (e *RunExecutor) routeOutput(outputName string) string {
+	for _, o := range e.outputs {
+		if o == outputName {
+			return outputName
+		}
+	}
+	return "success"
 }
 
 // executeWithTransaction wraps the sub-workflow in a database transaction.
@@ -155,5 +169,5 @@ func (e *RunExecutor) executeWithTransaction(ctx context.Context, workflowID str
 		return "", nil, txErr
 	}
 
-	return outputName, data, nil
+	return e.routeOutput(outputName), data, nil
 }
