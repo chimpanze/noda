@@ -1,0 +1,11 @@
+{
+  "id": "control-loop",
+  "nodes": {
+    "lp": {
+      "type": "control.loop",
+      "config": { "collection": "{{ input.nums }}", "workflow": "loop-item", "input": { "val": "{{ $item }}" } }
+    },
+    "agg": { "type": "transform.set", "config": { "fields": { "count": "{{ len(nodes.lp) }}", "first": "{{ nodes.lp[0].doubled }}" } } }
+  },
+  "edges": [ { "from": "lp", "output": "done", "to": "agg" } ]
+}
