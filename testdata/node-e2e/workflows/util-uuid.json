@@ -1,0 +1,8 @@
+{
+  "id": "util-uuid",
+  "nodes": {
+    "gen": { "type": "util.uuid", "config": {} },
+    "chk": { "type": "transform.set", "config": { "fields": { "len": "{{ len(nodes.gen) }}" } } }
+  },
+  "edges": [ { "from": "gen", "to": "chk" } ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "util-uuid",
+  "workflow": "util-uuid",
+  "tests": [
+    { "name": "produces a 36-char uuid", "input": {},
+      "expect": { "status": "success", "output": { "chk.len": 36 } } }
+  ]
+}

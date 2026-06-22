@@ -1,0 +1,7 @@
+{
+  "id": "util-log",
+  "workflow": "util-log",
+  "tests": [
+    { "name": "logs without error", "input": { "who": "world" }, "expect": { "status": "success" } }
+  ]
+}
