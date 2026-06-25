@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.11"
+          go-version-file: go.mod
           cache: true
 
       - name: Install golangci-lint
@@ -77,6 +77,23 @@ jobs:
 
       - name: Audit dependencies
         run: cd editor && npm audit --omit=dev || true
+
+  integration:
+    name: Integration e2e (external services)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install libvips
+        run: sudo apt-get update && sudo apt-get install -y libvips-dev
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run integration e2e tests
+        run: make test-integration
 
   playwright:
     name: Editor E2E

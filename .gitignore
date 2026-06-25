@@ -63,3 +63,6 @@ Thumbs.db
 /projects/adventure-stream/frontend/dist/
 /docs/superpowers/
 /.worktrees/
+
+# SDD process scratch (briefs, reports, ledger, review packages)
+/.superpowers/

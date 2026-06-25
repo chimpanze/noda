@@ -370,7 +370,7 @@ func TestCreateService_Default(t *testing.T) {
 	s := svc.(*Service)
 	assert.Equal(t, "smtp.example.com", s.host)
 	assert.Equal(t, 587, s.port) // default port
-	assert.True(t, s.useTLS)     // default TLS
+	assert.False(t, s.useTLS)    // port 587 defaults to plaintext; TLS only auto-enabled for port 465
 	assert.Empty(t, s.username)
 	assert.Empty(t, s.password)
 	assert.Empty(t, s.from)

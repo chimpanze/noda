@@ -40,7 +40,11 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	password, _ := config["password"].(string)
 	from, _ := config["from"].(string)
 
-	useTLS := true
+	// Default useTLS: true only for port 465 (implicit TLS / SMTPS).
+	// For all other ports (25, 587, custom), default to false so that
+	// plaintext SMTP servers (e.g. Mailpit on 1025) are reachable.
+	// An explicit "tls" config key always takes precedence.
+	useTLS := port == 465
 	if v, ok := config["tls"].(bool); ok {
 		useTLS = v
 	}

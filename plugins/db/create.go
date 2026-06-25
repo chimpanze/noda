@@ -8,6 +8,7 @@ import (
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type createDescriptor struct{}
@@ -64,7 +65,9 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.create: %w", err)
 	}
 
-	tx := db.WithContext(ctx).Table(table).Create(data)
+	// Use RETURNING * so that server-generated fields (e.g. id, created_at)
+	// are populated back into the data map.
+	tx := db.WithContext(ctx).Table(table).Clauses(clause.Returning{}).Create(data)
 	if tx.Error != nil {
 		errMsg := tx.Error.Error()
 		if strings.Contains(errMsg, "duplicate key") || strings.Contains(errMsg, "unique constraint") {

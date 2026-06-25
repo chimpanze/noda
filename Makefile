@@ -1,6 +1,6 @@
 .PHONY: build build-editor build-go install test test-race test-coverage lint fmt dev clean migrate-up migrate-down \
 	bench bench-expr bench-engine bench-config bench-plugins bench-registry bench-save bench-compare \
-	loadtest loadtest-baseline
+	loadtest loadtest-baseline test-integration
 
 build: build-editor build-go
 
@@ -99,3 +99,7 @@ loadtest:
 
 loadtest-baseline:
 	k6 run --env BASE_URL=$(LOADTEST_BASE_URL) loadtest/scenarios/baseline.js
+
+.PHONY: test-integration
+test-integration:
+	go test -tags=integration ./...
