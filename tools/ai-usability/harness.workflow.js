@@ -136,11 +136,20 @@ const only = opts.only
 const briefs = only ? BRIEFS.filter((b) => only.includes(b.id)) : BRIEFS
 
 phase('Build')
+// NOTE: the 3-arg pipeline(items, buildFn, verifyFn) and parallel(arrayOfThunks)
+// forms below are intentional and runtime-validated (a full 5-brief run spawned
+// 21 agents correctly). Do not "simplify" them to the 2-arg pipeline form.
 const perBrief = await pipeline(
   briefs,
   (b) => agent(builderPrompt(b, `${scratchRoot}/${b.id}`), { label: `build:${b.id}`, phase: 'Build', schema: BUILDER_SCHEMA }),
   (result, b) => {
-    if (!result || !Array.isArray(result.friction) || result.friction.length === 0) {
+    if (!result) {
+      // A null result means the builder agent errored/was skipped — the brief was
+      // never exercised. Surface it so a dropped brief is visible, not silently clean.
+      log(`build:${b.id} returned no result — brief not exercised (skipped in findings)`)
+      return { brief: b.id, confirmed: [] }
+    }
+    if (!Array.isArray(result.friction) || result.friction.length === 0) {
       return { brief: b.id, confirmed: [] }
     }
     return parallel(
