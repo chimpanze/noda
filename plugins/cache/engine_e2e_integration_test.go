@@ -5,6 +5,7 @@ package cache
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/plugin"
@@ -61,7 +62,8 @@ func TestCacheSetExistsDel_Engine(t *testing.T) {
 
 	ttl, err := rc.TTL(ctx, "greeting").Result()
 	require.NoError(t, err)
-	assert.Positive(t, ttl)
+	assert.Greater(t, ttl, 50*time.Second)
+	assert.LessOrEqual(t, ttl, 60*time.Second)
 
 	// --- cache.exists (key present) ---
 	existsWF := engine.WorkflowConfig{
@@ -98,6 +100,24 @@ func TestCacheSetExistsDel_Engine(t *testing.T) {
 	n, err := rc.Exists(ctx, "greeting").Result()
 	require.NoError(t, err)
 	assert.Equal(t, int64(0), n)
+
+	// --- cache.exists (key deleted) ---
+	existsAfterDelWF := engine.WorkflowConfig{
+		ID: "cache-exists-after-del",
+		Nodes: map[string]engine.NodeConfig{
+			"e": {
+				Type:     "cache.exists",
+				Services: map[string]string{"cache": "cache"},
+				Config:   map[string]any{"key": "greeting"},
+			},
+		},
+	}
+	ectx2 := runWF(t, svcReg, nodeReg, existsAfterDelWF)
+	eout2, ok := ectx2.GetOutput("e")
+	require.True(t, ok)
+	eoutMap2, ok := eout2.(map[string]any)
+	require.True(t, ok, "cache.exists output should be map[string]any, got %T: %v", eout2, eout2)
+	assert.Equal(t, false, eoutMap2["exists"])
 }
 
 func TestCacheSet_MissingService_Engine(t *testing.T) {
