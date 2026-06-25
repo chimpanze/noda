@@ -124,8 +124,15 @@ function synthPrompt(findings) {
   ].join('\n')
 }
 
-const scratchRoot = (args && args.scratchRoot) || '/tmp/noda-ai-usability'
-const only = args && args.only
+// args may arrive as an object or as a JSON-encoded string; normalize both.
+let opts = args
+if (typeof opts === 'string') {
+  try { opts = JSON.parse(opts) } catch (e) { opts = {} }
+}
+opts = opts || {}
+
+const scratchRoot = opts.scratchRoot || '/tmp/noda-ai-usability'
+const only = opts.only
 const briefs = only ? BRIEFS.filter((b) => only.includes(b.id)) : BRIEFS
 
 phase('Build')
