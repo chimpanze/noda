@@ -8,16 +8,32 @@ One entry per bug: node, symptom, root cause, fix, guarding test.
 - **Node:** `email.send`
 - **Symptom:** `email.send` could not connect to Mailpit's plaintext SMTP listener (port 1025) — the dial attempt used a TLS dialer, which Mailpit (and any other plaintext-only SMTP server) does not support.
 - **Root cause:** `plugins/email/plugin.go`'s `CreateService` unconditionally defaulted `useTLS = true` regardless of port. Any service created without an explicit `"tls": false` config key would attempt an implicit TLS handshake (`tls.Dialer.DialContext`) against whatever port was configured — including non-TLS ports like 25, 587, and 1025.
-- **Fix:** Changed the default in `CreateService` to `useTLS = port == 465`. Port 465 is the conventional implicit-TLS (SMTPS) port; all other ports default to plaintext TCP. An explicit `"tls"` config key still takes precedence, so operators who need TLS on a non-standard port can still enable it, and operators who want to disable TLS on port 465 can do so. Existing STARTTLS negotiation (handled by the SMTP library after `smtp.NewClient` on a plain connection) is unaffected.
+- **Fix:** Two coordinated changes restore correct behaviour for all port classes:
+  1. `plugins/email/plugin.go` — changed the default in `CreateService` to `useTLS = port == 465`. Port 465 is the conventional implicit-TLS (SMTPS) port; all other ports default to a plaintext TCP dial. An explicit `"tls"` config key still overrides the default in both directions.
+  2. `plugins/email/service.go` — added opportunistic STARTTLS to the plaintext dial path in `dialCtx`. After `smtp.NewClient` succeeds on the raw connection, the code checks whether the server advertises the `STARTTLS` extension and, if so, upgrades the connection with `client.StartTLS`. If the upgrade fails the connection is closed and an error is returned; if the server does not advertise STARTTLS (e.g. Mailpit) the connection stays plaintext. The implicit-TLS branch (port 465, `tls.Dialer`) and the `dialFn` test-seam early-return are unchanged.
   ```go
-  // Before:
+  // plugin.go — Before:
   useTLS := true
   if v, ok := config["tls"].(bool); ok { useTLS = v }
 
-  // After:
+  // plugin.go — After:
   useTLS := port == 465
   if v, ok := config["tls"].(bool); ok { useTLS = v }
+
+  // service.go dialCtx — plaintext branch, After:
+  conn, err := dialer.DialContext(ctx, "tcp", addr)
+  if err != nil { return nil, err }
+  client, err := smtp.NewClient(conn, s.host)
+  if err != nil { return nil, err }
+  if ok, _ := client.Extension("STARTTLS"); ok {
+      if err := client.StartTLS(&tls.Config{ServerName: s.host}); err != nil {
+          _ = client.Close()
+          return nil, err
+      }
+  }
+  return client, nil
   ```
+  Net behaviour: port 465 → implicit TLS (unchanged); port 587/25 with a STARTTLS-advertising server → plaintext connect then encrypted upgrade; Mailpit (no STARTTLS) → stays plaintext.
 - **Guarding test:** `TestEmailSend_Engine` in `plugins/email/engine_e2e_integration_test.go` creates a service with only `host`, `port`, `from` (no `tls` key) and drives `email.send` against a live Mailpit container on its plaintext SMTP port. The test asserts delivery via the Mailpit HTTP API.
 
 ## Bug 1 — `db.create` does not return server-generated fields

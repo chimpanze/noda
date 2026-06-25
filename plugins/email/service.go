@@ -146,7 +146,17 @@ func (s *Service) dialCtx(ctx context.Context) (*smtp.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return smtp.NewClient(conn, s.host)
+	client, err := smtp.NewClient(conn, s.host)
+	if err != nil {
+		return nil, err
+	}
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		if err := client.StartTLS(&tls.Config{ServerName: s.host}); err != nil {
+			_ = client.Close()
+			return nil, err
+		}
+	}
+	return client, nil
 }
 
 // Message represents an email message.
