@@ -299,6 +299,10 @@ After the happy path, add tests for each failure mode:
 
 ## Running Tests
 
+> **Validation does not run tests.** `noda_validate_config` (and the `noda validate` CLI) only check that test files are *structurally* valid — they never execute a workflow or compare its output against a test's `expect` block. Only `noda test` actually runs tests and catches a **stale assertion**. There is no MCP tool that runs tests, so when you edit a workflow through the MCP surface, a passing `validate_config` does **not** mean the tests still match.
+>
+> In particular, the scaffolded `tests/*.test.json` is **illustrative**: it asserts the output of the *original* scaffolded workflow. As soon as you change that workflow to do something else, update (or delete) the scaffolded test — otherwise its `expect` block is stale and only `noda test` will reveal the mismatch.
+
 ### CLI Command
 
 Run all tests:

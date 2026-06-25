@@ -142,6 +142,59 @@ func TestCrossRefs_ConnectionLifecycleNonExistentWorkflow(t *testing.T) {
 	assert.Contains(t, errs[0].Message, "non-existent-connect")
 }
 
+func TestCrossRefs_WsSendNonExistentEndpoint(t *testing.T) {
+	// #232: ws.send binds the "connections" slot to a connections endpoint name;
+	// a value that matches no defined endpoint must be flagged.
+	rc := makeBaseRC()
+	rc.Connections["connections/realtime.json"] = map[string]any{
+		"sync": map[string]any{"pubsub": "realtime"},
+		"endpoints": map[string]any{
+			"board": map[string]any{"type": "websocket", "path": "/ws/board"},
+		},
+	}
+	rc.Workflows["workflows/broadcast.json"] = map[string]any{
+		"id": "broadcast",
+		"nodes": map[string]any{
+			"send": map[string]any{
+				"type":     "ws.send",
+				"services": map[string]any{"connections": "typo-board"},
+				"config":   map[string]any{"channel": "board.1", "data": map[string]any{}},
+			},
+		},
+		"edges": []any{},
+	}
+
+	errs := ValidateCrossRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Message, "typo-board")
+	assert.Contains(t, errs[0].Message, "connections endpoint")
+	assert.Equal(t, "/nodes/send/services/connections", errs[0].JSONPath)
+}
+
+func TestCrossRefs_WsSendValidEndpoint(t *testing.T) {
+	rc := makeBaseRC()
+	rc.Connections["connections/realtime.json"] = map[string]any{
+		"sync": map[string]any{"pubsub": "realtime"},
+		"endpoints": map[string]any{
+			"board": map[string]any{"type": "websocket", "path": "/ws/board"},
+		},
+	}
+	rc.Workflows["workflows/broadcast.json"] = map[string]any{
+		"id": "broadcast",
+		"nodes": map[string]any{
+			"send": map[string]any{
+				"type":     "ws.send",
+				"services": map[string]any{"connections": "board"},
+				"config":   map[string]any{"channel": "board.1", "data": map[string]any{}},
+			},
+		},
+		"edges": []any{},
+	}
+
+	errs := ValidateCrossRefs(rc)
+	assert.Empty(t, errs)
+}
+
 func TestCrossRefs_WorkflowRunNonExistentWorkflow(t *testing.T) {
 	rc := makeBaseRC()
 	rc.Workflows["workflows/create-task.json"]["nodes"] = map[string]any{

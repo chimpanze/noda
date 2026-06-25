@@ -400,31 +400,36 @@ The OIDC middleware populates the same auth context (`auth.sub`, `auth.roles`, `
 
 Use the OIDC nodes to implement the full authorization code flow: redirect the user to the provider, handle the callback, and exchange the code for tokens.
 
-**Routes** (`routes/auth.json`):
+**Routes** — each route is its own file containing a single route object (a route file is never a top-level array):
+
+`routes/auth-login.json`:
 
 ```json
-[
-  {
-    "id": "oidc-login",
-    "method": "GET",
-    "path": "/auth/login",
-    "trigger": {
-      "workflow": "oidc-login"
-    }
-  },
-  {
-    "id": "oidc-callback",
-    "method": "GET",
-    "path": "/auth/callback",
-    "trigger": {
-      "workflow": "oidc-callback",
-      "input": {
-        "code": "{{ query.code }}",
-        "state": "{{ query.state }}"
-      }
+{
+  "id": "oidc-login",
+  "method": "GET",
+  "path": "/auth/login",
+  "trigger": {
+    "workflow": "oidc-login"
+  }
+}
+```
+
+`routes/auth-callback.json`:
+
+```json
+{
+  "id": "oidc-callback",
+  "method": "GET",
+  "path": "/auth/callback",
+  "trigger": {
+    "workflow": "oidc-callback",
+    "input": {
+      "code": "{{ query.code }}",
+      "state": "{{ query.state }}"
     }
   }
-]
+}
 ```
 
 **Login workflow** (`workflows/oidc-login.json`) -- generates a state parameter, stores it in cache, and redirects to the provider:
@@ -825,32 +830,42 @@ Mix public and protected routes by placing them in different route groups or by 
 }
 ```
 
-Routes outside any group (or in a group with no auth middleware) are public:
+Routes outside any group (or in a group with no auth middleware) are public. Each route lives in its own file (one route object per file — never a top-level array):
+
+`routes/login.json`:
 
 ```json
-[
-  {
-    "id": "login",
-    "method": "POST",
-    "path": "/auth/login",
-    "trigger": { "workflow": "login" }
-  },
-  {
-    "id": "register",
-    "method": "POST",
-    "path": "/auth/register",
-    "trigger": { "workflow": "register" }
-  },
-  {
-    "id": "list-tasks",
-    "method": "GET",
-    "path": "/api/tasks",
-    "trigger": {
-      "workflow": "list-tasks",
-      "input": { "user_id": "{{ auth.sub }}" }
-    }
+{
+  "id": "login",
+  "method": "POST",
+  "path": "/auth/login",
+  "trigger": { "workflow": "login" }
+}
+```
+
+`routes/register.json`:
+
+```json
+{
+  "id": "register",
+  "method": "POST",
+  "path": "/auth/register",
+  "trigger": { "workflow": "register" }
+}
+```
+
+`routes/list-tasks.json`:
+
+```json
+{
+  "id": "list-tasks",
+  "method": "GET",
+  "path": "/api/tasks",
+  "trigger": {
+    "workflow": "list-tasks",
+    "input": { "user_id": "{{ auth.sub }}" }
   }
-]
+}
 ```
 
 The login and register routes have no auth middleware. The `/api/tasks` route is protected by the route group.

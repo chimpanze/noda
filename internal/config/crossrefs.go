@@ -14,6 +14,7 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 	serviceMap := collectServices(rc.Root)
 	presets := collectPresets(rc.Root)
 	instances := collectInstances(rc.Root)
+	endpoints := collectEndpoints(rc.Connections)
 
 	// Route → Workflow
 	for filePath, route := range rc.Routes {
@@ -165,6 +166,20 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 			for nodeID, nodeVal := range nodes {
 				if node, ok := nodeVal.(map[string]any); ok {
 					nodeType, _ := node["type"].(string)
+					// ws.send/sse.send bind the "connections" service slot to a
+					// connections endpoint name (the endpoint is registered as a
+					// service under its own name). Validate the referenced endpoint exists.
+					if nodeType == "ws.send" || nodeType == "sse.send" {
+						if svcs, ok := node["services"].(map[string]any); ok {
+							if epName, ok := svcs["connections"].(string); ok && !endpoints[epName] {
+								errs = append(errs, ValidationError{
+									FilePath: filePath,
+									JSONPath: fmt.Sprintf("/nodes/%s/services/connections", nodeID),
+									Message:  fmt.Sprintf("references non-existent connections endpoint %q", epName),
+								})
+							}
+						}
+					}
 					if nodeType == "workflow.run" || nodeType == "control.loop" {
 						if cfg, ok := node["config"].(map[string]any); ok {
 							if targetID, ok := cfg["workflow"].(string); ok {
@@ -294,6 +309,21 @@ func collectIDs(configs map[string]map[string]any) map[string]bool {
 		}
 	}
 	return ids
+}
+
+// collectEndpoints gathers every connections endpoint name across all
+// connections files. Each endpoint is registered at runtime as a service
+// under its own name, so ws.send/sse.send bind their "connections" slot to it.
+func collectEndpoints(connections map[string]map[string]any) map[string]bool {
+	result := make(map[string]bool)
+	for _, conn := range connections {
+		if eps, ok := conn["endpoints"].(map[string]any); ok {
+			for name := range eps {
+				result[name] = true
+			}
+		}
+	}
+	return result
 }
 
 func collectServices(root map[string]any) map[string]string {

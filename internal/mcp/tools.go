@@ -794,6 +794,9 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		"created": created,
 		"path":    path,
 		"message": "Project scaffolded (a ready-to-use .env was written from docker-compose defaults). Next: cd into directory, docker compose up -d, noda dev",
+		"notes": []string{
+			"tests/hello.test.json is illustrative — it asserts the output of the scaffolded 'hello' workflow. If you change that workflow, update or delete the test; noda_validate_config only checks test-file structure, not whether assertions still match. Run the 'noda test' CLI to actually execute tests.",
+		},
 	})
 }
 

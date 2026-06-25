@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 
@@ -115,6 +116,14 @@ func loadJSONFile(path string) (map[string]any, error) {
 	// Strip BOM if present
 	if len(data) >= 3 && data[0] == 0xEF && data[1] == 0xBB && data[2] == 0xBF {
 		data = data[3:]
+	}
+
+	// Detect a top-level JSON array up front so we can give a clear, actionable
+	// error instead of the raw "expected { character for map value" from the
+	// object unmarshal below. Every Noda config file holds a single object
+	// (e.g. one route per file); arrays are never valid.
+	if trimmed := bytes.TrimLeft(data, " \t\r\n"); len(trimmed) > 0 && trimmed[0] == '[' {
+		return nil, fmt.Errorf("%s: expected a single JSON object but found a JSON array; each config file must contain exactly one object (e.g. one route per file — split array entries into separate files)", path)
 	}
 
 	var result map[string]any
