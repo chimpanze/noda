@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.11"
+          go-version-file: go.mod
           cache: true
 
       - name: Install golangci-lint
@@ -89,7 +89,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.11"
+          go-version-file: go.mod
           cache: true
 
       - name: Run integration e2e tests
