@@ -772,6 +772,8 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		"workflows/hello.json":  scaffoldSampleWorkflow,
 		"schemas/greeting.json": scaffoldSampleSchema,
 		"tests/hello.test.json": scaffoldSampleTest,
+		"migrations/20260101000000_create_items.up.sql":   scaffoldSampleMigrationUp,
+		"migrations/20260101000000_create_items.down.sql": scaffoldSampleMigrationDown,
 	}
 
 	for name, content := range files {
@@ -1025,6 +1027,20 @@ const scaffoldSampleSchema = `{
   },
   "required": ["name"]
 }
+`
+
+// Sample migration pair. Filenames follow <YYYYMMDDHHMMSS>_<name>.(up|down).sql;
+// `noda migrate create <name>` stamps the timestamp for you. See noda://docs/migrations.
+const scaffoldSampleMigrationUp = `-- Example migration. Tables are not created automatically — add a migration like
+-- this for every table your workflows read or write, then run: noda migrate up
+CREATE TABLE items (
+  id         UUID PRIMARY KEY,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`
+
+const scaffoldSampleMigrationDown = `DROP TABLE items;
 `
 
 const scaffoldSampleTest = `{

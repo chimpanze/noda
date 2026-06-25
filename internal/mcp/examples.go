@@ -11,7 +11,15 @@ import (
 
 var examplePatterns = map[string]map[string]string{
 	"crud": {
-		"description": "Basic CRUD API with database operations",
+		"description": "Basic CRUD API with database operations. The users table must exist first — create it with a migration (see noda://docs/migrations). The migration_up/migration_down fields below are SQL (migrations/<timestamp>_create_users.up.sql / .down.sql), not Noda config.",
+		// SQL migration files (not config). Filename: migrations/<YYYYMMDDHHMMSS>_create_users.up.sql / .down.sql
+		"migration_up": `CREATE TABLE users (
+  id         UUID PRIMARY KEY,
+  name       TEXT NOT NULL,
+  email      TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);`,
+		"migration_down": `DROP TABLE users;`,
 		"route": `{
   "id": "users-crud",
   "method": "POST",

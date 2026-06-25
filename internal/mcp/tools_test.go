@@ -320,7 +320,8 @@ func TestGetExamplesHandler(t *testing.T) {
 	t.Run("every example config snippet is valid JSON", func(t *testing.T) {
 		for name, example := range examplePatterns {
 			for key, val := range example {
-				if key == "description" {
+				// "description" is prose; migration_* fields are raw SQL, not JSON.
+				if key == "description" || strings.HasPrefix(key, "migration") {
 					continue
 				}
 				var parsed any
@@ -592,6 +593,8 @@ func TestScaffoldProjectHandler(t *testing.T) {
 		"workflows/hello.json",
 		"schemas/greeting.json",
 		"tests/hello.test.json",
+		"migrations/20260101000000_create_items.up.sql",
+		"migrations/20260101000000_create_items.down.sql",
 		".env",
 		".env.example",
 		"docker-compose.yml",

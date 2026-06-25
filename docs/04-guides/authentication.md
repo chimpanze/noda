@@ -774,6 +774,57 @@ For multi-tenant applications, set `tenant_param` to include a tenant identifier
 }
 ```
 
+### Enforcing on the roles claim
+
+`casbin.enforce` always uses the **user id** (`auth.sub`) as the subject. It does **not** read the token's `auth.roles` claim. So there is no way to write a single middleware-level rule like "allow any token carrying the `admin` role" — Casbin only knows a user has a role if a `role_links` (`g`) entry maps that specific user id to it. With Casbin you enumerate users in `role_links`:
+
+```json
+{
+  "security": {
+    "casbin": {
+      "model": "...",
+      "policies": [["p", "admin", "/api/admin/*", "*"]],
+      "role_links": [
+        ["g", "alice", "admin"],
+        ["g", "carol", "admin"]
+      ]
+    }
+  }
+}
+```
+
+If your tokens already carry roles (e.g. an OIDC provider issues `roles: ["admin"]`) and you want a generic "must have the `admin` role" gate **without** listing every user, enforce it **in the workflow** instead of at the middleware. Branch on the `auth.roles` claim with `control.if` and return `403` via `response.error`:
+
+```json
+{
+  "id": "admin-only-report",
+  "nodes": {
+    "check_admin": {
+      "type": "control.if",
+      "config": { "condition": "{{ 'admin' in auth.roles }}" }
+    },
+    "forbidden": {
+      "type": "response.error",
+      "config": {
+        "status": 403,
+        "code": "forbidden",
+        "message": "Admin role required"
+      }
+    },
+    "report": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.build_report }}" }
+    }
+  },
+  "edges": [
+    { "from": "check_admin", "to": "report", "output": "true" },
+    { "from": "check_admin", "to": "forbidden", "output": "false" }
+  ]
+}
+```
+
+Use middleware-level `casbin.enforce` for per-user/per-resource policies; use the in-workflow `control.if` pattern when a coarse role-claim check is all you need and you don't want to enumerate users.
+
 ## Middleware Presets
 
 Group middleware into reusable presets for consistent security across routes:
