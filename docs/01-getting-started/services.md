@@ -335,8 +335,45 @@ Different node families expect different slot names:
 | `mailer` | `email.send` | `email` |
 | `stream` | `event.emit`, workers | `stream` |
 | `livekit` | `lk.*` nodes | `livekit` |
-| `connections` | `ws.send`, `sse.send` | Connection manager (built-in) |
+| `connections` | `ws.send`, `sse.send` | A **connections endpoint name** (see below), not a `noda.json` service |
 | `runtime` | `wasm.send`, `wasm.query` | Wasm runtime (built-in) |
+
+### The `connections` slot (`ws.send` / `sse.send`)
+
+The `connections` slot is the one exception to "instance name from `noda.json`." There is no connections service in `noda.json`. Instead, the slot value is the **name of a connections endpoint** you define in a `connections/*.json` file. At startup Noda registers each endpoint as a service under its own name, so `ws.send`/`sse.send` resolve the slot to that endpoint's connection manager.
+
+Given this endpoint:
+
+```json
+// connections/board.json
+{
+  "sync": { "pubsub": "events" },
+  "endpoints": {
+    "board": {
+      "type": "websocket",
+      "path": "/ws/board/:room_id",
+      "channels": { "pattern": "board.{{ request.params.room_id }}" }
+    }
+  }
+}
+```
+
+a `ws.send` node binds the slot to the endpoint name `"board"`:
+
+```json
+{
+  "type": "ws.send",
+  "services": { "connections": "board" },
+  "config": {
+    "channel": "board.{{ input.room_id }}",
+    "data": { "text": "{{ input.text }}" }
+  }
+}
+```
+
+**How `channel` relates to `channels.pattern`.** When a client connects, the endpoint's `channels.pattern` is resolved against that connection's context (e.g. `board.{{ request.params.room_id }}` → `board.42`) and the client is subscribed to the resulting channel. The `channel` value on `ws.send` selects which subscribers receive the message: a message is delivered to every connection whose subscribed channel matches. Exact strings match one channel (`board.42`); a `*` segment is a wildcard (`board.*` reaches every room, `*` reaches all). So `ws.send`'s `channel` must line up with the channels produced by the endpoint's `pattern` for clients to receive it.
+
+`noda_validate_config` cross-checks the `connections` slot: a `ws.send`/`sse.send` binding that names an endpoint no `connections/*.json` defines is reported as an error. See [`noda://docs/realtime`](realtime.md) for the full subscription and lifecycle model.
 
 ---
 

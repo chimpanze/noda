@@ -85,6 +85,24 @@ func TestStaticDocHandler(t *testing.T) {
 		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
 	})
 
+	t.Run("realtime", func(t *testing.T) {
+		handler := staticDocHandler("01-getting-started/realtime.md")
+		req := makeReadResourceRequest("noda://docs/realtime")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
+	t.Run("migrations", func(t *testing.T) {
+		handler := staticDocHandler("04-guides/migrations.md")
+		req := makeReadResourceRequest("noda://docs/migrations")
+		contents, err := handler(context.Background(), req)
+		require.NoError(t, err)
+		require.Len(t, contents, 1)
+		assert.NotEmpty(t, contents[0].(mcp.TextResourceContents).Text)
+	})
+
 	t.Run("nonexistent file", func(t *testing.T) {
 		handler := staticDocHandler("nonexistent.md")
 		req := makeReadResourceRequest("noda://docs/nonexistent")

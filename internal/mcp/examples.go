@@ -11,7 +11,15 @@ import (
 
 var examplePatterns = map[string]map[string]string{
 	"crud": {
-		"description": "Basic CRUD API with database operations",
+		"description": "Basic CRUD API with database operations. The users table must exist first — create it with a migration (see noda://docs/migrations). The migration_up/migration_down fields below are SQL (migrations/<timestamp>_create_users.up.sql / .down.sql), not Noda config.",
+		// SQL migration files (not config). Filename: migrations/<YYYYMMDDHHMMSS>_create_users.up.sql / .down.sql
+		"migration_up": `CREATE TABLE users (
+  id         UUID PRIMARY KEY,
+  name       TEXT NOT NULL,
+  email      TEXT NOT NULL UNIQUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);`,
+		"migration_down": `DROP TABLE users;`,
 		"route": `{
   "id": "users-crud",
   "method": "POST",
@@ -225,25 +233,71 @@ var examplePatterns = map[string]map[string]string{
 }`,
 	},
 	"websocket": {
-		"description": "WebSocket real-time connection",
-		"connection": `{
-  "id": "live-updates",
-  "type": "websocket",
-  "path": "/ws/updates",
-  "middleware": ["auth.jwt"],
-  "on_connect": {
-    "workflow": "ws-connect",
-    "input": {
-      "user_id": "{{ auth.user_id }}"
-    }
-  },
-  "on_message": {
-    "workflow": "ws-message",
-    "input": {
-      "user_id": "{{ auth.user_id }}",
-      "data": "{{ message }}"
+		"description": "WebSocket real-time broadcast: a POST persists a message and broadcasts it to subscribers of a channel. Handlers (on_connect/on_message/on_disconnect) are workflow-id STRINGS; see noda://docs/realtime for the subscription/channel/lifecycle model.",
+		// noda.json snippet — a pubsub service is required so broadcasts fan out across instances (connections.sync.pubsub references it).
+		"services": `{
+  "services": {
+    "events": {
+      "plugin": "pubsub",
+      "config": { "url": "{{ $env('REDIS_URL') }}" }
     }
   }
+}`,
+		// connections/*.json — endpoints is a map keyed by endpoint name; handlers are workflow ids.
+		"connections": `{
+  "sync": { "pubsub": "events" },
+  "endpoints": {
+    "board": {
+      "type": "websocket",
+      "path": "/ws/board/:room_id",
+      "middleware": ["auth.jwt"],
+      "channels": {
+        "pattern": "board.{{ request.params.room_id }}",
+        "max_per_channel": 100
+      },
+      "ping_interval": "30s",
+      "on_message": "board-on-message"
+    }
+  }
+}`,
+		// routes/*.json — clients POST here; the workflow broadcasts to subscribers.
+		"route": `{
+  "id": "post-message",
+  "method": "POST",
+  "path": "/api/board/:room_id/messages",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "post-message",
+    "input": {
+      "room_id": "{{ request.params.room_id }}",
+      "text": "{{ request.body.text }}"
+    }
+  }
+}`,
+		// workflows/*.json — ws.send binds the "connections" service slot to the endpoint name ("board").
+		// Its "channel" must match the endpoint's channels.pattern for subscribers to receive it.
+		"workflow": `{
+  "id": "post-message",
+  "nodes": {
+    "broadcast": {
+      "type": "ws.send",
+      "services": { "connections": "board" },
+      "config": {
+        "channel": "board.{{ input.room_id }}",
+        "data": { "text": "{{ input.text }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": { "ok": true }
+      }
+    }
+  },
+  "edges": [
+    { "from": "broadcast", "to": "respond", "output": "success" }
+  ]
 }`,
 	},
 	"file-upload": {

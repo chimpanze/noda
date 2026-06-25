@@ -24,7 +24,31 @@
             "token_lookup": { "type": "string" }
           }
         },
-        "casbin": { "type": "object" }
+        "casbin": {
+          "type": "object",
+          "description": "Casbin policy-based access control for casbin.enforce middleware. The subject is the authenticated user id (auth.sub); use role_links to map users to roles.",
+          "properties": {
+            "model": {
+              "type": "string",
+              "description": "Inline Casbin model text (detected when it contains '[request_definition]') or a path to a .conf file"
+            },
+            "policies": {
+              "type": "array",
+              "description": "Policy rule tuples, e.g. [\"p\", \"admin\", \"/api/*\", \"GET\"] (first element is the policy type, usually \"p\")",
+              "items": { "type": "array" }
+            },
+            "role_links": {
+              "type": "array",
+              "description": "Role assignment tuples, e.g. [\"g\", \"alice\", \"admin\"] (first element is the grouping type, usually \"g\")",
+              "items": { "type": "array" }
+            },
+            "tenant_param": {
+              "type": "string",
+              "description": "URL or query parameter carrying the tenant id, for multi-tenant (domain) RBAC"
+            }
+          },
+          "required": ["model"]
+        }
       }
     },
     "middleware_presets": {

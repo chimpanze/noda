@@ -702,13 +702,19 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	}
 	rc, errs := config.ValidateAll(configDir, "", sm)
 	if len(errs) > 0 {
-		errMsgs := make([]string, len(errs))
+		errList := make([]map[string]any, len(errs))
 		for i, e := range errs {
-			errMsgs[i] = e.Message
+			errList[i] = map[string]any{
+				// Single human-readable line: "<file>: <json-pointer>: <message>".
+				"error":   e.Error(),
+				"file":    e.FilePath,
+				"pointer": e.JSONPath, // RFC 6901 JSON pointer into the offending file, "" for whole-file errors
+				"message": e.Message,
+			}
 		}
 		return jsonResult(map[string]any{
 			"valid":  false,
-			"errors": errMsgs,
+			"errors": errList,
 		})
 	}
 
@@ -756,13 +762,18 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	}
 
 	files := map[string]string{
-		"noda.json":             scaffoldNodaJSON,
+		"noda.json": scaffoldNodaJSON,
+		// Write a working .env (matching docker-compose defaults) so the project
+		// validates and runs immediately; .env.example is the committable template.
+		".env":                  scaffoldEnvExample,
 		".env.example":          scaffoldEnvExample,
 		"docker-compose.yml":    scaffoldDockerCompose,
 		"routes/api.json":       scaffoldSampleRoute,
 		"workflows/hello.json":  scaffoldSampleWorkflow,
 		"schemas/greeting.json": scaffoldSampleSchema,
 		"tests/hello.test.json": scaffoldSampleTest,
+		"migrations/20260101000000_create_items.up.sql":   scaffoldSampleMigrationUp,
+		"migrations/20260101000000_create_items.down.sql": scaffoldSampleMigrationDown,
 	}
 
 	for name, content := range files {
@@ -784,7 +795,10 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	return jsonResult(map[string]any{
 		"created": created,
 		"path":    path,
-		"message": "Project scaffolded. Next: cd into directory, cp .env.example .env, docker compose up -d, noda dev",
+		"message": "Project scaffolded (a ready-to-use .env was written from docker-compose defaults). Next: cd into directory, docker compose up -d, noda dev",
+		"notes": []string{
+			"tests/hello.test.json is illustrative — it asserts the output of the scaffolded 'hello' workflow. If you change that workflow, update or delete the test; noda_validate_config only checks test-file structure, not whether assertions still match. Run the 'noda test' CLI to actually execute tests.",
+		},
 	})
 }
 
@@ -917,11 +931,15 @@ const scaffoldNodaJSON = `{
   "services": {
     "db": {
       "plugin": "postgres",
-      "dsn": "${DATABASE_URL}"
+      "config": {
+        "url": "{{ $env('DATABASE_URL') }}"
+      }
     },
     "cache": {
-      "plugin": "redis",
-      "url": "${REDIS_URL}"
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
     }
   }
 }
@@ -1009,6 +1027,20 @@ const scaffoldSampleSchema = `{
   },
   "required": ["name"]
 }
+`
+
+// Sample migration pair. Filenames follow <YYYYMMDDHHMMSS>_<name>.(up|down).sql;
+// `noda migrate create <name>` stamps the timestamp for you. See noda://docs/migrations.
+const scaffoldSampleMigrationUp = `-- Example migration. Tables are not created automatically — add a migration like
+-- this for every table your workflows read or write, then run: noda migrate up
+CREATE TABLE items (
+  id         UUID PRIMARY KEY,
+  name       TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+`
+
+const scaffoldSampleMigrationDown = `DROP TABLE items;
 `
 
 const scaffoldSampleTest = `{

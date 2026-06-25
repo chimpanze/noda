@@ -43,6 +43,29 @@ func TestLoadAll_InvalidJSON(t *testing.T) {
 	assert.NotNil(t, rc.Root)
 }
 
+func TestLoadAll_TopLevelArrayRejectedClearly(t *testing.T) {
+	// A route file holding a JSON array (as some older docs showed) must produce
+	// an actionable error, not the raw "expected { character for map value". (#227)
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{"services": {}}`,
+		"routes/combined.json": `[
+			{"id": "a", "method": "GET", "path": "/a", "trigger": {"workflow": "w"}},
+			{"id": "b", "method": "GET", "path": "/b", "trigger": {"workflow": "w"}}
+		]`,
+	})
+
+	d, err := Discover(dir, "")
+	require.NoError(t, err)
+
+	_, errs := LoadAll(d)
+	require.Len(t, errs, 1)
+	msg := errs[0].Error()
+	assert.Contains(t, msg, "combined.json")
+	assert.Contains(t, msg, "single JSON object")
+	assert.Contains(t, msg, "array")
+	assert.Contains(t, msg, "separate files")
+}
+
 func TestLoadAll_MultipleBrokenFiles(t *testing.T) {
 	dir := setupTestProject(t, map[string]string{
 		"noda.json":         `{bad}`,

@@ -400,31 +400,36 @@ The OIDC middleware populates the same auth context (`auth.sub`, `auth.roles`, `
 
 Use the OIDC nodes to implement the full authorization code flow: redirect the user to the provider, handle the callback, and exchange the code for tokens.
 
-**Routes** (`routes/auth.json`):
+**Routes** — each route is its own file containing a single route object (a route file is never a top-level array):
+
+`routes/auth-login.json`:
 
 ```json
-[
-  {
-    "id": "oidc-login",
-    "method": "GET",
-    "path": "/auth/login",
-    "trigger": {
-      "workflow": "oidc-login"
-    }
-  },
-  {
-    "id": "oidc-callback",
-    "method": "GET",
-    "path": "/auth/callback",
-    "trigger": {
-      "workflow": "oidc-callback",
-      "input": {
-        "code": "{{ query.code }}",
-        "state": "{{ query.state }}"
-      }
+{
+  "id": "oidc-login",
+  "method": "GET",
+  "path": "/auth/login",
+  "trigger": {
+    "workflow": "oidc-login"
+  }
+}
+```
+
+`routes/auth-callback.json`:
+
+```json
+{
+  "id": "oidc-callback",
+  "method": "GET",
+  "path": "/auth/callback",
+  "trigger": {
+    "workflow": "oidc-callback",
+    "input": {
+      "code": "{{ query.code }}",
+      "state": "{{ query.state }}"
     }
   }
-]
+}
 ```
 
 **Login workflow** (`workflows/oidc-login.json`) -- generates a state parameter, stores it in cache, and redirects to the provider:
@@ -769,6 +774,57 @@ For multi-tenant applications, set `tenant_param` to include a tenant identifier
 }
 ```
 
+### Enforcing on the roles claim
+
+`casbin.enforce` always uses the **user id** (`auth.sub`) as the subject. It does **not** read the token's `auth.roles` claim. So there is no way to write a single middleware-level rule like "allow any token carrying the `admin` role" — Casbin only knows a user has a role if a `role_links` (`g`) entry maps that specific user id to it. With Casbin you enumerate users in `role_links`:
+
+```json
+{
+  "security": {
+    "casbin": {
+      "model": "...",
+      "policies": [["p", "admin", "/api/admin/*", "*"]],
+      "role_links": [
+        ["g", "alice", "admin"],
+        ["g", "carol", "admin"]
+      ]
+    }
+  }
+}
+```
+
+If your tokens already carry roles (e.g. an OIDC provider issues `roles: ["admin"]`) and you want a generic "must have the `admin` role" gate **without** listing every user, enforce it **in the workflow** instead of at the middleware. Branch on the `auth.roles` claim with `control.if` and return `403` via `response.error`:
+
+```json
+{
+  "id": "admin-only-report",
+  "nodes": {
+    "check_admin": {
+      "type": "control.if",
+      "config": { "condition": "{{ 'admin' in auth.roles }}" }
+    },
+    "forbidden": {
+      "type": "response.error",
+      "config": {
+        "status": 403,
+        "code": "forbidden",
+        "message": "Admin role required"
+      }
+    },
+    "report": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.build_report }}" }
+    }
+  },
+  "edges": [
+    { "from": "check_admin", "to": "report", "output": "true" },
+    { "from": "check_admin", "to": "forbidden", "output": "false" }
+  ]
+}
+```
+
+Use middleware-level `casbin.enforce` for per-user/per-resource policies; use the in-workflow `control.if` pattern when a coarse role-claim check is all you need and you don't want to enumerate users.
+
 ## Middleware Presets
 
 Group middleware into reusable presets for consistent security across routes:
@@ -825,32 +881,42 @@ Mix public and protected routes by placing them in different route groups or by 
 }
 ```
 
-Routes outside any group (or in a group with no auth middleware) are public:
+Routes outside any group (or in a group with no auth middleware) are public. Each route lives in its own file (one route object per file — never a top-level array):
+
+`routes/login.json`:
 
 ```json
-[
-  {
-    "id": "login",
-    "method": "POST",
-    "path": "/auth/login",
-    "trigger": { "workflow": "login" }
-  },
-  {
-    "id": "register",
-    "method": "POST",
-    "path": "/auth/register",
-    "trigger": { "workflow": "register" }
-  },
-  {
-    "id": "list-tasks",
-    "method": "GET",
-    "path": "/api/tasks",
-    "trigger": {
-      "workflow": "list-tasks",
-      "input": { "user_id": "{{ auth.sub }}" }
-    }
+{
+  "id": "login",
+  "method": "POST",
+  "path": "/auth/login",
+  "trigger": { "workflow": "login" }
+}
+```
+
+`routes/register.json`:
+
+```json
+{
+  "id": "register",
+  "method": "POST",
+  "path": "/auth/register",
+  "trigger": { "workflow": "register" }
+}
+```
+
+`routes/list-tasks.json`:
+
+```json
+{
+  "id": "list-tasks",
+  "method": "GET",
+  "path": "/api/tasks",
+  "trigger": {
+    "workflow": "list-tasks",
+    "input": { "user_id": "{{ auth.sub }}" }
   }
-]
+}
 ```
 
 The login and register routes have no auth middleware. The `/api/tasks` route is protected by the route group.
