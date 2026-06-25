@@ -1,0 +1,8 @@
+{
+  "id": "util-timestamp",
+  "workflow": "util-timestamp",
+  "tests": [
+    { "name": "produces a positive unix timestamp", "input": {},
+      "expect": { "status": "success", "output": { "chk.positive": true } } }
+  ]
+}

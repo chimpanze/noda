@@ -1,0 +1,7 @@
+{
+  "id": "util-log",
+  "nodes": {
+    "lg": { "type": "util.log", "config": { "level": "info", "message": "hello {{ input.who }}" } }
+  },
+  "edges": []
+}

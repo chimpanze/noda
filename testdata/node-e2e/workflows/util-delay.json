@@ -1,0 +1,7 @@
+{
+  "id": "util-delay",
+  "nodes": {
+    "wait": { "type": "util.delay", "config": { "timeout": "1ms" } }
+  },
+  "edges": []
+}

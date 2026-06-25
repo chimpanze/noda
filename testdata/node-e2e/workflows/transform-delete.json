@@ -1,0 +1,8 @@
+{
+  "id": "transform-delete",
+  "nodes": {
+    "del": { "type": "transform.delete", "config": { "data": "{{ input.user }}", "fields": ["password"] } },
+    "chk": { "type": "transform.set", "config": { "fields": { "name": "{{ nodes.del.name }}", "has_pw": "{{ \"password\" in nodes.del }}" } } }
+  },
+  "edges": [ { "from": "del", "to": "chk" } ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "transform-validate",
+  "nodes": {
+    "val": {
+      "type": "transform.validate",
+      "config": {
+        "data": "{{ input }}",
+        "schema": { "type": "object", "required": ["email"], "properties": { "email": { "type": "string" } } }
+      }
+    }
+  },
+  "edges": []
+}

@@ -1,0 +1,10 @@
+{
+  "id": "transform-filter",
+  "workflow": "transform-filter",
+  "tests": [
+    { "name": "keeps active items", "input": { "items": [ { "active": true }, { "active": false }, { "active": true } ] },
+      "expect": { "status": "success", "output": { "agg.count": 2 } } },
+    { "name": "empty result", "input": { "items": [ { "active": false } ] },
+      "expect": { "status": "success", "output": { "agg.count": 0 } } }
+  ]
+}

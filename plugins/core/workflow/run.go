@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -116,7 +117,19 @@ func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 		return "", nil, err
 	}
 
-	return outputName, data, nil
+	return e.routeOutput(outputName), data, nil
+}
+
+// routeOutput maps the sub-workflow's terminal output name onto one of this
+// node's declared output ports. In production the declared ports are always
+// "success"/"error", so any other sub-workflow output name routes through
+// "success" (data is preserved). Tests may inject extra declared ports via
+// setOutputs, in which case a matching name is honored directly.
+func (e *RunExecutor) routeOutput(outputName string) string {
+	if slices.Contains(e.outputs, outputName) {
+		return outputName
+	}
+	return "success"
 }
 
 // executeWithTransaction wraps the sub-workflow in a database transaction.
@@ -155,5 +168,5 @@ func (e *RunExecutor) executeWithTransaction(ctx context.Context, workflowID str
 		return "", nil, txErr
 	}
 
-	return outputName, data, nil
+	return e.routeOutput(outputName), data, nil
 }

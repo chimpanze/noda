@@ -1,0 +1,7 @@
+{
+  "id": "workflow-output",
+  "nodes": {
+    "out": { "type": "workflow.output", "config": { "name": "final", "data": { "msg": "{{ input.m }}" } } }
+  },
+  "edges": []
+}

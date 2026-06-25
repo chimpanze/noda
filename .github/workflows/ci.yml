@@ -18,7 +18,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.9"
+          go-version: "1.25.11"
           cache: true
 
       - name: Install golangci-lint
@@ -41,7 +41,11 @@ jobs:
 
       - name: Go vulnerability check
         run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
+          # Pinned: govulncheck@v1.4.0 bundles golang.org/x/tools@v0.46.0, which
+          # panics ("ForEachElement called on type containing *types.TypeParam")
+          # during SSA/callgraph analysis of generic code. v1.3.0 is the latest
+          # release without the crash. Revert to @latest once x/vuln ships a fix.
+          go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
           govulncheck ./...
 
       - name: Build
@@ -85,7 +89,7 @@ jobs:
 
       - uses: actions/setup-go@v6
         with:
-          go-version: "1.25.9"
+          go-version: "1.25.11"
           cache: true
 
       - name: Run integration e2e tests
@@ -95,6 +99,14 @@ jobs:
     name: Editor E2E
     runs-on: ubuntu-latest
     needs: [editor]
+    # Run inside Microsoft's official Playwright image, which ships the browsers
+    # and their OS dependencies pre-installed. This removes the flaky
+    # `npx playwright install --with-deps` step, whose browser download / apt
+    # step could hang for hours. The image tag MUST match the @playwright/test
+    # version in editor/package-lock.json (currently 1.58.2) — bump both together.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.2-noble
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
 
@@ -109,9 +121,6 @@ jobs:
 
       - name: Build editor
         run: cd editor && npm run build
-
-      - name: Install Playwright browsers
-        run: cd editor && npx playwright install --with-deps chromium
 
       - name: Run Playwright tests
         run: cd editor && npx playwright test

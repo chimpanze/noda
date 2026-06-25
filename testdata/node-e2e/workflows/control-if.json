@@ -1,0 +1,12 @@
+{
+  "id": "control-if",
+  "nodes": {
+    "cond":  { "type": "control.if", "config": { "condition": "{{ input.admin }}" } },
+    "grant": { "type": "transform.set", "config": { "fields": { "decision": "granted" } } },
+    "deny":  { "type": "transform.set", "config": { "fields": { "decision": "denied" } } }
+  },
+  "edges": [
+    { "from": "cond", "output": "then", "to": "grant" },
+    { "from": "cond", "output": "else", "to": "deny" }
+  ]
+}

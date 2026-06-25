@@ -1,0 +1,10 @@
+{
+  "id": "control-if",
+  "workflow": "control-if",
+  "tests": [
+    { "name": "true takes then branch", "input": { "admin": true },
+      "expect": { "status": "success", "output": { "grant.decision": "granted" } } },
+    { "name": "false takes else branch", "input": { "admin": false },
+      "expect": { "status": "success", "output": { "deny.decision": "denied" } } }
+  ]
+}

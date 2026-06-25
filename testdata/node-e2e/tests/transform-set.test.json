@@ -1,0 +1,14 @@
+{
+  "id": "transform-set",
+  "workflow": "transform-set",
+  "tests": [
+    {
+      "name": "sets fields from input and literals",
+      "input": { "name": "Ann", "n": 5 },
+      "expect": {
+        "status": "success",
+        "output": { "set.greeting": "Hi Ann", "set.count": 5, "set.flag": true }
+      }
+    }
+  ]
+}

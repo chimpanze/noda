@@ -1,0 +1,7 @@
+{
+  "id": "util-delay",
+  "workflow": "util-delay",
+  "tests": [
+    { "name": "completes after a short delay", "input": {}, "expect": { "status": "success" } }
+  ]
+}
