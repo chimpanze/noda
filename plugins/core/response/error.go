@@ -17,7 +17,7 @@ func (d *errorDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"status":  map[string]any{"type": "string", "description": "HTTP status code (default: 500)"},
+			"status":  map[string]any{"type": []any{"integer", "string"}, "description": "HTTP status code, e.g. 500 (an integer literal, or a string expression that resolves to one; default: 500)"},
 			"code":    map[string]any{"type": "string", "description": "Error code identifier"},
 			"message": map[string]any{"type": "string", "description": "Human-readable error message"},
 			"details": map[string]any{"type": "string", "description": "Additional error details"},

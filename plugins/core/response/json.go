@@ -17,7 +17,7 @@ func (d *jsonDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"status":  map[string]any{"type": "string", "description": "HTTP status code"},
+			"status":  map[string]any{"type": []any{"integer", "string"}, "description": "HTTP status code, e.g. 200 (an integer literal, or a string expression that resolves to one)"},
 			"body":    map[string]any{"title": "body", "description": "Response body"},
 			"headers": map[string]any{"type": "object", "description": "Response headers"},
 			"cookies": map[string]any{

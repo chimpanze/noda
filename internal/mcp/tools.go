@@ -702,13 +702,19 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	}
 	rc, errs := config.ValidateAll(configDir, "", sm)
 	if len(errs) > 0 {
-		errMsgs := make([]string, len(errs))
+		errList := make([]map[string]any, len(errs))
 		for i, e := range errs {
-			errMsgs[i] = e.Message
+			errList[i] = map[string]any{
+				// Single human-readable line: "<file>: <json-pointer>: <message>".
+				"error":   e.Error(),
+				"file":    e.FilePath,
+				"pointer": e.JSONPath, // RFC 6901 JSON pointer into the offending file, "" for whole-file errors
+				"message": e.Message,
+			}
 		}
 		return jsonResult(map[string]any{
 			"valid":  false,
-			"errors": errMsgs,
+			"errors": errList,
 		})
 	}
 
@@ -756,7 +762,10 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	}
 
 	files := map[string]string{
-		"noda.json":             scaffoldNodaJSON,
+		"noda.json": scaffoldNodaJSON,
+		// Write a working .env (matching docker-compose defaults) so the project
+		// validates and runs immediately; .env.example is the committable template.
+		".env":                  scaffoldEnvExample,
 		".env.example":          scaffoldEnvExample,
 		"docker-compose.yml":    scaffoldDockerCompose,
 		"routes/api.json":       scaffoldSampleRoute,
@@ -784,7 +793,7 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	return jsonResult(map[string]any{
 		"created": created,
 		"path":    path,
-		"message": "Project scaffolded. Next: cd into directory, cp .env.example .env, docker compose up -d, noda dev",
+		"message": "Project scaffolded (a ready-to-use .env was written from docker-compose defaults). Next: cd into directory, docker compose up -d, noda dev",
 	})
 }
 
@@ -917,11 +926,15 @@ const scaffoldNodaJSON = `{
   "services": {
     "db": {
       "plugin": "postgres",
-      "dsn": "${DATABASE_URL}"
+      "config": {
+        "url": "{{ $env('DATABASE_URL') }}"
+      }
     },
     "cache": {
-      "plugin": "redis",
-      "url": "${REDIS_URL}"
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
     }
   }
 }

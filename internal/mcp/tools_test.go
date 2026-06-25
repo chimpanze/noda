@@ -316,6 +316,43 @@ func TestGetExamplesHandler(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, result.IsError)
 	})
+
+	t.Run("every example config snippet is valid JSON", func(t *testing.T) {
+		for name, example := range examplePatterns {
+			for key, val := range example {
+				if key == "description" {
+					continue
+				}
+				var parsed any
+				assert.NoErrorf(t, json.Unmarshal([]byte(val), &parsed),
+					"example %q field %q must be valid JSON", name, key)
+			}
+		}
+	})
+
+	t.Run("websocket example matches the connections schema shape", func(t *testing.T) {
+		// #230: handlers must be workflow-id strings under an endpoints.<name> map,
+		// not objects, and not the flat {id,type,path} shape.
+		var conn map[string]any
+		require.NoError(t, json.Unmarshal([]byte(examplePatterns["websocket"]["connections"]), &conn))
+
+		endpoints, ok := conn["endpoints"].(map[string]any)
+		require.True(t, ok, "connections must use an endpoints.<name> map")
+		require.NotEmpty(t, endpoints)
+		for epName, raw := range endpoints {
+			ep := raw.(map[string]any)
+			for _, h := range []string{"on_connect", "on_message", "on_disconnect"} {
+				if v, present := ep[h]; present {
+					_, isStr := v.(string)
+					assert.Truef(t, isStr, "endpoint %q handler %q must be a workflow-id string", epName, h)
+				}
+			}
+		}
+		// sync.pubsub is required for cross-instance broadcast.
+		sync, ok := conn["sync"].(map[string]any)
+		require.True(t, ok, "connections must declare sync.pubsub")
+		assert.NotEmpty(t, sync["pubsub"])
+	})
 }
 
 func TestValidateConfigHandler(t *testing.T) {
@@ -350,6 +387,43 @@ func TestValidateConfigHandler(t *testing.T) {
 		result, err := validateConfigHandler(context.Background(), req)
 		require.NoError(t, err)
 		assert.True(t, result.IsError)
+	})
+
+	t.Run("errors carry file path and JSON pointer", func(t *testing.T) {
+		// Scaffold a valid project, then introduce a localizable schema violation:
+		// body.schema must be an object, set it to a string (the #224 repro).
+		tmpDir := t.TempDir()
+		projectPath := filepath.Join(tmpDir, "bad-project")
+		scaffoldReq := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectPath})
+		_, err := scaffoldProjectHandler(context.Background(), scaffoldReq)
+		require.NoError(t, err)
+
+		badRoute := `{
+  "id": "hello-route",
+  "method": "GET",
+  "path": "/api/hello/:name",
+  "body": { "schema": "not-an-object" },
+  "trigger": { "workflow": "hello", "input": {} }
+}`
+		require.NoError(t, os.WriteFile(filepath.Join(projectPath, "routes", "api.json"), []byte(badRoute), 0o644))
+
+		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": projectPath})
+		result, err := validateConfigHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.False(t, data["valid"].(bool))
+
+		errsRaw, ok := data["errors"].([]any)
+		require.True(t, ok, "errors should be a list of objects")
+		require.NotEmpty(t, errsRaw)
+
+		first := errsRaw[0].(map[string]any)
+		assert.Contains(t, first["file"], "api.json", "error must name the offending file")
+		assert.Equal(t, "/body/schema", first["pointer"], "error must carry a JSON pointer to the field")
+		assert.NotEmpty(t, first["message"])
+		assert.Contains(t, first["error"], "api.json")
+		assert.Contains(t, first["error"], "/body/schema")
 	})
 }
 
@@ -518,6 +592,7 @@ func TestScaffoldProjectHandler(t *testing.T) {
 		"workflows/hello.json",
 		"schemas/greeting.json",
 		"tests/hello.test.json",
+		".env",
 		".env.example",
 		"docker-compose.yml",
 	}
@@ -531,6 +606,33 @@ func TestScaffoldProjectHandler(t *testing.T) {
 	require.NoError(t, err)
 	var parsed map[string]any
 	assert.NoError(t, json.Unmarshal(data, &parsed))
+
+	// Scaffolded services must match the documented/root-schema shape the runtime
+	// actually parses: family/registered plugin name + nested "config", and the
+	// canonical {{ $env('VAR') }} interpolation (not ${VAR}, which is unsupported). (#231)
+	services, ok := parsed["services"].(map[string]any)
+	require.True(t, ok, "noda.json must define services")
+	for name, raw := range services {
+		svc, ok := raw.(map[string]any)
+		require.True(t, ok, "service %q must be an object", name)
+		assert.NotEmpty(t, svc["plugin"], "service %q must name a plugin", name)
+		cfg, ok := svc["config"].(map[string]any)
+		assert.True(t, ok, "service %q connection fields must be nested under config", name)
+		for k, v := range cfg {
+			if s, isStr := v.(string); isStr {
+				assert.NotContains(t, s, "${", "service %q.config.%s uses unsupported ${VAR} env syntax", name, k)
+			}
+		}
+		_, hasDSN := svc["dsn"]
+		assert.False(t, hasDSN, "service %q must not put dsn at top level", name)
+	}
+
+	// The scaffolded project must pass validation end-to-end.
+	vreq := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": projectPath})
+	vres, err := validateConfigHandler(context.Background(), vreq)
+	require.NoError(t, err)
+	vdata := parseTextResult(t, vres)
+	assert.True(t, vdata["valid"].(bool), "scaffolded project should validate")
 }
 
 func TestReadProjectFileHandler(t *testing.T) {
