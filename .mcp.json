@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "noda": {
+      "command": "/Users/marten/GolandProjects/noda/bin/noda",
+      "args": ["mcp"]
+    }
+  }
+}
