@@ -1,0 +1,7 @@
+{
+  "id": "response-redirect",
+  "nodes": {
+    "rd": { "type": "response.redirect", "config": { "url": "/login", "status": 302 } }
+  },
+  "edges": []
+}

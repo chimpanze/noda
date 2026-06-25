@@ -1,0 +1,10 @@
+{
+  "id": "transform-validate",
+  "workflow": "transform-validate",
+  "tests": [
+    { "name": "passes valid input", "input": { "email": "a@b.com" },
+      "expect": { "status": "success", "output": { "val.email": "a@b.com" } } },
+    { "name": "fails missing required field", "input": { "name": "x" },
+      "expect": { "status": "error", "error_node": "val" } }
+  ]
+}

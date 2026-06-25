@@ -1,0 +1,8 @@
+{
+  "id": "transform-map",
+  "nodes": {
+    "map": { "type": "transform.map", "config": { "collection": "{{ input.items }}", "expression": "{{ $item * 2 }}" } },
+    "agg": { "type": "transform.set", "config": { "fields": { "first": "{{ nodes.map[0] }}", "count": "{{ len(nodes.map) }}" } } }
+  },
+  "edges": [ { "from": "map", "to": "agg" } ]
+}

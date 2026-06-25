@@ -1,0 +1,8 @@
+{
+  "id": "util-timestamp",
+  "nodes": {
+    "ts":  { "type": "util.timestamp", "config": { "format": "unix" } },
+    "chk": { "type": "transform.set", "config": { "fields": { "positive": "{{ nodes.ts > 0 }}" } } }
+  },
+  "edges": [ { "from": "ts", "to": "chk" } ]
+}

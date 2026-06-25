@@ -1,0 +1,7 @@
+{
+  "id": "workflow-run",
+  "nodes": {
+    "call": { "type": "workflow.run", "config": { "workflow": "run-callee", "input": { "x": "{{ input.x }}" } } }
+  },
+  "edges": []
+}

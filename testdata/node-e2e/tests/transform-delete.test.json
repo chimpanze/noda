@@ -1,0 +1,8 @@
+{
+  "id": "transform-delete",
+  "workflow": "transform-delete",
+  "tests": [
+    { "name": "removes password key", "input": { "user": { "name": "Ann", "password": "secret" } },
+      "expect": { "status": "success", "output": { "chk.name": "Ann", "chk.has_pw": false } } }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "util-jwt",
+  "nodes": {
+    "sign": { "type": "util.jwt_sign", "config": { "claims": { "sub": "{{ input.uid }}" }, "secret": "test-secret", "algorithm": "HS256" } },
+    "chk":  { "type": "transform.set", "config": { "fields": { "segments": "{{ len(split(nodes.sign, \".\")) }}" } } }
+  },
+  "edges": [ { "from": "sign", "to": "chk" } ]
+}

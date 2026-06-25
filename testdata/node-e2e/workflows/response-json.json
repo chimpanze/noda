@@ -1,0 +1,7 @@
+{
+  "id": "response-json",
+  "nodes": {
+    "resp": { "type": "response.json", "config": { "status": 200, "body": { "ok": true, "name": "{{ input.name }}" } } }
+  },
+  "edges": []
+}

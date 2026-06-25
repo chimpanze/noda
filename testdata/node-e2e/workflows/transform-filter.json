@@ -1,0 +1,8 @@
+{
+  "id": "transform-filter",
+  "nodes": {
+    "flt": { "type": "transform.filter", "config": { "collection": "{{ input.items }}", "expression": "{{ $item.active }}" } },
+    "agg": { "type": "transform.set", "config": { "fields": { "count": "{{ len(nodes.flt) }}" } } }
+  },
+  "edges": [ { "from": "flt", "to": "agg" } ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "response-error",
+  "nodes": {
+    "er": { "type": "response.error", "config": { "status": 404, "code": "NOT_FOUND", "message": "Missing" } }
+  },
+  "edges": []
+}

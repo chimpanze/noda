@@ -1,0 +1,8 @@
+{
+  "id": "control-loop",
+  "workflow": "control-loop",
+  "tests": [
+    { "name": "doubles each item", "input": { "nums": [1, 2, 3] },
+      "expect": { "status": "success", "output": { "agg.count": 3, "agg.first": 2 } } }
+  ]
+}

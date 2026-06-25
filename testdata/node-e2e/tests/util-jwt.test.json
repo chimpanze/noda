@@ -1,0 +1,8 @@
+{
+  "id": "util-jwt",
+  "workflow": "util-jwt",
+  "tests": [
+    { "name": "signs a 3-segment jwt", "input": { "uid": "user-1" },
+      "expect": { "status": "success", "output": { "chk.segments": 3 } } }
+  ]
+}

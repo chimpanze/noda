@@ -46,17 +46,52 @@ func (e *outputExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("workflow.output: missing required field \"name\"")
 	}
 
-	// Resolve data expression if present
-	if dataExpr, ok := config["data"].(string); ok {
-		data, err := nCtx.Resolve(dataExpr)
+	// Resolve the data value if present. The value may be a string expression,
+	// or a nested map/slice whose string leaves are expressions; resolve all of
+	// them recursively (mirroring the engine's structured resolver) so object
+	// and array outputs are supported, not just bare expression strings.
+	if data, ok := config["data"]; ok {
+		resolved, err := resolveOutputData(nCtx, data)
 		if err != nil {
 			return "", nil, err
 		}
-		return name, data, nil
+		return name, resolved, nil
 	}
 
 	// No data field — return nil
 	return name, nil, nil
+}
+
+// resolveOutputData recursively resolves expression strings inside the data
+// value. Strings are resolved as expressions; maps and slices are walked;
+// any other value passes through unchanged.
+func resolveOutputData(nCtx api.ExecutionContext, v any) (any, error) {
+	switch val := v.(type) {
+	case string:
+		return nCtx.Resolve(val)
+	case map[string]any:
+		result := make(map[string]any, len(val))
+		for k, item := range val {
+			resolved, err := resolveOutputData(nCtx, item)
+			if err != nil {
+				return nil, err
+			}
+			result[k] = resolved
+		}
+		return result, nil
+	case []any:
+		result := make([]any, len(val))
+		for i, item := range val {
+			resolved, err := resolveOutputData(nCtx, item)
+			if err != nil {
+				return nil, err
+			}
+			result[i] = resolved
+		}
+		return result, nil
+	default:
+		return v, nil
+	}
 }
 
 // OutputName returns the static name from the config.

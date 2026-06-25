@@ -1,0 +1,14 @@
+{
+  "id": "control-switch",
+  "nodes": {
+    "sw": { "type": "control.switch", "config": { "expression": "{{ input.tier }}", "cases": ["free", "pro"] } },
+    "f":  { "type": "transform.set", "config": { "fields": { "plan": "free-plan" } } },
+    "p":  { "type": "transform.set", "config": { "fields": { "plan": "pro-plan" } } },
+    "d":  { "type": "transform.set", "config": { "fields": { "plan": "default-plan" } } }
+  },
+  "edges": [
+    { "from": "sw", "output": "free", "to": "f" },
+    { "from": "sw", "output": "pro", "to": "p" },
+    { "from": "sw", "output": "default", "to": "d" }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "id": "transform-set",
+  "nodes": {
+    "set": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "greeting": "Hi {{ input.name }}",
+          "count": "{{ input.n }}",
+          "flag": true
+        }
+      }
+    }
+  },
+  "edges": []
+}

@@ -99,9 +99,17 @@ func dispatchNode(
 	// Intercept HTTPResponse if present
 	execCtx.InterceptResponse(data)
 
-	// Capture workflow.output result for sub-workflow callers
+	// Capture workflow.output result for sub-workflow callers.
+	// workflow.output is a terminal node whose output port is the dynamic
+	// name from its config (not a statically declared output), so it is
+	// exempt from the declared-output validation below — return early after
+	// recording the result for the sub-workflow caller.
 	if node.Type == "workflow.output" {
 		execCtx.SetWorkflowOutput(output, data)
+		execCtx.SetOutput(node.ID, data)
+		trace.EndNodeSpan(nodeSpan, output, nil)
+		execCtx.EmitTrace(string(trace.EventNodeCompleted), node.ID, node.Type, output, "", data)
+		return output, nil
 	}
 
 	// Store output
