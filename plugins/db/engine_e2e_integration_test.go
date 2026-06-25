@@ -113,7 +113,13 @@ func TestDBUpdateCountDelete_Engine(t *testing.T) {
 			},
 		},
 	}
-	runNode(t, svcReg, nodeReg, updateWF, nil)
+	uctx := runNode(t, svcReg, nodeReg, updateWF, nil)
+	uout, ok := uctx.GetOutput("u")
+	require.True(t, ok)
+	// db.update returns map[string]any{"rows_affected": int64}
+	updateMap := uout.(map[string]any)
+	assert.EqualValues(t, int64(1), updateMap["rows_affected"])
+
 	var name string
 	require.NoError(t, gdb.Table("users_mut").Select("name").Where("email = ?", "bob@example.com").Scan(&name).Error)
 	assert.Equal(t, "Bobby", name)
@@ -205,6 +211,50 @@ func TestDBUpsertAndFindOne_Engine(t *testing.T) {
 	fout, ok := fctx.GetOutput("f")
 	require.True(t, ok)
 	assert.Equal(t, "Cara2", fout.(map[string]any)["name"])
+}
+
+func TestDBFindOne_NotFound_Engine(t *testing.T) {
+	svcReg, nodeReg, _ := setupDB(t, "users_nf")
+
+	// required defaults to true → NotFoundError surfaces as workflow error.
+	wf := engine.WorkflowConfig{
+		ID: "db-findone-notfound",
+		Nodes: map[string]engine.NodeConfig{
+			"f": {
+				Type:     "db.findOne",
+				Services: map[string]string{"database": "db"},
+				Config: map[string]any{
+					"table": "users_nf",
+					"where": map[string]any{"email": "nobody@example.com"},
+				},
+			},
+		},
+	}
+	graph, err := engine.Compile(wf, nodeReg)
+	require.NoError(t, err)
+	execCtx := engine.NewExecutionContext(engine.WithInput(nil))
+	err = engine.ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.Error(t, err) // not-found with required:true → workflow fails
+
+	// required:false → success output with nil value.
+	wfOpt := engine.WorkflowConfig{
+		ID: "db-findone-notfound-optional",
+		Nodes: map[string]engine.NodeConfig{
+			"f": {
+				Type:     "db.findOne",
+				Services: map[string]string{"database": "db"},
+				Config: map[string]any{
+					"table":    "users_nf",
+					"where":    map[string]any{"email": "nobody@example.com"},
+					"required": false,
+				},
+			},
+		},
+	}
+	fctx := runNode(t, svcReg, nodeReg, wfOpt, nil)
+	fout, ok := fctx.GetOutput("f")
+	require.True(t, ok)
+	assert.Nil(t, fout) // required:false → nil when no row matches
 }
 
 func TestDBCreate_MissingTable_Errors(t *testing.T) {
