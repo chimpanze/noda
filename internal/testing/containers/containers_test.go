@@ -3,6 +3,7 @@
 package containers
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/redis/go-redis/v9"
@@ -34,4 +35,8 @@ func TestStartMailpit(t *testing.T) {
 	require.NotEmpty(t, host)
 	require.Positive(t, port)
 	require.Contains(t, apiBase, "http://")
+	resp, err := http.Get(apiBase + "/api/v1/messages")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
