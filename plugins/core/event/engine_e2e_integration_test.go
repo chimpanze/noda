@@ -72,7 +72,9 @@ func TestEventEmit_Stream_Engine(t *testing.T) {
 	// The "payload" field holds the JSON-encoded map: {"id":"42"}
 	payloadRaw, ok := msgs[0].Values["payload"]
 	require.True(t, ok, "expected 'payload' field in stream message")
-	assert.Contains(t, payloadRaw, "42")
+	payloadStr, ok := payloadRaw.(string)
+	require.True(t, ok, "expected 'payload' field to be a string")
+	assert.Contains(t, payloadStr, "42")
 }
 
 func TestEventEmit_PubSub_Engine(t *testing.T) {
@@ -81,7 +83,9 @@ func TestEventEmit_PubSub_Engine(t *testing.T) {
 
 	sub := rc.Subscribe(context.Background(), "alerts")
 	defer sub.Close()
-	_, err := sub.Receive(context.Background()) // wait for subscription confirmation
+	subCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := sub.Receive(subCtx) // wait for subscription confirmation
 	require.NoError(t, err)
 	ch := sub.Channel()
 
@@ -110,7 +114,7 @@ func TestEventEmit_PubSub_Engine(t *testing.T) {
 	}
 }
 
-func TestEventEmit_BadMode_Errors(t *testing.T) {
+func TestEventEmit_BadMode_Engine(t *testing.T) {
 	url := containers.StartRedis(t)
 	svcReg, nodeReg, _ := emitRegistries(t, url)
 

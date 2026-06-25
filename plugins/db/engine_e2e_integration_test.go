@@ -257,7 +257,7 @@ func TestDBFindOne_NotFound_Engine(t *testing.T) {
 	assert.Nil(t, fout) // required:false → nil when no row matches
 }
 
-func TestDBCreate_MissingTable_Errors(t *testing.T) {
+func TestDBCreate_MissingTable_Engine(t *testing.T) {
 	url := containers.StartPostgres(t)
 	svc, err := (&Plugin{}).CreateService(map[string]any{"driver": "postgres", "url": url})
 	require.NoError(t, err)
