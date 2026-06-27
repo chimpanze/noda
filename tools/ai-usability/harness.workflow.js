@@ -83,6 +83,121 @@ const ISSUES_SCHEMA = {
   },
 }
 
+const INFRA_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['skipped', 'reason', 'pg_base_url', 'redis_base_url'],
+  properties: {
+    skipped: { type: 'boolean' },
+    reason: { type: 'string' },
+    pg_base_url: { type: 'string' },      // e.g. postgres://noda:noda@localhost:54321  (no trailing db)
+    redis_base_url: { type: 'string' },   // e.g. redis://localhost:54322
+  },
+}
+
+const E2E_ENDPOINT = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['transport', 'request', 'expected', 'actual', 'pass'],
+  properties: {
+    transport: { type: 'string', enum: ['http', 'upload', 'ws', 'sse'] },
+    request: { type: 'string' },
+    expected: { type: 'string' },
+    actual: { type: 'string' },
+    pass: { type: 'boolean' },
+  },
+}
+
+const E2E_FINDING = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['category', 'transport', 'evidence', 'suggested_fix'],
+  properties: {
+    category: { type: 'string', enum: ['runtime-bug', 'usability', 'build-error'] },
+    transport: { type: 'string', enum: ['http', 'upload', 'ws', 'sse', 'boot'] },
+    evidence: { type: 'string' },
+    suggested_fix: { type: 'string' },
+  },
+}
+
+const E2E_RESULT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['brief_id', 'boot_ok', 'boot_log_tail', 'endpoints', 'findings'],
+  properties: {
+    brief_id: { type: 'string' },
+    boot_ok: { type: 'boolean' },
+    boot_log_tail: { type: 'string' },
+    endpoints: { type: 'array', items: E2E_ENDPOINT },
+    findings: { type: 'array', items: E2E_FINDING },
+  },
+}
+
+const BUG_VERDICT_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['is_real_bug', 'evidence'],
+  properties: {
+    is_real_bug: { type: 'boolean' },
+    evidence: { type: 'string' },
+  },
+}
+
+function infraSetupPrompt() {
+  return [
+    'You are setting up ephemeral test infrastructure for end-to-end verification of Noda projects. You have Bash.',
+    '',
+    'STEPS:',
+    '1. Preflight: run `docker version` and `test -x ./bin/noda`. If Docker is unavailable/not running, return',
+    '   { skipped: true, reason: "<short reason>", pg_base_url: "", redis_base_url: "" } and STOP.',
+    '2. Remove any stale containers from a prior run: `docker rm -f noda-e2e-pg noda-e2e-redis 2>/dev/null || true`.',
+    '3. Start Postgres on a RANDOM host port (so it never collides with a local DB):',
+    '   docker run -d --name noda-e2e-pg -e POSTGRES_USER=noda -e POSTGRES_PASSWORD=noda -e POSTGRES_DB=noda -p 0:5432 postgres:16-alpine',
+    '   Find the published port: `docker port noda-e2e-pg 5432` → the part after the colon is PG_PORT.',
+    '4. Start Redis on a RANDOM host port:',
+    '   docker run -d --name noda-e2e-redis -p 0:6379 redis:7-alpine',
+    '   Find the port: `docker port noda-e2e-redis 6379` → REDIS_PORT.',
+    '5. Wait until ready (poll up to 30s): `docker exec noda-e2e-pg pg_isready -U noda` and',
+    '   `docker exec noda-e2e-redis redis-cli ping` (expect PONG).',
+    '6. Return { skipped: false, reason: "", pg_base_url: "postgres://noda:noda@localhost:PG_PORT",',
+    '   redis_base_url: "redis://localhost:REDIS_PORT" } with the real ports substituted.',
+    '',
+    'Return ONLY the structured object.',
+  ].join('\n')
+}
+
+function teardownPrompt() {
+  return [
+    'You have Bash. Tear down the ephemeral e2e infrastructure, ignoring errors if already gone:',
+    '  docker rm -f noda-e2e-pg noda-e2e-redis 2>/dev/null || true',
+    'Then confirm they are gone with `docker ps --filter name=noda-e2e -q` (expect empty output).',
+    'Return the text "torn-down".',
+  ].join('\n')
+}
+
+// runE2E boots ephemeral services, drives each project's real endpoints, and tears down.
+// projects: [{ id, dir, briefPath }]. Returns { e2e_results, e2e_findings }.
+async function runE2E(projects, scratchRoot) {
+  phase('E2E')
+  const infra = await agent(infraSetupPrompt(), { label: 'e2e:infra', phase: 'E2E', schema: INFRA_SCHEMA })
+  if (!infra || infra.skipped) {
+    log(`E2E phase skipped — ${infra ? infra.reason : 'infra agent returned no result'}. Endpoints NOT verified.`)
+    return {
+      e2e_results: projects.map((p) => ({ brief_id: p.id, boot_ok: false, boot_log_tail: '', endpoints: [], findings: [], status: 'skipped' })),
+      e2e_findings: [],
+    }
+  }
+
+  // Per-project drive lands in Task 2/3; placeholder keeps the skeleton runnable.
+  const e2e_results = []
+
+  // Runtime-bug mini-verify lands in Task 4 (must run while infra is up).
+
+  await agent(teardownPrompt(), { label: 'e2e:teardown', phase: 'E2E' })
+  const e2e_findings = e2e_results.flatMap((r) => (r.findings || []).map((f) => ({ ...f, brief_id: r.brief_id })))
+  return { e2e_results, e2e_findings }
+}
+
 function builderPrompt(b, dir) {
   return [
     'You are an AI developer building a project with Noda, using ONLY the Noda MCP server to learn how Noda works.',
@@ -133,6 +248,19 @@ opts = opts || {}
 
 const scratchRoot = opts.scratchRoot || '/tmp/noda-ai-usability'
 const only = opts.only
+
+// Standalone E2E mode: run just the E2E phase against explicit project dirs.
+// Used for the positive/negative controls and ad-hoc endpoint checks.
+if (opts.e2eOnly) {
+  const dirs = opts.projectDirs || []
+  const projects = dirs.map((dir) => {
+    const id = dir.split('/').filter(Boolean).pop()
+    return { id, dir, briefPath: opts.briefPathFor ? opts.briefPathFor[id] : '' }
+  })
+  const { e2e_results, e2e_findings } = await runE2E(projects, scratchRoot)
+  return { e2e_results, e2e_findings, confirmed_bugs: [], confirmed_findings: [], issues: [] }
+}
+
 const briefs = only ? BRIEFS.filter((b) => only.includes(b.id)) : BRIEFS
 
 phase('Build')
