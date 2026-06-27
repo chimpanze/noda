@@ -130,6 +130,7 @@ const E2E_RESULT_SCHEMA = {
     boot_log_tail: { type: 'string' },
     endpoints: { type: 'array', items: E2E_ENDPOINT },
     findings: { type: 'array', items: E2E_FINDING },
+    status: { type: 'string' },
   },
 }
 
@@ -188,14 +189,17 @@ async function runE2E(projects, scratchRoot) {
     }
   }
 
-  // Per-project drive lands in Task 2/3; placeholder keeps the skeleton runnable.
-  const e2e_results = []
+  try {
+    // Per-project drive lands in Task 2/3; placeholder keeps the skeleton runnable.
+    const e2e_results = []
 
-  // Runtime-bug mini-verify lands in Task 4 (must run while infra is up).
+    // Runtime-bug mini-verify lands in Task 4 (must run while infra is up).
 
-  await agent(teardownPrompt(), { label: 'e2e:teardown', phase: 'E2E' })
-  const e2e_findings = e2e_results.flatMap((r) => (r.findings || []).map((f) => ({ ...f, brief_id: r.brief_id })))
-  return { e2e_results, e2e_findings }
+    const e2e_findings = e2e_results.flatMap((r) => (r.findings || []).map((f) => ({ ...f, brief_id: r.brief_id })))
+    return { e2e_results, e2e_findings }
+  } finally {
+    await agent(teardownPrompt(), { label: 'e2e:teardown', phase: 'E2E' })
+  }
 }
 
 function builderPrompt(b, dir) {
