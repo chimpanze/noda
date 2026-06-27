@@ -18,8 +18,8 @@ The harness returns the findings; it never files issues itself.
 
 ## E2E phase (real-endpoint verification)
 
-After Build, the harness boots each project as a real server against ephemeral
-Postgres + Redis and drives its real HTTP / file-upload / WebSocket / SSE
+After Build, the harness boots each project as a real server against one shared
+ephemeral Postgres + Redis and drives its real HTTP / file-upload / WebSocket / SSE
 endpoints (`noda test` cannot — it executes workflows in-process with mocked
 services). Failures are triaged:
 
@@ -36,7 +36,7 @@ records `status:"skipped"` per project — it never reports green by omission.
 Run just the E2E phase against explicit project dirs (used for the
 known-good / injected-fault controls, or ad-hoc checks):
 
-```
+```js
 Workflow({ scriptPath: 'tools/ai-usability/harness.workflow.js',
   args: { e2eOnly: true,
           projectDirs: ['/abs/path/to/examples/init-example'] } })
