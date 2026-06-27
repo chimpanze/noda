@@ -3,7 +3,8 @@ export const meta = {
   description: 'Pit AI builder agents against the real noda MCP server and report friction gaps',
   phases: [
     { title: 'Build', detail: 'one MCP-only builder subagent per brief' },
-    { title: 'Verify', detail: 'adversarial evaluator per friction finding' },
+    { title: 'E2E', detail: 'boot each project & drive real HTTP/upload/ws/sse endpoints' },
+    { title: 'Verify', detail: 'adversarial evaluator per friction & e2e finding' },
     { title: 'Synthesize', detail: 'dedup confirmed gaps into issue-ready entries' },
   ],
 }
@@ -215,6 +216,17 @@ function e2ePrompt(p, conn) {
   ].join('\n')
 }
 
+function bugVerifyPrompt(f, p, conn) {
+  return [
+    'You are a skeptical evaluator. An e2e verifier claimed this is a NODA RUNTIME BUG (noda misbehaving despite correct config) while testing brief ' + p.id + ':',
+    JSON.stringify(f, null, 2),
+    '',
+    `Try to REFUTE it. You have Bash and the live shared services (pg: ${conn.pg_base_url}, redis: ${conn.redis_base_url}). Re-boot the project at ${p.dir} the same way (set its db/redis env vars, migrate, ./bin/noda start --config ${p.dir}) and re-send the failing request to reproduce.`,
+    'If the behavior is actually correct, or the failure was caused by the project being built wrong (not noda), set is_real_bug=false and explain. If you reproduce genuine noda misbehavior, set is_real_bug=true with the exact request/response as evidence. Default to is_real_bug=false when uncertain. Kill any server you start.',
+    'Return the structured verdict.',
+  ].join('\n')
+}
+
 // sanitize a brief id into a safe postgres database name fragment.
 function sanitize(id) {
   return id.replace(/[^a-z0-9]/gi, '_').toLowerCase()
@@ -246,10 +258,20 @@ async function runE2E(projects, scratchRoot) {
       }
     }
 
-    // Runtime-bug mini-verify lands in Task 4 (must run while infra is up).
+    // Runtime-bug candidates: reproduce-or-refute against the still-live infra.
+    const bugCandidates = e2e_results.flatMap((r) =>
+      (r.findings || []).filter((f) => f.category === 'runtime-bug').map((f) => ({ f, brief_id: r.brief_id }))
+    )
+    const projById = Object.fromEntries(projects.map((p) => [p.id, p]))
+    const confirmed_bugs = []
+    for (const { f, brief_id } of bugCandidates) {
+      const p = projById[brief_id] || { id: brief_id, dir: `${scratchRoot}/${brief_id}` }
+      const v = await agent(bugVerifyPrompt(f, p, infra), { label: `e2e:bugverify:${brief_id}`, phase: 'E2E', schema: BUG_VERDICT_SCHEMA })
+      if (v && v.is_real_bug) confirmed_bugs.push({ ...f, brief_id, verdict: v })
+    }
 
     const e2e_findings = e2e_results.flatMap((r) => (r.findings || []).map((f) => ({ ...f, brief_id: r.brief_id })))
-    return { e2e_results, e2e_findings }
+    return { e2e_results, e2e_findings, confirmed_bugs }
   } finally {
     await agent(teardownPrompt(), { label: 'e2e:teardown', phase: 'E2E' })
   }
@@ -314,8 +336,8 @@ if (opts.e2eOnly) {
     const id = dir.split('/').filter(Boolean).pop()
     return { id, dir, briefPath: opts.briefPathFor ? opts.briefPathFor[id] : '' }
   })
-  const { e2e_results, e2e_findings } = await runE2E(projects, scratchRoot)
-  return { e2e_results, e2e_findings, confirmed_bugs: [], confirmed_findings: [], issues: [] }
+  const e2e = await runE2E(projects, scratchRoot)
+  return { e2e_results: e2e.e2e_results, e2e_findings: e2e.e2e_findings, confirmed_bugs: e2e.confirmed_bugs, confirmed_findings: [], issues: [] }
 }
 
 const briefs = only ? BRIEFS.filter((b) => only.includes(b.id)) : BRIEFS
@@ -346,11 +368,34 @@ const perBrief = await pipeline(
   }
 )
 
+// Run real-endpoint e2e on the built projects (after Build, before Synthesize).
+const projects = briefs.map((b) => ({ id: b.id, dir: `${scratchRoot}/${b.id}`, briefPath: b.path }))
+const e2e = await runE2E(projects, scratchRoot)
+
+phase('Verify')
+// e2e "usability" findings get the SAME adversarial MCP-surface refutation as build-time friction.
+const e2eUsability = e2e.e2e_findings.filter((f) => f.category === 'usability')
+const e2eConfirmed = []
+for (let i = 0; i < e2eUsability.length; i++) {
+  const f = e2eUsability[i]
+  const asFriction = {
+    goal: `endpoint behaved wrong (${f.transport})`,
+    consulted: 'e2e run',
+    missing_or_confusing: f.evidence,
+    severity: 'major',
+    suggested_fix: f.suggested_fix,
+    category: 'missing-doc',
+  }
+  const v = await agent(evaluatorPrompt({ id: f.brief_id }, asFriction, `${scratchRoot}/${f.brief_id}`),
+    { label: `verify:e2e:${f.brief_id}#${i}`, phase: 'Verify', schema: VERDICT_SCHEMA })
+  if (v && v.is_real_gap) e2eConfirmed.push({ ...asFriction, brief_id: f.brief_id, verdict: v })
+}
+
 phase('Synthesize')
-const confirmed_findings = perBrief.filter(Boolean).flatMap((x) => x.confirmed)
-log(`${confirmed_findings.length} confirmed gap(s) across ${briefs.length} brief(s)`)
+const confirmed_findings = [...perBrief.filter(Boolean).flatMap((x) => x.confirmed), ...e2eConfirmed]
+log(`${confirmed_findings.length} confirmed gap(s); ${e2e.confirmed_bugs.length} confirmed runtime bug(s) across ${briefs.length} brief(s)`)
 if (confirmed_findings.length === 0) {
-  return { confirmed_findings: [], issues: [] }
+  return { confirmed_findings: [], issues: [], e2e_results: e2e.e2e_results, confirmed_bugs: e2e.confirmed_bugs }
 }
 const synth = await agent(synthPrompt(confirmed_findings), { label: 'synthesize', phase: 'Synthesize', schema: ISSUES_SCHEMA })
-return { confirmed_findings, issues: synth ? synth.issues : [] }
+return { confirmed_findings, issues: synth ? synth.issues : [], e2e_results: e2e.e2e_results, confirmed_bugs: e2e.confirmed_bugs }
