@@ -16,6 +16,32 @@ they get stuck. See the design spec at
 
 The harness returns the findings; it never files issues itself.
 
+## E2E phase (real-endpoint verification)
+
+After Build, the harness boots each project as a real server against ephemeral
+Postgres + Redis and drives its real HTTP / file-upload / WebSocket / SSE
+endpoints (`noda test` cannot — it executes workflows in-process with mocked
+services). Failures are triaged:
+
+- **runtime-bug** → reproduce-or-refute mini-verify → `confirmed_bugs`
+- **usability** → the same adversarial MCP-surface refutation as build-time
+  friction → folded into `issues`
+- **build-error** → reported only
+
+Requires Docker. If Docker is unavailable the phase logs a loud skip and
+records `status:"skipped"` per project — it never reports green by omission.
+
+### Standalone mode
+
+Run just the E2E phase against explicit project dirs (used for the
+known-good / injected-fault controls, or ad-hoc checks):
+
+```
+Workflow({ scriptPath: 'tools/ai-usability/harness.workflow.js',
+  args: { e2eOnly: true,
+          projectDirs: ['/abs/path/to/examples/init-example'] } })
+```
+
 ## Stage 0 — one-time setup (required)
 
 The workflow subagents reach `noda_*` tools only if the real server is connected
@@ -66,6 +92,11 @@ gh issue create --repo chimpanze/noda \
   --title "<title>" --body "<body>" \
   --label documentation --label type:documentation
 ```
+
+3. Write the returned `e2e_results` + `confirmed_bugs` to
+   `findings/<YYYY-MM-DD>-e2e.md`: a per-project boot result, a transport×endpoint
+   pass/fail table, and each failure's request / expected / actual / triage
+   verdict. Commit it alongside the friction report.
 
 Nothing is filed without your approval.
 
