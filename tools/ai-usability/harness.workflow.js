@@ -233,7 +233,7 @@ function sanitize(id) {
 }
 
 // runE2E boots ephemeral services, drives each project's real endpoints, and tears down.
-// projects: [{ id, dir, briefPath }]. Returns { e2e_results, e2e_findings }.
+// projects: [{ id, dir, briefPath }]. Returns { e2e_results, e2e_findings, confirmed_bugs }.
 async function runE2E(projects, scratchRoot) {
   phase('E2E')
   const infra = await agent(infraSetupPrompt(), { label: 'e2e:infra', phase: 'E2E', schema: INFRA_SCHEMA })
@@ -242,6 +242,7 @@ async function runE2E(projects, scratchRoot) {
     return {
       e2e_results: projects.map((p) => ({ brief_id: p.id, boot_ok: false, boot_log_tail: '', endpoints: [], findings: [], status: 'skipped' })),
       e2e_findings: [],
+      confirmed_bugs: [],
     }
   }
 
