@@ -255,7 +255,7 @@ async function runE2E(projects, scratchRoot) {
         e2e_results.push(r)
       } else {
         log(`e2e:${p.id} returned no result — endpoints not exercised`)
-        e2e_results.push({ brief_id: p.id, boot_ok: false, boot_log_tail: '', endpoints: [], findings: [] })
+        e2e_results.push({ brief_id: p.id, boot_ok: false, boot_log_tail: '', endpoints: [], findings: [], status: 'agent-error' })
       }
     }
 
