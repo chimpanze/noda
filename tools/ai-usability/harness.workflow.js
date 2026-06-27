@@ -176,6 +176,45 @@ function teardownPrompt() {
   ].join('\n')
 }
 
+function e2ePrompt(p, conn) {
+  return [
+    'You are an end-to-end endpoint verifier for a Noda project. You have Bash.',
+    'Derive EXPECTED behavior from the brief and the project\'s own routes/config — do NOT read Noda\'s Go source to decide what "correct" means.',
+    '',
+    `PROJECT DIR (absolute): ${p.dir}`,
+    p.briefPath ? `BRIEF (read it first): ${p.briefPath}` : 'BRIEF: none provided — infer intent from the project\'s routes/workflows.',
+    `SHARED POSTGRES BASE URL: ${conn.pg_base_url}   (no database name appended)`,
+    `SHARED REDIS BASE URL: ${conn.redis_base_url}`,
+    '',
+    'SETUP:',
+    `1. Inspect ${p.dir}/noda.json, routes/, workflows/, connections/ to learn endpoints, methods, bodies, auth, and which services it uses. Note the env-var names referenced as {{ $env('NAME') }} under services.*.config.`,
+    `2. If it uses a db service: create a fresh database — psql "${conn.pg_base_url}/postgres" -c 'CREATE DATABASE e2e_${sanitize(p.id)};' — and export the project's DB env var to "${conn.pg_base_url}/e2e_${sanitize(p.id)}". If it uses redis/cache/ws connections, export the project's redis env var to "${conn.redis_base_url}".`,
+    `3. If ${p.dir}/migrations exists: run \`<envs> ./bin/noda migrate up --config ${p.dir}\`. On failure: set boot_ok=false, put the error in boot_log_tail, add a finding {category, transport:"boot"}, and SKIP driving.`,
+    '4. Read server.port from noda.json (default 3000 = PORT). Free it: `lsof -ti tcp:PORT | xargs -r kill -9`.',
+    `5. Boot in background: \`<envs> ./bin/noda start --config ${p.dir} > /tmp/e2e-${p.id}.log 2>&1 &\` and capture the PID.`,
+    '6. Health-poll up to 20s (`curl -sf http://localhost:PORT/<any defined route>`). If it never comes up: boot_ok=false, boot_log_tail=`tail -n 40 /tmp/e2e-PORT.log`, kill PID, add a finding {transport:"boot"}, STOP.',
+    '',
+    'DRIVE (only if boot_ok) — for each HTTP route the brief implies, send a REAL request and assert:',
+    '  curl -sS -o /tmp/body -w "%{http_code}" -X <METHOD> http://localhost:PORT<path> -H "Content-Type: application/json" -d \'<json body>\'',
+    '  Assert the status code AND the JSON fields the brief specifies (cat /tmp/body). Record each as an endpoint entry {transport:"http", request, expected, actual, pass}.',
+    'For auth-gated routes: send once WITHOUT a token (expect 401/403) and once WITH a valid token minted per the project\'s jwt config; assert the gate behaves. Record both.',
+    '',
+    'CLEANUP: kill the server PID (the shared DB/containers are dropped later by teardown).',
+    '',
+    'TRIAGE every failing endpoint into exactly one finding category:',
+    '  - "runtime-bug": config is correct for the brief, but noda returned wrong/erroring behavior.',
+    '  - "usability": built wrong in a way an unclear/missing MCP doc or schema plausibly caused (name the tool/doc in evidence).',
+    '  - "build-error": built wrong and the MCP surface was adequate.',
+    '',
+    `Return ONLY the structured object: { brief_id: ${JSON.stringify(p.id)}, boot_ok, boot_log_tail, endpoints, findings }.`,
+  ].join('\n')
+}
+
+// sanitize a brief id into a safe postgres database name fragment.
+function sanitize(id) {
+  return id.replace(/[^a-z0-9]/gi, '_').toLowerCase()
+}
+
 // runE2E boots ephemeral services, drives each project's real endpoints, and tears down.
 // projects: [{ id, dir, briefPath }]. Returns { e2e_results, e2e_findings }.
 async function runE2E(projects, scratchRoot) {
@@ -190,8 +229,17 @@ async function runE2E(projects, scratchRoot) {
   }
 
   try {
-    // Per-project drive lands in Task 2/3; placeholder keeps the skeleton runnable.
+    // Boot-and-drive each project SEQUENTIALLY (port reuse + resource safety).
     const e2e_results = []
+    for (const p of projects) {
+      const r = await agent(e2ePrompt(p, infra), { label: `e2e:${p.id}`, phase: 'E2E', schema: E2E_RESULT_SCHEMA })
+      if (r) {
+        e2e_results.push(r)
+      } else {
+        log(`e2e:${p.id} returned no result — endpoints not exercised`)
+        e2e_results.push({ brief_id: p.id, boot_ok: false, boot_log_tail: '', endpoints: [], findings: [] })
+      }
+    }
 
     // Runtime-bug mini-verify lands in Task 4 (must run while infra is up).
 
