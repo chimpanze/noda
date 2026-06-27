@@ -192,7 +192,7 @@ function e2ePrompt(p, conn) {
     `3. If ${p.dir}/migrations exists: run \`<envs> ./bin/noda migrate up --config ${p.dir}\`. On failure: set boot_ok=false, put the error in boot_log_tail, add a finding {category, transport:"boot"}, and SKIP driving.`,
     '4. Read server.port from noda.json (default 3000 = PORT). Free it: `lsof -ti tcp:PORT | xargs -r kill -9`.',
     `5. Boot in background: \`<envs> ./bin/noda start --config ${p.dir} > /tmp/e2e-${p.id}.log 2>&1 &\` and capture the PID.`,
-    '6. Health-poll up to 20s (`curl -sf http://localhost:PORT/<any defined route>`). If it never comes up: boot_ok=false, boot_log_tail=`tail -n 40 /tmp/e2e-PORT.log`, kill PID, add a finding {transport:"boot"}, STOP.',
+    `6. Health-poll up to 20s (\`curl -sf http://localhost:PORT/<any defined route>\`). If it never comes up: boot_ok=false, boot_log_tail=\`tail -n 40 /tmp/e2e-${p.id}.log\`, kill PID, add a finding {transport:"boot"}, STOP.`,
     '',
     'DRIVE (only if boot_ok) — for each HTTP route the brief implies, send a REAL request and assert:',
     '  curl -sS -o /tmp/body -w "%{http_code}" -X <METHOD> http://localhost:PORT<path> -H "Content-Type: application/json" -d \'<json body>\'',
