@@ -44,10 +44,12 @@ All values must be strings. Reference them with `$var()` in any config section:
 
 | | `$var()` | `secrets.*` | `$env()` |
 |---|---|---|---|
-| **Source** | `vars.json` (checked into version control) | Configured providers (`.env` files by default) | Configured providers (`.env` files by default) |
+| **Source** | `vars.json` (checked into version control) | Configured providers (`.env` files and process env by default) | Configured providers (`.env` files and process env by default) |
 | **Scope** | All config sections | Workflow expressions | Root config (`noda.json`) only |
 | **Syntax** | `{{ $var('NAME') }}` | `{{ secrets.NAME }}` | `{{ $env('NAME') }}` |
 | **Use case** | Shared logical names (topics, tables, service names) | Secrets in workflow nodes (JWT secrets, API keys) | Secrets in root config (DSNs, service URLs) |
+
+> Process environment variables override `.env` file values of the same name.
 
 ### Example
 

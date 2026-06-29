@@ -195,8 +195,19 @@ func NewSecretsManager(configDir, envFlag string) (*secrets.Manager, error) {
 	return sm, nil
 }
 
+// defaultSecretsProviders is the provider set used when no "secrets" section
+// is configured: .env files plus the process environment. ProcessEnvProvider
+// is listed last so an exported env var overrides a matching .env value
+// (Manager.Load applies providers in order, later wins).
+func defaultSecretsProviders(configDir, env string) []secrets.Provider {
+	return []secrets.Provider{
+		&secrets.DotEnvProvider{ConfigDir: configDir, Env: env},
+		&secrets.ProcessEnvProvider{},
+	}
+}
+
 // parseSecretsProviders reads the raw noda.json to determine which secret
-// providers to configure. Falls back to DotEnvProvider if no config found.
+// providers to configure. Falls back to defaultSecretsProviders if no config found.
 func parseSecretsProviders(configDir, env string) []secrets.Provider {
 	absConfig, err := filepath.Abs(configDir)
 	if err != nil {
@@ -206,23 +217,23 @@ func parseSecretsProviders(configDir, env string) []secrets.Provider {
 
 	raw, err := os.ReadFile(rootFile)
 	if err != nil {
-		// No noda.json — use default provider
-		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+		// No noda.json — use default providers
+		return defaultSecretsProviders(configDir, env)
 	}
 
 	var root map[string]any
 	if err := json.Unmarshal(raw, &root); err != nil {
-		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+		return defaultSecretsProviders(configDir, env)
 	}
 
 	secretsCfg, ok := root["secrets"].(map[string]any)
 	if !ok {
-		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+		return defaultSecretsProviders(configDir, env)
 	}
 
 	providersList, ok := secretsCfg["providers"].([]any)
 	if !ok || len(providersList) == 0 {
-		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+		return defaultSecretsProviders(configDir, env)
 	}
 
 	var providers []secrets.Provider
@@ -240,7 +251,7 @@ func parseSecretsProviders(configDir, env string) []secrets.Provider {
 	}
 
 	if len(providers) == 0 {
-		return []secrets.Provider{&secrets.DotEnvProvider{ConfigDir: configDir, Env: env}}
+		return defaultSecretsProviders(configDir, env)
 	}
 	return providers
 }

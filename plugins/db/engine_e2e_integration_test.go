@@ -4,6 +4,7 @@ package db
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/engine"
@@ -255,6 +256,99 @@ func TestDBFindOne_NotFound_Engine(t *testing.T) {
 	fout, ok := fctx.GetOutput("f")
 	require.True(t, ok)
 	assert.Nil(t, fout) // required:false → nil when no row matches
+}
+
+func TestCreate_JSONBArrayRoundTrip(t *testing.T) {
+	url := containers.StartPostgres(t)
+	svc, err := (&Plugin{}).CreateService(map[string]any{"driver": "postgres", "url": url})
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	db := svc.(*gorm.DB)
+
+	if err := db.Exec(`DROP TABLE IF EXISTS jsonb_edits`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`CREATE TABLE jsonb_edits (id serial primary key, operations jsonb)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Exec(`DROP TABLE IF EXISTS jsonb_edits`).Error })
+
+	ops := []any{
+		map[string]any{"type": "insert", "content": "A", "position": 0},
+		map[string]any{"type": "delete", "length": 2, "position": 5},
+	}
+	row, err := marshalJSONComposites(map[string]any{"operations": ops})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := db.Table("jsonb_edits").Create(row).Error; err != nil {
+		t.Fatalf("multi-element array insert failed (the #237 bug): %v", err)
+	}
+
+	var got string
+	if err := db.Raw(`SELECT operations::text FROM jsonb_edits ORDER BY id DESC LIMIT 1`).Scan(&got).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Stored as a JSON array, not a bare object or record tuple.
+	if got == "" || got[0] != '[' {
+		t.Errorf("expected JSON array in jsonb column, got %q", got)
+	}
+}
+
+// TestDBCreate_JSONBColumnStructuredOutput_Engine verifies that db.create returns
+// composite (JSONB) columns as structured Go values (slice/map), not raw []byte
+// that would serialize as base64 in JSON output (symmetric with db.upsert).
+func TestDBCreate_JSONBColumnStructuredOutput_Engine(t *testing.T) {
+	url := containers.StartPostgres(t)
+	svc, err := (&Plugin{}).CreateService(map[string]any{"driver": "postgres", "url": url})
+	require.NoError(t, err)
+	gdb := svc.(*gorm.DB)
+	require.NoError(t, gdb.Exec(`CREATE TABLE edits_exec (id serial PRIMARY KEY, operations jsonb)`).Error)
+	t.Cleanup(func() { gdb.Exec("DROP TABLE IF EXISTS edits_exec") }) //nolint:errcheck
+
+	svcReg := registry.NewServiceRegistry()
+	require.NoError(t, svcReg.Register("db", svc, nil))
+	nodeReg := registry.NewNodeRegistry()
+	require.NoError(t, nodeReg.RegisterFromPlugin(&Plugin{}))
+
+	ops := []any{
+		map[string]any{"type": "insert", "content": "A", "position": 0},
+		map[string]any{"type": "delete", "length": 2, "position": 5},
+	}
+
+	wf := engine.WorkflowConfig{
+		ID: "db-create-jsonb",
+		Nodes: map[string]engine.NodeConfig{
+			"c": {
+				Type:     "db.create",
+				Services: map[string]string{"database": "db"},
+				Config: map[string]any{
+					"table": "edits_exec",
+					"data":  map[string]any{"operations": ops},
+				},
+			},
+		},
+	}
+
+	execCtx := runNode(t, svcReg, nodeReg, wf, nil)
+	out, ok := execCtx.GetOutput("c")
+	require.True(t, ok)
+	row := out.(map[string]any)
+
+	opsOut := row["operations"]
+	require.NotNil(t, opsOut, "operations must be present in output")
+
+	_, isBytes := opsOut.([]byte)
+	assert.False(t, isBytes, "operations must NOT be []byte (base64 in JSON), got %T: %v", opsOut, opsOut)
+
+	_, isString := opsOut.(string)
+	assert.False(t, isString, "operations must NOT be a bare string blob, got %T: %v", opsOut, opsOut)
+
+	// Must be re-marshallable as a JSON array (structured slice).
+	b, err := json.Marshal(opsOut)
+	require.NoError(t, err)
+	assert.Equal(t, byte('['), b[0], "JSON of operations must start with '[', got %s", b)
 }
 
 func TestDBCreate_MissingTable_Engine(t *testing.T) {

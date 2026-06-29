@@ -680,6 +680,7 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 	configDir, _ := cmd.Flags().GetString("config")
 	envFlag, _ := cmd.Flags().GetString("env")
 	serviceName, _ := cmd.Flags().GetString("service")
+	serviceExplicit := cmd.Flags().Changed("service")
 
 	sm, err := config.NewSecretsManager(configDir, envFlag)
 	if err != nil {
@@ -697,8 +698,14 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 		return nil, "", nil, fmt.Errorf("no services configured")
 	}
 
+	serviceName, err = resolveMigrateService(servicesConfig, serviceName, serviceExplicit)
+	if err != nil {
+		return nil, "", nil, err
+	}
+
 	svcConfig, ok := servicesConfig[serviceName].(map[string]any)
 	if !ok {
+		// resolveMigrateService guarantees the name exists, but keep the guard.
 		return nil, "", nil, fmt.Errorf("service %q not found in config", serviceName)
 	}
 
