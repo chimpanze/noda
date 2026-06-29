@@ -34,6 +34,23 @@ func marshalJSONComposites(data map[string]any) (map[string]any, error) {
 	return out, nil
 }
 
+// isJSONComposite reports whether v is a map/slice/array that should be
+// JSON-encoded for a JSONB column (excluding []byte and already-serializing types).
+func isJSONComposite(v any) bool {
+	if v == nil {
+		return false
+	}
+	switch v.(type) {
+	case []byte, json.RawMessage, jsonColumn, driver.Valuer:
+		return false
+	}
+	switch reflect.ValueOf(v).Kind() {
+	case reflect.Map, reflect.Slice, reflect.Array:
+		return true
+	}
+	return false
+}
+
 func jsonifyIfComposite(v any) (any, error) {
 	if v == nil {
 		return nil, nil

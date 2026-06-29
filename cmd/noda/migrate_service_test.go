@@ -40,4 +40,14 @@ func TestResolveMigrateService(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "main-db") || !strings.Contains(err.Error(), "app-cache") {
 		t.Errorf("explicit missing: expected error listing available services, got %v", err)
 	}
+
+	// Not explicit + zero postgres services -> fallthrough to name lookup,
+	// which also fails; error must mention the only available service name.
+	noPostgres := map[string]any{
+		"app-cache": map[string]any{"plugin": "cache"},
+	}
+	_, err = resolveMigrateService(noPostgres, "db", false)
+	if err == nil || !strings.Contains(err.Error(), "app-cache") {
+		t.Errorf("no-postgres: expected error mentioning available service names, got %v", err)
+	}
 }

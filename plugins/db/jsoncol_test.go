@@ -48,8 +48,17 @@ func TestMarshalJSONComposites(t *testing.T) {
 	if v.(string) != `[{"position":0,"type":"insert"}]` {
 		t.Errorf("slice JSON mismatch, got %s", v)
 	}
-	if _, ok := out["a_map"].(jsonColumn); !ok {
+	mapCol, ok := out["a_map"].(jsonColumn)
+	if !ok {
 		t.Errorf("map should become jsonColumn, got %T", out["a_map"])
+	} else {
+		mv, err := driver.Valuer(mapCol).Value()
+		if err != nil {
+			t.Fatalf("a_map Value() error: %v", err)
+		}
+		if mv.(string) != `{"k":"v"}` {
+			t.Errorf("map JSON mismatch, got %s", mv)
+		}
 	}
 
 	// Input map must not be mutated.

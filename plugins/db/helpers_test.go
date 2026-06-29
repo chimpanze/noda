@@ -485,3 +485,37 @@ func TestResolveUpdateSpec_DefaultAllNonConflict(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, onConflict.DoUpdates)
 }
+
+// TestResolveUpdateSpec_MapFormat_CompositeValueMarshaled verifies that an
+// explicit update:{col: compositeValue} map marshals the composite into a
+// jsonColumn so it can be stored in a JSONB column without the #237 bug.
+func TestResolveUpdateSpec_MapFormat_CompositeValueMarshaled(t *testing.T) {
+	ops := []any{
+		map[string]any{"type": "insert", "position": 0},
+		map[string]any{"type": "delete", "position": 3},
+	}
+	config := map[string]any{
+		"update": map[string]any{
+			"operations": ops,
+			"label":      "plain-string",
+		},
+	}
+	onConflict := &clause.OnConflict{}
+	err := resolveUpdateSpec(config, map[string]any{}, nil, onConflict)
+	require.NoError(t, err)
+
+	assignments := onConflict.DoUpdates
+	require.NotEmpty(t, assignments, "DoUpdates must not be empty")
+
+	byCol := make(map[string]any, len(assignments))
+	for _, a := range assignments {
+		byCol[a.Column.Name] = a.Value
+	}
+
+	// Composite value must be wrapped in jsonColumn.
+	_, isJSON := byCol["operations"].(jsonColumn)
+	assert.True(t, isJSON, "composite update value must be jsonColumn, got %T", byCol["operations"])
+
+	// Scalar value must pass through unchanged.
+	assert.Equal(t, "plain-string", byCol["label"])
+}

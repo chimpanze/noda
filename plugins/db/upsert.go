@@ -170,9 +170,13 @@ func resolveUpdateSpec(config map[string]any, data map[string]any, conflictCols 
 			if err := ValidateIdentifier(col); err != nil {
 				return fmt.Errorf("update column: %w", err)
 			}
+			marshaledVal, err := jsonifyIfComposite(val)
+			if err != nil {
+				return fmt.Errorf("db.upsert: update column %q: %w", col, err)
+			}
 			assignments = append(assignments, clause.Assignment{
 				Column: clause.Column{Name: col},
-				Value:  val,
+				Value:  marshaledVal,
 			})
 		}
 		onConflict.DoUpdates = assignments

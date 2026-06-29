@@ -84,5 +84,15 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.create: %w", tx.Error)
 	}
 
+	// clause.Returning repopulates row from the DB, where jsonb columns come
+	// back as raw bytes or strings that would serialize incorrectly. Restore the
+	// caller's original structured composite values (server-generated scalars
+	// such as id and created_at remain from RETURNING).
+	for k, orig := range data {
+		if isJSONComposite(orig) {
+			row[k] = orig
+		}
+	}
+
 	return api.OutputSuccess, row, nil
 }
