@@ -365,3 +365,12 @@ The adversarial verifier refuted these 3 candidate findings. Recorded for transp
 
 - 30 candidate findings from 12 domain agents → 27 confirmed after a per-finding adversarial refute-pass that read the actual code and vendored library source (`~/go/pkg/mod`). 42 agents total, ~1.5M tokens.
 - Several Mediums cluster around two themes worth a dedicated tranche: **(a) HTTP middleware/auth determinism** (server-1/2/3 — route-group matching + JWT aud/iss/exp), and **(b) goroutine/panic lifecycle** (execution-1/4, wasm-1/3, realtime-1). These mirror the structure of the 2026-04 tranches.
+
+---
+
+## Shipped 2026-06-29 — Tranche: HTTP middleware / auth determinism
+
+Branch `feat/http-auth-determinism`. Closed: **server-1, server-2, server-3**.
+- server-1/3: `getGroupMiddleware` now merges all matching route groups (outermost-first, deduped) with segment-aware prefix matching — `internal/server/presets.go`.
+- server-2: `auth.jwt` honors optional `audience`/`issuer`/`require_expiry` (default off) — `internal/server/middleware.go`.
+- Tests: `internal/server/auth_determinism_test.go` (fail against pre-fix code). Docs: `docs/02-config/middleware.md`.
