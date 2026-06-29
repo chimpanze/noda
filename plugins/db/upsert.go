@@ -67,6 +67,11 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.upsert: %w", err)
 	}
 
+	row, err := marshalJSONComposites(data)
+	if err != nil {
+		return "", nil, fmt.Errorf("db.upsert: %w", err)
+	}
+
 	// Resolve conflict columns
 	conflictCols, err := resolveConflictColumns(config)
 	if err != nil {
@@ -78,11 +83,11 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 	}
 
 	// Resolve update specification
-	if err := resolveUpdateSpec(config, data, conflictCols, &onConflict); err != nil {
+	if err := resolveUpdateSpec(config, row, conflictCols, &onConflict); err != nil {
 		return "", nil, fmt.Errorf("db.upsert: %w", err)
 	}
 
-	tx := db.WithContext(ctx).Table(table).Clauses(onConflict).Create(data)
+	tx := db.WithContext(ctx).Table(table).Clauses(onConflict).Create(row)
 	if tx.Error != nil {
 		errMsg := tx.Error.Error()
 		if strings.Contains(errMsg, "duplicate key") || strings.Contains(errMsg, "unique constraint") {
@@ -94,7 +99,7 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.upsert: %w", tx.Error)
 	}
 
-	return api.OutputSuccess, data, nil
+	return api.OutputSuccess, row, nil
 }
 
 func resolveConflictColumns(config map[string]any) ([]clause.Column, error) {

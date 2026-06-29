@@ -257,6 +257,44 @@ func TestDBFindOne_NotFound_Engine(t *testing.T) {
 	assert.Nil(t, fout) // required:false → nil when no row matches
 }
 
+func TestCreate_JSONBArrayRoundTrip(t *testing.T) {
+	url := containers.StartPostgres(t)
+	svc, err := (&Plugin{}).CreateService(map[string]any{"driver": "postgres", "url": url})
+	if err != nil {
+		t.Fatalf("create service: %v", err)
+	}
+	db := svc.(*gorm.DB)
+
+	if err := db.Exec(`DROP TABLE IF EXISTS jsonb_edits`).Error; err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Exec(`CREATE TABLE jsonb_edits (id serial primary key, operations jsonb)`).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Exec(`DROP TABLE IF EXISTS jsonb_edits`).Error })
+
+	ops := []any{
+		map[string]any{"type": "insert", "content": "A", "position": 0},
+		map[string]any{"type": "delete", "length": 2, "position": 5},
+	}
+	row, err := marshalJSONComposites(map[string]any{"operations": ops})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if err := db.Table("jsonb_edits").Create(row).Error; err != nil {
+		t.Fatalf("multi-element array insert failed (the #237 bug): %v", err)
+	}
+
+	var got string
+	if err := db.Raw(`SELECT operations::text FROM jsonb_edits ORDER BY id DESC LIMIT 1`).Scan(&got).Error; err != nil {
+		t.Fatal(err)
+	}
+	// Stored as a JSON array, not a bare object or record tuple.
+	if got == "" || got[0] != '[' {
+		t.Errorf("expected JSON array in jsonb column, got %q", got)
+	}
+}
+
 func TestDBCreate_MissingTable_Engine(t *testing.T) {
 	url := containers.StartPostgres(t)
 	svc, err := (&Plugin{}).CreateService(map[string]any{"driver": "postgres", "url": url})

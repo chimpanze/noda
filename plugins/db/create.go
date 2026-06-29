@@ -65,9 +65,14 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.create: %w", err)
 	}
 
+	row, err := marshalJSONComposites(data)
+	if err != nil {
+		return "", nil, fmt.Errorf("db.create: %w", err)
+	}
+
 	// Use RETURNING * so that server-generated fields (e.g. id, created_at)
-	// are populated back into the data map.
-	tx := db.WithContext(ctx).Table(table).Clauses(clause.Returning{}).Create(data)
+	// are populated back into the row map.
+	tx := db.WithContext(ctx).Table(table).Clauses(clause.Returning{}).Create(row)
 	if tx.Error != nil {
 		errMsg := tx.Error.Error()
 		if strings.Contains(errMsg, "duplicate key") || strings.Contains(errMsg, "unique constraint") {
@@ -79,5 +84,5 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.create: %w", tx.Error)
 	}
 
-	return api.OutputSuccess, data, nil
+	return api.OutputSuccess, row, nil
 }

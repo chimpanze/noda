@@ -64,12 +64,17 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
 
+	row, err := marshalJSONComposites(data)
+	if err != nil {
+		return "", nil, fmt.Errorf("db.update: %w", err)
+	}
+
 	where, err := plugin.ResolveMap(nCtx, config, "where")
 	if err != nil {
 		return "", nil, fmt.Errorf("db.update: %w", err)
 	}
 
-	tx := db.WithContext(ctx).Table(table).Where(where).Updates(data)
+	tx := db.WithContext(ctx).Table(table).Where(where).Updates(row)
 	if tx.Error != nil {
 		return "", nil, fmt.Errorf("db.update: %w", tx.Error)
 	}
