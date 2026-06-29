@@ -68,6 +68,43 @@ func TestGetGroupMiddleware_RootPrefixMatchesAll(t *testing.T) {
 	assert.Equal(t, []string{"recover"}, got)
 }
 
+// server-1: the merged group chain must still be deduped by the production
+// resolver (getGroupMiddleware itself returns the un-deduped union).
+func TestResolveMiddlewareChain_MergedGroupsDeduped(t *testing.T) {
+	srv := testServerWithConfig(map[string]any{
+		"middleware_presets": map[string]any{
+			"outer": []any{"recover", "requestid"},
+			"inner": []any{"requestid", "recover"},
+		},
+		"route_groups": map[string]any{
+			"/api":       map[string]any{"middleware_preset": "outer"},
+			"/api/admin": map[string]any{"middleware_preset": "inner"},
+		},
+	})
+	handlers, err := srv.ResolveMiddlewareChain(map[string]any{"id": "r", "path": "/api/admin/x"})
+	require.NoError(t, err)
+	// union [recover, requestid, requestid, recover] -> dedup -> 2 handlers.
+	assert.Len(t, handlers, 2)
+}
+
+// server-1: ordering constraints must be validated across the MERGED chain,
+// so a parent group whose middleware would precede a child's auth still errors.
+func TestResolveMiddlewareChain_MergedGroupsOrderValidated(t *testing.T) {
+	srv := testServerWithConfig(map[string]any{
+		"middleware_presets": map[string]any{
+			"outer": []any{"casbin.enforce"},
+			"inner": []any{"auth.jwt"},
+		},
+		"route_groups": map[string]any{
+			"/api":       map[string]any{"middleware_preset": "outer"},
+			"/api/admin": map[string]any{"middleware_preset": "inner"},
+		},
+	})
+	_, err := srv.ResolveMiddlewareChain(map[string]any{"id": "r", "path": "/api/admin/x"})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "must appear before")
+}
+
 const jwtTestSecret = "test-secret-key-that-is-at-least-32-bytes-long"
 
 func jwtTestApp(t *testing.T, jwtCfg map[string]any) *fiber.App {
