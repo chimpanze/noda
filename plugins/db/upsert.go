@@ -99,7 +99,7 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("db.upsert: %w", tx.Error)
 	}
 
-	return api.OutputSuccess, row, nil
+	return api.OutputSuccess, data, nil
 }
 
 func resolveConflictColumns(config map[string]any) ([]clause.Column, error) {
