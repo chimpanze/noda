@@ -52,23 +52,12 @@ func isJSONComposite(v any) bool {
 }
 
 func jsonifyIfComposite(v any) (any, error) {
-	if v == nil {
-		return nil, nil
-	}
-	switch v.(type) {
-	case []byte, json.RawMessage, jsonColumn, driver.Valuer:
-		// Raw bytes (bytea) and values that already know how to serialize
-		// themselves are left alone.
+	if !isJSONComposite(v) {
 		return v, nil
 	}
-	switch reflect.ValueOf(v).Kind() {
-	case reflect.Map, reflect.Slice, reflect.Array:
-		b, err := json.Marshal(v)
-		if err != nil {
-			return nil, err
-		}
-		return jsonColumn(b), nil
-	default:
-		return v, nil
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
 	}
+	return jsonColumn(b), nil
 }
