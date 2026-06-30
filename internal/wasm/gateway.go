@@ -43,6 +43,22 @@ func (gc *gatewayConn) safeClose() {
 	gc.closeOnce.Do(func() { _ = gc.ws.Close() })
 }
 
+// isClosing reports whether the connection (or its module) is being torn down.
+// Only CloseConn/CloseAll close stopCh; a natural disconnect sets gc.closed=true
+// but leaves stopCh open (so reconnection may proceed). stopCh is therefore the
+// authoritative "intentional teardown" signal.
+func (gc *gatewayConn) isClosing() bool {
+	gc.mu.Lock()
+	stopCh := gc.stopCh
+	gc.mu.Unlock()
+	select {
+	case <-stopCh:
+		return true
+	default:
+		return false
+	}
+}
+
 // NewGateway creates a new gateway manager.
 func NewGateway(module *Module, logger *slog.Logger) *Gateway {
 	return &Gateway{
@@ -338,7 +354,15 @@ func (g *Gateway) reconnectLoop(gc *gatewayConn) {
 	}
 
 	for attempt := 1; attempt <= rcfg.MaxAttempts; attempt++ {
+		// Abort if the connection or module is closing before we wait/dial.
+		if gc.isClosing() {
+			return
+		}
 		time.Sleep(delay)
+		// A close may have raced in during the backoff sleep.
+		if gc.isClosing() {
+			return
+		}
 
 		conn, _, err := websocket.DefaultDialer.Dial(gc.url, gc.headers)
 		if err != nil {
@@ -352,8 +376,17 @@ func (g *Gateway) reconnectLoop(gc *gatewayConn) {
 			continue
 		}
 
-		// Successful reconnection
+		// Successful reconnection. Re-check stopCh under the same lock that
+		// CloseConn/CloseAll use to close it, so a teardown that raced in while
+		// we were dialing cannot be clobbered into resurrecting the connection.
 		gc.mu.Lock()
+		select {
+		case <-gc.stopCh:
+			gc.mu.Unlock()
+			_ = conn.Close()
+			return
+		default:
+		}
 		gc.ws = conn
 		gc.closed = false
 		gc.stopCh = make(chan struct{})

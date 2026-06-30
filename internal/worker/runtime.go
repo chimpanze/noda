@@ -221,6 +221,22 @@ const defaultMessageTimeout = 5 * time.Minute
 
 // processMessage handles a single message: maps input, runs workflow, acks/nacks.
 func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
+	// Top-level recover (mirrors scheduler.runJob): RecoverMiddleware only wraps
+	// the handler invocation, but deserialization, input mapping, execution-context
+	// and middleware-chain construction all run before it. A panic in that
+	// pre-handler code would otherwise unwind out of consume() and permanently kill
+	// this consumer goroutine. The message is left pending for redelivery.
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.logger.Error("worker.recover: panic in message processing",
+				"worker_id", w.ID,
+				"consumer", consumerID,
+				"message_id", msg.ID,
+				"panic", fmt.Sprintf("%v", rec),
+			)
+		}
+	}()
+
 	// Snapshot the operation ctx. This is either the original parent ctx (set in
 	// Start) or the Stop ctx (swapped in Stop before r.cancel fires). Using opCtx
 	// instead of the read-loop ctx ensures that in-flight handlers and XAck calls
