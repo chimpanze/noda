@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,34 @@ import (
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 )
+
+// wasm-3 (sibling): heartbeatLoop must not race reconnectLoop's reassignment of
+// gc.stopCh. Run under -race; without the fix the unlocked select-read of
+// gc.stopCh conflicts with the locked write in reconnectLoop.
+func TestHeartbeatLoop_NoRaceOnStopChReassign(t *testing.T) {
+	g := &Gateway{module: &Module{Name: "t"}, logger: slog.Default()}
+	gc := &gatewayConn{
+		id:     "c",
+		stopCh: make(chan struct{}),
+		// nil HeartbeatPayload → loop never touches gc.ws; fast interval makes
+		// it re-enter the select (and re-read gc.stopCh) frequently.
+		config: GatewayConfig{HeartbeatInterval: 50 * time.Microsecond},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	hbDone := make(chan struct{})
+	go func() { g.heartbeatLoop(ctx, gc); close(hbDone) }()
+
+	// Concurrently reassign stopCh under lock, mimicking reconnectLoop.
+	for i := 0; i < 200000; i++ {
+		gc.mu.Lock()
+		gc.stopCh = make(chan struct{})
+		gc.mu.Unlock()
+	}
+
+	cancel()
+	<-hbDone
+}
 
 // wasm-3: a reconnect already in its backoff window when the connection/module
 // is closed must NOT re-dial and resurrect a torn-down connection.

@@ -28,7 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Worker process no longer crashes when a message handler panics inside the timeout middleware's goroutine; the panic is recovered and surfaced as an error
 - Worker consumers survive a panic in pre-handler setup (deserialization, input mapping, middleware construction) instead of permanently losing a consumer goroutine
-- Wasm gateway reconnect no longer resurrects a torn-down outbound WebSocket when a close races with an in-flight reconnect
+- Wasm gateway reconnect no longer resurrects a torn-down outbound WebSocket when a close races with an in-flight reconnect; also fixed a data race between the heartbeat loop and reconnect's reassignment of the connection stop channel
 - WebSocket broadcast no longer head-of-line-blocks: each connection has a bounded outbound queue with a write deadline, so one slow client can't stall the whole channel
 - Data race in workflow test runner trace callback (concurrent map access from parallel nodes)
 - Health endpoint documentation now matches actual paths (`/health/live`, `/health/ready`, `/health`)

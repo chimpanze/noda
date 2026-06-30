@@ -300,10 +300,16 @@ func (g *Gateway) heartbeatLoop(ctx context.Context, gc *gatewayConn) {
 	defer ticker.Stop()
 
 	for {
+		// Snapshot stopCh under the lock: reconnectLoop may reassign gc.stopCh
+		// concurrently, and an unlocked field read in the select would race it.
+		gc.mu.Lock()
+		stopCh := gc.stopCh
+		gc.mu.Unlock()
+
 		select {
 		case <-ctx.Done():
 			return
-		case <-gc.stopCh:
+		case <-stopCh:
 			return
 		case <-ticker.C:
 			gc.mu.Lock()
