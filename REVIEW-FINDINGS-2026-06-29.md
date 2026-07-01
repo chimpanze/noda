@@ -368,6 +368,15 @@ The adversarial verifier refuted these 3 candidate findings. Recorded for transp
 
 ---
 
+## Shipped 2026-06-29 — Tranche: HTTP middleware / auth determinism
+
+Branch `feat/http-auth-determinism`. Closed: **server-1, server-2, server-3**.
+- server-1/3: `getGroupMiddleware` now merges all matching route groups (outermost-first, deduped) with segment-aware prefix matching — `internal/server/presets.go`.
+- server-2: `auth.jwt` honors optional `audience`/`issuer`/`require_expiry` (default off) — `internal/server/middleware.go`.
+- Tests: `internal/server/auth_determinism_test.go` (fail against pre-fix code). Docs: `docs/02-config/middleware.md`.
+
+---
+
 ## Shipped 2026-06-29 — Tranche: goroutine / panic lifecycle
 
 Branch `feat/goroutine-lifecycle-hardening`. Closed: **execution-1, execution-4, wasm-3, realtime-1**.

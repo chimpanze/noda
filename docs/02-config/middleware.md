@@ -43,7 +43,9 @@ Apply a preset (or a literal list) to all routes whose path starts with a prefix
 }
 ```
 
-If a route matches multiple group prefixes, the winner is non-deterministic (Go map iteration). Define disjoint prefixes (e.g. `/api/admin` and `/api/public`) rather than nested ones (`/api` and `/api/admin`). If you need different middleware on a subset of routes under a shared prefix, use route-level `middleware_preset` (or `middleware`) on the inner routes instead of overlapping group prefixes.
+Prefixes match at **path-segment boundaries**: `/api` matches `/api` and `/api/users` but **not** `/api-docs`. The root prefix `/` matches every route.
+
+When a route matches **multiple** group prefixes (e.g. nested `/api` and `/api/admin`), the middleware of all matching groups is **merged**, outermost (shortest) prefix first, then deduplicated. A parent group's auth/authz is therefore never silently dropped by a more-specific group. In the example above, a request to `/api/admin/users` gets `authenticated` (from `/api`) followed by `admin` (from `/api/admin`). Ordering constraints (e.g. `auth.jwt` before `casbin.enforce`) are still validated across the merged chain.
 
 ### Route-level middleware
 
@@ -115,6 +117,9 @@ Config under `security.jwt` (or via `middleware_instances`):
 | `secret` | string | conditional | Required for `HS*`. Must be at least 32 bytes. |
 | `public_key` | string | conditional | Required for `RS*`/`ES*` (PEM-encoded). |
 | `public_key_file` | string | conditional | Alternative to `public_key` — path to a PEM file. |
+| `audience` | string | no | When set, the token's `aud` claim must match it, else the token is rejected. Unset = `aud` not checked. |
+| `issuer` | string | no | When set, the token's `iss` claim must match it, else the token is rejected. Unset = `iss` not checked. |
+| `require_expiry` | bool | no | When `true`, tokens without an `exp` claim are rejected. Default `false` (backward-compatible). |
 
 ```json
 {
