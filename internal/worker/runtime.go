@@ -139,11 +139,16 @@ func (r *Runtime) Start(ctx context.Context) error {
 			return fmt.Errorf("worker %q: create consumer group: %w", w.ID, err)
 		}
 
+		w.Retry = resolveRetry(w.Retry, w.Timeout, r.logger, w.ID)
+
 		for i := 0; i < concurrency; i++ {
 			consumerID := fmt.Sprintf("%s-%d", w.ID, i)
 			r.wg.Add(1)
 			go r.consume(ctx, w, client, consumerID)
 		}
+
+		r.wg.Add(1)
+		go r.reap(ctx, w, client)
 
 		r.logger.Info("worker started",
 			"worker_id", w.ID,
@@ -487,6 +492,68 @@ func resolveRetry(rc RetryConfig, timeout time.Duration, logger *slog.Logger, wo
 		rc.MinIdle = minIdleFloor
 	}
 	return rc
+}
+
+// reapInterval derives how often the reaper runs a claim pass from min_idle,
+// bounded to a sane [5s, 30s] range so short idle windows still get serviced.
+func reapInterval(minIdle time.Duration) time.Duration {
+	iv := minIdle
+	if iv > 30*time.Second {
+		iv = 30 * time.Second
+	}
+	if iv < 5*time.Second {
+		iv = 5 * time.Second
+	}
+	return iv
+}
+
+// reapOnce runs a single cursor-paged XAUTOCLAIM pass for entries idle longer
+// than w.Retry.MinIdle, dispatching each reclaimed message through the normal
+// processing/disposition path.
+func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Client) error {
+	consumerID := w.ID + "-reaper"
+	cursor := "0"
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		msgs, next, err := client.XAutoClaim(ctx, &redis.XAutoClaimArgs{
+			Stream:   w.Topic,
+			Group:    w.Group,
+			Consumer: consumerID,
+			MinIdle:  w.Retry.MinIdle,
+			Start:    cursor,
+			Count:    16,
+		}).Result()
+		if err != nil {
+			return err
+		}
+		for _, msg := range msgs {
+			r.processMessage(ctx, w, client, consumerID, msg)
+		}
+		if next == "0" || next == "0-0" {
+			return nil
+		}
+		cursor = next
+	}
+}
+
+// reap periodically reclaims idle pending messages for one worker.
+func (r *Runtime) reap(ctx context.Context, w WorkerConfig, client *redis.Client) {
+	defer r.wg.Done()
+	ticker := time.NewTicker(reapInterval(w.Retry.MinIdle))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			if err := r.reapOnce(ctx, w, client); err != nil && ctx.Err() == nil {
+				r.logger.Error("worker reaper claim failed",
+					"worker_id", w.ID, "error", err.Error())
+			}
+		}
+	}
 }
 
 // ParseWorkerConfigs extracts WorkerConfig from raw config maps.

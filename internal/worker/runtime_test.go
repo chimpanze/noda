@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log/slog"
 	"sync"
@@ -786,6 +787,78 @@ func TestProcessMessage_PanicLeavesPending(t *testing.T) {
 	pending, err := client.XPending(context.Background(), topic, group).Result()
 	require.NoError(t, err)
 	assert.Equal(t, int64(1), pending.Count)
+}
+
+// flakyMiddleware fails the first N handler invocations, then succeeds.
+type flakyMiddleware struct {
+	mu      sync.Mutex
+	failFor int
+	calls   int
+}
+
+func (m *flakyMiddleware) Name() string { return "test.flaky" }
+func (m *flakyMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
+	return func(ctx context.Context) error {
+		m.mu.Lock()
+		m.calls++
+		fail := m.calls <= m.failFor
+		m.mu.Unlock()
+		if fail {
+			return fmt.Errorf("transient failure %d", m.calls)
+		}
+		return next(ctx)
+	}
+}
+
+func TestReapOnce_ReclaimsIdlePendingMessage(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group := "t-reap", "g-reap"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {
+			"nodes": map[string]any{
+				"log": map[string]any{
+					"type":   "util.log",
+					"config": map[string]any{"message": "ok", "level": "info"},
+				},
+			},
+			"edges": []any{},
+		},
+	}, nil, nil, nil, nil, nil, nil)
+	flaky := &flakyMiddleware{failFor: 1}
+	r.middleware = []Middleware{flaky}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Deliver + fail once -> message left pending.
+	streams, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	require.NoError(t, err)
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	require.Equal(t, int64(1), pending.Count)
+
+	// Before min_idle elapses, reapOnce reclaims nothing.
+	require.NoError(t, r.reapOnce(context.Background(), w, client))
+	pending, _ = client.XPending(context.Background(), topic, group).Result()
+	require.Equal(t, int64(1), pending.Count)
+
+	// Advance past min_idle; now reapOnce reclaims and reprocesses -> succeeds -> acked.
+	mr.SetTime(time.Now().Add(61 * time.Second))
+	require.NoError(t, r.reapOnce(context.Background(), w, client))
+	pending, _ = client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count)
 }
 
 func TestDecideFailureDisposition(t *testing.T) {
