@@ -452,6 +452,31 @@ func deserializePayload(values map[string]any) any {
 	return payload
 }
 
+// failureAction is the disposition for a failed (errored or panicked) message.
+type failureAction int
+
+const (
+	actionPending    failureAction = iota // leave pending; reaper retries after min_idle
+	actionDeadLetter                      // divert to the dead-letter topic and ack
+	actionDrop                            // ack-drop and log an error (no DLQ configured)
+)
+
+// decideFailureDisposition chooses what to do with a failed message given how
+// many times it has been delivered. When a dead-letter topic is configured it
+// is the sole bound; the max-attempts cap only applies without one.
+func decideFailureDisposition(attempts int64, dl *DeadLetterConfig, maxAttempts int) failureAction {
+	if dl != nil && dl.After > 0 {
+		if attempts >= int64(dl.After) {
+			return actionDeadLetter
+		}
+		return actionPending
+	}
+	if attempts >= int64(maxAttempts) {
+		return actionDrop
+	}
+	return actionPending
+}
+
 // resolveRetry fills in retry defaults and enforces min_idle >= handler timeout
 // (with a 60s floor) so the reaper never steals a message a live consumer is
 // still processing.

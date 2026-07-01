@@ -742,3 +742,27 @@ func TestResolveRetry_ClampsMinIdleUpToTimeout(t *testing.T) {
 	assert.Equal(t, 60*time.Second, got.MinIdle) // clamped to timeout(30s) then floored to 60s
 	assert.Equal(t, 3, got.MaxAttempts)
 }
+
+func TestDecideFailureDisposition(t *testing.T) {
+	dl := &DeadLetterConfig{Topic: "dlq", After: 3}
+	tests := []struct {
+		name        string
+		attempts    int64
+		dl          *DeadLetterConfig
+		maxAttempts int
+		want        failureAction
+	}{
+		{"no dl, under cap -> pending", 1, nil, 10, actionPending},
+		{"no dl, at cap -> drop", 10, nil, 10, actionDrop},
+		{"no dl, over cap -> drop", 12, nil, 10, actionDrop},
+		{"dl set, under after -> pending", 2, dl, 10, actionPending},
+		{"dl set, at after -> dead-letter", 3, dl, 10, actionDeadLetter},
+		{"dl set never hard-drops before after", 9, dl, 5, actionDeadLetter},
+		{"dl with After<=0 treated as no dl", 10, &DeadLetterConfig{Topic: "x"}, 10, actionDrop},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, decideFailureDisposition(tt.attempts, tt.dl, tt.maxAttempts))
+		})
+	}
+}
