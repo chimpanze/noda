@@ -743,6 +743,51 @@ func TestResolveRetry_ClampsMinIdleUpToTimeout(t *testing.T) {
 	assert.Equal(t, 3, got.MaxAttempts)
 }
 
+// panicMiddleware wraps handlers so invocation always panics.
+type panicMiddleware struct{}
+
+func (panicMiddleware) Name() string { return "test.panic" }
+func (panicMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
+	return func(ctx context.Context) error { panic("boom in handler") }
+}
+
+func TestProcessMessage_PanicLeavesPending(t *testing.T) {
+	client, svcReg, nodeReg, _ := newTestSetup(t)
+	topic, group := "t-panic", "g-panic"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{panicMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Read the message so it becomes pending, then process it.
+	streams, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	require.NoError(t, err)
+	msg := streams[0].Messages[0]
+
+	require.NotPanics(t, func() {
+		r.processMessage(context.Background(), w, client, "c", msg)
+	})
+
+	// Not acked -> still pending (attempt 1 < maxAttempts, no dead_letter).
+	pending, err := client.XPending(context.Background(), topic, group).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), pending.Count)
+}
+
 func TestDecideFailureDisposition(t *testing.T) {
 	dl := &DeadLetterConfig{Topic: "dlq", After: 3}
 	tests := []struct {
