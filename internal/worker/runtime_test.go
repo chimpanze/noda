@@ -3,6 +3,8 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"io"
+	"log/slog"
 	"sync"
 	"testing"
 	"time"
@@ -708,3 +710,35 @@ func (f *fakePlugin) HasServices() bool                                { return 
 func (f *fakePlugin) CreateService(config map[string]any) (any, error) { return &fakeService{}, nil }
 func (f *fakePlugin) HealthCheck(service any) error                    { return nil }
 func (f *fakePlugin) Shutdown(service any) error                       { return nil }
+
+func TestParseWorkerConfigs_RetryParsing(t *testing.T) {
+	raw := map[string]map[string]any{
+		"workers/w.json": {
+			"id":        "w",
+			"services":  map[string]any{"stream": "main-stream"},
+			"subscribe": map[string]any{"topic": "t", "group": "g"},
+			"trigger":   map[string]any{"workflow": "wf"},
+			"retry":     map[string]any{"min_idle": "90s", "max_attempts": float64(7)},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	assert.Equal(t, 90*time.Second, configs[0].Retry.MinIdle)
+	assert.Equal(t, 7, configs[0].Retry.MaxAttempts)
+}
+
+func TestResolveRetry_Defaults(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// No timeout configured -> effective timeout is defaultMessageTimeout (5m).
+	got := resolveRetry(RetryConfig{}, 0, logger, "w")
+	assert.Equal(t, defaultMessageTimeout, got.MinIdle) // 5m > 60s floor
+	assert.Equal(t, defaultMaxAttempts, got.MaxAttempts)
+}
+
+func TestResolveRetry_ClampsMinIdleUpToTimeout(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// min_idle 10s is below a 30s timeout -> clamp up to 60s floor (>= timeout).
+	got := resolveRetry(RetryConfig{MinIdle: 10 * time.Second, MaxAttempts: 3}, 30*time.Second, logger, "w")
+	assert.Equal(t, 60*time.Second, got.MinIdle) // clamped to timeout(30s) then floored to 60s
+	assert.Equal(t, 3, got.MaxAttempts)
+}

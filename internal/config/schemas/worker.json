@@ -38,6 +38,13 @@
         "topic": { "type": "string" },
         "after": { "type": "integer" }
       }
+    },
+    "retry": {
+      "type": "object",
+      "properties": {
+        "min_idle": { "type": "string" },
+        "max_attempts": { "type": "integer" }
+      }
     }
   },
   "required": ["id", "services", "subscribe", "trigger"]

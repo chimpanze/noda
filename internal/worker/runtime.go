@@ -32,12 +32,19 @@ type WorkerConfig struct {
 	WorkflowID  string
 	InputMap    map[string]any
 	DeadLetter  *DeadLetterConfig
+	Retry       RetryConfig
 }
 
 // DeadLetterConfig holds dead letter queue configuration.
 type DeadLetterConfig struct {
 	Topic string
 	After int
+}
+
+// RetryConfig controls pending-message reclaim and the poison-message cap.
+type RetryConfig struct {
+	MinIdle     time.Duration // pending entry must be idle this long before reclaim
+	MaxAttempts int           // hard cap on delivery attempts when no dead_letter diverts
 }
 
 // Runtime manages worker consumers that process messages from Redis Streams.
@@ -218,6 +225,12 @@ const maxConcurrency = 1000
 
 // defaultMessageTimeout is used when no per-worker timeout is configured.
 const defaultMessageTimeout = 5 * time.Minute
+
+// defaultMaxAttempts bounds delivery attempts when no dead_letter is configured.
+const defaultMaxAttempts = 10
+
+// minIdleFloor is the lowest permitted reclaim idle threshold.
+const minIdleFloor = 60 * time.Second
 
 // processMessage handles a single message: maps input, runs workflow, acks/nacks.
 func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
@@ -439,6 +452,32 @@ func deserializePayload(values map[string]any) any {
 	return payload
 }
 
+// resolveRetry fills in retry defaults and enforces min_idle >= handler timeout
+// (with a 60s floor) so the reaper never steals a message a live consumer is
+// still processing.
+func resolveRetry(rc RetryConfig, timeout time.Duration, logger *slog.Logger, workerID string) RetryConfig {
+	if timeout <= 0 {
+		timeout = defaultMessageTimeout
+	}
+	if rc.MaxAttempts <= 0 {
+		rc.MaxAttempts = defaultMaxAttempts
+	}
+	if rc.MinIdle <= 0 {
+		rc.MinIdle = timeout
+	} else if rc.MinIdle < timeout {
+		logger.Warn("worker retry.min_idle below handler timeout; clamping up to timeout",
+			"worker_id", workerID,
+			"min_idle", rc.MinIdle.String(),
+			"timeout", timeout.String(),
+		)
+		rc.MinIdle = timeout
+	}
+	if rc.MinIdle < minIdleFloor {
+		rc.MinIdle = minIdleFloor
+	}
+	return rc
+}
+
 // ParseWorkerConfigs extracts WorkerConfig from raw config maps.
 // Keys are sorted for deterministic ordering across runs.
 func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
@@ -501,6 +540,20 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 			}
 			if after, ok := dl["after"].(int); ok {
 				wc.DeadLetter.After = after
+			}
+		}
+
+		if retry, ok := raw["retry"].(map[string]any); ok {
+			if s, ok := retry["min_idle"].(string); ok {
+				if d, err := time.ParseDuration(s); err == nil {
+					wc.Retry.MinIdle = d
+				}
+			}
+			if m, ok := retry["max_attempts"].(float64); ok {
+				wc.Retry.MaxAttempts = int(m)
+			}
+			if m, ok := retry["max_attempts"].(int); ok {
+				wc.Retry.MaxAttempts = m
 			}
 		}
 
