@@ -238,8 +238,30 @@ const defaultMaxAttempts = 10
 // minIdleFloor is the lowest permitted reclaim idle threshold.
 const minIdleFloor = 60 * time.Second
 
-// processMessage handles a single message: maps input, runs workflow, acks/nacks.
+// processMessage handles a single message: maps input, runs the workflow, and
+// acks / dead-letters / drops / leaves-pending based on the outcome.
 func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
+	// Last-resort outer recover: catches panics in the disposition/ack code that
+	// follows runMessage (e.g. XAck, XPendingExt, XAdd). runMessage has its own
+	// inner recover for the deserialize→handler span; this one only handles what
+	// escapes after runMessage returns.  Without it, a panic here would permanently
+	// kill the consumer or reaper goroutine.
+	defer func() {
+		if rec := recover(); rec != nil {
+			r.logger.Error("worker.recover: panic escaped message processing",
+				"worker_id", w.ID,
+				"consumer", consumerID,
+				"message_id", msg.ID,
+				"panic", fmt.Sprintf("%v", rec),
+				"stack", string(debug.Stack()),
+			)
+		}
+	}()
+
+	// ctx is intentionally not used for processing; all ops use the opCtx snapshot
+	// below, which outlives r.cancel to honour the graceful-shutdown budget.
+	_ = ctx
+
 	// Snapshot the operation ctx (survives r.cancel within the shutdown deadline).
 	opCtxPtr := r.opCtx.Load()
 	procCtx := *opCtxPtr
@@ -456,6 +478,10 @@ const (
 // many times it has been delivered. When a dead-letter topic is configured it
 // is the sole bound; the max-attempts cap only applies without one.
 func decideFailureDisposition(attempts int64, dl *DeadLetterConfig, maxAttempts int) failureAction {
+	// Guard so the function is safe even if a caller forgets resolveRetry.
+	if maxAttempts <= 0 {
+		maxAttempts = defaultMaxAttempts
+	}
 	if dl != nil && dl.After > 0 {
 		if attempts >= int64(dl.After) {
 			return actionDeadLetter

@@ -961,10 +961,49 @@ func TestDecideFailureDisposition(t *testing.T) {
 		{"dl set, at after -> dead-letter", 3, dl, 10, actionDeadLetter},
 		{"dl set never hard-drops before after", 9, dl, 5, actionDeadLetter},
 		{"dl with After<=0 treated as no dl", 10, &DeadLetterConfig{Topic: "x"}, 10, actionDrop},
+		// maxAttempts=0 must default to defaultMaxAttempts (10), not drop on attempt 1.
+		{"maxAttempts=0 defaults, low attempt -> pending", 1, nil, 0, actionPending},
+		{"maxAttempts=0 defaults, at default cap -> drop", defaultMaxAttempts, nil, 0, actionDrop},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.want, decideFailureDisposition(tt.attempts, tt.dl, tt.maxAttempts))
 		})
 	}
+}
+
+// TestProcessMessage_OuterRecover_Survives verifies that the last-resort outer
+// recover in processMessage catches panics that occur after runMessage returns
+// (i.e. in the disposition/ack code path). We trigger this deterministically by
+// passing a nil *redis.Client: runMessage itself succeeds (empty workflow, no
+// client needed), but the subsequent client.XAck call panics on a nil receiver.
+// The outer defer must absorb that panic so the caller does not crash.
+func TestProcessMessage_OuterRecover_Survives(t *testing.T) {
+	r := NewRuntime(nil, nil, nil, map[string]map[string]any{
+		"wf": {
+			"nodes": map[string]any{},
+			"edges": []any{},
+		},
+	}, nil, nil, nil, nil, nil, nil)
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	w := WorkerConfig{
+		ID:         "outer-recover-worker",
+		Topic:      "t-outer",
+		Group:      "g-outer",
+		WorkflowID: "wf",
+		Retry:      RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+
+	msg := redis.XMessage{
+		ID:     "1-0",
+		Values: map[string]any{"payload": `{"x":1}`},
+	}
+
+	// A nil client causes client.XAck to panic with a nil pointer dereference
+	// after runMessage returns successfully. The outer recover must absorb it.
+	require.NotPanics(t, func() {
+		r.processMessage(context.Background(), w, nil, "c", msg)
+	})
 }
