@@ -117,6 +117,8 @@ Connection lifecycle events trigger workflows with the following input:
 - `on_message` -- fires for each message received. Messages are processed concurrently (up to 100 by default). If the concurrency limit is reached, messages are dropped with a warning log.
 - `on_disconnect` -- fires when the connection closes (clean close or error). Runs after the connection is unregistered from the manager.
 
+Outbound delivery to each WebSocket connection is buffered through a bounded per-connection queue (64 frames) drained by a single writer goroutine with a write deadline -- the same backpressure model as SSE. A slow or non-reading client drops its own newest frames rather than blocking delivery to the other clients on the channel.
+
 ### SSE Lifecycle
 
 - `on_connect` -- fires after the SSE response headers are sent and the connection is registered.

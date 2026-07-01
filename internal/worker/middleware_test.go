@@ -92,6 +92,20 @@ func TestTimeoutMiddleware_DefaultTimeout(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// execution-1: a panic in the handler must be recovered inside the timeout
+// goroutine and surfaced as an error, not crash the worker process.
+func TestTimeoutMiddleware_RecoversPanicInChildGoroutine(t *testing.T) {
+	mw := &TimeoutMiddleware{Timeout: 5 * time.Second}
+
+	handler := mw.Wrap(func(ctx context.Context) error {
+		panic("boom")
+	}, testMsgCtx())
+
+	err := handler(context.Background())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "panic")
+}
+
 func TestRecoverMiddleware_NoPanic(t *testing.T) {
 	mw := &RecoverMiddleware{}
 	assert.Equal(t, "worker.recover", mw.Name())
