@@ -29,6 +29,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Data race in workflow test runner trace callback (concurrent map access from parallel nodes)
 - Health endpoint documentation now matches actual paths (`/health/live`, `/health/ready`, `/health`)
 - Deployment docs corrected for `sampling_rate` config field name
+- Worker now reclaims idle pending messages via XAutoClaim, so failed messages are actually redelivered and dead-letter (`dead_letter.after`) and retry limits are enforced (previously pending messages were never re-processed).
+- Worker pre-handler panics are now retried and dead-lettered/dropped through the normal disposition instead of being stranded in the pending-entries list (#243); panic errors now include a stack trace.
+- New worker `retry` config (`min_idle`, `max_attempts`); without a `dead_letter` topic a repeatedly-failing message is dropped with a loud error after `max_attempts`.
 
 ## [1.0.0] - 2026-03-18
 

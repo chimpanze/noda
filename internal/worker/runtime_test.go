@@ -861,6 +861,90 @@ func TestReapOnce_ReclaimsIdlePendingMessage(t *testing.T) {
 	assert.Equal(t, int64(0), pending.Count)
 }
 
+func TestReclaim_PoisonPanic_DeadLettered(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group, dlq := "t-poison", "g-poison", "t-poison.dlq"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry:      RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+		DeadLetter: &DeadLetterConfig{Topic: dlq, After: 3},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{panicMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Attempt 1 (fresh delivery via XReadGroup, delivery count = 1).
+	streams, _ := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	// Attempts 2 and 3 via reclaim: each XAutoClaim bumps delivery count by 1.
+	// After 2 reapOnce calls the count reaches 3 (>= after=3) and the message is dead-lettered.
+	// Clock must advance cumulatively so each claim sees the message idle > min_idle.
+	base := time.Now()
+	for i := 0; i < 2; i++ {
+		base = base.Add(61 * time.Second)
+		mr.SetTime(base)
+		require.NoError(t, r.reapOnce(context.Background(), w, client))
+	}
+
+	// Original acked (drained from PEL) and a message landed on the DLQ.
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count)
+	dlLen, err := client.XLen(context.Background(), dlq).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), dlLen)
+}
+
+func TestReclaim_PoisonPanic_NoDLQ_DroppedAfterMaxAttempts(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group := "t-drop", "g-drop"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 3}, // no DeadLetter
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{panicMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Attempt 1 (fresh delivery, count = 1).
+	streams, _ := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	// Attempts 2 and 3 via reclaim; after 2 reapOnce calls count reaches 3 (>= max_attempts=3) → drop.
+	base := time.Now()
+	for i := 0; i < 2; i++ {
+		base = base.Add(61 * time.Second)
+		mr.SetTime(base)
+		require.NoError(t, r.reapOnce(context.Background(), w, client))
+	}
+
+	// Dropped (acked) after reaching max_attempts; PEL empty, nothing re-queued.
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count)
+}
+
 func TestDecideFailureDisposition(t *testing.T) {
 	dl := &DeadLetterConfig{Topic: "dlq", After: 3}
 	tests := []struct {
