@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/gofiber/fiber/v3"
@@ -103,25 +104,63 @@ func (s *Server) getGlobalMiddleware() []string {
 	return nil
 }
 
+// getGroupMiddleware resolves the merged middleware for all route groups whose
+// prefix matches routePath. Matching is segment-aware (so "/api" matches "/api"
+// and "/api/x" but not "/api-docs"), and when several groups match (e.g. nested
+// "/api" and "/api/admin") their middleware is merged outermost-prefix-first and
+// deterministically — a parent group's auth/authz is never silently dropped.
 func (s *Server) getGroupMiddleware(routePath string) ([]string, error) {
 	groups := s.getRouteGroups()
-	for prefix, group := range groups {
-		if strings.HasPrefix(routePath, prefix) {
-			// Check for middleware_preset on group
-			if preset, ok := group["middleware_preset"].(string); ok && preset != "" {
-				return s.expandPreset(preset)
-			}
-			// Check for direct middleware list
-			if mw, ok := group["middleware"].([]any); ok {
-				result := make([]string, 0, len(mw))
-				for _, v := range mw {
-					if name, ok := v.(string); ok {
-						result = append(result, name)
-					}
-				}
-				return result, nil
+
+	// Collect every group whose prefix matches at a path-segment boundary.
+	matched := make([]string, 0, len(groups))
+	for prefix := range groups {
+		if prefixMatches(routePath, prefix) {
+			matched = append(matched, prefix)
+		}
+	}
+	// Deterministic order: outermost (shortest) prefix first; tie-break by string.
+	sort.Slice(matched, func(i, j int) bool {
+		if len(matched[i]) != len(matched[j]) {
+			return len(matched[i]) < len(matched[j])
+		}
+		return matched[i] < matched[j]
+	})
+
+	var result []string
+	for _, prefix := range matched {
+		mw, err := s.groupMiddleware(groups[prefix])
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, mw...)
+	}
+	return result, nil
+}
+
+// prefixMatches reports whether routePath falls under a route-group prefix,
+// matching only at path-segment boundaries. The root prefix "/" matches all.
+func prefixMatches(routePath, prefix string) bool {
+	p := strings.TrimSuffix(prefix, "/")
+	if p == "" { // root prefix "/" (or "")
+		return true
+	}
+	return routePath == p || strings.HasPrefix(routePath, p+"/")
+}
+
+// groupMiddleware resolves a single route group's middleware list (preset or direct).
+func (s *Server) groupMiddleware(group map[string]any) ([]string, error) {
+	if preset, ok := group["middleware_preset"].(string); ok && preset != "" {
+		return s.expandPreset(preset)
+	}
+	if mw, ok := group["middleware"].([]any); ok {
+		result := make([]string, 0, len(mw))
+		for _, v := range mw {
+			if name, ok := v.(string); ok {
+				result = append(result, name)
 			}
 		}
+		return result, nil
 	}
 	return nil, nil
 }

@@ -355,7 +355,40 @@ func TestRuntime_TriggerMapping(t *testing.T) {
 	_ = rt.Stop(context.Background())
 }
 
-// trackingMiddleware tracks how many messages were processed.
+// panicOnWrapMiddleware panics during Wrap (chain construction), simulating a
+// pre-handler panic inside processMessage. (panicMiddleware, further down,
+// panics inside the handler invocation instead.)
+type panicOnWrapMiddleware struct{}
+
+func (panicOnWrapMiddleware) Name() string { return "panic" }
+
+func (panicOnWrapMiddleware) Wrap(_ Handler, _ *MessageContext) Handler {
+	panic("pre-handler boom")
+}
+
+// execution-4: a panic in pre-handler setup (here, middleware construction)
+// must be recovered so the consumer goroutine survives, not crash the worker.
+func TestProcessMessage_RecoversPreHandlerPanic(t *testing.T) {
+	client, svcReg, nodeReg, _ := newTestSetup(t)
+	workflows := map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}, "edges": []any{}},
+	}
+	wc := WorkerConfig{
+		ID: "w", StreamSvc: "main-stream", Topic: "t", Group: "g", WorkflowID: "wf",
+	}
+	rt := NewRuntime(
+		[]WorkerConfig{wc}, svcReg, nodeReg, workflows,
+		nil, []Middleware{panicOnWrapMiddleware{}}, nil, nil, nil, nil,
+	)
+	ctx := context.Background()
+	rt.opCtx.Store(&ctx)
+
+	msg := redis.XMessage{ID: "1-0", Values: map[string]any{"payload": "{}"}}
+	assert.NotPanics(t, func() {
+		rt.processMessage(ctx, wc, client, "consumer-1", msg)
+	}, "processMessage must recover a pre-handler panic")
+}
+
 type trackingMiddleware struct {
 	mu        *sync.Mutex
 	processed *int

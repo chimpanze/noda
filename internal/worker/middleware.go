@@ -83,6 +83,14 @@ func (m *TimeoutMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
 
 		done := make(chan error, 1)
 		go func() {
+			// recover() only catches panics on its own goroutine, so the outer
+			// RecoverMiddleware (parent goroutine) cannot catch a panic raised
+			// here. Convert it to an error to avoid crashing the worker process.
+			defer func() {
+				if r := recover(); r != nil {
+					done <- fmt.Errorf("worker.timeout: panic: %v", r)
+				}
+			}()
 			done <- next(ctx)
 		}()
 

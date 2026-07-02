@@ -376,6 +376,22 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 		verifyKey = key
 	}
 
+	// Optional claim validation (opt-in; defaults preserve prior behavior).
+	audience, _ := cfg["audience"].(string)
+	issuer, _ := cfg["issuer"].(string)
+	requireExpiry, _ := cfg["require_expiry"].(bool)
+
+	parserOpts := make([]jwt.ParserOption, 0, 3)
+	if audience != "" {
+		parserOpts = append(parserOpts, jwt.WithAudience(audience))
+	}
+	if issuer != "" {
+		parserOpts = append(parserOpts, jwt.WithIssuer(issuer))
+	}
+	if requireExpiry {
+		parserOpts = append(parserOpts, jwt.WithExpirationRequired())
+	}
+
 	// Custom JWT middleware: parse token, validate, store claims in locals
 	return func(c fiber.Ctx) error {
 		auth := c.Get("Authorization")
@@ -393,7 +409,7 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 				return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 			}
 			return verifyKey, nil
-		})
+		}, parserOpts...)
 		if err != nil {
 			slog.Debug("jwt validation failed", "error", err)
 			return fiber.NewError(fiber.StatusUnauthorized, "invalid token")

@@ -365,3 +365,25 @@ The adversarial verifier refuted these 3 candidate findings. Recorded for transp
 
 - 30 candidate findings from 12 domain agents → 27 confirmed after a per-finding adversarial refute-pass that read the actual code and vendored library source (`~/go/pkg/mod`). 42 agents total, ~1.5M tokens.
 - Several Mediums cluster around two themes worth a dedicated tranche: **(a) HTTP middleware/auth determinism** (server-1/2/3 — route-group matching + JWT aud/iss/exp), and **(b) goroutine/panic lifecycle** (execution-1/4, wasm-1/3, realtime-1). These mirror the structure of the 2026-04 tranches.
+
+---
+
+## Shipped 2026-06-29 — Tranche: HTTP middleware / auth determinism
+
+Branch `feat/http-auth-determinism`. Closed: **server-1, server-2, server-3**.
+- server-1/3: `getGroupMiddleware` now merges all matching route groups (outermost-first, deduped) with segment-aware prefix matching — `internal/server/presets.go`.
+- server-2: `auth.jwt` honors optional `audience`/`issuer`/`require_expiry` (default off) — `internal/server/middleware.go`.
+- Tests: `internal/server/auth_determinism_test.go` (fail against pre-fix code). Docs: `docs/02-config/middleware.md`.
+
+---
+
+## Shipped 2026-06-29 — Tranche: goroutine / panic lifecycle
+
+Branch `feat/goroutine-lifecycle-hardening`. Closed: **execution-1, execution-4, wasm-3, realtime-1**.
+- execution-1: deferred `recover()` inside TimeoutMiddleware's goroutine → panic surfaced as error, not a process crash — `internal/worker/middleware.go`.
+- execution-4: top-level `recover()` in `processMessage` (mirrors `scheduler.runJob`) → a pre-handler panic no longer kills the consumer — `internal/worker/runtime.go`.
+- wasm-3: `reconnectLoop` now checks the `stopCh` teardown signal pre-sleep, post-sleep, and under-lock post-dial → no socket resurrection after Close — `internal/wasm/gateway.go`.
+- realtime-1: bounded per-conn outbound writer goroutine with write deadline (`wsWriter`), mirroring SSE → no broadcast head-of-line blocking — `internal/connmgr/websocket.go`.
+- Tests: `internal/worker/middleware_test.go`, `internal/worker/runtime_test.go`, `internal/wasm/gateway_test.go`, `internal/connmgr/websocket_writer_test.go` (all fail against pre-fix code). Docs: `docs/02-config/connections.md`, CHANGELOG.
+
+**wasm-1 deferred** to its own tranche (interruptible Wasm execution — touches Extism/wazero semantics).
