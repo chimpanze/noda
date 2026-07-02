@@ -3,6 +3,10 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -351,14 +355,14 @@ func TestRuntime_TriggerMapping(t *testing.T) {
 	_ = rt.Stop(context.Background())
 }
 
-// trackingMiddleware tracks how many messages were processed.
-// panicMiddleware panics during Wrap (chain construction), simulating a
-// pre-handler panic inside processMessage.
-type panicMiddleware struct{}
+// panicOnWrapMiddleware panics during Wrap (chain construction), simulating a
+// pre-handler panic inside processMessage. (panicMiddleware, further down,
+// panics inside the handler invocation instead.)
+type panicOnWrapMiddleware struct{}
 
-func (panicMiddleware) Name() string { return "panic" }
+func (panicOnWrapMiddleware) Name() string { return "panic" }
 
-func (panicMiddleware) Wrap(_ Handler, _ *MessageContext) Handler {
+func (panicOnWrapMiddleware) Wrap(_ Handler, _ *MessageContext) Handler {
 	panic("pre-handler boom")
 }
 
@@ -374,7 +378,7 @@ func TestProcessMessage_RecoversPreHandlerPanic(t *testing.T) {
 	}
 	rt := NewRuntime(
 		[]WorkerConfig{wc}, svcReg, nodeReg, workflows,
-		nil, []Middleware{panicMiddleware{}}, nil, nil, nil, nil,
+		nil, []Middleware{panicOnWrapMiddleware{}}, nil, nil, nil, nil,
 	)
 	ctx := context.Background()
 	rt.opCtx.Store(&ctx)
@@ -741,3 +745,529 @@ func (f *fakePlugin) HasServices() bool                                { return 
 func (f *fakePlugin) CreateService(config map[string]any) (any, error) { return &fakeService{}, nil }
 func (f *fakePlugin) HealthCheck(service any) error                    { return nil }
 func (f *fakePlugin) Shutdown(service any) error                       { return nil }
+
+func TestParseWorkerConfigs_RetryParsing(t *testing.T) {
+	raw := map[string]map[string]any{
+		"workers/w.json": {
+			"id":        "w",
+			"services":  map[string]any{"stream": "main-stream"},
+			"subscribe": map[string]any{"topic": "t", "group": "g"},
+			"trigger":   map[string]any{"workflow": "wf"},
+			"retry":     map[string]any{"min_idle": "90s", "max_attempts": float64(7)},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	assert.Equal(t, 90*time.Second, configs[0].Retry.MinIdle)
+	assert.Equal(t, 7, configs[0].Retry.MaxAttempts)
+}
+
+func TestResolveRetry_Defaults(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// No timeout configured -> effective timeout is defaultMessageTimeout (5m),
+	// plus the safety margin so the reaper can't claim during the ack window.
+	got := resolveRetry(RetryConfig{}, 0, logger, "w")
+	assert.Equal(t, defaultMessageTimeout+minIdleMargin, got.MinIdle)
+	assert.Equal(t, defaultMaxAttempts, got.MaxAttempts)
+}
+
+func TestResolveRetry_ClampsMinIdleUpToTimeout(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// min_idle 10s is below a 30s timeout -> clamp up to timeout+margin (60s),
+	// which also satisfies the 60s floor.
+	got := resolveRetry(RetryConfig{MinIdle: 10 * time.Second, MaxAttempts: 3}, 30*time.Second, logger, "w")
+	assert.Equal(t, 60*time.Second, got.MinIdle)
+	assert.Equal(t, 3, got.MaxAttempts)
+}
+
+func TestResolveRetry_MinIdleGetsMarginOverTimeout(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	// The Redis idle clock starts at delivery, before the handler's timeout
+	// clock, and the consumer still needs to XAck after the handler returns.
+	// min_idle equal to (or barely above) the timeout leaves no headroom for
+	// that, so it must be clamped up to timeout+margin, not just timeout.
+	got := resolveRetry(RetryConfig{MinIdle: 100 * time.Second, MaxAttempts: 3}, 90*time.Second, logger, "w")
+	assert.Equal(t, 90*time.Second+minIdleMargin, got.MinIdle)
+}
+
+// panicMiddleware wraps handlers so invocation always panics.
+type panicMiddleware struct{}
+
+func (panicMiddleware) Name() string { return "test.panic" }
+func (panicMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
+	return func(ctx context.Context) error { panic("boom in handler") }
+}
+
+func TestProcessMessage_PanicLeavesPending(t *testing.T) {
+	client, svcReg, nodeReg, _ := newTestSetup(t)
+	topic, group := "t-panic", "g-panic"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{panicMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Read the message so it becomes pending, then process it.
+	streams, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	require.NoError(t, err)
+	msg := streams[0].Messages[0]
+
+	require.NotPanics(t, func() {
+		r.processMessage(context.Background(), w, client, "c", msg)
+	})
+
+	// Not acked -> still pending (attempt 1 < maxAttempts, no dead_letter).
+	pending, err := client.XPending(context.Background(), topic, group).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), pending.Count)
+}
+
+// flakyMiddleware fails the first N handler invocations, then succeeds.
+type flakyMiddleware struct {
+	mu      sync.Mutex
+	failFor int
+	calls   int
+}
+
+func (m *flakyMiddleware) Name() string { return "test.flaky" }
+func (m *flakyMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
+	return func(ctx context.Context) error {
+		m.mu.Lock()
+		m.calls++
+		fail := m.calls <= m.failFor
+		m.mu.Unlock()
+		if fail {
+			return fmt.Errorf("transient failure %d", m.calls)
+		}
+		return next(ctx)
+	}
+}
+
+func TestReapOnce_ReclaimsIdlePendingMessage(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group := "t-reap", "g-reap"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {
+			"nodes": map[string]any{
+				"log": map[string]any{
+					"type":   "util.log",
+					"config": map[string]any{"message": "ok", "level": "info"},
+				},
+			},
+			"edges": []any{},
+		},
+	}, nil, nil, nil, nil, nil, nil)
+	flaky := &flakyMiddleware{failFor: 1}
+	r.middleware = []Middleware{flaky}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Deliver + fail once -> message left pending.
+	streams, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	require.NoError(t, err)
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	require.Equal(t, int64(1), pending.Count)
+
+	// Before min_idle elapses, reapOnce reclaims nothing.
+	require.NoError(t, r.reapOnce(context.Background(), w, client))
+	pending, _ = client.XPending(context.Background(), topic, group).Result()
+	require.Equal(t, int64(1), pending.Count)
+
+	// Advance past min_idle; now reapOnce reclaims and reprocesses -> succeeds -> acked.
+	mr.SetTime(time.Now().Add(61 * time.Second))
+	require.NoError(t, r.reapOnce(context.Background(), w, client))
+	pending, _ = client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count)
+}
+
+func TestReclaim_PoisonPanic_DeadLettered(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group, dlq := "t-poison", "g-poison", "t-poison.dlq"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry:      RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+		DeadLetter: &DeadLetterConfig{Topic: dlq, After: 3},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{panicMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Attempt 1 (fresh delivery via XReadGroup, delivery count = 1).
+	streams, _ := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	// Attempts 2 and 3 via reclaim: each XAutoClaim bumps delivery count by 1.
+	// After 2 reapOnce calls the count reaches 3 (>= after=3) and the message is dead-lettered.
+	// Clock must advance cumulatively so each claim sees the message idle > min_idle.
+	base := time.Now()
+	for i := 0; i < 2; i++ {
+		base = base.Add(61 * time.Second)
+		mr.SetTime(base)
+		require.NoError(t, r.reapOnce(context.Background(), w, client))
+	}
+
+	// Original acked (drained from PEL) and a message landed on the DLQ.
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count)
+	dlLen, err := client.XLen(context.Background(), dlq).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), dlLen)
+}
+
+func TestReclaim_PoisonPanic_NoDLQ_DroppedAfterMaxAttempts(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group := "t-drop", "g-drop"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 3}, // no DeadLetter
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{panicMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Attempt 1 (fresh delivery, count = 1).
+	streams, _ := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	// Attempts 2 and 3 via reclaim; after 2 reapOnce calls count reaches 3 (>= max_attempts=3) → drop.
+	base := time.Now()
+	for i := 0; i < 2; i++ {
+		base = base.Add(61 * time.Second)
+		mr.SetTime(base)
+		require.NoError(t, r.reapOnce(context.Background(), w, client))
+	}
+
+	// Dropped (acked) after reaching max_attempts; PEL empty, nothing re-queued.
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count)
+}
+
+func TestDecideFailureDisposition(t *testing.T) {
+	dl := &DeadLetterConfig{Topic: "dlq", After: 3}
+	tests := []struct {
+		name        string
+		attempts    int64
+		dl          *DeadLetterConfig
+		maxAttempts int
+		want        failureAction
+	}{
+		{"no dl, under cap -> pending", 1, nil, 10, actionPending},
+		{"no dl, at cap -> drop", 10, nil, 10, actionDrop},
+		{"no dl, over cap -> drop", 12, nil, 10, actionDrop},
+		{"dl set, under after -> pending", 2, dl, 10, actionPending},
+		{"dl set, at after -> dead-letter", 3, dl, 10, actionDeadLetter},
+		{"dl set never hard-drops before after", 9, dl, 5, actionDeadLetter},
+		// Raw-function guard only: resolveDeadLetter defaults After to
+		// max_attempts at startup, so a topic-only DLQ config never reaches
+		// this function with After == 0 in practice.
+		{"dl with After<=0 treated as no dl", 10, &DeadLetterConfig{Topic: "x"}, 10, actionDrop},
+		// maxAttempts=0 must default to defaultMaxAttempts (10), not drop on attempt 1.
+		{"maxAttempts=0 defaults, low attempt -> pending", 1, nil, 0, actionPending},
+		{"maxAttempts=0 defaults, at default cap -> drop", defaultMaxAttempts, nil, 0, actionDrop},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, decideFailureDisposition(tt.attempts, tt.dl, tt.maxAttempts))
+		})
+	}
+}
+
+// TestProcessMessage_OuterRecover_Survives verifies that the last-resort outer
+// recover in processMessage catches panics that occur after runMessage returns
+// (i.e. in the disposition/ack code path). We trigger this deterministically by
+// passing a nil *redis.Client: runMessage itself succeeds (empty workflow, no
+// client needed), but the subsequent client.XAck call panics on a nil receiver.
+// The outer defer must absorb that panic so the caller does not crash.
+func TestProcessMessage_OuterRecover_Survives(t *testing.T) {
+	r := NewRuntime(nil, nil, nil, map[string]map[string]any{
+		"wf": {
+			"nodes": map[string]any{},
+			"edges": []any{},
+		},
+	}, nil, nil, nil, nil, nil, nil)
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	w := WorkerConfig{
+		ID:         "outer-recover-worker",
+		Topic:      "t-outer",
+		Group:      "g-outer",
+		WorkflowID: "wf",
+		Retry:      RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+
+	msg := redis.XMessage{
+		ID:     "1-0",
+		Values: map[string]any{"payload": `{"x":1}`},
+	}
+
+	// A nil client causes client.XAck to panic with a nil pointer dereference
+	// after runMessage returns successfully. The outer recover must absorb it.
+	require.NotPanics(t, func() {
+		r.processMessage(context.Background(), w, nil, "c", msg)
+	})
+}
+
+// hangMiddleware simulates a workflow that blocks until the handler context
+// expires (e.g. a stuck external call), returning the context error.
+type hangMiddleware struct{}
+
+func (hangMiddleware) Name() string { return "test.hang" }
+func (hangMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
+	return func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}
+}
+
+// A message that fails by exhausting the handler timeout must still be
+// dispositioned. The disposition ops (XPendingExt/XAdd/XAck) cannot run on the
+// same context whose budget the handler just consumed, or they all fail and
+// the message retries forever regardless of dead_letter.after / max_attempts.
+func TestProcessMessage_TimeoutFailure_StillDeadLettered(t *testing.T) {
+	client, svcReg, nodeReg, _ := newTestSetup(t)
+	topic, group, dlq := "t-timeout", "g-timeout", "t-timeout.dlq"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+		Stream: topic, Values: map[string]any{"payload": `{"x":1}`},
+	}).Result()
+	require.NoError(t, err)
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf",
+		Timeout:    50 * time.Millisecond,
+		Retry:      RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+		DeadLetter: &DeadLetterConfig{Topic: dlq, After: 1},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {"nodes": map[string]any{}},
+	}, nil, nil, nil, nil, nil, nil)
+	r.middleware = []Middleware{hangMiddleware{}}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	streams, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
+	}).Result()
+	require.NoError(t, err)
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+
+	// Delivery count 1 >= after=1: dead-lettered despite the exhausted budget.
+	pending, err := client.XPending(context.Background(), topic, group).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), pending.Count)
+	dlLen, err := client.XLen(context.Background(), dlq).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), dlLen)
+}
+
+func TestResolveDeadLetter(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	// nil passes through.
+	assert.Nil(t, resolveDeadLetter(nil, 10, logger, "w"))
+
+	// Empty topic is invalid: disable the DLQ loudly rather than publishing
+	// into a stream literally named "".
+	assert.Nil(t, resolveDeadLetter(&DeadLetterConfig{After: 3}, 10, logger, "w"))
+
+	// Topic without after: default after to maxAttempts so poison messages are
+	// dead-lettered instead of silently ack-dropped by the max-attempts cap.
+	got := resolveDeadLetter(&DeadLetterConfig{Topic: "dlq"}, 7, logger, "w")
+	require.NotNil(t, got)
+	assert.Equal(t, 7, got.After)
+
+	// Fully specified passes through unchanged.
+	got = resolveDeadLetter(&DeadLetterConfig{Topic: "dlq", After: 3}, 10, logger, "w")
+	require.NotNil(t, got)
+	assert.Equal(t, "dlq", got.Topic)
+	assert.Equal(t, 3, got.After)
+}
+
+// The pre-reclaim docs described dead-lettering as retry.dlq; honor that shape
+// instead of silently ignoring it (which would ack-drop after max_attempts).
+func TestParseWorkerConfigs_LegacyRetryDLQ(t *testing.T) {
+	raw := map[string]map[string]any{
+		"workers/w.json": {
+			"id":        "w",
+			"services":  map[string]any{"stream": "main-stream"},
+			"subscribe": map[string]any{"topic": "t", "group": "g"},
+			"trigger":   map[string]any{"workflow": "wf"},
+			"retry":     map[string]any{"max_attempts": float64(3), "dlq": "orders.failed"},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	require.NotNil(t, configs[0].DeadLetter)
+	assert.Equal(t, "orders.failed", configs[0].DeadLetter.Topic)
+	assert.Equal(t, 3, configs[0].Retry.MaxAttempts)
+}
+
+func TestParseWorkerConfigs_DeadLetterBlockWinsOverLegacyDLQ(t *testing.T) {
+	raw := map[string]map[string]any{
+		"workers/w.json": {
+			"id":          "w",
+			"services":    map[string]any{"stream": "main-stream"},
+			"subscribe":   map[string]any{"topic": "t", "group": "g"},
+			"trigger":     map[string]any{"workflow": "wf"},
+			"dead_letter": map[string]any{"topic": "explicit.dlq", "after": float64(2)},
+			"retry":       map[string]any{"dlq": "legacy.dlq"},
+		},
+	}
+	configs := ParseWorkerConfigs(raw)
+	require.Len(t, configs, 1)
+	require.NotNil(t, configs[0].DeadLetter)
+	assert.Equal(t, "explicit.dlq", configs[0].DeadLetter.Topic)
+	assert.Equal(t, 2, configs[0].DeadLetter.After)
+}
+
+// barrierMiddleware blocks each invocation until the test releases it, and
+// signals entry so the test can prove multiple handlers run concurrently.
+type barrierMiddleware struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (m *barrierMiddleware) Name() string { return "test.barrier" }
+func (m *barrierMiddleware) Wrap(next Handler, _ *MessageContext) Handler {
+	return func(ctx context.Context) error {
+		m.entered <- struct{}{}
+		select {
+		case <-m.release:
+			return next(ctx)
+		case <-time.After(5 * time.Second):
+			return fmt.Errorf("barrier timeout: reclaimed messages are not processed concurrently")
+		}
+	}
+}
+
+// Reclaimed messages must be processed with the worker's configured
+// concurrency, not serially in the reaper goroutine — otherwise one slow
+// poison message head-of-line-blocks redelivery of everything else.
+func TestReapOnce_ProcessesPageConcurrently(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group := "t-parreap", "g-parreap"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+	for i := 0; i < 3; i++ {
+		_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+			Stream: topic, Values: map[string]any{"payload": fmt.Sprintf(`{"i":%d}`, i)},
+		}).Result()
+		require.NoError(t, err)
+	}
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf", Concurrency: 3,
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {
+			"nodes": map[string]any{
+				"log": map[string]any{
+					"type":   "util.log",
+					"config": map[string]any{"message": "ok", "level": "info"},
+				},
+			},
+			"edges": []any{},
+		},
+	}, nil, nil, nil, nil, nil, nil)
+	mw := &barrierMiddleware{entered: make(chan struct{}, 3), release: make(chan struct{})}
+	r.middleware = []Middleware{mw}
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Make all three messages pending without processing them.
+	streams, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 10,
+	}).Result()
+	require.NoError(t, err)
+	require.Len(t, streams[0].Messages, 3)
+
+	mr.SetTime(time.Now().Add(61 * time.Second))
+
+	done := make(chan error, 1)
+	go func() { done <- r.reapOnce(context.Background(), w, client) }()
+
+	// All three reclaimed messages must be in-flight simultaneously.
+	for i := 0; i < 3; i++ {
+		select {
+		case <-mw.entered:
+		case <-time.After(2 * time.Second):
+			t.Fatalf("only %d of 3 reclaimed messages processing concurrently", i)
+		}
+	}
+	close(mw.release)
+	require.NoError(t, <-done)
+
+	pending, err := client.XPending(context.Background(), topic, group).Result()
+	require.NoError(t, err)
+	assert.Equal(t, int64(0), pending.Count)
+}
+
+// Per CLAUDE.md ("Real config files. Test against actual JSON config files in
+// testdata/"), the retry and dead_letter fields must round-trip from a real
+// worker config file, not just hand-built maps.
+func TestParseWorkerConfigs_FromTestdataFixture(t *testing.T) {
+	data, err := os.ReadFile("../../testdata/valid-project/workers/notifications.json")
+	require.NoError(t, err)
+	var raw map[string]any
+	require.NoError(t, json.Unmarshal(data, &raw))
+
+	configs := ParseWorkerConfigs(map[string]map[string]any{"workers/notifications.json": raw})
+	require.Len(t, configs, 1)
+	wc := configs[0]
+	assert.Equal(t, "process-notifications", wc.ID)
+	assert.Equal(t, 10*time.Minute, wc.Retry.MinIdle)
+	assert.Equal(t, 5, wc.Retry.MaxAttempts)
+	require.NotNil(t, wc.DeadLetter)
+	assert.Equal(t, "task.created.dlq", wc.DeadLetter.Topic)
+	assert.Equal(t, 3, wc.DeadLetter.After)
+}
