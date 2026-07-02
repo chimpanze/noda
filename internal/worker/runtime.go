@@ -140,6 +140,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		}
 
 		w.Retry = resolveRetry(w.Retry, w.Timeout, r.logger, w.ID)
+		w.DeadLetter = resolveDeadLetter(w.DeadLetter, w.Retry.MaxAttempts, r.logger, w.ID)
 
 		for i := 0; i < concurrency; i++ {
 			consumerID := fmt.Sprintf("%s-%d", w.ID, i)
@@ -238,6 +239,40 @@ const defaultMaxAttempts = 10
 // minIdleFloor is the lowest permitted reclaim idle threshold.
 const minIdleFloor = 60 * time.Second
 
+// minIdleMargin is the headroom added on top of the handler timeout when
+// resolving min_idle. The Redis idle clock starts at delivery — before the
+// handler's timeout clock — and the consumer still needs to XAck after the
+// handler returns, so min_idle == timeout alone would let the reaper claim a
+// message whose consumer is just finishing.
+const minIdleMargin = 30 * time.Second
+
+// dispositionTimeout bounds the post-handler ack/dead-letter/attempt-count
+// operations. These must not run on the per-message processing context: a
+// timeout-class failure has already exhausted it, and disposition on a dead
+// context would leave the message pending forever.
+const dispositionTimeout = 30 * time.Second
+
+// resolveDeadLetter validates dead-letter config at startup: an empty topic
+// disables dead-lettering loudly (rather than publishing to a stream named
+// ""), and an unset After defaults to maxAttempts so a configured DLQ is
+// honored instead of the max-attempts ack-drop silently winning.
+func resolveDeadLetter(dl *DeadLetterConfig, maxAttempts int, logger *slog.Logger, workerID string) *DeadLetterConfig {
+	if dl == nil {
+		return nil
+	}
+	if dl.Topic == "" {
+		logger.Error("worker dead_letter.topic is empty; dead-lettering disabled — repeatedly failing messages will be dropped after retry.max_attempts",
+			"worker_id", workerID)
+		return nil
+	}
+	if dl.After <= 0 {
+		logger.Info("worker dead_letter.after not set; defaulting to retry.max_attempts",
+			"worker_id", workerID, "after", maxAttempts)
+		dl.After = maxAttempts
+	}
+	return dl
+}
+
 // processMessage handles a single message: maps input, runs the workflow, and
 // acks / dead-letters / drops / leaves-pending based on the outcome.
 func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
@@ -283,8 +318,15 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	res := r.runMessage(procCtx, w, msg, traceID)
 	duration := time.Since(start)
 
+	// Disposition (ack / attempt-count / dead-letter) runs on a fresh context
+	// derived from the opCtx snapshot: a timeout-class failure has exhausted
+	// procCtx, and disposition on a dead context can neither ack nor
+	// dead-letter — the message would retry forever.
+	dispCtx, dispCancel := context.WithTimeout(*opCtxPtr, dispositionTimeout)
+	defer dispCancel()
+
 	if res.err == nil {
-		if err := client.XAck(procCtx, w.Topic, w.Group, msg.ID).Err(); err != nil {
+		if err := client.XAck(dispCtx, w.Topic, w.Group, msg.ID).Err(); err != nil {
 			r.logger.Error("worker ack failed",
 				"worker_id", w.ID, "message_id", msg.ID, "trace_id", traceID, "error", err.Error())
 		}
@@ -299,8 +341,8 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 		// Deterministic bad input: retrying can't help. Preserve for forensics
 		// via the dead-letter topic if configured, otherwise ack-drop.
 		if w.DeadLetter != nil {
-			r.moveToDeadLetter(procCtx, client, w, msg, traceID, res.err)
-		} else if err := client.XAck(procCtx, w.Topic, w.Group, msg.ID).Err(); err != nil {
+			r.moveToDeadLetter(dispCtx, client, w, msg, traceID, res.err)
+		} else if err := client.XAck(dispCtx, w.Topic, w.Group, msg.ID).Err(); err != nil {
 			r.logger.Error("worker ack failed after bad mapping",
 				"worker_id", w.ID, "message_id", msg.ID, "trace_id", traceID, "error", err.Error())
 		}
@@ -310,7 +352,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	r.logger.Error("worker workflow failed",
 		"worker_id", w.ID, "message_id", msg.ID, "trace_id", traceID,
 		"duration", duration.String(), "error", res.err.Error())
-	r.disposeFailure(procCtx, client, w, msg, traceID, res.err)
+	r.disposeFailure(dispCtx, client, w, msg, traceID, res.err)
 }
 
 // msgResult is the outcome of processing one message.
@@ -494,9 +536,11 @@ func decideFailureDisposition(attempts int64, dl *DeadLetterConfig, maxAttempts 
 	return actionPending
 }
 
-// resolveRetry fills in retry defaults and enforces min_idle >= handler timeout
-// (with a 60s floor) so the reaper never steals a message a live consumer is
-// still processing.
+// resolveRetry fills in retry defaults and enforces min_idle >= handler
+// timeout + margin (with a 60s floor). The margin covers the gap between the
+// Redis idle clock (starts at delivery) and the handler's timeout clock, plus
+// the post-handler XAck — without it the reaper could claim a message whose
+// consumer is just finishing and re-execute an already-succeeded workflow.
 func resolveRetry(rc RetryConfig, timeout time.Duration, logger *slog.Logger, workerID string) RetryConfig {
 	if timeout <= 0 {
 		timeout = defaultMessageTimeout
@@ -504,15 +548,17 @@ func resolveRetry(rc RetryConfig, timeout time.Duration, logger *slog.Logger, wo
 	if rc.MaxAttempts <= 0 {
 		rc.MaxAttempts = defaultMaxAttempts
 	}
+	minAllowed := timeout + minIdleMargin
 	if rc.MinIdle <= 0 {
-		rc.MinIdle = timeout
-	} else if rc.MinIdle < timeout {
-		logger.Warn("worker retry.min_idle below handler timeout; clamping up to timeout",
+		rc.MinIdle = minAllowed
+	} else if rc.MinIdle < minAllowed {
+		logger.Warn("worker retry.min_idle below handler timeout + margin; clamping up",
 			"worker_id", workerID,
 			"min_idle", rc.MinIdle.String(),
 			"timeout", timeout.String(),
+			"clamped_to", minAllowed.String(),
 		)
-		rc.MinIdle = timeout
+		rc.MinIdle = minAllowed
 	}
 	if rc.MinIdle < minIdleFloor {
 		rc.MinIdle = minIdleFloor
@@ -535,9 +581,17 @@ func reapInterval(minIdle time.Duration) time.Duration {
 
 // reapOnce runs a single cursor-paged XAUTOCLAIM pass for entries idle longer
 // than w.Retry.MinIdle, dispatching each reclaimed message through the normal
-// processing/disposition path.
+// processing/disposition path. Each page is processed with the worker's
+// configured concurrency (serial processing would let one slow poison message
+// head-of-line-block redelivery of everything behind it, and claimed-but-
+// unprocessed entries would go idle past min_idle again for another
+// instance's reaper to steal).
 func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Client) error {
 	consumerID := w.ID + "-reaper"
+	concurrency := w.Concurrency
+	if concurrency < 1 {
+		concurrency = 1
+	}
 	cursor := "0"
 	for {
 		if ctx.Err() != nil {
@@ -554,9 +608,18 @@ func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Cl
 		if err != nil {
 			return err
 		}
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, concurrency)
 		for _, msg := range msgs {
-			r.processMessage(ctx, w, client, consumerID, msg)
+			sem <- struct{}{}
+			wg.Add(1)
+			go func(m redis.XMessage) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				r.processMessage(ctx, w, client, consumerID, m)
+			}(msg)
 		}
+		wg.Wait()
 		if next == "0" || next == "0-0" {
 			return nil
 		}
@@ -658,6 +721,12 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 			}
 			if m, ok := retry["max_attempts"].(int); ok {
 				wc.Retry.MaxAttempts = m
+			}
+			// Legacy shape from the pre-reclaim docs: retry.dlq named the
+			// dead-letter topic. Honor it rather than silently ack-dropping
+			// after max_attempts; an explicit dead_letter block wins.
+			if s, ok := retry["dlq"].(string); ok && s != "" && wc.DeadLetter == nil {
+				wc.DeadLetter = &DeadLetterConfig{Topic: s}
 			}
 		}
 

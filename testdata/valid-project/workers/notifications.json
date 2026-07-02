@@ -8,6 +8,14 @@
     "group": "notification-workers"
   },
   "concurrency": 5,
+  "retry": {
+    "min_idle": "10m",
+    "max_attempts": 5
+  },
+  "dead_letter": {
+    "topic": "task.created.dlq",
+    "after": 3
+  },
   "trigger": {
     "workflow": "create-task",
     "input": {

@@ -43,7 +43,12 @@
       "type": "object",
       "properties": {
         "min_idle": { "type": "string" },
-        "max_attempts": { "type": "integer" }
+        "max_attempts": { "type": "integer" },
+        "dlq": {
+          "type": "string",
+          "deprecated": true,
+          "description": "Deprecated: use dead_letter.topic. Honored as an alias so older configs keep dead-lettering."
+        }
       }
     }
   },
