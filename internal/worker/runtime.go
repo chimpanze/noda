@@ -221,7 +221,7 @@ func (r *Runtime) consume(ctx context.Context, w WorkerConfig, client *redis.Cli
 
 		for _, stream := range streams {
 			for _, msg := range stream.Messages {
-				r.processMessage(ctx, w, client, consumerID, msg)
+				r.processMessage(ctx, w, client, consumerID, msg, -1)
 			}
 		}
 	}
@@ -275,7 +275,10 @@ func resolveDeadLetter(dl *DeadLetterConfig, maxAttempts int, logger *slog.Logge
 
 // processMessage handles a single message: maps input, runs the workflow, and
 // acks / dead-letters / drops / leaves-pending based on the outcome.
-func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage) {
+// attempts is the message's delivery count if the caller already knows it
+// (the reaper prefetches it per claimed page); pass a negative value to have
+// the failure disposition look it up on demand.
+func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *redis.Client, consumerID string, msg redis.XMessage, attempts int64) {
 	// Last-resort outer recover: catches panics in the disposition/ack code that
 	// follows runMessage (e.g. XAck, XPendingExt, XAdd). runMessage has its own
 	// inner recover for the deserialize→handler span; this one only handles what
@@ -352,7 +355,7 @@ func (r *Runtime) processMessage(ctx context.Context, w WorkerConfig, client *re
 	r.logger.Error("worker workflow failed",
 		"worker_id", w.ID, "message_id", msg.ID, "trace_id", traceID,
 		"duration", duration.String(), "error", res.err.Error())
-	r.disposeFailure(dispCtx, client, w, msg, traceID, res.err)
+	r.disposeFailure(dispCtx, client, w, msg, traceID, res.err, attempts)
 }
 
 // msgResult is the outcome of processing one message.
@@ -407,9 +410,12 @@ func (r *Runtime) runMessage(ctx context.Context, w WorkerConfig, msg redis.XMes
 	return msgResult{err: handler(ctx)}
 }
 
-// disposeFailure applies the retry/dead-letter/drop decision to a failed message.
-func (r *Runtime) disposeFailure(ctx context.Context, client *redis.Client, w WorkerConfig, msg redis.XMessage, traceID string, wfErr error) {
-	attempts := r.getDeliveryAttempts(ctx, client, w.Topic, w.Group, msg.ID)
+// disposeFailure applies the retry/dead-letter/drop decision to a failed
+// message. A negative attempts means unknown: look it up now.
+func (r *Runtime) disposeFailure(ctx context.Context, client *redis.Client, w WorkerConfig, msg redis.XMessage, traceID string, wfErr error, attempts int64) {
+	if attempts < 0 {
+		attempts = r.getDeliveryAttempts(ctx, client, w.Topic, w.Group, msg.ID)
+	}
 	switch decideFailureDisposition(attempts, w.DeadLetter, w.Retry.MaxAttempts) {
 	case actionDeadLetter:
 		r.moveToDeadLetter(ctx, client, w, msg, traceID, wfErr)
@@ -566,17 +572,44 @@ func resolveRetry(rc RetryConfig, timeout time.Duration, logger *slog.Logger, wo
 	return rc
 }
 
-// reapInterval derives how often the reaper runs a claim pass from min_idle,
-// bounded to a sane [5s, 30s] range so short idle windows still get serviced.
+// reapInterval derives how often the reaper runs a claim pass from min_idle:
+// half the idle threshold, floored at 30s. Nothing becomes claimable sooner
+// than min_idle after delivery, so a fixed short interval only burns XAUTOCLAIM
+// scans on an idle PEL; half the threshold caps the added redelivery latency
+// at 50% of min_idle.
 func reapInterval(minIdle time.Duration) time.Duration {
-	iv := minIdle
-	if iv > 30*time.Second {
+	iv := minIdle / 2
+	if iv < 30*time.Second {
 		iv = 30 * time.Second
 	}
-	if iv < 5*time.Second {
-		iv = 5 * time.Second
-	}
 	return iv
+}
+
+// prefetchAttempts fetches delivery counts for a page of just-claimed
+// messages in a single XPENDING call, keyed by message ID (claiming already
+// bumped each count, so this equals what a post-failure lookup would see).
+// Returns nil on error or empty input; missing keys fall back to an
+// on-demand per-message lookup in disposeFailure.
+func prefetchAttempts(ctx context.Context, client *redis.Client, topic, group, consumer string, msgs []redis.XMessage) map[string]int64 {
+	if len(msgs) == 0 {
+		return nil
+	}
+	pending, err := client.XPendingExt(ctx, &redis.XPendingExtArgs{
+		Stream:   topic,
+		Group:    group,
+		Consumer: consumer,
+		Start:    msgs[0].ID,
+		End:      msgs[len(msgs)-1].ID,
+		Count:    int64(len(msgs)),
+	}).Result()
+	if err != nil {
+		return nil
+	}
+	counts := make(map[string]int64, len(pending))
+	for _, p := range pending {
+		counts[p.ID] = p.RetryCount
+	}
+	return counts
 }
 
 // reapOnce runs a single cursor-paged XAUTOCLAIM pass for entries idle longer
@@ -608,6 +641,7 @@ func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Cl
 		if err != nil {
 			return err
 		}
+		counts := prefetchAttempts(ctx, client, w.Topic, w.Group, consumerID, msgs)
 		var wg sync.WaitGroup
 		sem := make(chan struct{}, concurrency)
 		for _, msg := range msgs {
@@ -616,7 +650,11 @@ func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Cl
 			go func(m redis.XMessage) {
 				defer wg.Done()
 				defer func() { <-sem }()
-				r.processMessage(ctx, w, client, consumerID, m)
+				attempts, ok := counts[m.ID]
+				if !ok {
+					attempts = -1 // not in the prefetched page; look up on demand
+				}
+				r.processMessage(ctx, w, client, consumerID, m, attempts)
 			}(msg)
 		}
 		wg.Wait()
