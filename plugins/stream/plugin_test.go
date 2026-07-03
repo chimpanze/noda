@@ -76,4 +76,3 @@ func TestService_Publish(t *testing.T) {
 	// Verify message is in the stream
 	assert.True(t, mr.Exists("events"))
 }
-
