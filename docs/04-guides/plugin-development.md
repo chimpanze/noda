@@ -386,8 +386,7 @@ type CacheService interface {
 
 // StreamService allows event streaming
 type StreamService interface {
-    Publish(ctx context.Context, topic string, payload map[string]any) (string, error)
-    Ack(ctx context.Context, topic, group, id string) error
+    Publish(ctx context.Context, topic string, payload any) (string, error) // returns message ID
 }
 
 // PubSubService allows pub/sub messaging
