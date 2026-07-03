@@ -385,7 +385,7 @@ func TestProcessMessage_RecoversPreHandlerPanic(t *testing.T) {
 
 	msg := redis.XMessage{ID: "1-0", Values: map[string]any{"payload": "{}"}}
 	assert.NotPanics(t, func() {
-		rt.processMessage(ctx, wc, client, "consumer-1", msg)
+		rt.processMessage(ctx, wc, client, "consumer-1", msg, -1)
 	}, "processMessage must recover a pre-handler panic")
 }
 
@@ -826,7 +826,7 @@ func TestProcessMessage_PanicLeavesPending(t *testing.T) {
 	msg := streams[0].Messages[0]
 
 	require.NotPanics(t, func() {
-		r.processMessage(context.Background(), w, client, "c", msg)
+		r.processMessage(context.Background(), w, client, "c", msg, -1)
 	})
 
 	// Not acked -> still pending (attempt 1 < maxAttempts, no dead_letter).
@@ -890,7 +890,7 @@ func TestReapOnce_ReclaimsIdlePendingMessage(t *testing.T) {
 		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
 	}).Result()
 	require.NoError(t, err)
-	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0], -1)
 
 	pending, _ := client.XPending(context.Background(), topic, group).Result()
 	require.Equal(t, int64(1), pending.Count)
@@ -932,7 +932,7 @@ func TestReclaim_PoisonPanic_DeadLettered(t *testing.T) {
 	streams, _ := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
 		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
 	}).Result()
-	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0], -1)
 
 	// Attempts 2 and 3 via reclaim: each XAutoClaim bumps delivery count by 1.
 	// After 2 reapOnce calls the count reaches 3 (>= after=3) and the message is dead-lettered.
@@ -976,7 +976,7 @@ func TestReclaim_PoisonPanic_NoDLQ_DroppedAfterMaxAttempts(t *testing.T) {
 	streams, _ := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
 		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
 	}).Result()
-	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0], -1)
 
 	// Attempts 2 and 3 via reclaim; after 2 reapOnce calls count reaches 3 (>= max_attempts=3) → drop.
 	base := time.Now()
@@ -1053,7 +1053,7 @@ func TestProcessMessage_OuterRecover_Survives(t *testing.T) {
 	// A nil client causes client.XAck to panic with a nil pointer dereference
 	// after runMessage returns successfully. The outer recover must absorb it.
 	require.NotPanics(t, func() {
-		r.processMessage(context.Background(), w, nil, "c", msg)
+		r.processMessage(context.Background(), w, nil, "c", msg, -1)
 	})
 }
 
@@ -1099,7 +1099,7 @@ func TestProcessMessage_TimeoutFailure_StillDeadLettered(t *testing.T) {
 		Group: group, Consumer: "c", Streams: []string{topic, ">"}, Count: 1,
 	}).Result()
 	require.NoError(t, err)
-	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0])
+	r.processMessage(context.Background(), w, client, "c", streams[0].Messages[0], -1)
 
 	// Delivery count 1 >= after=1: dead-lettered despite the exhausted budget.
 	pending, err := client.XPending(context.Background(), topic, group).Result()
@@ -1270,4 +1270,47 @@ func TestParseWorkerConfigs_FromTestdataFixture(t *testing.T) {
 	require.NotNil(t, wc.DeadLetter)
 	assert.Equal(t, "task.created.dlq", wc.DeadLetter.Topic)
 	assert.Equal(t, 3, wc.DeadLetter.After)
+}
+
+func TestReapInterval_ScalesWithMinIdle(t *testing.T) {
+	// Nothing becomes claimable sooner than min_idle after delivery, so the
+	// reaper polls at min_idle/2 (floor 30s) instead of a fixed 30s — a fixed
+	// cap scanned ~10x more often than useful at the default min_idle (5m30s).
+	assert.Equal(t, 30*time.Second, reapInterval(45*time.Second))
+	assert.Equal(t, 30*time.Second, reapInterval(60*time.Second))
+	assert.Equal(t, 165*time.Second, reapInterval(330*time.Second)) // default timeout+margin
+	assert.Equal(t, 30*time.Minute, reapInterval(time.Hour))
+}
+
+func TestPrefetchAttempts_BatchesDeliveryCounts(t *testing.T) {
+	client, _, _, _ := newTestSetup(t)
+	ctx := context.Background()
+	topic, group, consumer := "t-prefetch", "g-prefetch", "w-reaper"
+	require.NoError(t, client.XGroupCreateMkStream(ctx, topic, group, "0").Err())
+
+	ids := make([]string, 0, 3)
+	for i := 0; i < 3; i++ {
+		id, err := client.XAdd(ctx, &redis.XAddArgs{
+			Stream: topic, Values: map[string]any{"payload": `{}`},
+		}).Result()
+		require.NoError(t, err)
+		ids = append(ids, id)
+	}
+
+	// Deliver all three to `consumer` so they are pending with delivery count 1.
+	streams, err := client.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group: group, Consumer: consumer, Streams: []string{topic, ">"}, Count: 10,
+	}).Result()
+	require.NoError(t, err)
+	msgs := streams[0].Messages
+	require.Len(t, msgs, 3)
+
+	got := prefetchAttempts(ctx, client, topic, group, consumer, msgs)
+	require.Len(t, got, 3)
+	for _, id := range ids {
+		assert.Equal(t, int64(1), got[id])
+	}
+
+	// Empty page: no Redis call needed, nil map.
+	assert.Nil(t, prefetchAttempts(ctx, client, topic, group, consumer, nil))
 }
