@@ -14,7 +14,10 @@ func (p *Plugin) Prefix() string    { return "auth" }
 func (p *Plugin) HasServices() bool { return true }
 
 func (p *Plugin) Nodes() []api.NodeRegistration {
-	return []api.NodeRegistration{}
+	return []api.NodeRegistration{
+		{Descriptor: &createUserDescriptor{}, Factory: newCreateUserExecutor},
+		{Descriptor: &getUserDescriptor{}, Factory: newGetUserExecutor},
+	}
 }
 
 func (p *Plugin) CreateService(config map[string]any) (any, error) {
