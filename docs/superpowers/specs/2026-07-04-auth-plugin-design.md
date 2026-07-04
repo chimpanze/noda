@@ -246,3 +246,10 @@ Bottom-up per project convention:
 ## 12. Future work (explicit non-goals now)
 
 Social login (OAuth linking tables + `auth.link_identity` node on top of `oidc.*`), MFA/TOTP + recovery codes, magic-link login (trivial on top of `auth.create_token`/`consume_token` with a new purpose), JWT access + refresh mode, sliding sessions, org/team model, admin UI in the editor, row-level security built on `auth.user_id` expression context.
+
+## Deviations from spec (as merged)
+
+- **Session `ip`/`user_agent` columns exist but are not yet populated.** The `auth_sessions` schema carries `ip` and `user_agent` columns per the design, but `auth.create_session` never writes them: `ExecutionContext` has no accessor for request metadata (client IP, User-Agent header) today. Populating them is a follow-up once `ExecutionContext` exposes request meta.
+- **Engine e2e uses a mocked mailer instead of Mailpit.** The workflow-runner-level e2e suite in `plugins/auth` stubs the mailer to keep those tests fast and hermetic; live-SMTP coverage (real Mailpit container) is provided separately by the `docker-compose` e2e suite, consistent with how other plugins split unit-speed vs. live-integration coverage.
+- **Routes scaffolded as 7 files rather than one `routes/auth.json`.** `noda auth init` emits one route file per endpoint (`auth.register.json`, `auth.login.json`, etc.) instead of a single combined `routes/auth.json`, matching the one-concept-per-file convention already used for workflows and tests in the scaffold output.
+- **Scaffolded config carries no `_comment` keys.** Rather than inline `"_comment"` fields in the generated JSON (which the design allowed as one option), customization guidance lives in `docs/04-guides/authentication.md` and the `examples/auth-demo/README.md`, keeping the generated config schema-clean.
