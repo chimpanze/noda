@@ -1,0 +1,37 @@
+{
+  "middleware": {
+    "limiter": {
+      "expiration": "1m",
+      "max": 20
+    }
+  },
+  "middleware_presets": {
+    "authenticated_session": [
+      "auth.session"
+    ]
+  },
+  "security": {},
+  "services": {
+    "auth": {
+      "config": {
+        "database": "main-db"
+      },
+      "plugin": "auth"
+    },
+    "email": {
+      "config": {
+        "from": "noreply@example.com",
+        "host": "{{ $env('SMTP_HOST') }}",
+        "port": 1025
+      },
+      "plugin": "email"
+    },
+    "main-db": {
+      "config": {
+        "driver": "postgres",
+        "url": "{{ $env('DATABASE_URL') }}"
+      },
+      "plugin": "db"
+    }
+  }
+}

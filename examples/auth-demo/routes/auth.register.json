@@ -1,0 +1,22 @@
+{
+  "id": "auth-register",
+  "method": "POST",
+  "path": "/auth/register",
+  "summary": "Register a new account",
+  "tags": ["auth"],
+  "middleware": ["limiter"],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["email", "password"],
+      "properties": {
+        "email": { "type": "string" },
+        "password": { "type": "string" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "auth-register",
+    "input": { "email": "{{ body.email }}", "password": "{{ body.password }}" }
+  }
+}

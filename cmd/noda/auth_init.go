@@ -145,6 +145,21 @@ func runAuthInit(dir string) error {
 		presets["authenticated_session"] = []any{"auth.session"}
 	}
 	root["middleware_presets"] = presets
+
+	// The scaffolded login/register/request-password-reset/reset-password
+	// routes reference the "limiter" middleware by name; it must have a
+	// config with an explicit "max" (there is no default — the server
+	// refuses to start otherwise). Only add it if the project hasn't
+	// already configured its own limiter.
+	middlewareCfg, _ := root["middleware"].(map[string]any)
+	if middlewareCfg == nil {
+		middlewareCfg = map[string]any{}
+	}
+	if _, exists := middlewareCfg["limiter"]; !exists {
+		middlewareCfg["limiter"] = map[string]any{"max": 20, "expiration": "1m"}
+	}
+	root["middleware"] = middlewareCfg
+
 	patched, err := json.MarshalIndent(root, "", "  ")
 	if err != nil {
 		return fmt.Errorf("auth init: %w", err)

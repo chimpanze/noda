@@ -1,0 +1,41 @@
+services:
+  noda:
+    build: ../..
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
+      SMTP_HOST: mailpit
+    volumes:
+      - .:/app/config
+    command: ["start", "--config", "/app/config", "--server"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: noda
+      POSTGRES_PASSWORD: noda
+      POSTGRES_DB: noda
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noda -d noda"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025" # web UI — inspect verify/reset emails here
+      - "1025:1025" # SMTP
+
+volumes:
+  pgdata:
