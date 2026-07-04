@@ -207,6 +207,9 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 			{Key: "roles_claim", Type: "string", Description: "Claim to use as roles", Default: "roles"},
 			{Key: "required_scopes", Type: "string", Description: "Required scopes (comma-separated)"},
 		}},
+		{Name: "auth.session", Description: "Opaque session token authentication (cookie or Bearer)", ConfigFields: []configField{
+			{Key: "service", Type: "string", Description: "Auth service name providing session validation", Default: "auth"},
+		}},
 		{Name: "security.cors", Description: "Cross-Origin Resource Sharing headers", ConfigFields: []configField{
 			{Key: "allow_origins", Type: "string", Description: "Allowed origins (comma-separated or *)"},
 			{Key: "allow_methods", Type: "string", Description: "Allowed HTTP methods"},
