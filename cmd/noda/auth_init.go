@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 	"time"
@@ -52,17 +53,29 @@ func runAuthInit(dir string) error {
 	}
 
 	services, _ := root["services"].(map[string]any)
-	dbName, driver := findServiceByPlugin(services, "db")
-	if dbName == "" {
+	dbNames, driverByName := findServicesByPlugin(services, "db")
+	if len(dbNames) == 0 {
 		return fmt.Errorf("auth init: no database service (plugin \"db\") found in noda.json — add one first")
 	}
+	if len(dbNames) > 1 {
+		return fmt.Errorf("auth init: multiple database services (plugin \"db\") found: %s — rename or remove services so only one remains, then re-run", strings.Join(dbNames, ", "))
+	}
+	dbName := dbNames[0]
+	driver := driverByName[dbName]
 	if driver == "" {
 		driver = "postgres"
 	}
-	emailName, _ := findServiceByPlugin(services, "email")
-	if emailName == "" {
+	emailNames, _ := findServicesByPlugin(services, "email")
+	var emailName string
+	switch len(emailNames) {
+	case 0:
 		emailName = "email"
 		fmt.Fprintln(os.Stderr, "warning: no email service configured — verify-email and password-reset flows need a service named \"email\" (or edit the generated workflows)")
+	case 1:
+		emailName = emailNames[0]
+	default:
+		emailName = emailNames[0]
+		fmt.Fprintf(os.Stderr, "warning: multiple email services found (%s) — using %q\n", strings.Join(emailNames, ", "), emailName)
 	}
 	if _, exists := services["auth"]; exists {
 		return fmt.Errorf("auth init: services.auth already exists in noda.json")
@@ -172,7 +185,14 @@ func runAuthInit(dir string) error {
 	return nil
 }
 
-func findServiceByPlugin(services map[string]any, pluginName string) (name, driver string) {
+// findServicesByPlugin returns the sorted names of every service configured
+// with the given plugin, plus a name->driver lookup (driver is read from
+// config.driver, empty string if absent). Sorting makes the scaffold
+// deterministic: iterating a map directly (the previous behavior) meant
+// that, with more than one matching service, which one got picked was
+// random from run to run.
+func findServicesByPlugin(services map[string]any, pluginName string) (names []string, driverByName map[string]string) {
+	driverByName = map[string]string{}
 	for n, v := range services {
 		svc, ok := v.(map[string]any)
 		if !ok || svc["plugin"] != pluginName {
@@ -180,7 +200,9 @@ func findServiceByPlugin(services map[string]any, pluginName string) (name, driv
 		}
 		cfg, _ := svc["config"].(map[string]any)
 		d, _ := cfg["driver"].(string)
-		return n, d
+		names = append(names, n)
+		driverByName[n] = d
 	}
-	return "", ""
+	sort.Strings(names)
+	return names, driverByName
 }
