@@ -20,6 +20,9 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 		{Descriptor: &verifyCredentialsDescriptor{}, Factory: newVerifyCredentialsExecutor},
 		{Descriptor: &createSessionDescriptor{}, Factory: newCreateSessionExecutor},
 		{Descriptor: &revokeSessionDescriptor{}, Factory: newRevokeSessionExecutor},
+		{Descriptor: &createTokenDescriptor{}, Factory: newCreateTokenExecutor},
+		{Descriptor: &consumeTokenDescriptor{}, Factory: newConsumeTokenExecutor},
+		{Descriptor: &setPasswordDescriptor{}, Factory: newSetPasswordExecutor},
 	}
 }
 
