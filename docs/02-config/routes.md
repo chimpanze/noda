@@ -52,7 +52,7 @@ Response schemas are keyed by HTTP status code. Only responses from workflow res
       "id": "{{ params.id }}",
       "title": "{{ body.title }}",
       "completed": "{{ body.completed }}",
-      "user_id": "{{ auth.user_id }}"
+      "user_id": "{{ auth.sub }}"
     }
   }
 }
