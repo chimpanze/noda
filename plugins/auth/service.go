@@ -38,6 +38,29 @@ func (s *Service) TokenTTL(purpose string) time.Duration {
 	return time.Hour
 }
 
+// SessionCookieObject builds a cookie map consumable by response.json's
+// `cookies` config (see plugins/core/response/json.go toCookies): numbers must
+// be float64, keys are snake_case.
+func (s *Service) SessionCookieObject(rawToken string, ttl time.Duration) map[string]any {
+	return map[string]any{
+		"name":      s.Cookie.Name,
+		"value":     rawToken,
+		"path":      s.Cookie.Path,
+		"domain":    s.Cookie.Domain,
+		"max_age":   float64(int(ttl.Seconds())),
+		"secure":    s.Cookie.Secure,
+		"http_only": s.Cookie.HTTPOnly,
+		"same_site": s.Cookie.SameSite,
+	}
+}
+
+// ClearCookieObject builds a cookie map that deletes the session cookie.
+func (s *Service) ClearCookieObject() map[string]any {
+	c := s.SessionCookieObject("", 0)
+	c["max_age"] = float64(-1)
+	return c
+}
+
 func newService(config map[string]any) (*Service, error) {
 	dbName, _ := config["database"].(string)
 	if dbName == "" {
