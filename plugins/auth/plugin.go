@@ -17,6 +17,7 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 	return []api.NodeRegistration{
 		{Descriptor: &createUserDescriptor{}, Factory: newCreateUserExecutor},
 		{Descriptor: &getUserDescriptor{}, Factory: newGetUserExecutor},
+		{Descriptor: &verifyCredentialsDescriptor{}, Factory: newVerifyCredentialsExecutor},
 	}
 }
 
