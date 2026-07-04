@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"database/sql"
 	"sync"
 	"testing"
 	"time"
@@ -131,6 +132,48 @@ func TestConsumeTokenConcurrentSingleUse(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("token consumed %d times; must be exactly 1", count)
+	}
+}
+
+// TestConsumeTokenVerifyEmailTransactional proves the consume-UPDATE and the
+// email_verified_at UPDATE commit or fail together. It forces the second
+// statement to fail (by dropping auth_users after the token is minted) and
+// asserts the token was NOT burned — i.e. the consume-UPDATE was rolled back
+// along with the failed verify step, rather than being left committed.
+func TestConsumeTokenVerifyEmailTransactional(t *testing.T) {
+	db := newTestDB(t)
+	svc := testService()
+	hash, _ := svc.HashPassword("password123")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	create := newCreateTokenExecutor(nil)
+	_, data, err := create.Execute(context.Background(), fakeCtx{}, map[string]any{
+		"user_id": userID, "purpose": PurposeVerifyEmail,
+	}, testServices(db))
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	token := data.(map[string]any)["token"].(string)
+
+	// Force the third statement (email_verified_at update) to fail.
+	if err := db.Exec("DROP TABLE auth_users").Error; err != nil {
+		t.Fatalf("drop auth_users: %v", err)
+	}
+
+	consume := newConsumeTokenExecutor(nil)
+	out, _, err := consume.Execute(context.Background(), fakeCtx{}, map[string]any{
+		"token": token, "purpose": PurposeVerifyEmail,
+	}, testServices(db))
+	if err == nil {
+		t.Fatalf("expected error when email_verified_at update fails, got out=%q", out)
+	}
+
+	var consumedAt sql.NullTime
+	if err := db.Table("auth_tokens").Where("token_hash = ?", HashToken(token)).
+		Pluck("consumed_at", &consumedAt).Error; err != nil {
+		t.Fatalf("query token: %v", err)
+	}
+	if consumedAt.Valid {
+		t.Fatalf("token was burned despite the failed transaction: consumed_at=%v", consumedAt.Time)
 	}
 }
 

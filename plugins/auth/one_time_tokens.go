@@ -159,32 +159,50 @@ func (e *consumeTokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionCo
 
 	now := time.Now().UTC()
 	hash := HashToken(token)
-	// Atomic single-use: the WHERE guard on consumed_at makes concurrent
-	// consumption impossible — exactly one UPDATE can match.
-	res := db.WithContext(ctx).Table("auth_tokens").
-		Where("token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?", hash, purpose, now).
-		Update("consumed_at", now)
-	if res.Error != nil {
-		return "", nil, fmt.Errorf("auth.consume_token: %w", res.Error)
-	}
-	if res.RowsAffected == 0 {
-		return "invalid", map[string]any{}, nil
-	}
 
 	var userID string
-	if err := db.WithContext(ctx).Table("auth_tokens").
-		Where("token_hash = ?", hash).Pluck("user_id", &userID).Error; err != nil {
+	invalid := false
+	// The consume-UPDATE, the user_id lookup, and (for verify_email) the
+	// email_verified_at UPDATE must commit or fail together: a crash between
+	// them would otherwise permanently burn the token without ever marking
+	// the user verified. Wrapping the whole path in one transaction makes it
+	// atomic — if the verify step fails, the consume-UPDATE rolls back too,
+	// so the token remains usable.
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Atomic single-use: the WHERE guard on consumed_at makes concurrent
+		// consumption impossible — exactly one UPDATE can match.
+		res := tx.Table("auth_tokens").
+			Where("token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?", hash, purpose, now).
+			Update("consumed_at", now)
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			invalid = true
+			return nil
+		}
+
+		if err := tx.Table("auth_tokens").
+			Where("token_hash = ?", hash).Pluck("user_id", &userID).Error; err != nil {
+			return err
+		}
+		if userID == "" {
+			return fmt.Errorf("consumed token row disappeared")
+		}
+
+		if purpose == PurposeVerifyEmail {
+			if err := tx.Table("auth_users").Where("id = ?", userID).
+				Updates(map[string]any{"email_verified_at": now, "updated_at": now}).Error; err != nil {
+				return fmt.Errorf("mark verified: %w", err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
 		return "", nil, fmt.Errorf("auth.consume_token: %w", err)
 	}
-	if userID == "" {
-		return "", nil, fmt.Errorf("auth.consume_token: consumed token row disappeared")
-	}
-
-	if purpose == PurposeVerifyEmail {
-		if err := db.WithContext(ctx).Table("auth_users").Where("id = ?", userID).
-			Updates(map[string]any{"email_verified_at": now, "updated_at": now}).Error; err != nil {
-			return "", nil, fmt.Errorf("auth.consume_token: mark verified: %w", err)
-		}
+	if invalid {
+		return "invalid", map[string]any{}, nil
 	}
 	return api.OutputSuccess, map[string]any{"user_id": userID}, nil
 }
