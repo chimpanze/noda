@@ -1,0 +1,24 @@
+{
+  "id": "test-auth-verify-email",
+  "workflow": "auth-verify-email",
+  "tests": [
+    {
+      "name": "valid token verifies the email",
+      "input": { "token": "verify-tok" },
+      "mocks": {
+        "consume": { "output": { "user_id": "user-1" } },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
+    },
+    {
+      "name": "invalid or expired token is rejected",
+      "input": { "token": "bad-tok" },
+      "mocks": {
+        "consume": { "output_name": "invalid", "output": {} },
+        "respond_invalid": { "output": { "status": 400 } }
+      },
+      "expect": { "status": "success", "output": { "respond_invalid.status": 400 } }
+    }
+  ]
+}

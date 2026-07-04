@@ -1,0 +1,24 @@
+{
+  "id": "test-auth-me",
+  "workflow": "auth-me",
+  "tests": [
+    {
+      "name": "returns the current user",
+      "input": { "user_id": "user-1" },
+      "mocks": {
+        "get": { "output": { "id": "user-1", "email": "alice@example.com", "roles": ["user"] } },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
+    },
+    {
+      "name": "unknown user id gets 401",
+      "input": { "user_id": "missing" },
+      "mocks": {
+        "get": { "output_name": "not_found", "output": {} },
+        "respond_missing": { "output": { "status": 401 } }
+      },
+      "expect": { "status": "success", "output": { "respond_missing.status": 401 } }
+    }
+  ]
+}

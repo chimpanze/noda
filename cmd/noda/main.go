@@ -113,6 +113,7 @@ func main() {
 		newDevCmd(),
 		newInitCmd(),
 		newPluginCmd(),
+		newAuthCmd(),
 		newCompletionCmd(),
 		newMCPCmd(),
 	)

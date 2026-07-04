@@ -1,0 +1,49 @@
+{
+  "id": "auth-register",
+  "name": "Auth: Register",
+  "nodes": {
+    "create_user": {
+      "type": "auth.create_user",
+      "services": { "auth": "auth", "database": "[[.DBService]]" },
+      "config": { "email": "{{ input.email }}", "password": "{{ input.password }}" }
+    },
+    "respond_exists": {
+      "type": "response.json",
+      "config": { "status": 400, "body": { "error": "registration failed" } }
+    },
+    "verify_token": {
+      "type": "auth.create_token",
+      "services": { "auth": "auth", "database": "[[.DBService]]" },
+      "config": { "user_id": "{{ nodes.create_user.id }}", "purpose": "verify_email" }
+    },
+    "send_verify_email": {
+      "type": "email.send",
+      "services": { "mailer": "[[.EmailService]]" },
+      "config": {
+        "to": "{{ nodes.create_user.email }}",
+        "subject": "Verify your email",
+        "body": "<p>Welcome! Verify your email with this token: <strong>{{ nodes.verify_token.token }}</strong></p>"
+      }
+    },
+    "session": {
+      "type": "auth.create_session",
+      "services": { "auth": "auth", "database": "[[.DBService]]" },
+      "config": { "user_id": "{{ nodes.create_user.id }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": { "user": "{{ nodes.create_user }}", "token": "{{ nodes.session.token }}" },
+        "cookies": "{{ [nodes.session.cookie] }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "create_user", "to": "verify_token" },
+    { "from": "create_user", "output": "exists", "to": "respond_exists" },
+    { "from": "verify_token", "to": "send_verify_email" },
+    { "from": "send_verify_email", "to": "session" },
+    { "from": "session", "to": "respond" }
+  ]
+}
