@@ -175,7 +175,7 @@ Locals populated (read via `auth.*` in expressions, same as `auth.jwt`):
 
 | Local | Description |
 |-------|-------------|
-| `auth.sub` / `auth.user_id` | The session's user id |
+| `auth.sub` | The session's user id |
 | `auth.roles` | Array of user roles |
 | `auth.claims` | `{ sub, email, email_verified, session_id, roles }` |
 
