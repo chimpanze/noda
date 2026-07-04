@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/bounded"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // EventType identifies the kind of trace event.
@@ -118,8 +119,11 @@ func (h *EventHub) Emit(event Event) {
 	if event.Timestamp == "" {
 		event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
-	if m, ok := event.Data.(map[string]any); ok {
-		event.Data = redactSecrets(m)
+	switch data := event.Data.(type) {
+	case map[string]any:
+		event.Data = redactSecrets(data)
+	case *api.HTTPResponse:
+		event.Data = redactHTTPResponse(data)
 	}
 	data, err := json.Marshal(event)
 	if err != nil {
