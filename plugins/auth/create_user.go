@@ -103,14 +103,15 @@ func (e *createUserExecutor) Execute(ctx context.Context, nCtx api.ExecutionCont
 
 	now := time.Now().UTC()
 	row := map[string]any{
-		"id":            uuid.NewString(),
-		"email":         email,
-		"password_hash": hash,
-		"status":        "active",
-		"roles":         string(rolesJSON),
-		"metadata":      string(metaJSON),
-		"created_at":    now,
-		"updated_at":    now,
+		"id":                uuid.NewString(),
+		"email":             email,
+		"password_hash":     hash,
+		"email_verified_at": nil,
+		"status":            "active",
+		"roles":             string(rolesJSON),
+		"metadata":          string(metaJSON),
+		"created_at":        now,
+		"updated_at":        now,
 	}
 	if err := db.WithContext(ctx).Table("auth_users").Create(row).Error; err != nil {
 		if isUniqueViolation(err) {

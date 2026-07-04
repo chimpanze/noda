@@ -23,6 +23,9 @@ func TestCreateUser(t *testing.T) {
 	if _, exists := user["password_hash"]; exists {
 		t.Fatal("password_hash must be stripped from output")
 	}
+	if _, ok := user["email_verified_at"]; !ok {
+		t.Fatal("email_verified_at key must be present in output")
+	}
 	roles, _ := user["roles"].([]string)
 	if len(roles) != 1 || roles[0] != "user" {
 		t.Fatalf("default roles wrong: %v", user["roles"])
