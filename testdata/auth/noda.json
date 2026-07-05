@@ -1,0 +1,35 @@
+{
+  "middleware": {
+    "limiter": {
+      "expiration": "1m",
+      "max": 20
+    }
+  },
+  "middleware_presets": {
+    "authenticated_session": [
+      "auth.session"
+    ]
+  },
+  "services": {
+    "auth": {
+      "config": {
+        "database": "main-db"
+      },
+      "plugin": "auth"
+    },
+    "email": {
+      "config": {
+        "host": "localhost",
+        "port": 1025
+      },
+      "plugin": "email"
+    },
+    "main-db": {
+      "config": {
+        "driver": "sqlite",
+        "path": "data/auth-test.db"
+      },
+      "plugin": "db"
+    }
+  }
+}

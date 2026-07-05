@@ -27,7 +27,7 @@ func (s *Server) applyGlobalMiddleware() error {
 
 	globalMW := s.getGlobalMiddleware()
 	for _, name := range globalMW {
-		h, err := BuildMiddleware(name, s.config.Root)
+		h, err := s.buildMiddleware(name)
 		if err != nil {
 			return fmt.Errorf("global middleware %q: %w", name, err)
 		}

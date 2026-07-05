@@ -39,6 +39,7 @@ type Server struct {
 	secretsContext    map[string]any
 	readyFlag         atomic.Bool
 	subWorkflowRunner *engine.SubWorkflowRunnerImpl
+	serverMiddleware  map[string]MiddlewareFactory
 }
 
 // ServerOption configures a Server.
@@ -98,6 +99,9 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 	}
 	if s.compiler == nil {
 		s.compiler = expr.NewCompilerWithFunctions()
+	}
+	s.serverMiddleware = map[string]MiddlewareFactory{
+		"auth.session": s.newSessionMiddleware,
 	}
 
 	// Create sub-workflow runner for control.loop and workflow.run nodes

@@ -1,0 +1,27 @@
+{
+  "id": "test-auth-register",
+  "workflow": "auth-register",
+  "tests": [
+    {
+      "name": "registers a new user",
+      "input": { "email": "alice@example.com", "password": "password123" },
+      "mocks": {
+        "create_user": { "output": { "id": "user-1", "email": "alice@example.com", "roles": ["user"] } },
+        "verify_token": { "output": { "token": "verify-tok", "expires_at": "2030-01-01T00:00:00Z" } },
+        "send_verify_email": { "output": { "sent": true } },
+        "session": { "output": { "token": "tok", "session_id": "s1", "cookie": { "name": "noda_session", "value": "tok" } } },
+        "respond": { "output": { "status": 201 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 201 } }
+    },
+    {
+      "name": "existing email is rejected",
+      "input": { "email": "alice@example.com", "password": "password123" },
+      "mocks": {
+        "create_user": { "output_name": "exists", "output": {} },
+        "respond_exists": { "output": { "status": 400 } }
+      },
+      "expect": { "status": "success", "output": { "respond_exists.status": 400 } }
+    }
+  ]
+}

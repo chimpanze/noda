@@ -210,9 +210,33 @@ func buildTestRegistry(
 				return NewMockExecutor(mockCfg)
 			})
 
-			outputs := []string{"success", "error"}
-			if mc.OutputName != "" && mc.OutputName != "success" {
-				outputs = []string{mc.OutputName, "error"}
+			// The synthetic type must declare every output name any edge in
+			// this workflow uses from this node — not just the one output
+			// this particular mock fires. A single test case only exercises
+			// one branch (e.g. "invalid"), but Compile validates the whole
+			// graph, including edges for branches this case never takes
+			// (e.g. the "success" edge). Declaring only the fired output
+			// would make Compile reject the untaken edges as referencing an
+			// undeclared output.
+			outputSet := map[string]bool{"error": true, "success": true}
+			mockOutput := mc.OutputName
+			if mockOutput == "" {
+				mockOutput = "success"
+			}
+			outputSet[mockOutput] = true
+			for _, edge := range wf.Edges {
+				if edge.From != nodeID {
+					continue
+				}
+				output := edge.Output
+				if output == "" {
+					output = "success"
+				}
+				outputSet[output] = true
+			}
+			outputs := make([]string, 0, len(outputSet))
+			for o := range outputSet {
+				outputs = append(outputs, o)
 			}
 			syntheticOutputs[syntheticType] = outputs
 

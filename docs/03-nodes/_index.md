@@ -1,11 +1,12 @@
 # Node Reference
 
-Noda provides 72 built-in node types organized by plugin. Every node returns a named output (`success` or `error` by default) along with its result data.
+Noda provides 80 built-in node types organized by plugin. Every node returns a named output (`success` or `error` by default) along with its result data.
 
 ## Node Categories
 
 | Category | Prefix | Nodes |
 |----------|--------|-------|
+| Auth | `auth` | create_user, get_user, verify_credentials, create_session, revoke_session, create_token, consume_token, set_password |
 | Control Flow | `control` | if, switch, loop |
 | Workflow | `workflow` | run, output |
 | Transform | `transform` | set, map, filter, merge, delete, validate |

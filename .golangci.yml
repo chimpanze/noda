@@ -22,10 +22,14 @@ linters:
       - linters: [gosec]
         text: "G30[16]"
         path: (_test\.go|internal/|cmd/|plugins/)
-      # G304: file reads from constructed paths in internal code and tests
+      # G304: file reads from constructed paths in internal code, CLI scaffolding, and tests
       - linters: [gosec]
         text: "G304"
-        path: (_test\.go|internal/)
+        path: (_test\.go|internal/|cmd/)
+      # G124: request cookies in tests carry no attributes on the wire
+      - linters: [gosec]
+        text: "G124"
+        path: _test\.go
       # G118: false positive when cancel is stored in struct field
       - linters: [gosec]
         text: "G118"

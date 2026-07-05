@@ -97,7 +97,7 @@ Reference an instance from a route or preset by its full name (`auth.oidc:google
 
 Some middleware combinations have ordering constraints enforced at startup:
 
-- `casbin.enforce` must appear *after* `auth.jwt` or `auth.oidc` in the chain (it needs the authenticated subject).
+- `casbin.enforce` must appear *after* `auth.jwt`, `auth.oidc`, or `auth.session` in the chain (it needs the authenticated subject).
 
 (Source: `internal/server/presets.go:180-216`.)
 
@@ -159,9 +159,49 @@ Config under `security.oidc`:
 
 (Multi-provider example: see Recipes.)
 
+### auth.session
+
+Validates opaque session tokens issued by the `auth` plugin's `auth.create_session` node. Populates the same locals as `auth.jwt`/`auth.oidc`.
+
+Token source: the session cookie first (name from the auth service's `session.cookie.name`, default `noda_session`), falling back to the `Authorization: Bearer <token>` header if the cookie is absent. If neither is present, or the token doesn't match a live, unrevoked, unexpired session for an `active` user, the request is rejected with `401`.
+
+Config under `security.session`:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `service` | string | no | Name of the `auth`-plugin service instance to authenticate against. Default: `"auth"`. |
+
+Locals populated (read via `auth.*` in expressions, same as `auth.jwt`):
+
+| Local | Description |
+|-------|-------------|
+| `auth.sub` | The session's user id |
+| `auth.roles` | Array of user roles |
+| `auth.claims` | `{ sub, email, email_verified, session_id, roles }` |
+
+```json
+{
+  "middleware": ["auth.session"]
+}
+```
+
+The `noda auth init` scaffold adds an `authenticated_session` preset (`["auth.session"]`) rather than writing `security.session`, since the default `service: "auth"` already matches the scaffolded service name.
+
+To authenticate against a non-default auth service instance, set `service` under `security.session`, or use the `middleware_instances` `name:instance` syntax (see below) for multiple auth services:
+
+```json
+{
+  "security": {
+    "session": { "service": "auth-admin" }
+  }
+}
+```
+
+See the [authentication guide](../04-guides/authentication.md) for the full session-based auth flow (`noda auth init`, cookie handling, revocation) and when to prefer it over `auth.jwt`/`auth.oidc`.
+
 ### casbin.enforce
 
-Enforces a Casbin policy using the authenticated subject from `auth.jwt` or `auth.oidc`. Must follow one of those middleware in the chain.
+Enforces a Casbin policy using the authenticated subject from `auth.jwt`, `auth.oidc`, or `auth.session`. Must follow one of those middleware in the chain.
 
 Config under `security.casbin` (per `internal/server/casbin.go`):
 

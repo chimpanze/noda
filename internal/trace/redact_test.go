@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 func TestRedactSecrets_BasicKeys(t *testing.T) {
@@ -102,6 +104,118 @@ func TestRedactSecrets_DoesNotModifyOriginal(t *testing.T) {
 	_ = redactSecrets(input)
 
 	assert.Equal(t, "original", input["password"])
+}
+
+func TestRedactSecrets_SessionCookieObjectValueRedacted(t *testing.T) {
+	// Mirrors plugins/auth/service.go SessionCookieObject's output shape:
+	// a "cookie" key holding a map with "name"/"value" among other fields.
+	input := map[string]any{
+		"user_id": "u1",
+		"cookie": map[string]any{
+			"name":      "noda_session",
+			"value":     "raw-session-token-should-not-leak",
+			"path":      "/",
+			"max_age":   float64(3600),
+			"secure":    true,
+			"http_only": true,
+		},
+	}
+
+	result := redactSecrets(input)
+
+	cookie := result["cookie"].(map[string]any)
+	assert.Equal(t, "[REDACTED]", cookie["value"])
+	assert.Equal(t, "noda_session", cookie["name"], "non-sensitive fields must survive")
+	assert.Equal(t, "u1", result["user_id"])
+}
+
+func TestRedactSecrets_ClearCookieObjectValueRedacted(t *testing.T) {
+	// Mirrors plugins/auth/service.go ClearCookieObject's output shape.
+	input := map[string]any{
+		"revoked_count": float64(1),
+		"clear_cookie": map[string]any{
+			"name":  "noda_session",
+			"value": "",
+		},
+	}
+
+	result := redactSecrets(input)
+
+	clearCookie := result["clear_cookie"].(map[string]any)
+	assert.Equal(t, "[REDACTED]", clearCookie["value"])
+}
+
+func TestRedactSecrets_UnrelatedValueKeyNotRedacted(t *testing.T) {
+	// A "value" key that isn't nested under a known cookie-container key,
+	// or whose containing map isn't cookie-shaped (no "name" key), must not
+	// be redacted — the fix is scoped narrowly to avoid over-redaction.
+	input := map[string]any{
+		"settings": map[string]any{
+			"value": "some-config-value",
+		},
+	}
+
+	result := redactSecrets(input)
+
+	settings := result["settings"].(map[string]any)
+	assert.Equal(t, "some-config-value", settings["value"])
+}
+
+func TestRedactHTTPResponse_BodyAndCookiesRedacted(t *testing.T) {
+	resp := &api.HTTPResponse{
+		Status: 200,
+		Headers: map[string]string{
+			"Content-Type":  "application/json",
+			"Authorization": "Bearer leaked-header-token",
+		},
+		Cookies: []api.Cookie{
+			{Name: "noda_session", Value: "raw-session-token-should-not-leak", Path: "/", HTTPOnly: true},
+		},
+		Body: map[string]any{
+			"token": "raw-body-token-should-not-leak",
+			"email": "alice@example.com",
+		},
+	}
+
+	result := redactHTTPResponse(resp)
+
+	body := result["body"].(map[string]any)
+	assert.Equal(t, "[REDACTED]", body["token"])
+	assert.Equal(t, "alice@example.com", body["email"])
+
+	cookies := result["cookies"].([]any)
+	cookie := cookies[0].(map[string]any)
+	assert.Equal(t, "[REDACTED]", cookie["value"])
+	assert.Equal(t, "noda_session", cookie["name"])
+
+	headers := result["headers"].(map[string]any)
+	assert.Equal(t, "[REDACTED]", headers["Authorization"])
+	assert.Equal(t, "application/json", headers["Content-Type"])
+}
+
+func TestEventHub_HTTPResponseDataRedacted(t *testing.T) {
+	hub := NewEventHub()
+	received := make(chan []byte, 1)
+	unsub := hub.Subscribe(func(data []byte) {
+		received <- data
+	})
+	defer unsub()
+
+	hub.Emit(Event{
+		Type: EventNodeCompleted,
+		Data: &api.HTTPResponse{
+			Status: 200,
+			Cookies: []api.Cookie{
+				{Name: "noda_session", Value: "raw-session-token-should-not-leak"},
+			},
+			Body: map[string]any{"token": "raw-body-token-should-not-leak"},
+		},
+	})
+
+	data := <-received
+	assert.NotContains(t, string(data), "raw-session-token-should-not-leak")
+	assert.NotContains(t, string(data), "raw-body-token-should-not-leak")
+	assert.Contains(t, string(data), "[REDACTED]")
 }
 
 func TestIsSensitiveKey(t *testing.T) {

@@ -188,7 +188,7 @@ func (s *Server) resolveEndpointMiddleware(ep map[string]any) ([]fiber.Handler, 
 
 	handlers := make([]fiber.Handler, 0, len(middlewareNames))
 	for _, name := range middlewareNames {
-		h, err := BuildMiddleware(name, s.config.Root)
+		h, err := s.buildMiddleware(name)
 		if err != nil {
 			return nil, fmt.Errorf("middleware %q: %w", name, err)
 		}

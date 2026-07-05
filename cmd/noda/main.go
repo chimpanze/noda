@@ -28,6 +28,7 @@ import (
 	"github.com/chimpanze/noda/internal/wasm"
 	"github.com/chimpanze/noda/internal/worker"
 	"github.com/chimpanze/noda/pkg/api"
+	authplugin "github.com/chimpanze/noda/plugins/auth"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
@@ -112,6 +113,7 @@ func main() {
 		newDevCmd(),
 		newInitCmd(),
 		newPluginCmd(),
+		newAuthCmd(),
 		newCompletionCmd(),
 		newMCPCmd(),
 	)
@@ -765,6 +767,7 @@ func corePlugins() []api.Plugin {
 // full runtime but not needed for the test runner's node registry.
 func serviceOnlyPlugins() []api.Plugin {
 	return []api.Plugin{
+		&authplugin.Plugin{},
 		&streamplugin.Plugin{},
 		&pubsubplugin.Plugin{},
 		&storageplugin.Plugin{},

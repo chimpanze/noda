@@ -1,0 +1,21 @@
+{
+  "id": "auth-verify-email",
+  "method": "POST",
+  "path": "/auth/verify-email",
+  "summary": "Verify an email address using a one-time token",
+  "tags": ["auth"],
+  "middleware": [],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["token"],
+      "properties": {
+        "token": { "type": "string" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "auth-verify-email",
+    "input": { "token": "{{ body.token }}" }
+  }
+}

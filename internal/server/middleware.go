@@ -104,6 +104,7 @@ var middlewareConfigPaths = map[string][]string{
 	"security.csrf":    {"security", "csrf"},
 	"auth.jwt":         {"security", "jwt"},
 	"auth.oidc":        {"security", "oidc"},
+	"auth.session":     {"security", "session"},
 	"casbin.enforce":   {"security", "casbin"},
 	"livekit.webhook":  {"security", "livekit"},
 }

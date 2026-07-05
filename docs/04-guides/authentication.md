@@ -1,6 +1,6 @@
 # Authentication & Authorization
 
-This guide covers securing Noda APIs with JWT tokens, OIDC providers, and Casbin authorization policies.
+This guide covers securing Noda APIs with JWT tokens, OIDC providers, Casbin authorization policies, and the first-party `auth` plugin's session-based email+password flows.
 
 ## JWT Authentication
 
@@ -824,6 +824,98 @@ If your tokens already carry roles (e.g. an OIDC provider issues `roles: ["admin
 ```
 
 Use middleware-level `casbin.enforce` for per-user/per-resource policies; use the in-workflow `control.if` pattern when a coarse role-claim check is all you need and you don't want to enumerate users.
+
+## Session Authentication (`auth` plugin)
+
+The sections above assume you bring your own token issuer (an external service, or hand-rolled login logic behind `util.jwt_sign`). The `auth` plugin is the alternative: a complete, ownable email+password authentication system — registration, login, logout, "who am I", email verification, and password reset — scaffolded straight into your project.
+
+### The model: scaffold, don't wrap
+
+The plugin follows a shadcn/ui-style split, not a black-box "auth server":
+
+- **The plugin owns primitives.** 8 nodes (`auth.create_user`, `auth.get_user`, `auth.verify_credentials`, `auth.create_session`, `auth.revoke_session`, `auth.create_token`, `auth.consume_token`, `auth.set_password`) plus the `auth.session` middleware. These are stable, tested building blocks — argon2id hashing, opaque session tokens, single-use tokens — and they live in `plugins/auth/`, not your project.
+- **Your project owns the flows.** `noda auth init` generates real, editable files into *your* project: migrations, routes, and workflows built from those 8 nodes. There is no hidden control flow — the generated `workflows/auth-register.json` etc. are ordinary workflow files you can open in the editor and change node-by-node (add a CAPTCHA check, require an invite code, change the email copy, add an audit log node) exactly like any other workflow.
+
+This means upgrading the plugin never silently changes your auth behavior — the generated files are yours from the moment `noda auth init` runs.
+
+### `noda auth init` walkthrough
+
+```
+noda auth init [--dir .]
+```
+
+Preconditions: the project's `noda.json` must already have a database service (`plugin: "db"`) — the command detects it by scanning `services` and fails with a clear error if none exists. It also looks for an `email` service; if none is found it still scaffolds the email-dependent flows (verify-email, password reset) but prints a warning, since those workflows won't be able to send mail until you add one.
+
+What it writes:
+
+1. **Migrations** — a driver-specific (`postgres` or `sqlite`, detected from the db service's `driver` config) up/down pair creating `auth_users`, `auth_sessions`, `auth_tokens`, timestamped like any other migration.
+2. **Seven workflows** (in `workflows/`, one file each): `auth-register`, `auth-login`, `auth-logout`, `auth-me`, `auth-request-password-reset`, `auth-reset-password`, `auth-verify-email`.
+3. **Routes** wiring each workflow to an HTTP endpoint (`POST /auth/register`, `POST /auth/login`, etc.), using a `limiter` middleware on the credential-guessing-sensitive ones.
+4. **`noda.json` patches** — applied in place, not appended:
+   - Adds `services.auth` (`{"plugin": "auth", "config": {"database": "<detected db service>"}}`).
+   - Adds a `middleware_presets.authenticated_session: ["auth.session"]` preset, if one doesn't already exist.
+   - If the project has no `middleware.limiter` config yet, adds a default (`{"max": 20, "expiration": "1m"}`) — the scaffolded login/register/reset routes reference the `limiter` middleware by name, and the server refuses to start without an explicit `max` for it.
+   - **Rewrites the entire `noda.json` file** via `json.MarshalIndent`, which serializes Go maps with their keys in alphabetical order. Every top-level and nested key in `noda.json` comes out alphabetized after `noda auth init` runs, even keys unrelated to auth. This is a one-time reformatting side effect of the patch mechanism — review the diff (`git diff noda.json`) after running it so the reordering doesn't surprise you in a PR full of unrelated moved lines.
+
+All files are generated in memory first and checked for collisions against existing files before anything is written — if any target file already exists, the whole command fails with no partial writes.
+
+After scaffolding: run your migration tool, then open the generated workflows in the editor to customize them.
+
+### The seven flows, and how to customize them
+
+| Workflow | Route | What it does |
+|---|---|---|
+| `auth-register` | `POST /auth/register` | `auth.create_user` → `auth.create_token` (`verify_email`) → `email.send` → `auth.create_session` → `201` with `user`, `token`, and a `Set-Cookie` |
+| `auth-login` | `POST /auth/login` | `auth.verify_credentials` → `auth.create_session` → `200` with `user`, `token`, cookie; `invalid` → `401` |
+| `auth-logout` | `POST /auth/logout` | `auth.revoke_session` → `204` with a cookie that clears the session |
+| `auth-me` | `GET /auth/me` | `auth.get_user` (by the session's `user_id`) → `200`; `not_found` → `401` |
+| `auth-request-password-reset` | `POST /auth/request-password-reset` | `auth.get_user` (by email) → `auth.create_token` (`reset_password`) → `email.send` → `200` (same body whether or not the account exists — see below) |
+| `auth-reset-password` | `POST /auth/reset-password` | `auth.consume_token` (`reset_password`) → `auth.set_password` (revokes sessions) → `200`; `invalid` → `400` |
+| `auth-verify-email` | `POST /auth/verify-email` | `auth.consume_token` (`verify_email`) → `200`; `invalid` → `400` |
+
+Every one of these is a plain workflow — customize by editing nodes and edges directly, same as any workflow. For example, to require an invite code at registration, add a `control.if` node right after the trigger that checks `{{ input.invite_code }}` against a lookup (e.g. `db.query` on an `invite_codes` table) and routes failures to a `response.error` before `auth.create_user` ever runs — no plugin change required.
+
+### Sessions vs. `auth.jwt` / `auth.oidc`
+
+Use `auth.session` (opaque, server-validated sessions) when:
+
+- You own both the login flow and the client (first-party web/mobile app) and want instant, server-side revocation — logout, "force logout everywhere", and password-reset-revokes-sessions all take effect immediately, because every request re-checks the database. A JWT, by contrast, stays valid until it expires no matter what the server does, unless you build a separate revocation list.
+- You want the plugin's built-in argon2id password storage and single-use email/reset tokens instead of hand-rolling them.
+
+Use `auth.jwt` when:
+
+- Tokens need to be self-contained and verifiable without a database round-trip (e.g. service-to-service calls, or a separate service validating tokens issued elsewhere). `util.jwt_sign` still exists precisely for this — nothing about the `auth` plugin removes it, and you can mix the two (e.g. sign a short-lived JWT for a downstream microservice from a session-authenticated request).
+
+Use `auth.oidc` when an external identity provider (Google, Keycloak, Auth0, ...) is the source of truth for identity — the `auth` plugin does not do federated login.
+
+All three middleware populate the same locals (`auth.sub`, `auth.roles`, `auth.claims`), so workflows and Casbin policies work identically regardless of which one authenticated the request — you can even run different middleware on different route groups of the same app.
+
+### Security defaults, and why
+
+| Default | Reasoning |
+|---|---|
+| Passwords hashed with **argon2id** (memory 64 MiB, 3 iterations, parallelism 2 — OWASP-recommended) | Memory-hard hashing resists GPU/ASIC cracking far better than bcrypt at equivalent CPU cost. |
+| Sessions are **opaque, random 256-bit tokens**, hashed (SHA-256) before storage | The database never holds a value that can be replayed if leaked; a stolen session hash is useless without reversing SHA-256. Compare to a self-verifying JWT, where the raw token itself is the credential and a DB leak of the token store is moot but a *client-side* leak of the token is immediately usable until expiry. |
+| Password reset / email verification tokens are also opaque and **single-use** (atomic consume, see `auth.consume_token`) | Removes the class of bugs where a token can be replayed twice, or where two concurrent requests both succeed. |
+| `auth-request-password-reset` returns the **same response body** whether or not the account exists | Prevents attackers from enumerating registered emails by observing a different error for unknown addresses. |
+| `auth.set_password` **revokes all sessions by default** | If a password reset happens because credentials were compromised, any session opened with the old (compromised) password is killed at the same moment the new password takes effect — there's no window where both the old and new credentials are simultaneously valid. |
+| Session cookie defaults: `HttpOnly: true`, `Secure: true`, `SameSite: Lax` | `HttpOnly`/`Secure` block script access and non-TLS transmission. `Lax` is the safe default for same-site apps — it's sent on top-level navigations but not on cross-site subresource/XHR requests, which blocks the classic CSRF vector without extra configuration. |
+
+### CSRF guidance for cross-site frontends
+
+`SameSite=Lax` (the default) protects same-site apps — where your frontend and API share a registrable domain — from CSRF without any extra setup, because the browser withholds the cookie on cross-site `fetch`/XHR calls.
+
+If your frontend is served from a **different origin** than the API (a common SPA deployment: `app.example.com` calling `api.example.com`, or a mobile webview), the browser still sends the cookie on cross-site requests once you loosen `SameSite` (or if you use `SameSite=None`, which itself requires `Secure`). In that configuration, add `security.csrf` (double-submit cookie protection) to the routes that accept the session cookie — see [`security.csrf`](../02-config/middleware.md#securitycsrf) in the middleware reference. Alternatively, have the cross-site frontend use the `Authorization: Bearer <token>` path instead of the cookie (the `token` field returned by `auth.create_session`/`auth-login`) — bearer tokens sent via an explicit header are not subject to CSRF the way ambient cookies are, since the browser never attaches them automatically.
+
+### The reset-request timing signal
+
+`auth-request-password-reset` returns an identical response body for both a known and an unknown email — but the two code paths are not perfectly identical in *timing*: for a known email, the workflow additionally runs `auth.create_token` and `email.send` before responding; for an unknown one, it returns immediately after `auth.get_user`'s `not_found`. A sufficiently precise timing measurement could still distinguish the two cases, especially if the mail provider call is slow.
+
+To close this residual gap, decouple the email send from the request/response cycle with `event.emit`: have the workflow emit an event (e.g. `password_reset_requested`) carrying the token instead of calling `email.send` inline, and handle the actual send in a separate event-triggered workflow. The HTTP response then returns at the same point (right after the `db` lookup) regardless of whether the account exists, and the extra token-creation/email work happens asynchronously off the request's critical path.
+
+### Migrating an existing user table (bcrypt)
+
+If you already have a users table with bcrypt password hashes (`$2a$`/`$2b$`/`$2y$` prefix), you don't need a bulk rehash migration before switching to the `auth` plugin. `auth.verify_credentials` recognizes both hash formats: argon2id hashes (`$argon2id$...`) are verified directly, and bcrypt hashes are verified via `bcrypt.CompareHashAndPassword`. On a successful bcrypt verification, the node transparently re-hashes the password with argon2id and updates `password_hash` in place — a purely opportunistic, best-effort upgrade that never fails the login if it errors. Every account converges to argon2id the first time its owner logs in after the migration; there is no forced-reset step and no "the reset didn't apply" corner case, since the conversion only ever happens alongside a successful login.
 
 ## Middleware Presets
 

@@ -1,0 +1,22 @@
+{
+  "id": "auth-login",
+  "method": "POST",
+  "path": "/auth/login",
+  "summary": "Log in with email and password",
+  "tags": ["auth"],
+  "middleware": ["limiter"],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["email", "password"],
+      "properties": {
+        "email": { "type": "string" },
+        "password": { "type": "string" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "auth-login",
+    "input": { "email": "{{ body.email }}", "password": "{{ body.password }}" }
+  }
+}

@@ -207,6 +207,55 @@ Noda acts as the **control plane only** — token generation, room management, e
 | `password` | string | no | SMTP password |
 | `from` | string | yes | Default sender address |
 
+### Auth Service (`plugin: "auth"`)
+
+Backs the 8 `auth.*` nodes and the `auth.session` middleware. Has no DB handle of its own — `database` names the `db`-plugin service that the auth tables (`auth_users`, `auth_sessions`, `auth_tokens`) live in; nodes still declare their own `database` service dependency the same way every db-dependent node does.
+
+| Config Field | Type | Required | Default | Description |
+|-------------|------|----------|---------|-------------|
+| `database` | string | yes | — | Name of the `db`-plugin service holding the auth tables |
+| `session.ttl` | duration string | no | `"720h"` | Session lifetime |
+| `session.cookie.name` | string | no | `"noda_session"` | Session cookie name |
+| `session.cookie.path` | string | no | `"/"` | Cookie path |
+| `session.cookie.domain` | string | no | `""` (unset) | Cookie domain |
+| `session.cookie.same_site` | string | no | `"Lax"` | Cookie `SameSite` attribute |
+| `session.cookie.secure` | boolean | no | `true` | Cookie `Secure` attribute |
+| `session.cookie.http_only` | boolean | no | `true` | Cookie `HttpOnly` attribute |
+| `argon2.memory_kib` | integer | no | `65536` | Argon2id memory cost (KiB) |
+| `argon2.iterations` | integer | no | `3` | Argon2id time cost |
+| `argon2.parallelism` | integer | no | `2` | Argon2id parallelism |
+| `argon2.salt_len` | integer | no | `16` | Salt length (bytes) |
+| `argon2.key_len` | integer | no | `32` | Derived key length (bytes) |
+| `tokens.verify_email_ttl` | duration string | no | `"24h"` | Email-verification token lifetime |
+| `tokens.reset_password_ttl` | duration string | no | `"1h"` | Password-reset token lifetime |
+
+```json
+{
+  "services": {
+    "auth": {
+      "plugin": "auth",
+      "config": {
+        "database": "postgres",
+        "session": {
+          "ttl": "720h",
+          "cookie": {
+            "name": "noda_session",
+            "secure": true,
+            "http_only": true,
+            "same_site": "Lax",
+            "path": "/"
+          }
+        },
+        "argon2": { "memory_kib": 65536, "iterations": 3, "parallelism": 2, "salt_len": 16, "key_len": 32 },
+        "tokens": { "verify_email_ttl": "24h", "reset_password_ttl": "1h" }
+      }
+    }
+  }
+}
+```
+
+All fields are optional except `database`; defaults are as shown above and follow OWASP recommendations for argon2id. `noda auth init` writes a minimal `services.auth` block (`{"plugin": "auth", "config": {"database": "<detected db service>"}}`) and leaves the rest to defaults — edit `noda.json` directly to override any of them. See [the authentication guide](../04-guides/authentication.md) for the full `noda auth init` walkthrough.
+
 ## security
 
 ### security.jwt
