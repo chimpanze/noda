@@ -983,7 +983,7 @@ const scaffoldSampleRoute = `{
   "trigger": {
     "workflow": "hello",
     "input": {
-      "name": "{{ request.params.name }}"
+      "name": "{{ params.name }}"
     }
   }
 }

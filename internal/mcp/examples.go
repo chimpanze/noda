@@ -28,8 +28,8 @@ var examplePatterns = map[string]map[string]string{
   "trigger": {
     "workflow": "create-user",
     "input": {
-      "name": "{{ request.body.name }}",
-      "email": "{{ request.body.email }}"
+      "name": "{{ body.name }}",
+      "email": "{{ body.email }}"
     }
   }
 }`,
@@ -98,8 +98,8 @@ var examplePatterns = map[string]map[string]string{
   "trigger": {
     "workflow": "login",
     "input": {
-      "email": "{{ request.body.email }}",
-      "password": "{{ request.body.password }}"
+      "email": "{{ body.email }}",
+      "password": "{{ body.password }}"
     }
   }
 }`,
@@ -184,9 +184,9 @@ var examplePatterns = map[string]map[string]string{
   "trigger": {
     "workflow": "register",
     "input": {
-      "name": "{{ request.body.name }}",
-      "email": "{{ request.body.email }}",
-      "password": "{{ request.body.password }}"
+      "name": "{{ body.name }}",
+      "email": "{{ body.email }}",
+      "password": "{{ body.password }}"
     }
   }
 }`,
@@ -269,8 +269,8 @@ var examplePatterns = map[string]map[string]string{
   "trigger": {
     "workflow": "post-message",
     "input": {
-      "room_id": "{{ request.params.room_id }}",
-      "text": "{{ request.body.text }}"
+      "room_id": "{{ params.room_id }}",
+      "text": "{{ body.text }}"
     }
   }
 }`,
