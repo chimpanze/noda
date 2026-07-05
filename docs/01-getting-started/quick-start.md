@@ -377,6 +377,8 @@ noda validate
 noda test --verbose
 ```
 
+`noda validate` checks config schemas, cross-references, workflow compilation, and — without opening any external connections — that every middleware referenced by your routes, groups, presets, and connections would actually build at boot (e.g. a `limiter` without an explicit `max` fails here instead of crashing the server).
+
 ### 8. Start with Docker Compose
 
 Create a `docker-compose.yml`:
