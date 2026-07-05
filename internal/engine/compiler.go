@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -377,21 +378,28 @@ func hasCommonConditionalAncestor(g *CompiledGraph, _ string, inbound []string) 
 		outputs := g.Adjacency[ancestor]
 		if len(outputs) > 1 {
 			// Check if the inbound nodes are reached through different outputs
-			reachedThrough := make(map[string]string) // inbound src → output name
+			reachedThrough := make(map[string]map[string]bool) // src → set of output names
 			for _, src := range inbound {
-				for outputName, targets := range outputs {
-					if reachableFrom(g, targets, src) {
-						reachedThrough[src] = outputName
-						break
+				reachedThrough[src] = make(map[string]bool)
+				names := make([]string, 0, len(outputs))
+				for n := range outputs {
+					names = append(names, n)
+				}
+				sort.Strings(names)
+				for _, outputName := range names {
+					if reachableFrom(g, outputs[outputName], src) {
+						reachedThrough[src][outputName] = true
 					}
 				}
 			}
-			// If inbound nodes come through different outputs, it's OR-join
-			outputsSeen := make(map[string]bool)
-			for _, output := range reachedThrough {
-				outputsSeen[output] = true
+			// OR-join iff the inbound sources are reached through different outputs.
+			allOutputs := make(map[string]bool)
+			for _, set := range reachedThrough {
+				for o := range set {
+					allOutputs[o] = true
+				}
 			}
-			if len(outputsSeen) > 1 {
+			if len(allOutputs) > 1 {
 				return true
 			}
 		}
