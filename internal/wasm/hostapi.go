@@ -4,10 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 )
+
+// classifyError maps a dispatcher error to a wire error code based on its prefix.
+func classifyError(err error) string {
+	msg := err.Error()
+	for _, code := range []string{"PERMISSION_DENIED", "VALIDATION_ERROR", "SERVICE_UNAVAILABLE", "NOT_FOUND"} {
+		if strings.HasPrefix(msg, code) {
+			return code
+		}
+	}
+	return "INTERNAL_ERROR"
+}
 
 // requireString extracts a required string value from a payload map.
 // Returns an error if the key is missing or not a string.

@@ -129,52 +129,40 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 	nodaCall := extism.NewHostFunctionWithStack(
 		"noda_call",
 		func(ctx context.Context, p *extism.CurrentPlugin, stack []uint64) {
+			codec := &jsonCodec{}
+			writeEnvelope := func(env map[string]any) {
+				out, mErr := codec.Marshal(env)
+				if mErr != nil {
+					stack[0] = 0
+					return
+				}
+				off, wErr := p.WriteBytes(out)
+				if wErr != nil {
+					stack[0] = 0
+					return
+				}
+				stack[0] = off
+			}
 			input, err := p.ReadBytes(stack[0])
 			if err != nil {
-				logger.Error("noda_call: read input failed", "error", err)
-				stack[0] = 0
+				writeEnvelope(map[string]any{"ok": false, "error": map[string]any{"code": "INTERNAL_ERROR", "message": "read input: " + err.Error()}})
 				return
 			}
-
 			var req HostCallRequest
-			codec := &jsonCodec{}
 			if err := codec.Unmarshal(input, &req); err != nil {
-				offset, _ := p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
-				stack[0] = offset
+				writeEnvelope(map[string]any{"ok": false, "error": map[string]any{"code": "VALIDATION_ERROR", "message": "invalid request: " + err.Error()}})
 				return
 			}
-
 			result, err := dispatcher.Call(ctx, req)
 			if err != nil {
-				// Set error via Extism's error mechanism — the PDK reads this via pdk.GetError()
-				errMsg, _ := codec.Marshal(map[string]any{
-					"code":    "INTERNAL_ERROR",
-					"message": err.Error(),
-				})
-				offset, _ := p.WriteBytes(errMsg) // write error as output so PDK can read it
-				stack[0] = offset
+				writeEnvelope(map[string]any{"ok": false, "error": map[string]any{"code": classifyError(err), "message": err.Error()}})
 				return
 			}
-
 			if result == nil {
-				stack[0] = 0
+				stack[0] = 0 // void success
 				return
 			}
-
-			out, err := codec.Marshal(result)
-			if err != nil {
-				logger.Error("noda_call: marshal response failed", "error", err)
-				stack[0] = 0
-				return
-			}
-
-			offset, err := p.WriteBytes(out)
-			if err != nil {
-				logger.Error("noda_call: write response failed", "error", err)
-				stack[0] = 0
-				return
-			}
-			stack[0] = offset
+			writeEnvelope(map[string]any{"ok": true, "data": result})
 		},
 		[]extism.ValueType{extism.ValueTypePTR},
 		[]extism.ValueType{extism.ValueTypePTR},

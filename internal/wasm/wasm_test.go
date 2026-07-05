@@ -3370,3 +3370,9 @@ func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 	}
 	// goleak.VerifyNone (deferred above) verifies the async goroutine exited.
 }
+
+func TestHostCall_ErrorEnvelope(t *testing.T) {
+	code := classifyError(fmt.Errorf("PERMISSION_DENIED: service \"x\" not allowed"))
+	require.Equal(t, "PERMISSION_DENIED", code)
+	require.Equal(t, "INTERNAL_ERROR", classifyError(fmt.Errorf("boom")))
+}
