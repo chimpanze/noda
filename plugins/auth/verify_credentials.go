@@ -83,7 +83,13 @@ func (e *verifyCredentialsExecutor) Execute(ctx context.Context, nCtx api.Execut
 	storedHash, _ := row["password_hash"].(string)
 	ok, needsRehash, err := VerifyPassword(password, storedHash)
 	if err != nil {
-		return "", nil, fmt.Errorf("auth.verify_credentials: %w", err)
+		// VerifyPassword is pure CPU: any error means a corrupted or
+		// unrecognized stored hash (e.g. a bad import), never infrastructure.
+		// Surfacing it would 500 exactly those accounts — an enumerable
+		// signal and a lockout. Treat as invalid, keep timing flat.
+		VerifyDummy(password)
+		nCtx.Log("debug", "auth.verify_credentials: unusable password_hash", map[string]any{"error": err.Error()})
+		return "invalid", map[string]any{}, nil
 	}
 	if !ok {
 		nCtx.Log("debug", "auth.verify_credentials: wrong password", nil)
