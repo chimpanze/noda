@@ -83,6 +83,7 @@ func TestAuthInitScaffold(t *testing.T) {
 		"workflows/auth.verify-email.json",
 		"workflows/auth.request-password-reset.json",
 		"workflows/auth.reset-password.json",
+		"workflows/auth.resend-verification.json",
 		"routes/auth.register.json",
 		"routes/auth.login.json",
 		"routes/auth.logout.json",
@@ -90,8 +91,10 @@ func TestAuthInitScaffold(t *testing.T) {
 		"routes/auth.verify-email.json",
 		"routes/auth.request-password-reset.json",
 		"routes/auth.reset-password.json",
+		"routes/auth.resend-verification.json",
 		"tests/test-auth-register.json",
 		"tests/test-auth-login.json",
+		"tests/test-auth-resend-verification.json",
 	} {
 		m, _ := filepath.Glob(filepath.Join(dir, glob))
 		if len(m) != 1 {
@@ -171,8 +174,8 @@ func TestAuthInitOutputValidates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("scaffolded project fails config load: %v", err)
 	}
-	if len(rc.Workflows) < 7 {
-		t.Fatalf("expected >=7 workflows, got %d", len(rc.Workflows))
+	if len(rc.Workflows) < 8 {
+		t.Fatalf("expected >=8 workflows, got %d", len(rc.Workflows))
 	}
 }
 

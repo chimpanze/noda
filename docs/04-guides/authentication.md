@@ -854,14 +854,14 @@ What it writes:
 4. **`noda.json` patches** — applied in place, not appended:
    - Adds `services.auth` (`{"plugin": "auth", "config": {"database": "<detected db service>"}}`).
    - Adds a `middleware_presets.authenticated_session: ["auth.session"]` preset, if one doesn't already exist.
-   - If the project has no `middleware.limiter` config yet, adds a default (`{"max": 20, "expiration": "1m"}`) — the scaffolded login/register/reset routes reference the `limiter` middleware by name, and the server refuses to start without an explicit `max` for it.
+   - If the project has no `middleware.limiter` config yet, adds a default (`{"max": 20, "expiration": "1m"}`) — the scaffolded login/register/reset/resend routes reference the `limiter` middleware by name, and the server refuses to start without an explicit `max` for it.
    - **Rewrites the entire `noda.json` file** via `json.MarshalIndent`, which serializes Go maps with their keys in alphabetical order. Every top-level and nested key in `noda.json` comes out alphabetized after `noda auth init` runs, even keys unrelated to auth. This is a one-time reformatting side effect of the patch mechanism — review the diff (`git diff noda.json`) after running it so the reordering doesn't surprise you in a PR full of unrelated moved lines.
 
 All files are generated in memory first and checked for collisions against existing files before anything is written — if any target file already exists, the whole command fails with no partial writes.
 
 After scaffolding: run your migration tool, then open the generated workflows in the editor to customize them.
 
-### The seven flows, and how to customize them
+### The eight flows, and how to customize them
 
 | Workflow | Route | What it does |
 |---|---|---|
@@ -872,6 +872,7 @@ After scaffolding: run your migration tool, then open the generated workflows in
 | `auth-request-password-reset` | `POST /auth/request-password-reset` | `auth.get_user` (by email) → `auth.create_token` (`reset_password`) → `email.send` → `200` (same body whether or not the account exists — see below) |
 | `auth-reset-password` | `POST /auth/reset-password` | `auth.consume_token` (`reset_password`) → `auth.set_password` (revokes sessions) → `200`; `invalid` → `400` |
 | `auth-verify-email` | `POST /auth/verify-email` | `auth.consume_token` (`verify_email`) → `200`; `invalid` → `400` |
+| `auth-resend-verification` | `POST /auth/resend-verification` | `auth.get_user` (by email) → `control.if` (skip if already verified) → `auth.create_token` (`verify_email`) → `email.send` → `200` (same body for unknown, already-verified, and unverified accounts) |
 
 Every one of these is a plain workflow — customize by editing nodes and edges directly, same as any workflow. For example, to require an invite code at registration, add a `control.if` node right after the trigger that checks `{{ input.invite_code }}` against a lookup (e.g. `db.query` on an `invite_codes` table) and routes failures to a `response.error` before `auth.create_user` ever runs — no plugin change required.
 
@@ -918,6 +919,55 @@ To close this residual gap, decouple the email send from the request/response cy
 ### Migrating an existing user table (bcrypt)
 
 If you already have a users table with bcrypt password hashes (`$2a$`/`$2b$`/`$2y$` prefix), you don't need a bulk rehash migration before switching to the `auth` plugin. `auth.verify_credentials` recognizes both hash formats: argon2id hashes (`$argon2id$...`) are verified directly, and bcrypt hashes are verified via `bcrypt.CompareHashAndPassword`. On a successful bcrypt verification, the node transparently re-hashes the password with argon2id and updates `password_hash` in place — a purely opportunistic, best-effort upgrade that never fails the login if it errors. Every account converges to argon2id the first time its owner logs in after the migration; there is no forced-reset step and no "the reset didn't apply" corner case, since the conversion only ever happens alongside a successful login.
+
+The same opportunistic upgrade applies to argon2id parameter changes: if you later raise `argon2.memory_kib` or `iterations` in the service config, existing hashes created with the old parameters are re-hashed with the new ones on each user's next successful login.
+
+### Purging expired sessions and tokens
+
+Expired or revoked `auth_sessions` rows and consumed or expired `auth_tokens` rows are never deleted by the plugin — they stop authenticating immediately, but the rows stay behind and the tables grow without bound. Add a scheduled purge workflow; in Noda that's one schedule file and one two-node workflow.
+
+`schedules/purge-auth-rows.json`:
+
+```json
+{
+  "id": "purge-auth-rows",
+  "cron": "0 0 3 * * *",
+  "description": "Nightly cleanup of dead auth_sessions/auth_tokens rows",
+  "trigger": { "workflow": "purge-auth-rows" }
+}
+```
+
+`workflows/purge-auth-rows.json`:
+
+```json
+{
+  "id": "purge-auth-rows",
+  "name": "Purge expired auth rows",
+  "nodes": {
+    "purge_sessions": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "sql": "DELETE FROM auth_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL",
+        "params": ["{{ now() }}"]
+      }
+    },
+    "purge_tokens": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "sql": "DELETE FROM auth_tokens WHERE expires_at < ? OR consumed_at IS NOT NULL",
+        "params": ["{{ now() }}"]
+      }
+    }
+  },
+  "edges": [
+    { "from": "purge_sessions", "to": "purge_tokens" }
+  ]
+}
+```
+
+Deleting these rows has no effect on live traffic: expiry and revocation are enforced on every request by `auth.session`/`auth.consume_token` regardless of whether the dead rows still exist. Keep them longer (e.g. add `AND expires_at < <30 days ago>`) only if you want an audit window for session history.
 
 ## Middleware Presets
 

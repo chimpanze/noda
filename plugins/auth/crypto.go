@@ -40,12 +40,18 @@ func (s *Service) HashPassword(pw string) (string, error) {
 }
 
 // VerifyPassword checks pw against an argon2id (PHC) or bcrypt hash.
-// needsRehash is true when the stored hash is bcrypt (opportunistic upgrade).
-func VerifyPassword(pw, encoded string) (ok bool, needsRehash bool, err error) {
+// needsRehash is true when a successfully verified hash should be upgraded to
+// the service's configured params: always for bcrypt, and for argon2id when
+// the PHC-embedded params differ from s.Argon (e.g. a deployment raised
+// argon2.memory_kib after hashes were created).
+func (s *Service) VerifyPassword(pw, encoded string) (ok bool, needsRehash bool, err error) {
 	switch {
 	case strings.HasPrefix(encoded, "$argon2id$"):
-		ok, err = verifyArgon2id(pw, encoded)
-		return ok, false, err
+		ok, stored, err := verifyArgon2id(pw, encoded)
+		if err != nil || !ok {
+			return ok, false, err
+		}
+		return true, stored != s.Argon, nil
 	case strings.HasPrefix(encoded, "$2a$"), strings.HasPrefix(encoded, "$2b$"), strings.HasPrefix(encoded, "$2y$"):
 		err := bcrypt.CompareHashAndPassword([]byte(encoded), []byte(pw))
 		if err == bcrypt.ErrMismatchedHashAndPassword {
@@ -60,47 +66,49 @@ func VerifyPassword(pw, encoded string) (ok bool, needsRehash bool, err error) {
 	}
 }
 
-func verifyArgon2id(pw, encoded string) (bool, error) {
+// verifyArgon2id also returns the PHC-embedded params so callers can detect
+// drift from the currently configured ones.
+func verifyArgon2id(pw, encoded string) (bool, ArgonParams, error) {
 	parts := strings.Split(encoded, "$")
 	// ["", "argon2id", "v=19", "m=..,t=..,p=..", salt, key]
 	if len(parts) != 6 {
-		return false, fmt.Errorf("auth: malformed argon2id hash")
+		return false, ArgonParams{}, fmt.Errorf("auth: malformed argon2id hash")
 	}
 	var version int
 	if _, err := fmt.Sscanf(parts[2], "v=%d", &version); err != nil {
-		return false, fmt.Errorf("auth: malformed argon2id version: %w", err)
+		return false, ArgonParams{}, fmt.Errorf("auth: malformed argon2id version: %w", err)
 	}
 	var m, t uint32
 	var p uint8
 	if _, err := fmt.Sscanf(parts[3], "m=%d,t=%d,p=%d", &m, &t, &p); err != nil {
-		return false, fmt.Errorf("auth: malformed argon2id params: %w", err)
+		return false, ArgonParams{}, fmt.Errorf("auth: malformed argon2id params: %w", err)
 	}
 	salt, err := base64.RawStdEncoding.DecodeString(parts[4])
 	if err != nil {
-		return false, fmt.Errorf("auth: malformed argon2id salt: %w", err)
+		return false, ArgonParams{}, fmt.Errorf("auth: malformed argon2id salt: %w", err)
 	}
 	want, err := base64.RawStdEncoding.DecodeString(parts[5])
 	if err != nil {
-		return false, fmt.Errorf("auth: malformed argon2id key: %w", err)
+		return false, ArgonParams{}, fmt.Errorf("auth: malformed argon2id key: %w", err)
 	}
 	got := argon2.IDKey([]byte(pw), salt, t, m, p, uint32(len(want)))
-	return subtle.ConstantTimeCompare(got, want) == 1, nil
+	stored := ArgonParams{MemoryKiB: m, Iterations: t, Parallelism: p, SaltLen: uint32(len(salt)), KeyLen: uint32(len(want))}
+	return subtle.ConstantTimeCompare(got, want) == 1, stored, nil
 }
 
-// dummyHash is verified against when no user matches, so response timing does
-// not reveal account existence. Fixed params (defaults), fixed password.
-var dummyHash = func() string {
-	s := &Service{Argon: DefaultArgonParams()}
-	h, err := s.HashPassword("noda-dummy-password-for-timing")
-	if err != nil {
-		panic(err)
+// VerifyDummy is called when no user matches, so response timing does not
+// reveal account existence. The dummy hash is derived from the service's
+// configured params — with defaults, a heavier configuration would otherwise
+// make unknown-email checks measurably faster than known-email ones.
+func (s *Service) VerifyDummy(pw string) {
+	s.dummyOnce.Do(func() {
+		// best-effort: on the (rand.Read) failure path VerifyDummy degrades
+		// to a no-op rather than failing the login flow
+		s.dummyHash, _ = s.HashPassword("noda-dummy-password-for-timing")
+	})
+	if s.dummyHash != "" {
+		_, _, _ = s.VerifyPassword(pw, s.dummyHash)
 	}
-	return h
-}()
-
-// VerifyDummy burns the same time as a real argon2id verification.
-func VerifyDummy(pw string) {
-	_, _, _ = VerifyPassword(pw, dummyHash)
 }
 
 // MintToken returns a 256-bit random token (base64url raw) and its SHA-256 hex hash.
