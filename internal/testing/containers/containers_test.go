@@ -26,7 +26,7 @@ func TestStartRedis(t *testing.T) {
 	opts, err := redis.ParseURL(url)
 	require.NoError(t, err)
 	client := redis.NewClient(opts)
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 	require.NoError(t, client.Ping(t.Context()).Err())
 }
 
@@ -37,6 +37,6 @@ func TestStartMailpit(t *testing.T) {
 	require.Contains(t, apiBase, "http://")
 	resp, err := http.Get(apiBase + "/api/v1/messages")
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 }

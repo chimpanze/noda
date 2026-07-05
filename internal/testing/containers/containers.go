@@ -8,6 +8,8 @@ package containers
 import (
 	"context"
 	"fmt"
+	"io"
+	"net"
 	"testing"
 	"time"
 
@@ -85,5 +87,33 @@ func StartMailpit(t testing.TB) (string, int, string) {
 		t.Fatalf("mailpit api port: %v", err)
 	}
 	apiBase := fmt.Sprintf("http://%s:%s", host, apiPort.Port())
+	waitForSMTPBanner(t, fmt.Sprintf("%s:%d", host, int(smtpPort.Num())))
 	return host, int(smtpPort.Num()), apiBase
+}
+
+// waitForSMTPBanner blocks until the SMTP server behind addr sends its "220"
+// greeting. The ForListeningPort wait checks the host-mapped port, which
+// docker-proxy accepts before the app inside is serving — dials in that window
+// get "connect: EOF" (the TestEmailSend_Engine flake).
+func waitForSMTPBanner(t testing.TB, addr string) {
+	t.Helper()
+	deadline := time.Now().Add(30 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		conn, err := net.DialTimeout("tcp", addr, 2*time.Second)
+		if err == nil {
+			_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+			buf := make([]byte, 3)
+			_, rerr := io.ReadFull(conn, buf)
+			_ = conn.Close()
+			if rerr == nil && string(buf) == "220" {
+				return
+			}
+			lastErr = rerr
+		} else {
+			lastErr = err
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	t.Fatalf("mailpit SMTP never became ready at %s: %v", addr, lastErr)
 }
