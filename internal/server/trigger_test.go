@@ -51,6 +51,15 @@ func triggerTest(t *testing.T, method, path string, body any, headers map[string
 	return result
 }
 
+func TestMapTrigger_RequestMeta(t *testing.T) {
+	result := triggerTest(t, "GET", "/test", nil, map[string]string{
+		"User-Agent": "curl/8.6.0",
+	}, map[string]any{})
+
+	assert.Equal(t, "curl/8.6.0", result.Trigger.UserAgent)
+	assert.NotEmpty(t, result.Trigger.ClientIP)
+}
+
 func TestMapTrigger_BodyMapping(t *testing.T) {
 	result := triggerTest(t, "POST", "/test", map[string]any{
 		"name":  "Alice",

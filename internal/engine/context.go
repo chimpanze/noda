@@ -370,6 +370,8 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 		"timestamp":  c.trigger.Timestamp,
 		"trace_id":   c.trigger.TraceID,
 		"request_id": c.trigger.RequestID,
+		"client_ip":  c.trigger.ClientIP,
+		"user_agent": c.trigger.UserAgent,
 	}
 	// Node outputs are namespaced under "nodes" to avoid clashing with
 	// expr-lang built-in functions (len, find, count, map, filter, etc.).

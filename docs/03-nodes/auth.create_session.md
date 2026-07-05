@@ -28,6 +28,8 @@ The `cookie` object has the shape `response.json` expects: `name`, `value`, `pat
 
 Generates a 256-bit random token, stores only its SHA-256 hash in `auth_sessions` (the raw token is never persisted), and computes `expires_at` from `ttl` (or the service default). Returns the raw token plus a ready-to-use cookie object. The `auth.session` middleware later authenticates requests by hashing the incoming token and matching it against `token_hash`.
 
+For HTTP-triggered workflows, the client IP and `User-Agent` header are stored in the row's `ip` and `user_agent` columns — useful for "active sessions" listings. Both stay `NULL` when the workflow was triggered by a schedule, event, or test. Behind a reverse proxy, the recorded IP is the connection's remote address unless your deployment terminates the proxy chain appropriately.
+
 ## Service Dependencies
 
 | Slot | Prefix | Required |

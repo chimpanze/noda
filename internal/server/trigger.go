@@ -37,6 +37,8 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 			Type:      "http",
 			Timestamp: time.Now().UTC(),
 			TraceID:   traceID,
+			ClientIP:  c.IP(),
+			UserAgent: c.Get("User-Agent"),
 		},
 	}
 
