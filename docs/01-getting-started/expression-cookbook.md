@@ -72,7 +72,7 @@ These come from the [expr-lang](https://expr-lang.org/) engine and are always av
 | `input` | All nodes | Data passed to the workflow from the trigger's `input` mapping |
 | `input.*` | All nodes | Individual input fields: `input.name`, `input.user_id`, etc. |
 | `auth` | All nodes | Auth data from JWT middleware |
-| `auth.user_id` | All nodes | The authenticated user's ID (`sub` claim) |
+| `auth.sub` | All nodes | The authenticated user's ID (`sub` claim) |
 | `auth.roles` | All nodes | Array of user roles |
 | `auth.claims` | All nodes | All JWT claims as a map |
 | `trigger` | All nodes | Trigger metadata |

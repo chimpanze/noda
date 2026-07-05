@@ -27,7 +27,7 @@ Resolves `message` and `fields`. Writes a structured log entry through Noda's lo
     "level": "info",
     "message": "Order created: {{ nodes.insert.id }}",
     "fields": {
-      "user_id": "{{ auth.user_id }}",
+      "user_id": "{{ auth.sub }}",
       "total": "{{ input.total }}"
     }
   }

@@ -31,7 +31,7 @@ Resolves `data`. If the module exports `command`, Noda calls it immediately betw
   "config": {
     "data": {
       "action": "player_move",
-      "player_id": "{{ auth.user_id }}",
+      "player_id": "{{ auth.sub }}",
       "position": "{{ input.position }}"
     }
   }

@@ -57,7 +57,7 @@ A profile avatar workflow reads the uploaded image path from a previous node, cr
     "services": { "storage": "uploads" },
     "config": {
       "field": "avatar",
-      "path": "{{ 'avatars/raw/' + auth.user_id + '.' + input.ext }}"
+      "path": "{{ 'avatars/raw/' + auth.sub + '.' + input.ext }}"
     }
   },
   "crop_avatar": {
@@ -68,7 +68,7 @@ A profile avatar workflow reads the uploaded image path from a previous node, cr
     },
     "config": {
       "input": "{{ nodes.handle_upload.path }}",
-      "output": "{{ 'avatars/cropped/' + auth.user_id + '.jpg' }}",
+      "output": "{{ 'avatars/cropped/' + auth.sub + '.jpg' }}",
       "width": 400,
       "height": 400,
       "gravity": "center"

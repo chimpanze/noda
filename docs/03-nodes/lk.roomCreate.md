@@ -55,7 +55,7 @@ A meeting creation endpoint creates a LiveKit room and stores the room SID in th
       "name": "{{ 'meeting-' + $uuid() }}",
       "empty_timeout": 600,
       "max_participants": "{{ input.max_participants }}",
-      "metadata": "{{ toJSON({host: auth.user_id}) }}"
+      "metadata": "{{ toJSON({host: auth.sub}) }}"
     }
   },
   "save_meeting": {
@@ -66,7 +66,7 @@ A meeting creation endpoint creates a LiveKit room and stores the room SID in th
       "data": {
         "room_sid": "{{ nodes.create_room.sid }}",
         "room_name": "{{ nodes.create_room.name }}",
-        "host_id": "{{ auth.user_id }}"
+        "host_id": "{{ auth.sub }}"
       }
     }
   }

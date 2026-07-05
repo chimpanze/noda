@@ -57,7 +57,7 @@ After creating a database record for an uploaded image, the thumbnail node gener
       "table": "images",
       "data": {
         "path": "{{ input.image_path }}",
-        "uploaded_by": "{{ auth.user_id }}"
+        "uploaded_by": "{{ auth.sub }}"
       }
     }
   },

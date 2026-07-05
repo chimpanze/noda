@@ -39,7 +39,7 @@ Sends a data message to participants in the room via LiveKit's data channel. Use
     "data": {
       "type": "chat",
       "message": "{{ input.message }}",
-      "sender": "{{ auth.user_id }}"
+      "sender": "{{ auth.sub }}"
     },
     "kind": "reliable",
     "topic": "chat"
@@ -60,7 +60,7 @@ A chat message endpoint saves the message to the database, then broadcasts it to
       "table": "messages",
       "data": {
         "room": "{{ input.room_name }}",
-        "sender_id": "{{ auth.user_id }}",
+        "sender_id": "{{ auth.sub }}",
         "text": "{{ input.message }}"
       }
     }
@@ -74,7 +74,7 @@ A chat message endpoint saves the message to the database, then broadcasts it to
         "type": "chat",
         "id": "{{ nodes.save_message.id }}",
         "message": "{{ input.message }}",
-        "sender": "{{ auth.user_id }}"
+        "sender": "{{ auth.sub }}"
       },
       "kind": "reliable",
       "topic": "chat"

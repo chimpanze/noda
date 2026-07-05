@@ -32,7 +32,7 @@ Resolves all fields. Calls `services["connections"].SendSSE(channel, event, data
   "type": "sse.send",
   "services": { "connections": "notifications" },
   "config": {
-    "channel": "{{ 'user.' + auth.user_id }}",
+    "channel": "{{ 'user.' + auth.sub }}",
     "event": "notification",
     "data": {
       "title": "{{ input.title }}",

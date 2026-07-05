@@ -35,7 +35,7 @@ Inserts a new record into the specified table using the key-value pairs in `data
     "table": "tasks",
     "data": {
       "title": "{{ input.title }}",
-      "user_id": "{{ auth.user_id }}",
+      "user_id": "{{ auth.sub }}",
       "completed": false
     }
   }

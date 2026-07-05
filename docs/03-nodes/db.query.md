@@ -33,7 +33,7 @@ Executes the given SQL query with parameterized values against the configured da
   "services": { "database": "postgres" },
   "config": {
     "query": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2",
-    "params": ["{{ auth.user_id }}", "{{ input.limit ?? 20 }}"]
+    "params": ["{{ auth.sub }}", "{{ input.limit ?? 20 }}"]
   }
 }
 ```

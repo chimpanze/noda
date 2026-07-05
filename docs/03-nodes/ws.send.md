@@ -33,7 +33,7 @@ Resolves `channel` and `data`. Calls `services["connections"].Send(channel, data
     "channel": "{{ 'chat.' + input.room_id }}",
     "data": {
       "type": "message",
-      "from": "{{ auth.user_id }}",
+      "from": "{{ auth.sub }}",
       "text": "{{ input.text }}"
     }
   }

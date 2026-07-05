@@ -32,7 +32,7 @@ Resolves `data`. Calls the module's `query` export synchronously (serialized wit
   "config": {
     "data": {
       "query": "get_state",
-      "player_id": "{{ auth.user_id }}"
+      "player_id": "{{ auth.sub }}"
     },
     "timeout": "2s"
   }
