@@ -72,7 +72,7 @@ func (e *verifyCredentialsExecutor) Execute(ctx context.Context, nCtx api.Execut
 	row := map[string]any{}
 	err = db.WithContext(ctx).Table("auth_users").Where("email = ?", normalizeEmail(email)).Take(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
-		VerifyDummy(password) // burn the same time as a real verification
+		svc.VerifyDummy(password) // burn the same time as a real verification
 		nCtx.Log("debug", "auth.verify_credentials: unknown email", nil)
 		return "invalid", map[string]any{}, nil
 	}
@@ -81,13 +81,13 @@ func (e *verifyCredentialsExecutor) Execute(ctx context.Context, nCtx api.Execut
 	}
 
 	storedHash, _ := row["password_hash"].(string)
-	ok, needsRehash, err := VerifyPassword(password, storedHash)
+	ok, needsRehash, err := svc.VerifyPassword(password, storedHash)
 	if err != nil {
 		// VerifyPassword is pure CPU: any error means a corrupted or
 		// unrecognized stored hash (e.g. a bad import), never infrastructure.
 		// Surfacing it would 500 exactly those accounts — an enumerable
 		// signal and a lockout. Treat as invalid, keep timing flat.
-		VerifyDummy(password)
+		svc.VerifyDummy(password)
 		nCtx.Log("debug", "auth.verify_credentials: unusable password_hash", map[string]any{"error": err.Error()})
 		return "invalid", map[string]any{}, nil
 	}

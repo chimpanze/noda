@@ -2,6 +2,7 @@ package auth
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -29,6 +30,11 @@ type Service struct {
 	Cookie       CookieConfig
 	Argon        ArgonParams
 	TokenTTLs    map[string]time.Duration
+
+	// dummy hash for timing-safe unknown-email verification, derived from
+	// Argon on first use (see VerifyDummy)
+	dummyOnce sync.Once
+	dummyHash string
 }
 
 func (s *Service) TokenTTL(purpose string) time.Duration {

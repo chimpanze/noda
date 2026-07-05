@@ -919,6 +919,8 @@ To close this residual gap, decouple the email send from the request/response cy
 
 If you already have a users table with bcrypt password hashes (`$2a$`/`$2b$`/`$2y$` prefix), you don't need a bulk rehash migration before switching to the `auth` plugin. `auth.verify_credentials` recognizes both hash formats: argon2id hashes (`$argon2id$...`) are verified directly, and bcrypt hashes are verified via `bcrypt.CompareHashAndPassword`. On a successful bcrypt verification, the node transparently re-hashes the password with argon2id and updates `password_hash` in place — a purely opportunistic, best-effort upgrade that never fails the login if it errors. Every account converges to argon2id the first time its owner logs in after the migration; there is no forced-reset step and no "the reset didn't apply" corner case, since the conversion only ever happens alongside a successful login.
 
+The same opportunistic upgrade applies to argon2id parameter changes: if you later raise `argon2.memory_kib` or `iterations` in the service config, existing hashes created with the old parameters are re-hashed with the new ones on each user's next successful login.
+
 ## Middleware Presets
 
 Group middleware into reusable presets for consistent security across routes:
