@@ -3634,7 +3634,7 @@ func TestHostPDKEnvelopeContract(t *testing.T) {
 				require.NoError(t, codec.Unmarshal(dataRaw, &got))
 
 				assert.Equal(t, "bar", got["foo"])
-				require.Contains(t, got, "count")
+				assert.EqualValues(t, 3, got["count"])
 			})
 		})
 	}
