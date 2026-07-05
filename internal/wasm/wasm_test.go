@@ -66,7 +66,7 @@ func newMockPlugin() *mockPlugin {
 	}
 }
 
-func (m *mockPlugin) Call(name string, data []byte) (uint32, []byte, error) {
+func (m *mockPlugin) CallWithContext(_ context.Context, name string, data []byte) (uint32, []byte, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, mockCall{Name: name, Data: data})
 	resp, ok := m.responses[name]
@@ -105,6 +105,33 @@ func (m *mockPlugin) getCalls(name string) []mockCall {
 
 func testLogger() *slog.Logger {
 	return slog.Default()
+}
+
+// blockingPlugin simulates a guest export that only stops when its context
+// is cancelled — used to prove callWithTimeout is interruptible and runs
+// synchronously (inline) rather than spawning an abandoned goroutine.
+type blockingPlugin struct {
+	mockPlugin
+	started chan struct{}
+}
+
+func (b *blockingPlugin) CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error) {
+	close(b.started)
+	<-ctx.Done() // simulate a guest that only stops when the context is cancelled
+	return 0, nil, ctx.Err()
+}
+
+func TestCallWithTimeout_InterruptibleAndSynchronous(t *testing.T) {
+	bp := &blockingPlugin{mockPlugin: *newMockPlugin(), started: make(chan struct{})}
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "b", TickTimeout: 20 * time.Millisecond}, bp)
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, _, callErr := m.callWithTimeout(m.shutdownCtx, "tick", []byte("{}"), 20*time.Millisecond)
+	require.Error(t, callErr)
+	require.Less(t, time.Since(start), 500*time.Millisecond, "must return at the deadline, not hang")
+	<-bp.started // proves the call actually ran inline
 }
 
 // --- Encoding Tests ---
@@ -2197,7 +2224,7 @@ func TestModule_CallWithTimeout(t *testing.T) {
 	m, _ := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
 
 	// Normal call should succeed quickly
-	_, _, err := m.callWithTimeout("initialize", []byte("{}"), 1*time.Second)
+	_, _, err := m.callWithTimeout(m.shutdownCtx, "initialize", []byte("{}"), 1*time.Second)
 	require.NoError(t, err)
 }
 
@@ -3020,11 +3047,27 @@ func newSlowMockPlugin() *slowMockPlugin {
 	}
 }
 
-func (s *slowMockPlugin) Call(name string, data []byte) (uint32, []byte, error) {
+// CallWithContext records the call immediately (a real guest call has
+// "started" the moment it's invoked, even if it then hangs), then simulates
+// a slow/hanging guest by delaying — honoring ctx cancellation so a timed-out
+// call actually returns promptly instead of blocking the caller.
+func (s *slowMockPlugin) CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error) {
+	s.mu.Lock()
+	s.calls = append(s.calls, mockCall{Name: name, Data: data})
+	resp, ok := s.responses[name]
+	s.mu.Unlock()
+
 	if d, ok := s.delays[name]; ok {
-		time.Sleep(d)
+		select {
+		case <-time.After(d):
+		case <-ctx.Done():
+			return 0, nil, ctx.Err()
+		}
 	}
-	return s.mockPlugin.Call(name, data)
+	if ok {
+		return resp.exitCode, resp.data, resp.err
+	}
+	return 0, nil, nil
 }
 
 func TestModule_Tick_HangingTickKilledByTimeout(t *testing.T) {
@@ -3193,7 +3236,7 @@ func TestModule_QueryOnly(t *testing.T) {
 // test knows the host call is in flight.
 //
 // Crucially, Get does NOT honour context cancellation. This means when
-// Module.Stop cancels lifecycleCtx, the in-flight goroutine is NOT released
+// Module.Stop cancels shutdownCtx, the in-flight goroutine is NOT released
 // via ctx.Done(). Only closing release unblocks it. This forces Stop to
 // genuinely wait at outstandingCalls.Wait() — proving that the Add(1)/Done()
 // fix in CallAsync is what keeps Stop blocked, not lifecycle cancellation.
@@ -3251,7 +3294,7 @@ func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 	// outstandingCalls.Wait() because:
 	//  - CallAsync's Add(1) means the WG counter is non-zero
 	//  - blockingCacheService.Get does not honor ctx.Done(), so
-	//    lifecycleCancel() does NOT release the goroutine
+	//    shutdownCancel() does NOT release the goroutine
 	// Without the fix (no Add(1)), Wait returns immediately and Stop
 	// completes — at which point the still-running goroutine eventually
 	// wakes after `release` is closed and either panics on the cleared

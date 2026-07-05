@@ -105,7 +105,7 @@ func (d *HostDispatcher) CallAsync(ctx context.Context, req HostCallRequest) err
 	d.module.outstandingCalls.Add(1)
 	go func() {
 		defer d.module.outstandingCalls.Done()
-		result, err := d.Call(d.module.lifecycleCtx, HostCallRequest{
+		result, err := d.Call(d.module.shutdownCtx, HostCallRequest{
 			Service:   req.Service,
 			Operation: req.Operation,
 			Payload:   req.Payload,
@@ -173,7 +173,7 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 			d.module.outstandingCalls.Add(1)
 			go func() {
 				defer d.module.outstandingCalls.Done()
-				_ = d.runner(d.module.lifecycleCtx, workflowID, input)
+				_ = d.runner(d.module.shutdownCtx, workflowID, input)
 			}()
 		}
 		return map[string]any{"status": "triggered"}, nil

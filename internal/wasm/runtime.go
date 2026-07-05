@@ -76,6 +76,16 @@ func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, was
 		}
 	}
 
+	// Set the manifest timeout so extism enables wazero's WithCloseOnContextDone,
+	// which makes a context deadline/cancellation actually terminate a running
+	// guest call rather than just abandoning it. Use the larger of the tick
+	// timeout and the general call timeout so no legitimate call is cut short.
+	timeoutMs := cfg.TickTimeout
+	if timeoutMs < wasmCallTimeout {
+		timeoutMs = wasmCallTimeout
+	}
+	manifest.Timeout = uint64(timeoutMs / time.Millisecond)
+
 	// Create host dispatcher
 	dispatcher := NewHostDispatcher(r.services, r.runner, r.logger)
 

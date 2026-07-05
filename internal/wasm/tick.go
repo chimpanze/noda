@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"context"
 	"fmt"
 	"time"
 )
@@ -87,7 +88,7 @@ func (m *Module) executeTick() {
 
 	// Call tick with timeout to prevent hung modules from blocking the loop
 	start := time.Now()
-	exitCode, _, err := m.callWithTimeout("tick", data, m.Config.TickTimeout)
+	exitCode, _, err := m.callWithTimeout(m.shutdownCtx, "tick", data, m.Config.TickTimeout)
 	elapsed := time.Since(start)
 
 	if err != nil {
@@ -132,7 +133,9 @@ func (m *Module) processQuery(req queryRequest) {
 		funcName = "command"
 	}
 
-	exitCode, output, err := m.Plugin.Call(funcName, req.data)
+	// TODO(task2/7): processQuery should be serialized through callWithTimeout
+	// with a proper per-call context/timeout, not a bare background context.
+	exitCode, output, err := m.Plugin.CallWithContext(context.Background(), funcName, req.data)
 	if err != nil {
 		req.result <- queryResponse{err: fmt.Errorf("%s call failed: %w", funcName, err)}
 		return
