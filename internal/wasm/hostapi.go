@@ -195,12 +195,9 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		if err != nil {
 			return nil, err
 		}
-		intervalMs := int64(0)
-		if v, ok := payload["interval"].(float64); ok {
-			intervalMs = int64(v)
-		}
-		if intervalMs <= 0 {
-			return nil, fmt.Errorf("VALIDATION_ERROR: interval must be positive")
+		intervalMs, ok := toInt64(payload["interval_ms"])
+		if !ok || intervalMs <= 0 {
+			return nil, fmt.Errorf("VALIDATION_ERROR: interval_ms must be a positive number")
 		}
 		d.module.SetTimer(name, intervalMs)
 		return nil, nil

@@ -564,7 +564,7 @@ func TestHostDispatcher_SystemTimer(t *testing.T) {
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
 		Operation: "set_timer",
-		Payload:   map[string]any{"name": "save", "interval": float64(5000)},
+		Payload:   map[string]any{"name": "save", "interval_ms": float64(5000)},
 	})
 	require.NoError(t, err)
 
@@ -584,6 +584,21 @@ func TestHostDispatcher_SystemTimer(t *testing.T) {
 	_, exists = m.timers["save"]
 	m.mu.Unlock()
 	assert.False(t, exists)
+}
+
+func TestSetTimer_ReadsIntervalMs(t *testing.T) {
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "t"}, newMockPlugin())
+	d := &HostDispatcher{module: m, logger: testLogger()}
+	_, err := d.handleSystemOp(context.Background(), HostCallRequest{
+		Operation: "set_timer",
+		Payload:   map[string]any{"name": "beat", "interval_ms": float64(100)},
+	})
+	require.NoError(t, err)
+	m.mu.Lock()
+	_, exists := m.timers["beat"]
+	m.mu.Unlock()
+	require.True(t, exists, "timer should be registered from interval_ms")
 }
 
 func TestHostDispatcher_TriggerWorkflow(t *testing.T) {
@@ -1511,10 +1526,10 @@ func TestHostDispatcher_SetTimer_InvalidInterval(t *testing.T) {
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
 		Operation: "set_timer",
-		Payload:   map[string]any{"name": "test", "interval": float64(-100)},
+		Payload:   map[string]any{"name": "test", "interval_ms": float64(-100)},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "interval must be positive")
+	assert.Contains(t, err.Error(), "interval_ms must be a positive number")
 }
 
 // --- System ops: clear_timer missing name ---
@@ -1896,10 +1911,10 @@ func TestHostDispatcher_SetTimer_ZeroInterval(t *testing.T) {
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
 		Operation: "set_timer",
-		Payload:   map[string]any{"name": "test", "interval": float64(0)},
+		Payload:   map[string]any{"name": "test", "interval_ms": float64(0)},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "interval must be positive")
+	assert.Contains(t, err.Error(), "interval_ms must be a positive number")
 }
 
 // --- Runtime: StartAll with initialize error ---
