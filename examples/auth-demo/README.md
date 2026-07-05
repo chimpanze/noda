@@ -16,7 +16,7 @@ go run ./cmd/noda auth init --dir examples/auth-demo
 added everything else:
 
 - `migrations/*_auth_tables.up.sql` / `.down.sql` — `auth_users`, `auth_sessions`, `auth_tokens` tables
-- `workflows/auth.*.json` — register, login, logout, me, verify-email, request-password-reset, reset-password
+- `workflows/auth.*.json` — register, login, logout, me, verify-email, resend-verification, request-password-reset, reset-password
 - `routes/auth.*.json` — the HTTP routes that trigger each workflow
 - `tests/test-auth-*.json` — workflow tests with every plugin node mocked (run with `noda test`)
 - `services.auth`, an `authenticated_session` middleware preset, and a

@@ -70,7 +70,7 @@ func runAuthInit(dir string) error {
 	switch len(emailNames) {
 	case 0:
 		emailName = "email"
-		fmt.Fprintln(os.Stderr, "warning: no email service configured — verify-email and password-reset flows need a service named \"email\" (or edit the generated workflows)")
+		fmt.Fprintln(os.Stderr, "warning: no email service configured — verification and password-reset flows need a service named \"email\" (or edit the generated workflows)")
 	case 1:
 		emailName = emailNames[0]
 	default:
@@ -159,7 +159,7 @@ func runAuthInit(dir string) error {
 	}
 	root["middleware_presets"] = presets
 
-	// The scaffolded login/register/request-password-reset/reset-password
+	// The scaffolded login/register/reset/resend-verification
 	// routes reference the "limiter" middleware by name; it must have a
 	// config with an explicit "max" (there is no default — the server
 	// refuses to start otherwise). Only add it if the project hasn't
