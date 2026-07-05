@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -9,6 +10,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
+	"github.com/chimpanze/noda/pkg/api"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -245,11 +247,23 @@ func ExecuteGraph(
 
 	duration := time.Since(startTime)
 
-	if errVal := firstErr.get(); errVal != nil {
+	// Determine the workflow result: a recorded node error takes precedence;
+	// otherwise a truncated execution (context expired) is itself a failure —
+	// never report success for work that did not complete.
+	resultErr := firstErr.get()
+	if resultErr == nil && execCtx2.Err() != nil {
+		if errors.Is(execCtx2.Err(), context.DeadlineExceeded) {
+			resultErr = &api.TimeoutError{Duration: graph.Timeout, Operation: "workflow " + graph.WorkflowID}
+		} else {
+			resultErr = fmt.Errorf("workflow %q aborted: %w", graph.WorkflowID, execCtx2.Err())
+		}
+	}
+
+	if resultErr != nil {
 		execCtx.Log("info", "workflow failed", map[string]any{
 			"duration": duration.String(),
 		})
-		workflowErr = errVal
+		workflowErr = resultErr
 		// Record workflow error metrics
 		if m := execCtx.Metrics(); m != nil {
 			wfAttrs := metric.WithAttributes(

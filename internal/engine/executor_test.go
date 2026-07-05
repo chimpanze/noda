@@ -477,3 +477,43 @@ type singleOutputResolver struct {
 func (r *singleOutputResolver) OutputsForType(string) ([]string, bool) {
 	return r.outputs, true
 }
+
+// ctxIgnoringExecutor sleeps for a fixed duration without observing ctx
+// cancellation at all (unlike slowExecutor, which selects on ctx.Done() and
+// surfaces context.DeadlineExceeded as its own node error). It simulates a
+// node whose underlying work (e.g. blocking I/O) doesn't plumb the context,
+// so the *node* never records a failure — only the graph-level deadline
+// does. This isolates the engine-2 regression: if ExecuteGraph decided
+// success/failure solely from per-node errors, a workflow like this would
+// report success even though "next" never ran.
+type ctxIgnoringExecutor struct {
+	delay time.Duration
+}
+
+func (e *ctxIgnoringExecutor) Outputs() []string { return []string{"success"} }
+func (e *ctxIgnoringExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
+	time.Sleep(e.delay)
+	return "success", map[string]any{"done": true}, nil
+}
+
+func TestExecuteGraph_Timeout_ReturnsTimeoutError(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"slow": &ctxIgnoringExecutor{delay: 150 * time.Millisecond},
+		"next": &mockPassExecutor{},
+	})
+	wf := WorkflowConfig{
+		ID:      "tmo",
+		Timeout: "50ms",
+		Nodes:   map[string]NodeConfig{"slow": {Type: "test.slow"}, "next": {Type: "test.next"}},
+		Edges:   []EdgeConfig{{From: "slow", To: "next"}},
+	}
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+	execCtx := NewExecutionContext(WithWorkflowID("tmo"))
+	gerr := ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+
+	var toErr *api.TimeoutError
+	require.ErrorAs(t, gerr, &toErr, "timeout must return *api.TimeoutError, not nil")
+	_, ran := execCtx.GetOutput("next")
+	require.False(t, ran, "downstream node must not be reported as run after timeout")
+}
