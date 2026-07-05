@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/expr"
@@ -201,6 +202,26 @@ func TestMapTrigger_RawBody(t *testing.T) {
 
 	// Input mapping should still work
 	assert.NotNil(t, result.Input["event"])
+}
+
+func TestBuildRawRequestContext_HasRequestAlias(t *testing.T) {
+	app := fiber.New()
+	var got map[string]any
+	app.Post("/x/:name", func(c fiber.Ctx) error {
+		got = buildRawRequestContext(c)
+		return c.SendStatus(200)
+	})
+	req := httptest.NewRequest("POST", "/x/alice?q=1", strings.NewReader(`{"k":"v"}`))
+	req.Header.Set("Content-Type", "application/json")
+	_, _ = app.Test(req)
+
+	require.Contains(t, got, "request")
+	reqMap, ok := got["request"].(map[string]any)
+	require.True(t, ok)
+	// request.params mirrors top-level params
+	require.Equal(t, got["params"], reqMap["params"])
+	require.Equal(t, got["body"], reqMap["body"])
+	require.Equal(t, got["query"], reqMap["query"])
 }
 
 func TestMapTrigger_StaticValues(t *testing.T) {
