@@ -42,7 +42,7 @@ Builds and executes a SELECT query with `LIMIT 1`. Returns a single row object. 
     "table": "tasks",
     "where": {
       "id": "{{ input.task_id }}",
-      "user_id": "{{ auth.user_id }}"
+      "user_id": "{{ auth.sub }}"
     },
     "required": true
   }

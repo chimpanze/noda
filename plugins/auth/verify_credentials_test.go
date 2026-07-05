@@ -68,6 +68,27 @@ func TestVerifyCredentialsDisabledUser(t *testing.T) {
 	}
 }
 
+func TestVerifyCredentialsUnrecognizedHashIsInvalid(t *testing.T) {
+	db := newTestDB(t)
+	exec := newVerifyCredentialsExecutor(nil)
+
+	for name, hash := range map[string]string{
+		"bcrypt 2x variant":  "$2x$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+		"truncated argon2id": "$argon2id$v=19$m=65536,t=3",
+		"pbkdf2":             "pbkdf2_sha256$260000$abcdef$0123456789abcdef",
+		"empty":              "",
+	} {
+		email := strings.ToLower(strings.ReplaceAll(name, " ", "-")) + "@example.com"
+		seedUser(t, db, email, hash, "active")
+		out, _, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{
+			"email": email, "password": "password123",
+		}, testServices(db))
+		if err != nil || out != "invalid" {
+			t.Fatalf("%s: must be invalid (no error), got out=%q err=%v", name, out, err)
+		}
+	}
+}
+
 func TestVerifyCredentialsBcryptUpgrade(t *testing.T) {
 	db := newTestDB(t)
 	id := seedUser(t, db, "old@example.com", mustBcrypt(t, "password123"), "active")

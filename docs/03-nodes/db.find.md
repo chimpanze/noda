@@ -45,7 +45,7 @@ SQL injection prevention: All database nodes validate SQL fragments to prevent i
     "table": "tasks",
     "select": ["id", "title", "completed"],
     "where": {
-      "user_id": "{{ auth.user_id }}",
+      "user_id": "{{ auth.sub }}",
       "completed": false
     },
     "order": "created_at DESC",

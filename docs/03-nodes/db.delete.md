@@ -35,7 +35,7 @@ Deletes all rows in the specified table that match the `where` conditions. Retur
     "table": "tasks",
     "where": {
       "id": "{{ input.id }}",
-      "user_id": "{{ auth.user_id }}"
+      "user_id": "{{ auth.sub }}"
     }
   }
 }
@@ -54,7 +54,7 @@ A workflow first verifies a task belongs to the authenticated user, then deletes
       "table": "tasks",
       "where": {
         "id": "{{ nodes.verify_task.id }}",
-        "user_id": "{{ auth.user_id }}"
+        "user_id": "{{ auth.sub }}"
       }
     }
   }

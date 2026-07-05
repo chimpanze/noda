@@ -38,7 +38,7 @@ Resolves `topic` and `payload`. Publishes the event to the service matching the 
     "topic": "orders.created",
     "payload": {
       "order_id": "{{ nodes.insert.id }}",
-      "user_id": "{{ auth.user_id }}"
+      "user_id": "{{ auth.sub }}"
     }
   }
 }

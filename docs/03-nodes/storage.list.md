@@ -31,7 +31,7 @@ Lists all files/objects under the given `prefix` in the configured storage servi
   "type": "storage.list",
   "services": { "storage": "files" },
   "config": {
-    "prefix": "{{ 'users/' + auth.user_id + '/documents/' }}"
+    "prefix": "{{ 'users/' + auth.sub + '/documents/' }}"
   }
 }
 ```
@@ -46,7 +46,7 @@ A file browser endpoint lists all files under a user's folder and returns the pa
     "type": "storage.list",
     "services": { "storage": "files" },
     "config": {
-      "prefix": "{{ 'users/' + auth.user_id + '/' + input.folder + '/' }}"
+      "prefix": "{{ 'users/' + auth.sub + '/' + input.folder + '/' }}"
     }
   },
   "respond": {

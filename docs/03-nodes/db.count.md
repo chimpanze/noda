@@ -36,7 +36,7 @@ Builds and executes a `SELECT COUNT(*)` query from the structured config fields.
   "config": {
     "table": "tasks",
     "where": {
-      "user_id": "{{ auth.user_id }}",
+      "user_id": "{{ auth.sub }}",
       "completed": false
     }
   }

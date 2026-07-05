@@ -901,6 +901,8 @@ All three middleware populate the same locals (`auth.sub`, `auth.roles`, `auth.c
 | `auth.set_password` **revokes all sessions by default** | If a password reset happens because credentials were compromised, any session opened with the old (compromised) password is killed at the same moment the new password takes effect — there's no window where both the old and new credentials are simultaneously valid. |
 | Session cookie defaults: `HttpOnly: true`, `Secure: true`, `SameSite: Lax` | `HttpOnly`/`Secure` block script access and non-TLS transmission. `Lax` is the safe default for same-site apps — it's sent on top-level navigations but not on cross-site subresource/XHR requests, which blocks the classic CSRF vector without extra configuration. |
 
+**Dev-mode traces and the cookie object:** the dev-mode trace stream redacts session tokens in HTTP responses and in the `cookie`/`clear_cookie` objects produced by `auth.create_session`/`auth.revoke_session` — but that redaction is keyed to those field names. Don't copy the cookie object into a differently-named field of workflow state (e.g. via `transform.set` into `session_cookie`): the renamed copy carries the raw token and will appear unredacted in dev-mode traces.
+
 ### CSRF guidance for cross-site frontends
 
 `SameSite=Lax` (the default) protects same-site apps — where your frontend and API share a registrable domain — from CSRF without any extra setup, because the browser withholds the cookie on cross-site `fetch`/XHR calls.

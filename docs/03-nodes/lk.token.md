@@ -52,7 +52,7 @@ Creates a signed JWT access token using the LiveKit service credentials. The tok
   "type": "lk.token",
   "services": { "livekit": "lk" },
   "config": {
-    "identity": "{{ auth.user_id }}",
+    "identity": "{{ auth.sub }}",
     "room": "{{ input.room_name }}",
     "name": "{{ auth.claims.name }}",
     "ttl": "2h",
@@ -76,7 +76,7 @@ A join-room endpoint verifies the room exists, then issues a token with the user
     "services": { "database": "postgres" },
     "config": {
       "table": "users",
-      "where": { "id": "{{ auth.user_id }}" },
+      "where": { "id": "{{ auth.sub }}" },
       "select": ["id", "display_name"]
     }
   },
@@ -84,7 +84,7 @@ A join-room endpoint verifies the room exists, then issues a token with the user
     "type": "lk.token",
     "services": { "livekit": "lk" },
     "config": {
-      "identity": "{{ auth.user_id }}",
+      "identity": "{{ auth.sub }}",
       "room": "{{ input.room_name }}",
       "name": "{{ nodes.get_user.display_name }}",
       "ttl": "2h",

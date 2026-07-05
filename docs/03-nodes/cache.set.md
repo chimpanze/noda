@@ -33,7 +33,7 @@ Writes the given value to the cache under the specified key. If `ttl` is provide
   "type": "cache.set",
   "services": { "cache": "redis" },
   "config": {
-    "key": "{{ 'session:' + auth.user_id }}",
+    "key": "{{ 'session:' + auth.sub }}",
     "value": "{{ nodes.session_data }}",
     "ttl": 3600
   }

@@ -193,6 +193,26 @@ func TestRedactHTTPResponse_BodyAndCookiesRedacted(t *testing.T) {
 	assert.Equal(t, "application/json", headers["Content-Type"])
 }
 
+func TestRedactHTTPResponse_SliceBodyRedacted(t *testing.T) {
+	resp := &api.HTTPResponse{
+		Status: 200,
+		Body: []any{
+			map[string]any{"token": "raw-token-should-not-leak", "email": "alice@example.com"},
+			[]any{map[string]any{"api_key": "nested-key-should-not-leak"}},
+		},
+	}
+
+	result := redactHTTPResponse(resp)
+
+	body := result["body"].([]any)
+	first := body[0].(map[string]any)
+	assert.Equal(t, "[REDACTED]", first["token"])
+	assert.Equal(t, "alice@example.com", first["email"])
+
+	nested := body[1].([]any)[0].(map[string]any)
+	assert.Equal(t, "[REDACTED]", nested["api_key"])
+}
+
 func TestEventHub_HTTPResponseDataRedacted(t *testing.T) {
 	hub := NewEventHub()
 	received := make(chan []byte, 1)

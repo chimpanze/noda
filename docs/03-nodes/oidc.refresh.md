@@ -54,7 +54,7 @@ A token refresh endpoint reads the stored refresh token from the database, refre
     "services": { "database": "postgres" },
     "config": {
       "table": "sessions",
-      "where": { "user_id": "{{ auth.user_id }}" },
+      "where": { "user_id": "{{ auth.sub }}" },
       "required": true
     }
   },
@@ -72,7 +72,7 @@ A token refresh endpoint reads the stored refresh token from the database, refre
     "services": { "database": "postgres" },
     "config": {
       "table": "sessions",
-      "where": { "user_id": "{{ auth.user_id }}" },
+      "where": { "user_id": "{{ auth.sub }}" },
       "data": {
         "access_token": "{{ nodes.refresh.access_token }}",
         "refresh_token": "{{ nodes.refresh.refresh_token }}",

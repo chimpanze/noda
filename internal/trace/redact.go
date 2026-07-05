@@ -135,6 +135,8 @@ func redactHTTPResponse(resp *api.HTTPResponse) map[string]any {
 	switch body := resp.Body.(type) {
 	case map[string]any:
 		out["body"] = redactSecrets(body)
+	case []any:
+		out["body"] = redactSlice(body)
 	default:
 		out["body"] = body
 	}

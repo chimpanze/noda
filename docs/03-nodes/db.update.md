@@ -40,7 +40,7 @@ Updates all rows in the specified table that match the `where` conditions, setti
     },
     "where": {
       "id": "{{ input.id }}",
-      "user_id": "{{ auth.user_id }}"
+      "user_id": "{{ auth.sub }}"
     }
   }
 }
@@ -63,7 +63,7 @@ A workflow fetches a task to verify ownership, then updates its status based on 
       },
       "where": {
         "id": "{{ nodes.verify_task.id }}",
-        "user_id": "{{ auth.user_id }}"
+        "user_id": "{{ auth.sub }}"
       }
     }
   }

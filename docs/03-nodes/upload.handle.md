@@ -37,7 +37,7 @@ Reads the file stream from the trigger input (marked via the `files` array on th
   "config": {
     "max_size": 5242880,
     "allowed_types": ["image/*"],
-    "path": "{{ 'avatars/' + auth.user_id + '/' + $uuid() }}",
+    "path": "{{ 'avatars/' + auth.sub + '/' + $uuid() }}",
     "max_files": 1
   }
 }

@@ -36,7 +36,7 @@ Inserts a new record into the specified table. If a conflict occurs on the speci
   "config": {
     "table": "user_settings",
     "data": {
-      "user_id": "{{ auth.user_id }}",
+      "user_id": "{{ auth.sub }}",
       "theme": "{{ input.theme }}",
       "language": "{{ input.language }}",
       "updated_at": "{{ now() }}"
@@ -59,7 +59,7 @@ A profile update workflow reads the authenticated user's ID and upserts their pr
     "config": {
       "table": "user_preferences",
       "data": {
-        "user_id": "{{ auth.user_id }}",
+        "user_id": "{{ auth.sub }}",
         "timezone": "{{ nodes.validate_input.timezone }}",
         "notifications_enabled": "{{ nodes.validate_input.notifications_enabled }}",
         "updated_at": "{{ now() }}"

@@ -56,7 +56,7 @@ A downstream node uses the timestamp:
       "table": "audit_log",
       "data": {
         "action": "{{ nodes.parse_action.type }}",
-        "user_id": "{{ auth.user_id }}",
+        "user_id": "{{ auth.sub }}",
         "created_at": "{{ nodes.now }}"
       }
     }

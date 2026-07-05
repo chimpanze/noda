@@ -147,7 +147,7 @@ The most common operation. A logged-in user requests a token to join a specific 
     "workflow": "generate-token",
     "input": {
       "room_name": "{{ body.room_name }}",
-      "user_id": "{{ auth.user_id }}",
+      "user_id": "{{ auth.sub }}",
       "user_name": "{{ auth.claims.name }}"
     }
   }

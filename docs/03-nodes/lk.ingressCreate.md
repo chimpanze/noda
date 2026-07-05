@@ -63,7 +63,7 @@ A start-stream endpoint creates a LiveKit room, then sets up an RTMP ingress and
     "config": {
       "input_type": "rtmp",
       "room": "{{ nodes.create_room.name }}",
-      "participant_identity": "{{ auth.user_id }}",
+      "participant_identity": "{{ auth.sub }}",
       "participant_name": "{{ input.streamer_name }}"
     }
   }

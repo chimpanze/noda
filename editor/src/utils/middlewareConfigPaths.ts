@@ -3,8 +3,11 @@ export interface MiddlewareConfigLocation {
   configKey: string;
 }
 
+// Must stay in sync with middlewareConfigPaths in internal/server/middleware.go
 const SPECIAL_MAPPINGS: Record<string, MiddlewareConfigLocation> = {
   "auth.jwt": { configPath: "security", configKey: "jwt" },
+  "auth.oidc": { configPath: "security", configKey: "oidc" },
+  "auth.session": { configPath: "security", configKey: "session" },
   "casbin.enforce": { configPath: "security", configKey: "casbin" },
   "livekit.webhook": { configPath: "security", configKey: "livekit" },
 };
