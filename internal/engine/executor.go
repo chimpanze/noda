@@ -259,6 +259,24 @@ func ExecuteGraph(
 		}
 	}
 
+	if resultErr == nil {
+		for id, jt := range graph.JoinTypes {
+			if jt != JoinAND {
+				continue
+			}
+			total := graph.DepCount[id]
+			remaining := int(pending[id].Load())
+			// Received at least one leg (remaining < total) but never fired
+			// (an AND-join fires only when remaining reaches 0). remaining == total
+			// means zero legs arrived — a normal unreached branch, not an error.
+			if remaining > 0 && remaining < total {
+				resultErr = fmt.Errorf("workflow %q incomplete: AND-join %q received %d of %d legs and never fired",
+					graph.WorkflowID, id, total-remaining, total)
+				break
+			}
+		}
+	}
+
 	if resultErr != nil {
 		execCtx.Log("info", "workflow failed", map[string]any{
 			"duration": duration.String(),

@@ -517,3 +517,64 @@ func TestExecuteGraph_Timeout_ReturnsTimeoutError(t *testing.T) {
 	_, ran := execCtx.GetOutput("next")
 	require.False(t, ran, "downstream node must not be reported as run after timeout")
 }
+
+// condExecutor emits a chosen output so one downstream leg is never reached.
+type condExecutor struct{ out string }
+
+func (c *condExecutor) Outputs() []string { return []string{"go", "skip"} }
+func (c *condExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
+	return c.out, nil, nil
+}
+
+// twoOutResolver reports that "test.cond" has outputs go/skip; others success/error.
+type twoOutResolver struct{}
+
+func (twoOutResolver) OutputsForType(nodeType string) ([]string, bool) {
+	if nodeType == "test.cond" {
+		return []string{"go", "skip"}, true
+	}
+	return []string{"success", "error"}, true
+}
+
+func TestExecuteGraph_StarvedANDJoin_Errors(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"a":    &mockPassExecutor{},
+		"cond": &condExecutor{out: "skip"}, // "go" branch (→ b → j) never fires
+		"b":    &mockPassExecutor{},
+		"j":    &mockPassExecutor{},
+	})
+	wf := WorkflowConfig{
+		ID: "starve",
+		Nodes: map[string]NodeConfig{
+			"a": {Type: "test.a"}, "cond": {Type: "test.cond"}, "b": {Type: "test.b"}, "j": {Type: "test.j"},
+		},
+		Edges: []EdgeConfig{
+			{From: "a", To: "j"},                  // leg 1 fires
+			{From: "cond", To: "b", Output: "go"}, // only via "go", which is not emitted
+			{From: "b", To: "j"},                  // leg 2 never arrives
+		},
+	}
+	graph, err := Compile(wf, twoOutResolver{})
+	require.NoError(t, err)
+	require.Equal(t, JoinAND, graph.JoinTypes["j"], "precondition: j is an AND-join")
+
+	execCtx := NewExecutionContext(WithWorkflowID("starve"))
+	gerr := ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.Error(t, gerr)
+	require.Contains(t, gerr.Error(), "AND-join \"j\"")
+}
+
+func TestExecuteGraph_ANDJoin_AllLegsFire_OK(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"a": &mockPassExecutor{}, "cond": &condExecutor{out: "go"}, "b": &mockPassExecutor{}, "j": &mockPassExecutor{},
+	})
+	wf := WorkflowConfig{
+		ID:    "ok",
+		Nodes: map[string]NodeConfig{"a": {Type: "test.a"}, "cond": {Type: "test.cond"}, "b": {Type: "test.b"}, "j": {Type: "test.j"}},
+		Edges: []EdgeConfig{{From: "a", To: "j"}, {From: "cond", To: "b", Output: "go"}, {From: "b", To: "j"}},
+	}
+	graph, err := Compile(wf, twoOutResolver{})
+	require.NoError(t, err)
+	execCtx := NewExecutionContext(WithWorkflowID("ok"))
+	require.NoError(t, ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg))
+}
