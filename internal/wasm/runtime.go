@@ -36,6 +36,41 @@ func NewRuntime(services *registry.ServiceRegistry, runner api.WorkflowRunner, l
 // defaultMaxModuleSize is the default maximum Wasm module file size (50MB).
 const defaultMaxModuleSize int64 = 50 * 1024 * 1024
 
+// defaultMemoryPages caps guest linear memory when MemoryPages is unset.
+// 256 pages * 64 KiB = 16 MiB (wazero's default is unbounded up to 4 GiB).
+const defaultMemoryPages uint32 = 256
+
+// buildManifest constructs the Extism manifest for a module, applying a
+// bounded default guest memory cap and the timeout needed to make context
+// cancellation actually terminate a running guest call (see wazero's
+// WithCloseOnContextDone).
+func buildManifest(cfg ModuleConfig, wasmBytes []byte) extism.Manifest {
+	manifest := extism.Manifest{
+		Wasm: []extism.Wasm{
+			extism.WasmData{Data: wasmBytes},
+		},
+		AllowedHosts: cfg.AllowHTTP, // Extism enforces HTTP host whitelist via its built-in HTTP host function
+	}
+
+	pages := cfg.MemoryPages
+	if pages == 0 {
+		pages = defaultMemoryPages
+	}
+	manifest.Memory = &extism.ManifestMemory{MaxPages: pages}
+
+	// Set the manifest timeout so extism enables wazero's WithCloseOnContextDone,
+	// which makes a context deadline/cancellation actually terminate a running
+	// guest call rather than just abandoning it. Use the larger of the tick
+	// timeout and the general call timeout so no legitimate call is cut short.
+	timeoutMs := cfg.TickTimeout
+	if timeoutMs < wasmCallTimeout {
+		timeoutMs = wasmCallTimeout
+	}
+	manifest.Timeout = uint64(timeoutMs / time.Millisecond)
+
+	return manifest
+}
+
 // LoadModule loads a Wasm module from config and registers it.
 func (r *Runtime) LoadModule(ctx context.Context, cfg ModuleConfig) (*Module, error) {
 	// Check file size before loading
@@ -63,28 +98,7 @@ func (r *Runtime) LoadModule(ctx context.Context, cfg ModuleConfig) (*Module, er
 // loadModuleFromBytes loads a module from raw wasm bytes (used by tests too).
 func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, wasmBytes []byte) (*Module, error) {
 	// Create Extism manifest
-	manifest := extism.Manifest{
-		Wasm: []extism.Wasm{
-			extism.WasmData{Data: wasmBytes},
-		},
-		AllowedHosts: cfg.AllowHTTP, // Extism enforces HTTP host whitelist via its built-in HTTP host function
-	}
-
-	if cfg.MemoryPages > 0 {
-		manifest.Memory = &extism.ManifestMemory{
-			MaxPages: cfg.MemoryPages,
-		}
-	}
-
-	// Set the manifest timeout so extism enables wazero's WithCloseOnContextDone,
-	// which makes a context deadline/cancellation actually terminate a running
-	// guest call rather than just abandoning it. Use the larger of the tick
-	// timeout and the general call timeout so no legitimate call is cut short.
-	timeoutMs := cfg.TickTimeout
-	if timeoutMs < wasmCallTimeout {
-		timeoutMs = wasmCallTimeout
-	}
-	manifest.Timeout = uint64(timeoutMs / time.Millisecond)
+	manifest := buildManifest(cfg, wasmBytes)
 
 	// Create host dispatcher
 	dispatcher := NewHostDispatcher(r.services, r.runner, r.logger)

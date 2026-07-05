@@ -218,6 +218,17 @@ func TestCodec_Unknown(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestBuildManifest_DefaultMemoryCap(t *testing.T) {
+	man := buildManifest(ModuleConfig{}, []byte{0x00})
+	require.NotNil(t, man.Memory)
+	require.Equal(t, uint32(defaultMemoryPages), man.Memory.MaxPages)
+	require.Greater(t, man.Timeout, uint64(0))
+
+	man2 := buildManifest(ModuleConfig{MemoryPages: 512}, []byte{0x00})
+	require.NotNil(t, man2.Memory)
+	require.Equal(t, uint32(512), man2.Memory.MaxPages)
+}
+
 // --- Module Tests ---
 
 func TestModule_Initialize(t *testing.T) {
