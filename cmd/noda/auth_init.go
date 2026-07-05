@@ -55,10 +55,10 @@ func runAuthInit(dir string) error {
 	services, _ := root["services"].(map[string]any)
 	dbNames, driverByName := findServicesByPlugin(services, "db")
 	if len(dbNames) == 0 {
-		return fmt.Errorf("auth init: no database service (plugin \"db\") found in noda.json — add one first")
+		return fmt.Errorf("auth init: no database service (plugin \"db\"/\"postgres\") found in noda.json — add one first")
 	}
 	if len(dbNames) > 1 {
-		return fmt.Errorf("auth init: multiple database services (plugin \"db\") found: %s — rename or remove services so only one remains, then re-run", strings.Join(dbNames, ", "))
+		return fmt.Errorf("auth init: multiple database services (plugin \"db\"/\"postgres\") found: %s — rename or remove services so only one remains, then re-run", strings.Join(dbNames, ", "))
 	}
 	dbName := dbNames[0]
 	driver := driverByName[dbName]
@@ -195,7 +195,14 @@ func findServicesByPlugin(services map[string]any, pluginName string) (names []s
 	driverByName = map[string]string{}
 	for n, v := range services {
 		svc, ok := v.(map[string]any)
-		if !ok || svc["plugin"] != pluginName {
+		if !ok {
+			continue
+		}
+		if pluginName == "db" {
+			if !isDatabaseService(svc) {
+				continue
+			}
+		} else if svc["plugin"] != pluginName {
 			continue
 		}
 		cfg, _ := svc["config"].(map[string]any)
