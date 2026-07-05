@@ -272,7 +272,7 @@ func (d *HostDispatcher) dispatchCache(ctx context.Context, svc api.CacheService
 		}
 		value := payload["value"]
 		ttl := 0
-		if v, ok := payload["ttl"].(float64); ok {
+		if v, ok := toInt64(payload["ttl"]); ok {
 			ttl = int(v)
 		}
 		return nil, svc.Set(ctx, key, value, ttl)

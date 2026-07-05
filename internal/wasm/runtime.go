@@ -129,7 +129,7 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 	nodaCall := extism.NewHostFunctionWithStack(
 		"noda_call",
 		func(ctx context.Context, p *extism.CurrentPlugin, stack []uint64) {
-			codec := &jsonCodec{}
+			codec := dispatcher.module.Codec
 			writeEnvelope := func(env map[string]any) {
 				out, mErr := codec.Marshal(env)
 				if mErr != nil {
@@ -181,7 +181,7 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 			}
 
 			var req HostCallRequest
-			codec := &jsonCodec{}
+			codec := dispatcher.module.Codec
 			if err := codec.Unmarshal(input, &req); err != nil {
 				logger.Error("noda_call_async: invalid request", "error", err)
 				return

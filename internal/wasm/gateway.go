@@ -164,7 +164,7 @@ func (g *Gateway) CloseConn(payload map[string]any) (any, error) {
 	}
 	code := 1000
 	reason := optionalString(payload, "reason")
-	if v, ok := payload["code"].(float64); ok {
+	if v, ok := toInt64(payload["code"]); ok {
 		code = int(v)
 	}
 
@@ -207,7 +207,7 @@ func (g *Gateway) Configure(payload map[string]any) (any, error) {
 		return nil, fmt.Errorf("NOT_FOUND: connection %q not found", id)
 	}
 
-	if v, ok := payload["heartbeat_interval"].(float64); ok && v > 0 {
+	if v, ok := toFloat(payload["heartbeat_interval"]); ok && v > 0 {
 		gc.mu.Lock()
 		// Cancel previous heartbeat loop if running
 		if gc.heartbeatCancel != nil {

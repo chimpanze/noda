@@ -825,8 +825,9 @@ func TestWasmService_SendCommand(t *testing.T) {
 // --- Mock Services ---
 
 type mockCacheService struct {
-	mu    sync.Mutex
-	store map[string]any
+	mu      sync.Mutex
+	store   map[string]any
+	lastTTL int
 }
 
 func (m *mockCacheService) Get(_ context.Context, key string) (any, error) {
@@ -839,10 +840,11 @@ func (m *mockCacheService) Get(_ context.Context, key string) (any, error) {
 	return v, nil
 }
 
-func (m *mockCacheService) Set(_ context.Context, key string, value any, _ int) error {
+func (m *mockCacheService) Set(_ context.Context, key string, value any, ttl int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.store[key] = value
+	m.lastTTL = ttl
 	return nil
 }
 
@@ -3375,4 +3377,74 @@ func TestHostCall_ErrorEnvelope(t *testing.T) {
 	code := classifyError(fmt.Errorf("PERMISSION_DENIED: service \"x\" not allowed"))
 	require.Equal(t, "PERMISSION_DENIED", code)
 	require.Equal(t, "INTERNAL_ERROR", classifyError(fmt.Errorf("boom")))
+}
+
+func TestToInt64_Coercion(t *testing.T) {
+	for _, v := range []any{
+		float64(42), float32(42),
+		int64(42), int32(42), int16(42), int8(42), int(42),
+		uint64(42), uint32(42), uint16(42), uint8(42), uint(42),
+		json.Number("42"),
+	} {
+		got, ok := toInt64(v)
+		require.True(t, ok, "%T", v)
+		require.Equal(t, int64(42), got)
+	}
+	_, ok := toInt64("nope")
+	require.False(t, ok)
+}
+
+func TestToFloat_Coercion(t *testing.T) {
+	for _, v := range []any{
+		float64(42), float32(42),
+		int64(42), int32(42), int16(42), int8(42), int(42),
+		uint64(42), uint32(42), uint16(42), uint8(42), uint(42),
+		json.Number("42"),
+	} {
+		got, ok := toFloat(v)
+		require.True(t, ok, "%T", v)
+		require.Equal(t, float64(42), got)
+	}
+	_, ok := toFloat("nope")
+	require.False(t, ok)
+}
+
+// TestHostCall_Msgpack verifies that a payload decoded from msgpack (where
+// numbers arrive as int64 rather than JSON's float64) still works for
+// operations that assert on numeric fields, such as cache.set's ttl.
+func TestHostCall_Msgpack(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	cache := &mockCacheService{store: make(map[string]any)}
+	require.NoError(t, svcReg.Register("app-cache", cache, nil))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+	_, err := NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 1,
+		Services: []string{"app-cache"},
+		Encoding: "msgpack",
+	}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	codec := &msgpackCodec{}
+	raw, err := codec.Marshal(map[string]any{"key": "score", "value": 100, "ttl": 60})
+	require.NoError(t, err)
+
+	// Decode via the same codec a msgpack-configured module would use for
+	// its host-call payload. msgpack picks the narrowest integer type for
+	// the wire value, so small numbers like ttl=60 decode as int8 rather
+	// than the float64 that JSON would have produced.
+	var payload map[string]any
+	require.NoError(t, codec.Unmarshal(raw, &payload))
+	require.NotEqual(t, float64(0), payload["ttl"])
+	require.IsType(t, int8(0), payload["ttl"])
+
+	_, err = dispatcher.Call(context.Background(), HostCallRequest{
+		Service:   "app-cache",
+		Operation: "set",
+		Payload:   payload,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 60, cache.lastTTL)
 }
