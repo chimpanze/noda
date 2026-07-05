@@ -3502,7 +3502,9 @@ func (s *blockingCacheServiceMulti) Get(_ context.Context, _ string) (any, error
 }
 func (s *blockingCacheServiceMulti) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
 func (s *blockingCacheServiceMulti) Del(_ context.Context, _ string) error               { return nil }
-func (s *blockingCacheServiceMulti) Exists(_ context.Context, _ string) (bool, error)    { return false, nil }
+func (s *blockingCacheServiceMulti) Exists(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
 
 // TestNoRaceOnShutdownCtx verifies that concurrent async host calls during
 // module shutdown do not race on the shutdownCtx field. This is a regression
@@ -3550,4 +3552,90 @@ func TestNoRaceOnShutdownCtx(t *testing.T) {
 	// Release the blocking calls
 	close(release)
 	wg.Wait()
+}
+
+// mirrorEnvelope mirrors the PDK's envelopeAny (pdk/go/noda/host.go) field-for-field,
+// including json/msgpack tags, so this test locks the wire shape the PDK's
+// decodeEnvelope() depends on: {"ok":bool,"data":any,"error":{"code","message"}}.
+type mirrorEnvelope struct {
+	OK    bool `json:"ok" msgpack:"ok"`
+	Data  any  `json:"data,omitempty" msgpack:"data,omitempty"`
+	Error *struct {
+		Code    string `json:"code" msgpack:"code"`
+		Message string `json:"message" msgpack:"message"`
+	} `json:"error,omitempty" msgpack:"error,omitempty"`
+}
+
+// TestHostPDKEnvelopeContract locks the host<->PDK wire agreement for the
+// {"ok","data","error"} envelope (wasm-pdk-3/wasm-pdk-4) across both codecs
+// the runtime supports. It does NOT load a compiled .wasm module — CI has no
+// tinygo and *.wasm is gitignored, so no test here can exercise the real
+// guest binary. Instead it round-trips the exact envelope shapes the host
+// writes (see runtime.go's writeEnvelope calls) through the same codecs
+// (jsonCodec/msgpackCodec) and decodes them into a struct mirroring the PDK's
+// envelopeAny, verifying field names/nesting/types survive both encodings.
+// This is the CI-safe regression guard; the true cross-binary proof is a
+// local `tinygo build` of the example guest modules against the updated PDK
+// (done manually per the Task 11 brief, since CI cannot run tinygo).
+//
+// Note: a *void* success (host handler returns nil result) is represented by
+// stack[0]==0 on the wasm stack, not by an envelope at all — call() in the
+// PDK short-circuits that case to (nil, nil) before decodeEnvelope ever runs.
+// That path has no envelope shape to test here.
+func TestHostPDKEnvelopeContract(t *testing.T) {
+	codecs := map[string]Codec{
+		"json":    &jsonCodec{},
+		"msgpack": &msgpackCodec{},
+	}
+
+	for name, codec := range codecs {
+		t.Run(name, func(t *testing.T) {
+			t.Run("error envelope", func(t *testing.T) {
+				// Exact shape the host writes on dispatch failure (runtime.go).
+				src := map[string]any{
+					"ok": false,
+					"error": map[string]any{
+						"code":    "PERMISSION_DENIED",
+						"message": "service not permitted",
+					},
+				}
+				raw, err := codec.Marshal(src)
+				require.NoError(t, err)
+
+				var env mirrorEnvelope
+				require.NoError(t, codec.Unmarshal(raw, &env))
+
+				assert.False(t, env.OK)
+				require.NotNil(t, env.Error)
+				assert.Equal(t, "PERMISSION_DENIED", env.Error.Code)
+				assert.Equal(t, "service not permitted", env.Error.Message)
+			})
+
+			t.Run("success envelope", func(t *testing.T) {
+				// Exact shape the host writes on dispatch success (runtime.go).
+				data := map[string]any{"foo": "bar", "count": int64(3)}
+				src := map[string]any{"ok": true, "data": data}
+				raw, err := codec.Marshal(src)
+				require.NoError(t, err)
+
+				var env mirrorEnvelope
+				require.NoError(t, codec.Unmarshal(raw, &env))
+
+				assert.True(t, env.OK)
+				assert.Nil(t, env.Error)
+
+				// Re-marshal/unmarshal env.Data (any) into a comparable map to
+				// avoid codec-specific numeric-type differences (e.g. msgpack
+				// picking int8 for small ints while JSON produces float64) —
+				// decodeEnvelope in the PDK does exactly this re-marshal step.
+				dataRaw, err := codec.Marshal(env.Data)
+				require.NoError(t, err)
+				var got map[string]any
+				require.NoError(t, codec.Unmarshal(dataRaw, &got))
+
+				assert.Equal(t, "bar", got["foo"])
+				require.Contains(t, got, "count")
+			})
+		})
+	}
 }
