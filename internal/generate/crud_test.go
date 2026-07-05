@@ -178,7 +178,7 @@ func TestGenerateModelSchemas(t *testing.T) {
 		{Name: "status", Type: "text", Enum: []string{"active", "inactive"}},
 	}
 
-	schemas := generateModelSchemas("task", columns)
+	schemas := generateModelSchemas("task", columns, "")
 
 	createSchema, ok := schemas["CreateTask"].(map[string]any)
 	if !ok {
@@ -211,14 +211,14 @@ func TestGenerateCRUD_ScopeThreadedAndBodyExcluded(t *testing.T) {
 		"table": "items",
 		"columns": map[string]any{
 			"id":     map[string]any{"type": "uuid", "primary_key": true},
-			"org_id": map[string]any{"type": "uuid"},
+			"org_id": map[string]any{"type": "uuid", "not_null": true},
 			"title":  map[string]any{"type": "text"},
 		},
 	}
 	opts := CRUDOptions{
 		BasePath: "/api/orgs/:org_id/items", Service: "maindb",
 		Operations: []string{"create", "list", "get", "update", "delete"},
-		Artifacts:  []string{"routes", "workflows"},
+		Artifacts:  []string{"routes", "workflows", "schemas"},
 		ScopeCol:   "org_id", ScopeParam: "org_id",
 	}
 	res := GenerateCRUD(model, opts)
@@ -238,6 +238,25 @@ func TestGenerateCRUD_ScopeThreadedAndBodyExcluded(t *testing.T) {
 	require.NotContains(t, updateData, "org_id")
 	require.NotContains(t, updateData, "id")
 	require.Contains(t, updateData, "title")
+
+	// Body schemas must exclude the scope column entirely (properties and required),
+	// since it's supplied via the URL path param, not the request body.
+	modelSchemas := res.Files["schemas/models/Item.json"]
+	createSchema := modelSchemas["CreateItem"].(map[string]any)
+	createProps := createSchema["properties"].(map[string]any)
+	require.NotContains(t, createProps, "org_id")
+	require.Contains(t, createProps, "title")
+	if req, ok := createSchema["required"].([]any); ok {
+		require.NotContains(t, req, "org_id")
+	}
+
+	updateSchema := modelSchemas["UpdateItem"].(map[string]any)
+	updateProps := updateSchema["properties"].(map[string]any)
+	require.NotContains(t, updateProps, "org_id")
+	require.Contains(t, updateProps, "title")
+	if req, ok := updateSchema["required"].([]any); ok {
+		require.NotContains(t, req, "org_id")
+	}
 }
 
 func keys(m map[string]map[string]any) []string {

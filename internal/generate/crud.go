@@ -59,7 +59,7 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 	}
 	// Generate schemas
 	if artifactSet["schemas"] {
-		result.Files[fmt.Sprintf("schemas/models/%s.json", capitalize(singular))] = generateModelSchemas(singular, columns)
+		result.Files[fmt.Sprintf("schemas/models/%s.json", capitalize(singular))] = generateModelSchemas(singular, columns, opts.ScopeCol)
 	}
 
 	// Generate routes and workflows
@@ -267,7 +267,7 @@ func parseColumns(model map[string]any) []colInfo {
 	return result
 }
 
-func generateModelSchemas(singular string, columns []colInfo) map[string]any {
+func generateModelSchemas(singular string, columns []colInfo, scopeCol string) map[string]any {
 	createProps := make(map[string]any)
 	updateProps := make(map[string]any)
 	var createRequired []any
@@ -278,6 +278,9 @@ func generateModelSchemas(singular string, columns []colInfo) map[string]any {
 		}
 		if col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
 			continue
+		}
+		if scopeCol != "" && col.Name == scopeCol {
+			continue // scope column comes from the URL path param, not the body
 		}
 
 		prop := map[string]any{"type": jsonSchemaType(col.Type)}
