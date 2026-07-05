@@ -69,6 +69,8 @@ var knownContextEnv = map[string]any{
 	"trigger": map[string]any{},
 	"nodes":   map[string]any{},
 	"secrets": map[string]any{},
+	"$item":   map[string]any{}, // loop/map/filter iteration value (control.loop, transform.map/filter)
+	"$index":  0,                 // loop/map/filter iteration index
 }
 
 // Compiler compiles and caches expressions.
