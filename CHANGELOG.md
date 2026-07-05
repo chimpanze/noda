@@ -44,6 +44,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Legacy worker `retry.dlq` (documented pre-reclaim) is honored as an alias for `dead_letter.topic` instead of being silently ignored.
 - Worker `min_idle` is clamped to `timeout` + 30s margin (not exactly `timeout`), so the reaper cannot reclaim a message whose consumer is still finishing or acknowledging.
 - Worker reaper processes reclaimed messages with the worker's `concurrency` instead of serially, so one slow poison message no longer head-of-line-blocks redelivery.
+- Engine execution safety: a workflow that times out now returns a `504`/error instead of silently reporting success on a truncated run; parallel branches failing with different error types no longer crash the process; starved AND-joins fail loudly; join classification is deterministic; alias/node-ID and duplicate workflow-ID collisions are rejected at load.
 
 ### Removed
 - Stream plugin consume-side API (`Subscribe`, `Ack`, `PendingCount`): unused by the platform (workers consume streams directly) and its hardcoded 60s reclaim conflicted with the worker reaper's timeout-clamped policy. `Publish` and the `pkg/api.StreamService` contract are unchanged.
