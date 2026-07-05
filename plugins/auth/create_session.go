@@ -81,6 +81,15 @@ func (e *createSessionExecutor) Execute(ctx context.Context, nCtx api.ExecutionC
 		"id": sessionID, "user_id": userID, "token_hash": hash,
 		"created_at": now, "expires_at": expiresAt,
 	}
+	// request metadata is only present for HTTP-triggered workflows; leave
+	// the columns NULL elsewhere (schedules, events, tests)
+	trig := nCtx.Trigger()
+	if trig.ClientIP != "" {
+		row["ip"] = trig.ClientIP
+	}
+	if trig.UserAgent != "" {
+		row["user_agent"] = trig.UserAgent
+	}
 	if err := db.WithContext(ctx).Table("auth_sessions").Create(row).Error; err != nil {
 		return "", nil, fmt.Errorf("auth.create_session: %w", err)
 	}

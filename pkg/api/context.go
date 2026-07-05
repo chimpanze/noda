@@ -15,6 +15,8 @@ type TriggerData struct {
 	Timestamp time.Time
 	TraceID   string
 	RequestID string // X-Request-ID from HTTP request (if present)
+	ClientIP  string // client IP for HTTP-triggered workflows ("" otherwise)
+	UserAgent string // User-Agent header for HTTP-triggered workflows ("" otherwise)
 }
 
 // ExecutionContext provides node executors with access to input data,

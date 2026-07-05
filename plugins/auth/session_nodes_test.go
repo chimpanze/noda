@@ -43,6 +43,49 @@ func TestCreateSession(t *testing.T) {
 	}
 }
 
+// metaCtx is a fakeCtx whose trigger carries HTTP request metadata.
+type metaCtx struct{ fakeCtx }
+
+func (metaCtx) Trigger() api.TriggerData {
+	return api.TriggerData{Type: "http", ClientIP: "203.0.113.7", UserAgent: "curl/8.6.0"}
+}
+
+func TestCreateSessionStoresRequestMeta(t *testing.T) {
+	db := newTestDB(t)
+	svc := testService()
+	hash, _ := svc.HashPassword("password123")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
+
+	exec := newCreateSessionExecutor(nil)
+	out, data, err := exec.Execute(context.Background(), metaCtx{}, map[string]any{"user_id": userID}, testServices(db))
+	if err != nil || out != api.OutputSuccess {
+		t.Fatalf("out=%q err=%v", out, err)
+	}
+	token := data.(map[string]any)["token"].(string)
+
+	row := map[string]any{}
+	if err := db.Table("auth_sessions").Where("token_hash = ?", HashToken(token)).Take(&row).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row["ip"] != "203.0.113.7" || row["user_agent"] != "curl/8.6.0" {
+		t.Fatalf("request meta not stored: ip=%v user_agent=%v", row["ip"], row["user_agent"])
+	}
+
+	// non-HTTP trigger (fakeCtx): columns stay NULL, no empty strings
+	_, d2, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
+	if err != nil {
+		t.Fatal(err)
+	}
+	row2 := map[string]any{}
+	tok2 := d2.(map[string]any)["token"].(string)
+	if err := db.Table("auth_sessions").Where("token_hash = ?", HashToken(tok2)).Take(&row2).Error; err != nil {
+		t.Fatal(err)
+	}
+	if row2["ip"] != nil || row2["user_agent"] != nil {
+		t.Fatalf("meta must stay NULL without request context: ip=%v ua=%v", row2["ip"], row2["user_agent"])
+	}
+}
+
 func TestRevokeSession(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()

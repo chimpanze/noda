@@ -79,6 +79,8 @@ These come from the [expr-lang](https://expr-lang.org/) engine and are always av
 | `trigger.type` | All nodes | Trigger type (e.g., `"http"`, `"schedule"`, `"stream"`) |
 | `trigger.timestamp` | All nodes | When the workflow was triggered |
 | `trigger.trace_id` | All nodes | Unique trace ID for the execution |
+| `trigger.client_ip` | All nodes | Client IP for HTTP-triggered workflows (`""` otherwise) |
+| `trigger.user_agent` | All nodes | `User-Agent` header for HTTP-triggered workflows (`""` otherwise) |
 | `nodes.<id>` | Downstream nodes | Output of a previously executed node |
 | `nodes.<id>.*` | Downstream nodes | Individual fields from a node's output |
 | `secrets.<NAME>` | All nodes | Secret value from providers (`.env` by default) |
