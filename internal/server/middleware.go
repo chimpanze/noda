@@ -239,8 +239,12 @@ func newCSRFMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, err
 	return csrf.New(csrfCfg), nil
 }
 
-func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
+// parseLimiterConfig validates limiter config without side effects; redisURL
+// is non-empty when redis-backed storage was requested (and its URL present).
+// Split from the factory so validate-time checks don't open connections.
+func parseLimiterConfig(cfg map[string]any) (limiter.Config, string, error) {
 	limiterCfg := limiter.Config{}
+	redisURL := ""
 	if cfg != nil {
 		if v, ok := cfg["max"].(float64); ok {
 			limiterCfg.Max = int(v)
@@ -249,23 +253,31 @@ func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, 
 			if d, err := time.ParseDuration(v); err == nil {
 				limiterCfg.Expiration = d
 			} else {
-				return nil, fmt.Errorf("limiter: invalid expiration %q: %w", v, err)
+				return limiterCfg, "", fmt.Errorf("limiter: invalid expiration %q: %w", v, err)
 			}
 		}
-		// Redis-backed distributed storage
 		if storage, ok := cfg["storage"].(string); ok && storage == "redis" {
-			redisURL, _ := cfg["redis_url"].(string)
+			redisURL, _ = cfg["redis_url"].(string)
 			if redisURL == "" {
-				return nil, fmt.Errorf("limiter: redis_url is required when storage is \"redis\"")
+				return limiterCfg, "", fmt.Errorf("limiter: redis_url is required when storage is \"redis\"")
 			}
-			store := redisStorage.New(redisStorage.Config{
-				URL: redisURL,
-			})
-			limiterCfg.Storage = store
 		}
 	}
 	if limiterCfg.Max == 0 {
-		return nil, fmt.Errorf("limiter: max=0 is not allowed; set an explicit max request count")
+		return limiterCfg, "", fmt.Errorf("limiter: max=0 is not allowed; set an explicit max request count")
+	}
+	return limiterCfg, redisURL, nil
+}
+
+func newLimiterMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
+	limiterCfg, redisURL, err := parseLimiterConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if redisURL != "" {
+		limiterCfg.Storage = redisStorage.New(redisStorage.Config{
+			URL: redisURL,
+		})
 	}
 	return limiter.New(limiterCfg), nil
 }

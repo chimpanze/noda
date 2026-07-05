@@ -14,39 +14,63 @@ import (
 // newOIDCMiddleware creates an OIDC ID token validation middleware.
 // It validates tokens against an external identity provider using OIDC discovery
 // and stores claims in the same Fiber locals as the JWT middleware.
-func newOIDCMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
+// oidcSettings holds validated auth.oidc config, parsed without performing
+// OIDC discovery so validate-time checks stay offline.
+type oidcSettings struct {
+	issuerURL      string
+	clientID       string
+	userIDClaim    string
+	rolesClaim     string
+	requiredScopes []string
+}
+
+func parseOIDCConfig(cfg map[string]any) (*oidcSettings, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("auth.oidc: security.oidc config is required")
 	}
 
-	issuerURL, _ := cfg["issuer_url"].(string)
-	if issuerURL == "" {
+	settings := &oidcSettings{}
+
+	settings.issuerURL, _ = cfg["issuer_url"].(string)
+	if settings.issuerURL == "" {
 		return nil, fmt.Errorf("auth.oidc: issuer_url is required")
 	}
 
-	clientID, _ := cfg["client_id"].(string)
-	if clientID == "" {
+	settings.clientID, _ = cfg["client_id"].(string)
+	if settings.clientID == "" {
 		return nil, fmt.Errorf("auth.oidc: client_id is required")
 	}
 
-	userIDClaim, _ := cfg["user_id_claim"].(string)
-	if userIDClaim == "" {
-		userIDClaim = "sub"
+	settings.userIDClaim, _ = cfg["user_id_claim"].(string)
+	if settings.userIDClaim == "" {
+		settings.userIDClaim = "sub"
 	}
 
-	rolesClaim, _ := cfg["roles_claim"].(string)
-	if rolesClaim == "" {
-		rolesClaim = "roles"
+	settings.rolesClaim, _ = cfg["roles_claim"].(string)
+	if settings.rolesClaim == "" {
+		settings.rolesClaim = "roles"
 	}
 
-	var requiredScopes []string
 	if scopes, ok := cfg["required_scopes"].([]any); ok {
 		for _, s := range scopes {
 			if str, ok := s.(string); ok {
-				requiredScopes = append(requiredScopes, str)
+				settings.requiredScopes = append(settings.requiredScopes, str)
 			}
 		}
 	}
+
+	return settings, nil
+}
+
+func newOIDCMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, error) {
+	settings, err := parseOIDCConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	issuerURL := settings.issuerURL
+	userIDClaim := settings.userIDClaim
+	rolesClaim := settings.rolesClaim
+	requiredScopes := settings.requiredScopes
 
 	// Perform OIDC discovery (fetches .well-known/openid-configuration, caches JWKS)
 	provider, err := oidc.NewProvider(context.Background(), issuerURL)
@@ -55,7 +79,7 @@ func newOIDCMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, err
 	}
 
 	verifier := provider.Verifier(&oidc.Config{
-		ClientID: clientID,
+		ClientID: settings.clientID,
 	})
 
 	return func(c fiber.Ctx) error {

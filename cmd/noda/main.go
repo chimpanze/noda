@@ -174,6 +174,17 @@ func newValidateCmd() *cobra.Command {
 				return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
 			}
 
+			// Middleware factories validate config at build time (limiter max,
+			// jwt secret, durations); building them here catches boot-time
+			// failures that the schema and bootstrap dry-run can't see.
+			if mwErrs := server.ValidateMiddlewareBuilds(rc); len(mwErrs) > 0 {
+				var errMsgs []string
+				for _, e := range mwErrs {
+					errMsgs = append(errMsgs, e.Error())
+				}
+				return fmt.Errorf("middleware validation failed:\n  %s", strings.Join(errMsgs, "\n  "))
+			}
+
 			fmt.Printf("✓ All config files valid (%d files checked)\n", rc.FileCount)
 			return nil
 		},
