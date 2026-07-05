@@ -39,7 +39,7 @@ var examplePatterns = map[string]map[string]string{
     "validate": {
       "type": "transform.validate",
       "config": {
-        "schema": "$ref(schemas/user.json)"
+        "schema": { "$ref": "schemas/User" }
       }
     },
     "create": {
@@ -140,7 +140,8 @@ var examplePatterns = map[string]map[string]string{
           "user_id": "{{ nodes.lookup.id }}",
           "email": "{{ nodes.lookup.email }}"
         },
-        "expires_in": "24h"
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "24h"
       }
     },
     "respond": {

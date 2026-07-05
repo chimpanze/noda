@@ -36,3 +36,17 @@ func TestGeneratedRouteTriggersUseCanonicalNamespace(t *testing.T) {
 	assert.Contains(t, wsConnections, "request.",
 		"websocket channels.pattern is expected to retain request.* (different runtime context)")
 }
+
+// TestExamples_JWTSignAndRefAreValid ensures the auth example's jwt_sign node
+// config matches the real util.jwt_sign runtime contract (required secret,
+// "expiry" key not "expires_in"), and the crud example's schema ref uses the
+// real object form rather than the nonexistent "$ref(...)" string form.
+func TestExamples_JWTSignAndRefAreValid(t *testing.T) {
+	authWorkflow := examplePatterns["auth"]["workflow"]
+	require.NotContains(t, authWorkflow, `"expires_in"`, "jwt_sign uses 'expiry', not 'expires_in'")
+	require.Contains(t, authWorkflow, `"expiry"`)
+	require.Contains(t, authWorkflow, "secrets.JWT_SECRET")
+
+	crudWorkflow := examplePatterns["crud"]["workflow"]
+	require.NotContains(t, crudWorkflow, "$ref(", "schema refs must use the object form {\"$ref\": \"schemas/Name\"}, not the $ref(...) string form")
+}
