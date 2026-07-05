@@ -134,6 +134,48 @@ func TestCallWithTimeout_InterruptibleAndSynchronous(t *testing.T) {
 	<-bp.started // proves the call actually ran inline
 }
 
+// concurrencyPlugin fails the test if two CallWithContext run at once.
+type concurrencyPlugin struct {
+	mockPlugin
+	inFlight  atomic.Int32
+	maxSeen   atomic.Int32
+	hangQuery bool
+}
+
+func (c *concurrencyPlugin) CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error) {
+	n := c.inFlight.Add(1)
+	if n > c.maxSeen.Load() {
+		c.maxSeen.Store(n)
+	}
+	defer c.inFlight.Add(-1)
+	if c.hangQuery && name == "query" {
+		<-ctx.Done()
+		return 0, nil, ctx.Err()
+	}
+	time.Sleep(time.Millisecond)
+	return 0, nil, nil
+}
+
+func TestGuestCalls_NeverConcurrent_AndHungQueryDoesNotDeadlockStop(t *testing.T) {
+	cp := &concurrencyPlugin{mockPlugin: *newMockPlugin(), hangQuery: true}
+	cp.exports["query"] = true
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "c", TickRate: 60, TickTimeout: 10 * time.Millisecond}, cp)
+	m.Start()
+	// fire a query that hangs; it must time out, not wedge the loop
+	go func() { _, _ = m.Query(context.Background(), map[string]any{}, 20*time.Millisecond) }()
+	time.Sleep(50 * time.Millisecond)
+
+	done := make(chan error, 1)
+	go func() { done <- m.Stop(context.Background()) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop deadlocked on a hung query")
+	}
+	require.LessOrEqual(t, cp.maxSeen.Load(), int32(1), "guest calls overlapped")
+}
+
 // --- Encoding Tests ---
 
 func TestCodec_JSON(t *testing.T) {

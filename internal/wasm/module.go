@@ -69,6 +69,11 @@ type Module struct {
 	// AddAsyncResult checks it to drop late-arriving writes silently.
 	stopping atomic.Bool
 
+	// failed is set once a guest call errors out (e.g. a hung call that hit
+	// its timeout). Once set, the tick loop exits and Query/SendCommand fail
+	// fast instead of queuing work a dead loop will never service.
+	failed atomic.Bool
+
 	// Outbound gateway connections
 	gateway *Gateway
 
@@ -88,6 +93,9 @@ type timerEntry struct {
 }
 
 type queryRequest struct {
+	// target is the guest export to call. Defaults to "query"; Task 7 will
+	// set it per-request to support full command/query routing.
+	target string
 	data   []byte
 	result chan queryResponse
 }
@@ -243,12 +251,17 @@ func (m *Module) Stop(ctx context.Context) error {
 
 // Query calls the module's query export synchronously, serialized with ticks.
 func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration) (any, error) {
+	if m.failed.Load() {
+		return nil, fmt.Errorf("module %q has failed", m.Name)
+	}
+
 	data, err := m.Codec.Marshal(queryData)
 	if err != nil {
 		return nil, fmt.Errorf("marshal query: %w", err)
 	}
 
 	req := queryRequest{
+		target: "query",
 		data:   data,
 		result: make(chan queryResponse, 1),
 	}
@@ -281,6 +294,11 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 
 // SendCommand delivers a command to the module.
 func (m *Module) SendCommand(data any) {
+	if m.failed.Load() {
+		m.Logger.Error("dropping command on failed module", "module", m.Name)
+		return
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -295,7 +313,7 @@ func (m *Module) SendCommand(data any) {
 		m.outstandingCalls.Add(1)
 		go func() {
 			defer m.outstandingCalls.Done()
-			req := queryRequest{data: cmdData, result: make(chan queryResponse, 1)}
+			req := queryRequest{target: "command", data: cmdData, result: make(chan queryResponse, 1)}
 			select {
 			case m.queryCh <- req:
 				select {
@@ -420,6 +438,15 @@ func (m *Module) callWithTimeout(parent context.Context, name string, data []byt
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 	return m.Plugin.CallWithContext(ctx, name, data)
+}
+
+// markFailed marks the module as failed, causing the tick loop to exit and
+// subsequent Query/SendCommand calls to fail fast. Idempotent — only the
+// first call logs.
+func (m *Module) markFailed(reason string) {
+	if m.failed.CompareAndSwap(false, true) {
+		m.Logger.Error("wasm module failed; stopping tick loop", "module", m.Name, "reason", reason)
+	}
 }
 
 func (m *Module) buildServiceManifest() map[string]ServiceManifest {

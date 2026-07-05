@@ -1,7 +1,6 @@
 package wasm
 
 import (
-	"context"
 	"fmt"
 	"time"
 )
@@ -19,6 +18,9 @@ func (m *Module) tickLoop() {
 	}
 
 	for {
+		if m.failed.Load() {
+			return
+		}
 		select {
 		case <-m.stopCh:
 			return
@@ -92,7 +94,7 @@ func (m *Module) executeTick() {
 	elapsed := time.Since(start)
 
 	if err != nil {
-		m.Logger.Error("tick call failed", "module", m.Name, "error", err)
+		m.markFailed("tick call: " + err.Error())
 		return
 	}
 	if exitCode != 0 {
@@ -125,23 +127,22 @@ func (m *Module) drainQueries() {
 	}
 }
 
-// processQuery handles a query or command request.
+// processQuery handles a query or command request. req.target names the
+// guest export to call; it defaults to "query" (Task 7 adds full
+// command/query routing).
 func (m *Module) processQuery(req queryRequest) {
-	// Determine if this is a command or query based on function existence
-	funcName := "query"
-	if m.Plugin.FunctionExists("command") && !m.Plugin.FunctionExists("query") {
-		funcName = "command"
+	if req.target == "" {
+		req.target = "query"
 	}
 
-	// TODO(task2/7): processQuery should be serialized through callWithTimeout
-	// with a proper per-call context/timeout, not a bare background context.
-	exitCode, output, err := m.Plugin.CallWithContext(context.Background(), funcName, req.data)
+	exitCode, output, err := m.callWithTimeout(m.shutdownCtx, req.target, req.data, wasmCallTimeout)
 	if err != nil {
-		req.result <- queryResponse{err: fmt.Errorf("%s call failed: %w", funcName, err)}
+		m.markFailed("query call: " + err.Error())
+		req.result <- queryResponse{err: fmt.Errorf("%s call failed: %w", req.target, err)}
 		return
 	}
 	if exitCode != 0 {
-		req.result <- queryResponse{err: fmt.Errorf("%s returned exit code %d", funcName, exitCode)}
+		req.result <- queryResponse{err: fmt.Errorf("%s returned exit code %d", req.target, exitCode)}
 		return
 	}
 
