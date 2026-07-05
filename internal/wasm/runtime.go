@@ -62,11 +62,11 @@ func buildManifest(cfg ModuleConfig, wasmBytes []byte) extism.Manifest {
 	// which makes a context deadline/cancellation actually terminate a running
 	// guest call rather than just abandoning it. Use the larger of the tick
 	// timeout and the general call timeout so no legitimate call is cut short.
-	timeoutMs := cfg.TickTimeout
-	if timeoutMs < wasmCallTimeout {
-		timeoutMs = wasmCallTimeout
+	timeout := cfg.TickTimeout
+	if timeout < wasmCallTimeout {
+		timeout = wasmCallTimeout
 	}
-	manifest.Timeout = uint64(timeoutMs / time.Millisecond)
+	manifest.Timeout = uint64(timeout / time.Millisecond)
 
 	return manifest
 }

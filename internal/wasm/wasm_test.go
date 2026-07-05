@@ -531,7 +531,7 @@ func TestSendCommand_RoutesToCommandExport(t *testing.T) {
 	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
 	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "cmd", TickRate: 60}, mp)
 	m.Start()
-	defer m.Stop(context.Background())
+	defer func() { _ = m.Stop(context.Background()) }()
 	m.SendCommand(map[string]any{"hello": "world"})
 	require.Eventually(t, func() bool { return len(mp.getCalls("command")) > 0 }, time.Second, 5*time.Millisecond)
 	require.Empty(t, mp.getCalls("query"), "command must not be routed to query")
