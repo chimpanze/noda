@@ -776,6 +776,18 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		"migrations/20260101000000_create_items.down.sql": scaffoldSampleMigrationDown,
 	}
 
+	var conflicts []string
+	for name := range files {
+		fullPath := filepath.Join(path, name)
+		if _, statErr := os.Stat(fullPath); statErr == nil {
+			conflicts = append(conflicts, name)
+		}
+	}
+	if len(conflicts) > 0 {
+		sort.Strings(conflicts)
+		return mcp.NewToolResultError(fmt.Sprintf("refusing to overwrite existing files: %s", strings.Join(conflicts, ", "))), nil
+	}
+
 	for name, content := range files {
 		fullPath := filepath.Join(path, name)
 		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
