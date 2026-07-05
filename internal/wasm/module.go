@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -430,6 +431,16 @@ func (m *Module) IsServiceAllowed(service string) bool {
 	return false
 }
 
+// errGuestInterrupted is a sentinel wrapped into the error returned by
+// callWithTimeout when the guest call was interrupted (its context deadline
+// expired or the parent shutdown context was cancelled). In that case wazero
+// has actually terminated the guest instance, so every subsequent call would
+// also fail — callers must stop and mark the module failed. Any other
+// non-nil error from CallWithContext (a wasm trap, or a guest that returned
+// noda.Fail/noda.FailMsg) leaves the instance alive and recoverable, so
+// callers should log it and keep going instead of tearing down the module.
+var errGuestInterrupted = errors.New("guest call interrupted")
+
 // callWithTimeout calls a guest export synchronously with a per-call deadline.
 // It runs inline on the caller's goroutine (the tick loop during running),
 // so only one goroutine ever touches the plugin. With extism manifest.Timeout
@@ -437,7 +448,13 @@ func (m *Module) IsServiceAllowed(service string) bool {
 func (m *Module) callWithTimeout(parent context.Context, name string, data []byte, timeout time.Duration) (uint32, []byte, error) {
 	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
-	return m.Plugin.CallWithContext(ctx, name, data)
+	exitCode, out, err := m.Plugin.CallWithContext(ctx, name, data)
+	if err != nil && ctx.Err() != nil {
+		// The call's own deadline expired, or the parent shutdown context was
+		// cancelled mid-call — either way the guest instance is now closed.
+		return exitCode, out, fmt.Errorf("%s call interrupted (%v): %w: %w", name, ctx.Err(), err, errGuestInterrupted)
+	}
+	return exitCode, out, err
 }
 
 // markFailed marks the module as failed, causing the tick loop to exit and

@@ -1976,6 +1976,37 @@ func TestModule_Tick_PluginCallError(t *testing.T) {
 	// Should not crash despite tick errors
 }
 
+// TestModule_Tick_GuestErrorDoesNotFailModule proves that a plain guest-side
+// tick error (e.g. a wasm trap, or the guest returning noda.Fail/noda.FailMsg)
+// — one NOT caused by the call's context deadline firing — is logged and the
+// tick loop keeps running instead of permanently marking the module failed.
+// The instance is still alive in this case (mockPlugin never touches ctx), so
+// a subsequent Query must still succeed.
+func TestModule_Tick_GuestErrorDoesNotFailModule(t *testing.T) {
+	plugin := newMockPlugin()
+	plugin.responses["tick"] = mockResponse{err: fmt.Errorf("guest returned noda.Fail")}
+	plugin.responses["query"] = mockResponse{data: []byte(`{"ok":true}`)}
+	plugin.exports["query"] = true
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 20}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+
+	m.Start()
+	defer func() { _ = m.Stop(context.Background()) }()
+
+	time.Sleep(150 * time.Millisecond)
+
+	require.False(t, m.failed.Load(), "a recoverable guest tick error must not mark the module failed")
+
+	// The loop must still be alive and servicing queries.
+	result, err := m.Query(context.Background(), map[string]any{"q": "test"}, 2*time.Second)
+	require.NoError(t, err)
+	_ = result
+}
+
 func TestModule_Tick_NonZeroExitCode(t *testing.T) {
 	plugin := newMockPlugin()
 	plugin.responses["tick"] = mockResponse{exitCode: 42}

@@ -147,11 +147,21 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 			writeEnvelope := func(env map[string]any) {
 				out, mErr := codec.Marshal(env)
 				if mErr != nil {
-					stack[0] = 0
-					return
+					// Do not silently fall back to void-success (stack[0]=0) here:
+					// the guest reads offset 0 as "void success" (see pdk/go/noda
+					// host.go hostCall), so collapsing a marshal failure on an ERROR
+					// envelope into that would turn a real PERMISSION_DENIED/NOT_FOUND
+					// into a false success. Fall back to a hardcoded error envelope so
+					// the guest still observes a failure.
+					logger.Error("noda_call: marshal envelope failed", "error", mErr)
+					out = []byte(`{"ok":false,"error":{"code":"INTERNAL_ERROR","message":"marshal envelope failed"}}`)
 				}
 				off, wErr := p.WriteBytes(out)
 				if wErr != nil {
+					// WriteBytes failing leaves no way to signal an error to the
+					// guest (offset 0 means void success) — log loudly so this is
+					// visible in ops rather than silently swallowed as a success.
+					logger.Error("noda_call: write envelope failed", "error", wErr)
 					stack[0] = 0
 					return
 				}

@@ -162,11 +162,14 @@ All fields are optional — Noda omits empty arrays/objects from the tick input 
 
 During tick execution, the module processes events, updates internal state, and makes `noda_call` or `noda_call_async` host function calls as needed.
 
-**Return:** A status object or empty. A non-zero return code is logged as an error.
+**Return:** A status object or empty. A non-zero return code is logged as an error and ticking continues.
 
 **Tick budget:** If a tick exceeds its time budget (`1000 / tick_rate` milliseconds), Noda logs a warning with the actual duration. This helps module authors detect performance problems during development. Consecutive budget overruns are logged at increasing severity.
 
-**Tick timeout:** Each tick call must complete within `tick_timeout` (default: 10x the tick budget). If a tick exceeds this hard limit, the context deadline actually terminates the running guest call (Extism's manifest timeout enables wazero's `WithCloseOnContextDone`, so the instance is interrupted rather than merely abandoned) — Noda then marks the module **failed**: the tick loop exits and subsequent `Query`/`SendCommand` calls fail fast. A timed-out guest does not get to keep running in the background, and it does not resume ticking afterward; the module must be reloaded to recover. The timeout is configurable per module in the `wasm_runtimes` config (e.g. `"tick_timeout": "5s"`).
+**Tick errors vs. tick timeout:** These are two different failure modes with different consequences:
+
+- A **non-zero exit code**, or the guest call returning a Go `error` from within the instance (a wasm trap, or the guest explicitly signaling failure — e.g. the Go PDK's `noda.Fail`/`noda.FailMsg`) — leaves the Wasm instance alive and untouched. Noda logs the error and the tick loop **keeps running** on the next interval; the module does not need to be reloaded. This is the normal way for a tick handler to signal "this frame failed" without taking down a long-lived (game/bot) module.
+- A **tick timeout** is different: each tick call must complete within `tick_timeout` (default: 10x the tick budget). If a tick exceeds this hard limit, the context deadline actually terminates the running guest call (Extism's manifest timeout enables wazero's `WithCloseOnContextDone`, so the instance is interrupted rather than merely abandoned). Because the instance itself has been torn down and any further call would also fail, Noda marks the module **failed**: the tick loop exits and subsequent `Query`/`SendCommand` calls fail fast. A timed-out guest does not get to keep running in the background, and it does not resume ticking afterward; the module must be reloaded to recover. The same applies if Noda's shutdown context is cancelled mid-call. The timeout is configurable per module in the `wasm_runtimes` config (e.g. `"tick_timeout": "5s"`).
 
 ### 3.4 Query
 
@@ -181,7 +184,7 @@ Noda calls the module's `query` export when a workflow executes a `wasm.query` n
 
 The input is the `data` field from the `wasm.query` node's config (with expressions already resolved by the workflow engine).
 
-**Return:** Response data. This becomes the output of the `wasm.query` node in the parent workflow. A non-zero return code causes the `wasm.query` node to fail with an error.
+**Return:** Response data. This becomes the output of the `wasm.query` node in the parent workflow. A non-zero return code, or the guest export returning a Go `error`, causes the `wasm.query` node to fail with an error — the instance stays alive and the module keeps running. Only a query that times out or is interrupted by shutdown terminates the instance and marks the module failed, per the same distinction described in [Tick errors vs. tick timeout](#33-tick).
 
 Queries must be fast — the `wasm.query` node has a mandatory `timeout` in its config, and the workflow's `context.Context` deadline applies. The module should read from its in-memory state, not perform expensive I/O during a query.
 

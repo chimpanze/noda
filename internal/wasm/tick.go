@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -94,7 +95,17 @@ func (m *Module) executeTick() {
 	elapsed := time.Since(start)
 
 	if err != nil {
-		m.markFailed("tick call: " + err.Error())
+		if errors.Is(err, errGuestInterrupted) {
+			// The guest instance was actually terminated (timeout or shutdown
+			// cancellation) — every further call would fail, so stop the loop.
+			m.markFailed("tick call: " + err.Error())
+			return
+		}
+		// A recoverable guest-side error (wasm trap, or the guest returning
+		// noda.Fail/noda.FailMsg): the instance is still alive. Log and keep
+		// ticking rather than permanently killing a long-lived module over
+		// one bad frame.
+		m.Logger.Error("tick call failed", "module", m.Name, "error", err)
 		return
 	}
 	if exitCode != 0 {
@@ -137,7 +148,13 @@ func (m *Module) processQuery(req queryRequest) {
 
 	exitCode, output, err := m.callWithTimeout(m.shutdownCtx, req.target, req.data, wasmCallTimeout)
 	if err != nil {
-		m.markFailed("query call: " + err.Error())
+		if errors.Is(err, errGuestInterrupted) {
+			// Instance was terminated (timeout/shutdown) — dead for good.
+			m.markFailed("query call: " + err.Error())
+		}
+		// A plain guest error (trap, or noda.Fail/noda.FailMsg) leaves the
+		// instance alive; just report it to the caller without killing the
+		// module.
 		req.result <- queryResponse{err: fmt.Errorf("%s call failed: %w", req.target, err)}
 		return
 	}
