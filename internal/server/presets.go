@@ -15,15 +15,17 @@ func (s *Server) ResolveMiddlewareChain(route map[string]any) ([]fiber.Handler, 
 	return handlers, err
 }
 
-// resolveMiddlewareChainFull returns both the resolved middleware names and their handlers.
-func (s *Server) resolveMiddlewareChainFull(route map[string]any) ([]string, []fiber.Handler, error) {
+// resolveMiddlewareNames resolves the ordered, deduplicated middleware names
+// for a route (group → preset → route-level) and validates ordering
+// constraints, without building any handlers.
+func (s *Server) resolveMiddlewareNames(route map[string]any) ([]string, error) {
 	var middlewareNames []string
 
 	// 1. Group middleware (based on route path matching route_groups)
 	routePath, _ := route["path"].(string)
 	groupMW, err := s.getGroupMiddleware(routePath)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	middlewareNames = append(middlewareNames, groupMW...)
 
@@ -31,7 +33,7 @@ func (s *Server) resolveMiddlewareChainFull(route map[string]any) ([]string, []f
 	if preset, ok := route["middleware_preset"].(string); ok && preset != "" {
 		expanded, err := s.expandPreset(preset)
 		if err != nil {
-			return nil, nil, fmt.Errorf("route %v: %w", route["id"], err)
+			return nil, fmt.Errorf("route %v: %w", route["id"], err)
 		}
 		middlewareNames = append(middlewareNames, expanded...)
 	}
@@ -48,10 +50,19 @@ func (s *Server) resolveMiddlewareChainFull(route map[string]any) ([]string, []f
 
 	// Validate ordering constraints (e.g., auth.jwt must precede casbin.enforce)
 	if err := ValidateMiddlewareOrder(middlewareNames); err != nil {
+		return nil, err
+	}
+
+	return middlewareNames, nil
+}
+
+// resolveMiddlewareChainFull returns both the resolved middleware names and their handlers.
+func (s *Server) resolveMiddlewareChainFull(route map[string]any) ([]string, []fiber.Handler, error) {
+	middlewareNames, err := s.resolveMiddlewareNames(route)
+	if err != nil {
 		return nil, nil, err
 	}
 
-	// Build handlers
 	handlers := make([]fiber.Handler, 0, len(middlewareNames))
 	for _, name := range middlewareNames {
 		h, err := s.buildMiddleware(name)

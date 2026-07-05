@@ -157,9 +157,10 @@ func (s *Server) buildWorkflowRunner(triggerType string) api.WorkflowRunner {
 	}
 }
 
-// resolveEndpointMiddleware resolves middleware handlers for a connection endpoint.
-// Supports both "middleware": ["auth.jwt"] and "middleware_preset": "authenticated".
-func (s *Server) resolveEndpointMiddleware(ep map[string]any) ([]fiber.Handler, error) {
+// resolveEndpointMiddlewareNames resolves the ordered, deduplicated middleware
+// names for a connection endpoint and validates ordering constraints, without
+// building any handlers.
+func (s *Server) resolveEndpointMiddlewareNames(ep map[string]any) ([]string, error) {
 	var middlewareNames []string
 
 	// Expand preset if specified
@@ -183,6 +184,17 @@ func (s *Server) resolveEndpointMiddleware(ep map[string]any) ([]fiber.Handler, 
 	middlewareNames = dedupe(middlewareNames)
 
 	if err := ValidateMiddlewareOrder(middlewareNames); err != nil {
+		return nil, err
+	}
+
+	return middlewareNames, nil
+}
+
+// resolveEndpointMiddleware resolves middleware handlers for a connection endpoint.
+// Supports both "middleware": ["auth.jwt"] and "middleware_preset": "authenticated".
+func (s *Server) resolveEndpointMiddleware(ep map[string]any) ([]fiber.Handler, error) {
+	middlewareNames, err := s.resolveEndpointMiddlewareNames(ep)
+	if err != nil {
 		return nil, err
 	}
 
