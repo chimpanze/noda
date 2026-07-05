@@ -13,6 +13,28 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
+// firstError records the first error seen across parallel node goroutines.
+// It replaces a sync/atomic.Value, which panics when errors of different
+// concrete types are stored (even on a losing CompareAndSwap).
+type firstError struct {
+	mu  sync.Mutex
+	err error
+}
+
+func (f *firstError) set(err error) {
+	f.mu.Lock()
+	if f.err == nil {
+		f.err = err
+	}
+	f.mu.Unlock()
+}
+
+func (f *firstError) get() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.err
+}
+
 // ExecuteGraph runs a compiled workflow graph to completion.
 func ExecuteGraph(
 	ctx context.Context,
@@ -72,7 +94,7 @@ func ExecuteGraph(
 
 	var (
 		wg       sync.WaitGroup
-		firstErr atomic.Value
+		firstErr firstError
 	)
 
 	// dispatchIfReady launches a goroutine to execute a node.
@@ -113,7 +135,7 @@ func ExecuteGraph(
 					"node_id": node.ID,
 					"error":   err.Error(),
 				})
-				firstErr.CompareAndSwap(nil, err)
+				firstErr.set(err)
 				cancel()
 				return
 			}
@@ -152,7 +174,7 @@ func ExecuteGraph(
 					execCtx.Log("warn", "node error with no error edge", map[string]any{
 						"node_id": nodeID,
 					})
-					firstErr.CompareAndSwap(nil, nodeErr)
+					firstErr.set(nodeErr)
 					cancel()
 					return
 				}
@@ -171,7 +193,7 @@ func ExecuteGraph(
 					}
 					retryOutput, retryErr := retryNode(execCtx2, node, execCtx, services, nodes, edge.Retry)
 					if retryErr != nil {
-						firstErr.CompareAndSwap(nil, retryErr)
+						firstErr.set(retryErr)
 						cancel()
 						return
 					}
@@ -223,11 +245,11 @@ func ExecuteGraph(
 
 	duration := time.Since(startTime)
 
-	if errVal := firstErr.Load(); errVal != nil {
+	if errVal := firstErr.get(); errVal != nil {
 		execCtx.Log("info", "workflow failed", map[string]any{
 			"duration": duration.String(),
 		})
-		workflowErr = errVal.(error)
+		workflowErr = errVal
 		// Record workflow error metrics
 		if m := execCtx.Metrics(); m != nil {
 			wfAttrs := metric.WithAttributes(

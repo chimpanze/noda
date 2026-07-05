@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -417,6 +418,55 @@ func TestExecuteGraph_WorkflowStartedTraceEvent_NoAuth(t *testing.T) {
 	payload := startedData.(map[string]any)
 	assert.Equal(t, map[string]any{"key": "value"}, payload["input"])
 	assert.Nil(t, payload["auth"])
+}
+
+// errExecutor returns a fixed output/data/error for testing error paths.
+type errExecutor struct {
+	output string
+	data   any
+	err    error
+}
+
+func (e *errExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *errExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
+	return e.output, e.data, e.err
+}
+
+func TestExecuteGraph_ParallelMixedErrorTypes_NoPanic(t *testing.T) {
+	// Branch "a" returns a Go error → dispatch wraps it in *engine.NodeExecutionError.
+	// Branch "b" emits output "error" with no error edge → executor builds *errors.errorString.
+	// Two distinct concrete error types race to record firstErr.
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"a": &errExecutor{err: errors.New("branch a failed")},
+		"b": &errExecutor{output: "error"},
+	})
+	wf := WorkflowConfig{
+		ID: "mixed",
+		Nodes: map[string]NodeConfig{
+			"a": {Type: "test.a"},
+			"b": {Type: "test.b"},
+		},
+		// two entry nodes → run in parallel; "b" has no error edge
+	}
+	// "test.a" declares no "error" output, so its Go error surfaces as
+	// *engine.NodeExecutionError from dispatch. "test.b" declares "error" but
+	// has no error edge, so the executor builds a plain *errors.errorString
+	// via fmt.Errorf. The two concrete error types race to record firstErr.
+	resolver := &mapResolver{
+		types: map[string][]string{
+			"test.a": {"success"},
+			"test.b": {"success", "error"},
+		},
+	}
+	graph, err := Compile(wf, resolver)
+	require.NoError(t, err)
+
+	// Run repeatedly to make the concurrent record deterministic.
+	for i := 0; i < 20; i++ {
+		execCtx := NewExecutionContext(WithWorkflowID("mixed"))
+		gerr := ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+		require.Error(t, gerr) // a failure is expected; a PANIC (process crash) is not
+	}
 }
 
 // singleOutputResolver returns a fixed set of outputs for all types.
