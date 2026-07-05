@@ -53,7 +53,7 @@ func newTestDB(t *testing.T) *gorm.DB {
 	}
 	sqlDB, _ := db.DB()
 	sqlDB.SetMaxOpenConns(1)
-	t.Cleanup(func() { sqlDB.Close() })
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	if err := db.Exec(testSchema).Error; err != nil {
 		t.Fatal(err)
 	}

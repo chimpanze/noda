@@ -34,7 +34,9 @@ func TestAuthenticateSession(t *testing.T) {
 
 	// revoked → nil
 	revoke := newRevokeSessionExecutor(nil)
-	revoke.Execute(context.Background(), fakeCtx{}, map[string]any{"token": token}, testServices(db))
+	if _, _, err := revoke.Execute(context.Background(), fakeCtx{}, map[string]any{"token": token}, testServices(db)); err != nil {
+		t.Fatalf("revoke session: %v", err)
+	}
 	if ad, _ := svc.AuthenticateSession(context.Background(), db, token); ad != nil {
 		t.Fatal("revoked session must not authenticate")
 	}
@@ -71,13 +73,17 @@ func TestAuthenticateSessionTouchesLastUsed(t *testing.T) {
 	_, d, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
 	token := d.(map[string]any)["token"].(string)
 
-	svc.AuthenticateSession(context.Background(), db, token)
+	if _, err := svc.AuthenticateSession(context.Background(), db, token); err != nil {
+		t.Fatalf("first authenticate: %v", err)
+	}
 	var first *time.Time
 	db.Table("auth_sessions").Where("token_hash = ?", HashToken(token)).Pluck("last_used_at", &first)
 	if first == nil {
 		t.Fatal("last_used_at not set on first use")
 	}
-	svc.AuthenticateSession(context.Background(), db, token)
+	if _, err := svc.AuthenticateSession(context.Background(), db, token); err != nil {
+		t.Fatalf("second authenticate: %v", err)
+	}
 	var second *time.Time
 	db.Table("auth_sessions").Where("token_hash = ?", HashToken(token)).Pluck("last_used_at", &second)
 	if !second.Equal(*first) {

@@ -112,7 +112,9 @@ func TestAuthInitScaffold(t *testing.T) {
 	// noda.json patched
 	rb, _ := os.ReadFile(filepath.Join(dir, "noda.json"))
 	var root map[string]any
-	json.Unmarshal(rb, &root)
+	if err := json.Unmarshal(rb, &root); err != nil {
+		t.Fatalf("patched noda.json is not valid JSON: %v", err)
+	}
 	services := root["services"].(map[string]any)
 	authSvc, ok := services["auth"].(map[string]any)
 	if !ok || authSvc["plugin"] != "auth" {
@@ -133,8 +135,12 @@ func TestAuthInitScaffold(t *testing.T) {
 func TestAuthInitCollisionAborts(t *testing.T) {
 	dir := t.TempDir()
 	writeMinimalProject(t, dir, true)
-	os.MkdirAll(filepath.Join(dir, "workflows"), 0755)
-	os.WriteFile(filepath.Join(dir, "workflows", "auth.login.json"), []byte("{}"), 0644)
+	if err := os.MkdirAll(filepath.Join(dir, "workflows"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "workflows", "auth.login.json"), []byte("{}"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	if err := runAuthInit(dir); err == nil {
 		t.Fatal("collision must abort")
