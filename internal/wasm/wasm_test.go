@@ -3476,3 +3476,67 @@ func TestHostCall_Msgpack(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 60, cache.lastTTL)
 }
+
+// blockingCacheServiceMulti is a test-only cache service whose Get blocks
+// until release is closed, while signaling started each time it's called.
+type blockingCacheServiceMulti struct {
+	release chan struct{}
+	started atomic.Int32
+}
+
+func (s *blockingCacheServiceMulti) Get(_ context.Context, _ string) (any, error) {
+	s.started.Add(1)
+	<-s.release
+	return "ok", nil
+}
+func (s *blockingCacheServiceMulti) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
+func (s *blockingCacheServiceMulti) Del(_ context.Context, _ string) error               { return nil }
+func (s *blockingCacheServiceMulti) Exists(_ context.Context, _ string) (bool, error)    { return false, nil }
+
+// TestNoRaceOnShutdownCtx verifies that concurrent async host calls during
+// module shutdown do not race on the shutdownCtx field. This is a regression
+// test for wasm-pdk-7: the old code reassigned m.lifecycleCtx in Stop(),
+// which created a data race with async goroutines reading it. The fix ensures
+// shutdownCtx is created once in NewModule and never reassigned; async
+// goroutines capture it, and Stop's shutdown export call uses a fresh context.
+// This test uses a blocking cache service to ensure CallAsync goroutines are
+// in-flight when Stop() is called, forcing concurrent operations on the module.
+func TestNoRaceOnShutdownCtx(t *testing.T) {
+	release := make(chan struct{})
+	bsvc := &blockingCacheServiceMulti{release: release}
+
+	svcReg := registry.NewServiceRegistry()
+	require.NoError(t, svcReg.Register("blocker", bsvc, nil))
+
+	mp := newMockPlugin()
+	rt := NewRuntime(svcReg, nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "r", Services: []string{"blocker"}}, mp)
+	d := m.dispatcher
+	m.Start()
+
+	// Fire 20 async calls that block on release
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_ = d.CallAsync(context.Background(), HostCallRequest{
+				Service: "blocker", Operation: "get", Label: fmt.Sprintf("l%d", i),
+				Payload: map[string]any{"key": "x"},
+			})
+		}(i)
+	}
+
+	// Wait for async calls to start entering the blocking service
+	deadline := time.Now().Add(5 * time.Second)
+	for bsvc.started.Load() < 20 && time.Now().Before(deadline) {
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	// Now call Stop while async calls are in-flight
+	_ = m.Stop(context.Background())
+
+	// Release the blocking calls
+	close(release)
+	wg.Wait()
+}
