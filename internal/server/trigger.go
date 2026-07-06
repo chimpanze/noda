@@ -89,14 +89,25 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 // Fields are top-level (body, query, params, headers) matching the architecture docs.
 // Auth claims from JWT middleware are also included so {{ auth.sub }} works in trigger mappings.
 func buildRawRequestContext(c fiber.Ctx) map[string]any {
+	body := parseBody(c)
+	params := parseParams(c)
+	query := parseQuery(c)
+	headers := parseHeaders(c)
+	method := c.Method()
+	path := c.Path()
+
 	ctx := map[string]any{
-		"body":    parseBody(c),
-		"params":  parseParams(c),
-		"query":   parseQuery(c),
-		"headers": parseHeaders(c),
-		"method":  c.Method(),
-		"path":    c.Path(),
+		"body": body, "params": params, "query": query,
+		"headers": headers, "method": method, "path": path,
 	}
+	// request.* alias: unifies HTTP route triggers with WebSocket connection
+	// channel patterns (where request.* is already valid) and matches the
+	// namespace AI agents reach for. Same members as the top-level keys.
+	request := map[string]any{
+		"body": body, "params": params, "query": query,
+		"headers": headers, "method": method, "path": path,
+	}
+	ctx["request"] = request
 
 	// Include auth claims so trigger mappings can reference {{ auth.sub }}
 	if claims, _ := c.Locals(api.LocalJWTClaims).(map[string]any); claims != nil {
@@ -110,6 +121,7 @@ func buildRawRequestContext(c fiber.Ctx) map[string]any {
 			authMap["roles"] = roles
 		}
 		ctx["auth"] = authMap
+		request["auth"] = authMap
 	}
 
 	return ctx

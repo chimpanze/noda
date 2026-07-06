@@ -638,6 +638,28 @@ func TestScaffoldProjectHandler(t *testing.T) {
 	assert.True(t, vdata["valid"].(bool), "scaffolded project should validate")
 }
 
+func TestScaffoldProjectHandler_RefusesOverwrite(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "test-project")
+
+	require.NoError(t, os.MkdirAll(projectPath, 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(projectPath, "noda.json"), []byte("{}"), 0644))
+
+	req := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectPath})
+	result, err := scaffoldProjectHandler(context.Background(), req)
+	require.NoError(t, err)
+	require.True(t, result.IsError)
+	text := result.Content[0].(mcp.TextContent).Text
+	assert.Contains(t, text, "noda.json")
+
+	// existing file untouched, no partial scaffold
+	data, err := os.ReadFile(filepath.Join(projectPath, "noda.json"))
+	require.NoError(t, err)
+	assert.Equal(t, "{}", string(data))
+	_, err = os.Stat(filepath.Join(projectPath, "docker-compose.yml"))
+	assert.True(t, os.IsNotExist(err), "docker-compose.yml should not have been written")
+}
+
 func TestReadProjectFileHandler(t *testing.T) {
 	configDir, _ := filepath.Abs("../../examples/rest-api")
 

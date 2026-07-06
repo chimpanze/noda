@@ -7,10 +7,6 @@
       "services": { "auth": "auth", "database": "[[.DBService]]" },
       "config": { "email": "{{ input.email }}", "password": "{{ input.password }}" }
     },
-    "respond_exists": {
-      "type": "response.json",
-      "config": { "status": 400, "body": { "error": "registration failed" } }
-    },
     "verify_token": {
       "type": "auth.create_token",
       "services": { "auth": "auth", "database": "[[.DBService]]" },
@@ -25,25 +21,29 @@
         "body": "<p>Welcome! Verify your email with this token: <strong>{{ nodes.verify_token.token }}</strong></p>"
       }
     },
-    "session": {
-      "type": "auth.create_session",
-      "services": { "auth": "auth", "database": "[[.DBService]]" },
-      "config": { "user_id": "{{ nodes.create_user.id }}" }
+    "send_exists_email": {
+      "type": "email.send",
+      "services": { "mailer": "[[.EmailService]]" },
+      "config": {
+        "to": "{{ input.email }}",
+        "subject": "Account already registered",
+        "body": "<p>Someone tried to register an account with this email, but one already exists. If this was you, try logging in or resetting your password.</p>"
+      }
     },
     "respond": {
       "type": "response.json",
-      "config": {
-        "status": 201,
-        "body": { "user": "{{ nodes.create_user }}", "token": "{{ nodes.session.token }}" },
-        "cookies": "{{ [nodes.session.cookie] }}"
-      }
+      "config": { "status": 200, "body": { "message": "Check your email to continue" } }
+    },
+    "respond_exists": {
+      "type": "response.json",
+      "config": { "status": 200, "body": { "message": "Check your email to continue" } }
     }
   },
   "edges": [
     { "from": "create_user", "to": "verify_token" },
-    { "from": "create_user", "output": "exists", "to": "respond_exists" },
+    { "from": "create_user", "output": "exists", "to": "send_exists_email" },
     { "from": "verify_token", "to": "send_verify_email" },
-    { "from": "send_verify_email", "to": "session" },
-    { "from": "session", "to": "respond" }
+    { "from": "send_verify_email", "to": "respond" },
+    { "from": "send_exists_email", "to": "respond_exists" }
   ]
 }

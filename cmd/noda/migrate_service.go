@@ -30,7 +30,7 @@ func resolveMigrateService(services map[string]any, flag string, explicit bool) 
 func postgresServiceNames(services map[string]any) []string {
 	var names []string
 	for name, raw := range services {
-		if m, ok := raw.(map[string]any); ok && m["plugin"] == "postgres" {
+		if m, ok := raw.(map[string]any); ok && isDatabaseService(m) {
 			names = append(names, name)
 		}
 	}

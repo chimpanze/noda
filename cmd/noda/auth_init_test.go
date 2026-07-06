@@ -8,10 +8,16 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
+	nodatesting "github.com/chimpanze/noda/internal/testing"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // loadResolvedConfigForTest loads and validates a project directory through
@@ -181,6 +187,117 @@ func TestAuthInitOutputValidates(t *testing.T) {
 
 func containsString(haystack, needle string) bool {
 	return len(haystack) >= len(needle) && strings.Contains(haystack, needle)
+}
+
+// scaffoldAuthProject scaffolds auth into a fresh temp project directory and
+// returns the directory. Shared by TestAuthInitScaffold-style tests and the
+// runner-based behavior tests below.
+func scaffoldAuthProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeMinimalProject(t, dir, true)
+	require.NoError(t, runAuthInit(dir))
+	return dir
+}
+
+// runScaffoldedAuthSuite scaffolds auth into a temp project, then runs one
+// scaffolded test suite through the real workflow-test runner and asserts every
+// case passes. This exercises the rendered templates end-to-end.
+func runScaffoldedAuthSuite(t *testing.T, suiteID string) {
+	t.Helper()
+	dir := scaffoldAuthProject(t)
+	rc, err := loadResolvedConfigForTest(dir)
+	require.NoError(t, err)
+
+	suites, err := nodatesting.LoadTests(rc)
+	require.NoError(t, err)
+
+	reg, err := buildCoreNodeRegistry()
+	require.NoError(t, err)
+
+	var ran bool
+	for _, suite := range suites {
+		if suite.ID != suiteID {
+			continue
+		}
+		ran = true
+		for _, res := range nodatesting.RunTestSuite(suite, rc, reg) {
+			assert.Truef(t, res.Passed, "case %q failed: %s", res.CaseName, res.Error)
+		}
+	}
+	require.Truef(t, ran, "suite %q not found among scaffolded tests", suiteID)
+}
+
+func TestAuthScaffold_RegisterIsAntiEnumerating(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-register")
+}
+
+func TestAuthScaffold_RequestPasswordResetIsConstantTime(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-request-password-reset")
+}
+
+func TestAuthScaffold_ResendVerificationIsConstantTime(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-resend-verification")
+}
+
+// TestScratch_PasswordResetPadExpressionResolvesUnmocked is a one-off proof
+// that the pad_* timeout expression in
+// auth_templates/workflows/auth.request-password-reset.json.tmpl actually
+// resolves against real (unmocked) util.timestamp output. The scaffolded
+// suite mocks pad_* directly, so it would pass even if the expression
+// referenced a nonexistent field like `nodes.start_ts.value` — this test is
+// the only one that exercises the real util.timestamp -> computed
+// util.delay timeout -> time.ParseDuration path. It mirrors just the
+// "unknown email" timing chain (start_ts -> now_ts_unknown -> pad_unknown ->
+// respond_unknown) with a short 50ms deadline (instead of the shipped
+// template's 500ms) so it stays fast; the shipped template itself keeps
+// T=500ms.
+func TestScratch_PasswordResetPadExpressionResolvesUnmocked(t *testing.T) {
+	nodeReg, err := buildCoreNodeRegistry()
+	require.NoError(t, err)
+	svcReg := registry.NewServiceRegistry()
+
+	wf := engine.WorkflowConfig{
+		ID: "scratch-pad-unknown",
+		Nodes: map[string]engine.NodeConfig{
+			"start_ts":       {Type: "util.timestamp", Config: map[string]any{"format": "unix_ms"}},
+			"now_ts_unknown": {Type: "util.timestamp", Config: map[string]any{"format": "unix_ms"}},
+			"pad_unknown": {Type: "util.delay", Config: map[string]any{
+				"timeout": "{{ (nodes.start_ts + 50) > nodes.now_ts_unknown ? (nodes.start_ts + 50 - nodes.now_ts_unknown) : 0 }}ms",
+			}},
+			"respond_unknown": {Type: "response.json", Config: map[string]any{
+				"status": 200,
+				"body":   map[string]any{"message": "If that account exists, an email was sent"},
+			}},
+		},
+		Edges: []engine.EdgeConfig{
+			{From: "start_ts", To: "now_ts_unknown"},
+			{From: "now_ts_unknown", To: "pad_unknown"},
+			{From: "pad_unknown", To: "respond_unknown"},
+		},
+	}
+
+	graph, err := engine.Compile(wf, &engine.DefaultOutputResolver{})
+	require.NoError(t, err)
+
+	execCtx := engine.NewExecutionContext()
+	start := time.Now()
+	err = engine.ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	elapsed := time.Since(start)
+	require.NoError(t, err, "real util.timestamp -> util.delay pad expression must resolve without error")
+
+	// Duration floor: the pad must actually wait toward the ~50ms deadline. This
+	// guards against a regression where the pad expression silently resolves to
+	// "0ms" (e.g. swapped operands or a broken ternary) — which would still reach
+	// respond_unknown at 200 and pass a status-only assertion.
+	assert.GreaterOrEqual(t, elapsed, 40*time.Millisecond,
+		"pad delay must approach the 50ms deadline; got %s (expression may have resolved to ~0ms)", elapsed)
+
+	out, ok := execCtx.GetOutput("respond_unknown")
+	require.True(t, ok, "respond_unknown must have run")
+	resp, ok := out.(*api.HTTPResponse)
+	require.True(t, ok, "respond_unknown output must be *api.HTTPResponse, got %T", out)
+	assert.Equal(t, 200, resp.Status)
 }
 
 // TestAuthInitRegisterRouteEnforcesPasswordLength proves scaffolded projects

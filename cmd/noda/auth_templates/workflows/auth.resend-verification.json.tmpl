@@ -2,6 +2,7 @@
   "id": "auth-resend-verification",
   "name": "Auth: Resend Verification Email",
   "nodes": {
+    "start_ts": { "type": "util.timestamp", "config": { "format": "unix_ms" } },
     "find_user": {
       "type": "auth.get_user",
       "services": { "auth": "auth", "database": "[[.DBService]]" },
@@ -25,25 +26,30 @@
         "body": "<p>Verify your email with this token: <strong>{{ nodes.verify_token.token }}</strong></p><p>If you did not request this, ignore this email.</p>"
       }
     },
-    "respond_sent": {
-      "type": "response.json",
-      "config": { "status": 200, "body": { "message": "If that account needs verification, an email was sent" } }
-    },
-    "respond_unknown": {
-      "type": "response.json",
-      "config": { "status": 200, "body": { "message": "If that account needs verification, an email was sent" } }
-    },
-    "respond_verified": {
-      "type": "response.json",
-      "config": { "status": 200, "body": { "message": "If that account needs verification, an email was sent" } }
-    }
+    "now_ts_sent": { "type": "util.timestamp", "config": { "format": "unix_ms" } },
+    "pad_sent": { "type": "util.delay", "config": { "timeout": "{{ (nodes.start_ts + 500) > nodes.now_ts_sent ? (nodes.start_ts + 500 - nodes.now_ts_sent) : 0 }}ms" } },
+    "respond_sent": { "type": "response.json", "config": { "status": 200, "body": { "message": "If that account needs verification, an email was sent" } } },
+    "now_ts_unknown": { "type": "util.timestamp", "config": { "format": "unix_ms" } },
+    "pad_unknown": { "type": "util.delay", "config": { "timeout": "{{ (nodes.start_ts + 500) > nodes.now_ts_unknown ? (nodes.start_ts + 500 - nodes.now_ts_unknown) : 0 }}ms" } },
+    "respond_unknown": { "type": "response.json", "config": { "status": 200, "body": { "message": "If that account needs verification, an email was sent" } } },
+    "now_ts_verified": { "type": "util.timestamp", "config": { "format": "unix_ms" } },
+    "pad_verified": { "type": "util.delay", "config": { "timeout": "{{ (nodes.start_ts + 500) > nodes.now_ts_verified ? (nodes.start_ts + 500 - nodes.now_ts_verified) : 0 }}ms" } },
+    "respond_verified": { "type": "response.json", "config": { "status": 200, "body": { "message": "If that account needs verification, an email was sent" } } }
   },
   "edges": [
+    { "from": "start_ts", "to": "find_user" },
     { "from": "find_user", "to": "check_unverified" },
-    { "from": "find_user", "output": "not_found", "to": "respond_unknown" },
+    { "from": "find_user", "output": "not_found", "to": "now_ts_unknown" },
     { "from": "check_unverified", "output": "then", "to": "verify_token" },
-    { "from": "check_unverified", "output": "else", "to": "respond_verified" },
+    { "from": "check_unverified", "output": "else", "to": "now_ts_verified" },
     { "from": "verify_token", "to": "send_verify_email" },
-    { "from": "send_verify_email", "to": "respond_sent" }
+    { "from": "send_verify_email", "to": "now_ts_sent" },
+    { "from": "send_verify_email", "output": "error", "to": "now_ts_sent" },
+    { "from": "now_ts_sent", "to": "pad_sent" },
+    { "from": "pad_sent", "to": "respond_sent" },
+    { "from": "now_ts_unknown", "to": "pad_unknown" },
+    { "from": "pad_unknown", "to": "respond_unknown" },
+    { "from": "now_ts_verified", "to": "pad_verified" },
+    { "from": "pad_verified", "to": "respond_verified" }
   ]
 }

@@ -13,7 +13,7 @@ import (
 func TestScaffoldProject(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
 
-	err := scaffoldProject(dir)
+	err := scaffoldProject(dir, true)
 	require.NoError(t, err)
 
 	// Verify directories
@@ -45,7 +45,7 @@ func TestScaffoldProject(t *testing.T) {
 
 func TestScaffoldProject_NodaJSONValid(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 
 	// noda.json should be valid JSON
 	data, err := os.ReadFile(filepath.Join(dir, "noda.json"))
@@ -57,7 +57,7 @@ func TestScaffoldProject_NodaJSONValid(t *testing.T) {
 
 func TestScaffoldProject_DockerComposeValid(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 
 	data, err := os.ReadFile(filepath.Join(dir, "docker-compose.yml"))
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestScaffoldProject_DockerComposeValid(t *testing.T) {
 
 func TestScaffoldProject_SampleWorkflow(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 
 	data, err := os.ReadFile(filepath.Join(dir, "workflows/hello.json"))
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestScaffoldProject_SampleWorkflow(t *testing.T) {
 
 func TestScaffoldProject_ReadmeContainsName(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "cool-api")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 
 	data, err := os.ReadFile(filepath.Join(dir, "README.md"))
 	require.NoError(t, err)
@@ -91,7 +91,7 @@ func TestScaffoldProject_ReadmeContainsName(t *testing.T) {
 
 func TestScaffoldProject_AIAssistance(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 
 	// CLAUDE.md should exist and contain project guidance
 	data, err := os.ReadFile(filepath.Join(dir, "CLAUDE.md"))
@@ -109,7 +109,7 @@ func TestScaffoldProject_AIAssistance(t *testing.T) {
 
 func TestScaffoldProject_NodaJSONHasDefaultGlobalMiddleware(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 
 	data, err := os.ReadFile(filepath.Join(dir, "noda.json"))
 	require.NoError(t, err)
@@ -132,7 +132,7 @@ func TestScaffoldProject_NodaJSONHasDefaultGlobalMiddleware(t *testing.T) {
 
 func TestScaffoldProject_DuplicateIsIdempotent(t *testing.T) {
 	dir := filepath.Join(t.TempDir(), "myapp")
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 	// Second call should overwrite without error
-	require.NoError(t, scaffoldProject(dir))
+	require.NoError(t, scaffoldProject(dir, true))
 }

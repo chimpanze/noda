@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -29,35 +30,26 @@ func (d *delayDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
-type delayExecutor struct {
-	duration time.Duration
-}
+type delayExecutor struct{}
 
-func newDelayExecutor(config map[string]any) api.NodeExecutor {
-	timeoutStr, _ := config["timeout"].(string)
-	d, err := time.ParseDuration(timeoutStr)
-	if err != nil {
-		// Return executor that will report the error
-		return &delayExecutor{duration: -1}
-	}
-	return &delayExecutor{duration: d}
-}
+func newDelayExecutor(_ map[string]any) api.NodeExecutor { return &delayExecutor{} }
 
 func (e *delayExecutor) Outputs() []string { return api.DefaultOutputs() }
 
-func (e *delayExecutor) Execute(ctx context.Context, _ api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
-	if e.duration < 0 {
-		timeoutStr, _ := config["timeout"].(string)
+func (e *delayExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, _ map[string]any) (string, any, error) {
+	timeoutStr, err := plugin.ResolveString(nCtx, config, "timeout")
+	if err != nil {
+		return "", nil, fmt.Errorf("util.delay: %w", err)
+	}
+	d, err := time.ParseDuration(timeoutStr)
+	if err != nil {
 		return "", nil, fmt.Errorf("util.delay: invalid duration %q", timeoutStr)
 	}
 
 	select {
-	case <-time.After(e.duration):
+	case <-time.After(d):
 		return api.OutputSuccess, nil, nil
 	case <-ctx.Done():
-		return "", nil, &api.TimeoutError{
-			Duration:  e.duration,
-			Operation: "util.delay",
-		}
+		return "", nil, &api.TimeoutError{Duration: d, Operation: "util.delay"}
 	}
 }

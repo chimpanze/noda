@@ -121,3 +121,11 @@ func TestCompile_RetainsOriginalText(t *testing.T) {
 
 	assert.Equal(t, input, compiled.Parsed.Raw)
 }
+
+func TestStrictMode_AllowsLoopVars(t *testing.T) {
+	c := NewCompiler(WithStrictMode(true))
+	_, err := c.Compile("{{ $item.value }}")
+	require.NoError(t, err, "strict mode must accept $item")
+	_, err = c.Compile("{{ $index }}")
+	require.NoError(t, err, "strict mode must accept $index")
+}
