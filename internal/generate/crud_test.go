@@ -2,6 +2,8 @@ package generate
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestSingularize(t *testing.T) {
@@ -176,7 +178,7 @@ func TestGenerateModelSchemas(t *testing.T) {
 		{Name: "status", Type: "text", Enum: []string{"active", "inactive"}},
 	}
 
-	schemas := generateModelSchemas("task", columns)
+	schemas := generateModelSchemas("task", columns, "")
 
 	createSchema, ok := schemas["CreateTask"].(map[string]any)
 	if !ok {
@@ -201,6 +203,59 @@ func TestGenerateModelSchemas(t *testing.T) {
 	countProp := props["count"].(map[string]any)
 	if countProp["type"] != "integer" {
 		t.Errorf("expected integer type for count, got %v", countProp["type"])
+	}
+}
+
+func TestGenerateCRUD_ScopeThreadedAndBodyExcluded(t *testing.T) {
+	model := map[string]any{
+		"table": "items",
+		"columns": map[string]any{
+			"id":     map[string]any{"type": "uuid", "primary_key": true},
+			"org_id": map[string]any{"type": "uuid", "not_null": true},
+			"title":  map[string]any{"type": "text"},
+		},
+	}
+	opts := CRUDOptions{
+		BasePath: "/api/orgs/:org_id/items", Service: "maindb",
+		Operations: []string{"create", "list", "get", "update", "delete"},
+		Artifacts:  []string{"routes", "workflows", "schemas"},
+		ScopeCol:   "org_id", ScopeParam: "org_id",
+	}
+	res := GenerateCRUD(model, opts)
+
+	// Every scoped route threads the scope param from the URL.
+	for _, name := range []string{"routes/create-item.json", "routes/update-item.json", "routes/get-item.json", "routes/delete-item.json"} {
+		input := res.Files[name]["trigger"].(map[string]any)["input"].(map[string]any)
+		require.Equal(t, "{{ params.org_id }}", input["org_id"], name+" must thread scope from params")
+	}
+	// Create body input must NOT take the scope column from the body.
+	createInput := res.Files["routes/create-item.json"]["trigger"].(map[string]any)["input"].(map[string]any)
+	require.NotEqual(t, "{{ body.org_id }}", createInput["org_id"])
+
+	// Update workflow data excludes id and the scope column, keeps title.
+	nodes := res.Files["workflows/update-item.json"]["nodes"].(map[string]any)
+	updateData := nodes["update"].(map[string]any)["config"].(map[string]any)["data"].(map[string]any)
+	require.NotContains(t, updateData, "org_id")
+	require.NotContains(t, updateData, "id")
+	require.Contains(t, updateData, "title")
+
+	// Body schemas must exclude the scope column entirely (properties and required),
+	// since it's supplied via the URL path param, not the request body.
+	modelSchemas := res.Files["schemas/models/Item.json"]
+	createSchema := modelSchemas["CreateItem"].(map[string]any)
+	createProps := createSchema["properties"].(map[string]any)
+	require.NotContains(t, createProps, "org_id")
+	require.Contains(t, createProps, "title")
+	if req, ok := createSchema["required"].([]any); ok {
+		require.NotContains(t, req, "org_id")
+	}
+
+	updateSchema := modelSchemas["UpdateItem"].(map[string]any)
+	updateProps := updateSchema["properties"].(map[string]any)
+	require.NotContains(t, updateProps, "org_id")
+	require.Contains(t, updateProps, "title")
+	if req, ok := updateSchema["required"].([]any); ok {
+		require.NotContains(t, req, "org_id")
 	}
 }
 
