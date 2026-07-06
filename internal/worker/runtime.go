@@ -640,7 +640,7 @@ func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Cl
 			Consumer: consumerID,
 			MinIdle:  w.Retry.MinIdle,
 			Start:    cursor,
-			Count:    16,
+			Count:    int64(concurrency),
 		}).Result()
 		if err != nil {
 			return err

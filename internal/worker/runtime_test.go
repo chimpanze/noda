@@ -907,6 +907,63 @@ func TestReapOnce_ReclaimsIdlePendingMessage(t *testing.T) {
 	assert.Equal(t, int64(0), pending.Count)
 }
 
+// TestReapOnce_DrainsBacklogAtConcurrency guards against a regression where
+// reducing XAutoClaim's Count to the worker's concurrency (instead of a fixed
+// page size) would cause the reaper to leave part of a multi-message backlog
+// unclaimed. The cursor-paged loop in reapOnce must still walk the whole
+// pending set and reclaim+process every idle message, even when each page is
+// only as large as the configured concurrency.
+func TestReapOnce_DrainsBacklogAtConcurrency(t *testing.T) {
+	client, svcReg, nodeReg, mr := newTestSetup(t)
+	topic, group := "t-reap-backlog", "g-reap-backlog"
+	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
+
+	const n = 4
+	for i := 0; i < n; i++ {
+		_, err := client.XAdd(context.Background(), &redis.XAddArgs{
+			Stream: topic, Values: map[string]any{"payload": fmt.Sprintf(`{"x":%d}`, i)},
+		}).Result()
+		require.NoError(t, err)
+	}
+
+	w := WorkerConfig{
+		ID: "w", Topic: topic, Group: group, WorkflowID: "wf", Concurrency: 2,
+		Retry: RetryConfig{MinIdle: 60 * time.Second, MaxAttempts: 10},
+	}
+	r := NewRuntime([]WorkerConfig{w}, svcReg, nodeReg, map[string]map[string]any{
+		"wf": {
+			"nodes": map[string]any{
+				"log": map[string]any{
+					"type":   "util.log",
+					"config": map[string]any{"message": "ok", "level": "info"},
+				},
+			},
+			"edges": []any{},
+		},
+	}, nil, nil, nil, nil, nil, nil)
+	parent := context.Background()
+	r.opCtx.Store(&parent)
+
+	// Deliver all n messages to a dead consumer so they sit pending.
+	_, err := client.XReadGroup(context.Background(), &redis.XReadGroupArgs{
+		Group: group, Consumer: "dead", Streams: []string{topic, ">"}, Count: n,
+	}).Result()
+	require.NoError(t, err)
+
+	pending, _ := client.XPending(context.Background(), topic, group).Result()
+	require.Equal(t, int64(n), pending.Count)
+
+	// Advance past min_idle so every message is eligible for reclaim.
+	mr.SetTime(time.Now().Add(61 * time.Second))
+
+	// A single reapOnce call, paging with Count == concurrency (2), must still
+	// drain and process the entire backlog of n=4 messages.
+	require.NoError(t, r.reapOnce(context.Background(), w, client))
+
+	pending, _ = client.XPending(context.Background(), topic, group).Result()
+	assert.Equal(t, int64(0), pending.Count, "reapOnce must drain the full backlog even with Count==concurrency")
+}
+
 func TestReclaim_PoisonPanic_DeadLettered(t *testing.T) {
 	client, svcReg, nodeReg, mr := newTestSetup(t)
 	topic, group, dlq := "t-poison", "g-poison", "t-poison.dlq"
