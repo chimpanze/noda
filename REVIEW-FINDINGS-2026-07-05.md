@@ -6,6 +6,8 @@ Scope: **Go source only** — `internal/`, `plugins/`, `pkg/`, `cmd/`, `pdk/`, `
 Method: Clean-slate, tooling-grounded multi-agent review. **Prior review documents (`REVIEW-FINDINGS.md`, `REVIEW-FINDINGS-2026-06-29.md`) were deliberately NOT consulted** — every area was judged fresh. Pipeline: Phase 0 automated baseline → Phase 1 twelve parallel domain-review agents (each read its unit's non-test files in full and cited `file:line` evidence) → Phase 2 six adversarial verify-agents that attempted to **refute** every candidate against the actual code and vendored library source under `~/go/pkg/mod/`.
 Status: **Verified.** 125 candidate findings entered Phase 2; **all 125 were CONFIRMED, 0 refuted.** Three severities were tempered by the refute pass (recorded inline and in the Phase 2 section). Plus 3 baseline hygiene items. All findings are **Open**.
 
+> **Shipped status (2026-07):** 46 of the confirmed findings have shipped across themed PRs A–F + auth (#263 #270 #274 #278 #282 #286 #288 #289); each is annotated inline below with **✅ Shipped**. The rest remain **Open**. Still open and not yet bucketed: engine-8..11, server-1/3/4/5/6/7, auth-3..7, realtime-1/5/6, platform-7..15, data-2..7, nodes-3..7, config-expr-2..17, worker-sched-3/6..13, wasm-pdk-9/11/12/13, edge-io-2..6, cmd-misc-7..16.
+
 Because a clean-slate review does not dedupe against history, some findings here may coincide with previously-recorded items; each is reported on its own fresh evidence with no suppression.
 
 ## Summary
@@ -33,12 +35,15 @@ By dimension (approx.): security 30, correctness 62, concurrency 12, resource 14
 
 ### Suggested fix tranches (mirroring the project's themed-PR cadence)
 
-- **(A) Wasm runtime hardening** — wasm-pdk-1/2/3/4 + 5/6/7/8/10. The wasm host is the single densest cluster (4 High). Interruptible guest execution (`manifest.Timeout` + `CallWithContext`), single-goroutine call serialization, an explicit host-call error envelope, codec fix, and a default memory cap.
-- **(B) Engine execution safety** — engine-1 (crash) + engine-2 (silent-success) + engine-5 (`$env` pool aliasing) + engine-3/4/6/7 (join/alias/cache determinism). Highest-blast-radius correctness set.
-- **(C) Scaffold/runtime contract alignment** — cmd-misc-1/2/3/4/5/6 + config-expr-1. The generators, examples, and CLI disagree with the runtime they target; several produce configs that validate-green then fail. High AI-agent and new-user impact.
-- **(D) Auth & edge hardening** — auth-1/2 (enumeration + timing), data-1/server-2 (error leaks), realtime-2/3/4 (trace redaction gaps + unauth trace WS), nodes-1/2 (open-redirect + cross-user send), edge-io-1 (resize bomb).
-- **(E) Worker/scheduler & lifecycle** — worker-sched-1/2/4/5, platform-1/2/3/4/5/6.
-- **(F) Baseline hygiene** — BASE-1/2/3 (dependency bumps + deprecation).
+All tranches below have shipped (2026-07-05 → 2026-07-07). Where a tranche's proposed scope was later re-cut during execution, the actual shipped set is noted.
+
+- **(A) Wasm runtime hardening** — wasm-pdk-1/2/3/4 + 5/6/7/8/10. The wasm host is the single densest cluster (4 High). Interruptible guest execution (`manifest.Timeout` + `CallWithContext`), single-goroutine call serialization, an explicit host-call error envelope, codec fix, and a default memory cap. **✅ Shipped PR #263 (2026-07-05); follow-ups #264–#269.**
+- **(B) Engine execution safety** — engine-1 (crash) + engine-2 (silent-success) + engine-5 (`$env` pool aliasing) + engine-3/4/6/7 (join/alias/cache determinism). Highest-blast-radius correctness set. **✅ Shipped PR #270 (2026-07-05); follow-ups #271–#273.**
+- **(C) Scaffold/runtime contract alignment** — cmd-misc-1/2/3/4/5/6 + config-expr-1. The generators, examples, and CLI disagree with the runtime they target; several produce configs that validate-green then fail. High AI-agent and new-user impact. **✅ Shipped PR #274 (2026-07-05); follow-ups #275–#277.**
+- **(D) Auth & edge hardening** — auth-1/2 (enumeration + timing), data-1/server-2 (error leaks), realtime-2/3/4 (trace redaction gaps + unauth trace WS), nodes-1/2 (open-redirect + cross-user send), edge-io-1 (resize bomb). **✅ Shipped PR #278 (2026-07-06)** — with auth-1/2 **split out** into their own anti-enumeration tranche; the 8 mechanical items (data-1, server-2, realtime-2/3/4, nodes-1/2, edge-io-1) shipped here. Follow-ups #279–#281.
+- **(E) Worker/scheduler & lifecycle** — worker-sched-1/2/4/5, platform-1/2/3/4/5/6. **✅ Shipped as two PRs: E1** (worker/scheduler: worker-sched-1/2/4/5) **PR #282 (2026-07-06)**, follow-ups #283–#285; **E2** (lifecycle/devmode/registry: platform-1/2/3/4/5/6) **PR #286 (2026-07-06)**, follow-up #287.
+- **(F) Baseline hygiene** — BASE-1/2/3 (dependency bumps + deprecation). **✅ Shipped PR #288 (2026-07-06)** — BASE-1/2 bumped; BASE-3 verified already handled (justified `//nolint`, no non-deprecated replacement).
+- **(auth) Anti-enumeration** (split from D) — auth-1 (verification-first register) + auth-2 (constant-time reset/resend). **✅ Shipped PR #289 (2026-07-07).**
 
 ---
 
@@ -47,59 +52,59 @@ By dimension (approx.): security 30, correctness 62, concurrency 12, resource 14
 Severity shown is the **post-verification** severity. `↓` marks a Phase-2 downgrade from the Phase-1 rating. Dimension in parentheses. All verdicts CONFIRMED.
 
 ### High (10)
-- **engine-1** (concurrency) — atomic.Value CAS mixed error types → process crash
-- **engine-2** (correctness) — timeout/cancel returns nil error → partial run reported success
-- **wasm-pdk-1** (resource/correctness) — guest execution uninterruptible; goroutine pileup + shutdown deadlock
-- **wasm-pdk-2** (concurrency) — concurrent Plugin.Call after timeout corrupts guest memory
-- **wasm-pdk-3** (correctness/security) — host-call errors invisible to PDK; permission denials consumed as data
-- **wasm-pdk-4** (correctness) — `encoding: msgpack` breaks every host call
-- **platform-1** (concurrency) — shutdown signal during StartAll silently swallowed
-- **cmd-misc-1** (correctness) — scaffold/examples use nonexistent `request.*` → routes 500
-- **cmd-misc-2** (correctness) — `auth init` rejects `plugin: postgres` → scaffold→auth broken
-- **cmd-misc-4** (security) — CRUD tenant scope not threaded; update trusts body scope → cross-tenant write
+- **engine-1** (concurrency) — atomic.Value CAS mixed error types → process crash  **[✅ Shipped PR #270]**
+- **engine-2** (correctness) — timeout/cancel returns nil error → partial run reported success  **[✅ Shipped PR #270]**
+- **wasm-pdk-1** (resource/correctness) — guest execution uninterruptible; goroutine pileup + shutdown deadlock  **[✅ Shipped PR #263]**
+- **wasm-pdk-2** (concurrency) — concurrent Plugin.Call after timeout corrupts guest memory  **[✅ Shipped PR #263]**
+- **wasm-pdk-3** (correctness/security) — host-call errors invisible to PDK; permission denials consumed as data  **[✅ Shipped PR #263]**
+- **wasm-pdk-4** (correctness) — `encoding: msgpack` breaks every host call  **[✅ Shipped PR #263]**
+- **platform-1** (concurrency) — shutdown signal during StartAll silently swallowed  **[✅ Shipped PR #286]**
+- **cmd-misc-1** (correctness) — scaffold/examples use nonexistent `request.*` → routes 500  **[✅ Shipped PR #274]**
+- **cmd-misc-2** (correctness) — `auth init` rejects `plugin: postgres` → scaffold→auth broken  **[✅ Shipped PR #274]**
+- **cmd-misc-4** (security) — CRUD tenant scope not threaded; update trusts body scope → cross-tenant write  **[✅ Shipped PR #274]**
 
 ### Medium (43)
-- **config-expr-1** (correctness) — strict expression mode breaks `$item`/`$index`; loop/map/filter can't boot
+- **config-expr-1** (correctness) — strict expression mode breaks `$item`/`$index`; loop/map/filter can't boot  **[✅ Shipped PR #274]**
 - **config-expr-2** (correctness) — CORS "warning" is a fatal ValidationError; refuses to start
 - **config-expr-3** (correctness) — duplicate workflow IDs never validated; nondeterministic winner
 - **config-expr-4** (correctness) — schema files / inline schemas never validated; every request to route fails
 - **config-expr-5** (correctness) — env-overlay `secrets` section silently ignored
-- **engine-3** (correctness) — AND-join whose legs can't all fire silently skips + succeeds
-- **engine-4** (correctness) — join classification / output-exclusivity nondeterministic (map order)
-- **engine-5** (concurrency) — `$env` aliases pooled context map → corruption / fatal concurrent map access
-- **engine-6** (correctness) — node alias collides with another node's ID; outputs overwrite
-- **engine-7** (correctness) — workflow cache double-index by "id" overwrites workflows
+- **engine-3** (correctness) — AND-join whose legs can't all fire silently skips + succeeds  **[✅ Shipped PR #270]**
+- **engine-4** (correctness) — join classification / output-exclusivity nondeterministic (map order)  **[✅ Shipped PR #270]**
+- **engine-5** (concurrency) — `$env` aliases pooled context map → corruption / fatal concurrent map access  **[✅ Shipped PR #270]**
+- **engine-6** (correctness) — node alias collides with another node's ID; outputs overwrite  **[✅ Shipped PR #270]**
+- **engine-7** (correctness) — workflow cache double-index by "id" overwrites workflows  **[✅ Shipped PR #270]**
 - **server-1** (security) — JWT accepts no-`exp` tokens; no `aud`/`iss` by default
-- **auth-1** (security) — register template enables account enumeration
-- **auth-2** (security) — reset/resend flows leak account existence via response timing
-- **worker-sched-1** (correctness) — chain-wide 5m TimeoutMiddleware overrides per-worker timeout
-- **worker-sched-2** (concurrency) — reaper claims a page but processes at concurrency → duplicate execution
-- **worker-sched-4** (correctness) — scheduler lock key minute-truncated vs WithSeconds → sub-minute fires skipped
-- **worker-sched-5** (correctness) — no same-instance overlap guard for scheduled jobs
+- **auth-1** (security) — register template enables account enumeration  **[✅ Shipped PR #289]**
+- **auth-2** (security) — reset/resend flows leak account existence via response timing  **[✅ Shipped PR #289]**
+- **worker-sched-1** (correctness) — chain-wide 5m TimeoutMiddleware overrides per-worker timeout  **[✅ Shipped PR #282]**
+- **worker-sched-2** (concurrency) — reaper claims a page but processes at concurrency → duplicate execution  **[✅ Shipped PR #282]**
+- **worker-sched-4** (correctness) — scheduler lock key minute-truncated vs WithSeconds → sub-minute fires skipped  **[✅ Shipped PR #282]**
+- **worker-sched-5** (correctness) — no same-instance overlap guard for scheduled jobs  **[✅ Shipped PR #282]**
 - **realtime-1 ↓** (security) — WS upgrade no Origin check → CSWSH *(High→Medium: default cookie SameSite=Lax blocks the drive-by; needs SameSite=None or a same-site subdomain)*
-- **realtime-2** (security) — trace redaction bypassed for slice-typed data → DB rows w/ secret columns leak
-- **realtime-3** (security) — LiveKit ingress `stream_key` not caught by redaction
-- **realtime-4** (security) — dev-mode `/ws/trace` unauthenticated, no Origin check → remote trace exfiltration
-- **wasm-pdk-5** (correctness) — PDK `SetTimer` sends `interval_ms`, host reads `interval`; timers never fire
-- **wasm-pdk-6** (correctness) — `wasm.send` commands misrouted to `query` export
-- **wasm-pdk-7** (concurrency) — data race on `m.lifecycleCtx` in Stop vs async host calls
-- **wasm-pdk-8** (resource/correctness) — `Gateway.Connect` duplicate id orphans old connection
-- **wasm-pdk-10** (security/resource) — no default memory limit; up to 4 GiB linear memory per module
-- **platform-2** (concurrency) — concurrent HandleChange can install stale config last
-- **platform-3** (concurrency) — in-flight reload not awaited at shutdown
-- **platform-4** (resource) — timed-out CreateService cleanup calls Close() no instance implements → leak
-- **platform-5** (correctness) — watcher never watches subdirs created after startup
-- **platform-6** (correctness) — deleting a config file never triggers reload
-- **data-1** (security) — ConflictError returns raw DB error to clients in production
+- **realtime-2** (security) — trace redaction bypassed for slice-typed data → DB rows w/ secret columns leak  **[✅ Shipped PR #278]**
+- **realtime-3** (security) — LiveKit ingress `stream_key` not caught by redaction  **[✅ Shipped PR #278]**
+- **realtime-4** (security) — dev-mode `/ws/trace` unauthenticated, no Origin check → remote trace exfiltration  **[✅ Shipped PR #278]**
+- **wasm-pdk-5** (correctness) — PDK `SetTimer` sends `interval_ms`, host reads `interval`; timers never fire  **[✅ Shipped PR #263]**
+- **wasm-pdk-6** (correctness) — `wasm.send` commands misrouted to `query` export  **[✅ Shipped PR #263]**
+- **wasm-pdk-7** (concurrency) — data race on `m.lifecycleCtx` in Stop vs async host calls  **[✅ Shipped PR #263]**
+- **wasm-pdk-8** (resource/correctness) — `Gateway.Connect` duplicate id orphans old connection  **[✅ Shipped PR #263]**
+- **wasm-pdk-10** (security/resource) — no default memory limit; up to 4 GiB linear memory per module  **[✅ Shipped PR #263]**
+- **platform-2** (concurrency) — concurrent HandleChange can install stale config last  **[✅ Shipped PR #286]**
+- **platform-3** (concurrency) — in-flight reload not awaited at shutdown  **[✅ Shipped PR #286]**
+- **platform-4** (resource) — timed-out CreateService cleanup calls Close() no instance implements → leak  **[✅ Shipped PR #286]**
+- **platform-5** (correctness) — watcher never watches subdirs created after startup  **[✅ Shipped PR #286]**
+- **platform-6** (correctness) — deleting a config file never triggers reload  **[✅ Shipped PR #286]**
+- **data-1** (security) — ConflictError returns raw DB error to clients in production  **[✅ Shipped PR #278]**
 - **data-2** (resource) — stream publish never bounds stream (no MAXLEN); unbounded Redis growth
 - **data-3** (security) — SQL fragments interpolated then blocklist-validated; misses `OR 1=1`
-- **edge-io-1** (resource) — image.resize enlarges to arbitrary dimensions → allocation bomb
+- **edge-io-1** (resource) — image.resize enlarges to arbitrary dimensions → allocation bomb  **[✅ Shipped PR #278]**
 - **edge-io-2** (security) — netguard misses NAT64 / v4-embedded IPv6 encodings of metadata/private ranges
-- **nodes-1** (security) — response.redirect `/\`-prefix bypasses open-redirect guard
-- **nodes-2** (security) — ws.send/sse.send channel from expression → wildcard matcher → cross-user broadcast
-- **cmd-misc-3** (correctness) — `noda migrate` auto-detect matches only `plugin: postgres`, not `db`
-- **cmd-misc-5** (correctness) — MCP example configs invalid (jwt_sign missing secret; bogus `$ref(...)` syntax)
-- **cmd-misc-6** (correctness) — `noda init` / scaffold silently overwrite existing files
+- **nodes-1** (security) — response.redirect `/\`-prefix bypasses open-redirect guard  **[✅ Shipped PR #278]**
+- **nodes-2** (security) — ws.send/sse.send channel from expression → wildcard matcher → cross-user broadcast  **[✅ Shipped PR #278]**
+- **cmd-misc-3** (correctness) — `noda migrate` auto-detect matches only `plugin: postgres`, not `db`  **[✅ Shipped PR #274]**
+- **cmd-misc-5** (correctness) — MCP example configs invalid (jwt_sign missing secret; bogus `$ref(...)` syntax)  **[✅ Shipped PR #274]**
+- **cmd-misc-6** (correctness) — `noda init` / scaffold silently overwrite existing files  **[✅ Shipped PR #274]**
 - **cmd-misc-7** (correctness) — modifying a belongsTo FK emits ADD CONSTRAINT w/o DROP → migration fails
 - **cmd-misc-8** (security) — process env is a default secrets provider despite "opt-in" contract
 
@@ -120,7 +125,7 @@ Severity shown is the **post-verification** severity. `↓` marks a Phase-2 down
 - **engine-9** (quality) — currentNode is workflow-global; parallel nodes clobber log attribution
 - **engine-10** (concurrency) — non-atomic copy of depth counters races with atomic increments
 - **engine-11** (correctness) — retryNode converts context cancellation into a normal "error" output
-- **server-2** (security) — typed workflow errors leak DB/schema details regardless of dev mode
+- **server-2** (security) — typed workflow errors leak DB/schema details regardless of dev mode  **[✅ Shipped PR #278]**
 - **server-3 ↓** (correctness) — casbin object `c.Path()` vs case/slash-insensitive routing *(Medium→Low: mismatch is real but exploit direction needs a deny-override model; common case fails closed)*
 - **server-4** (security) — OpenAPI spec + docs UI always served unauthenticated
 - **server-5** (correctness) — `coerceNumeric` lossily converts numeric-looking strings
@@ -178,9 +183,9 @@ Severity shown is the **post-verification** severity. `↓` marks a Phase-2 down
 - **cmd-misc-16** (quality) — DotEnvProvider: stray cwd `.env` overrides project `.env`
 
 ### Baseline hygiene (3)
-- **BASE-1** (Low/hygiene) — bump `github.com/buger/jsonparser` v1.1.1 → v1.1.2 (GO-2026-4514 DoS; imported, uncalled)
-- **BASE-2** (Low/hygiene) — bump `golang.org/x/crypto` v0.51.0 → current (13 ssh/* module-level advisories; ssh unused)
-- **BASE-3** (Low/hygiene) — `plugins/livekit/participant_update.go:92` uses deprecated `perm.Recorder` (SA1019)
+- **BASE-1** (Low/hygiene) — bump `github.com/buger/jsonparser` v1.1.1 → v1.1.2 (GO-2026-4514 DoS; imported, uncalled)  **[✅ Shipped PR #288]**
+- **BASE-2** (Low/hygiene) — bump `golang.org/x/crypto` v0.51.0 → current (13 ssh/* module-level advisories; ssh unused)  **[✅ Shipped PR #288]**
+- **BASE-3** (Low/hygiene) — `plugins/livekit/participant_update.go:92` uses deprecated `perm.Recorder` (SA1019)  **[✅ Shipped PR #288]** — verified already handled: no code change (justified `//nolint`; no non-deprecated replacement)
 
 ---
 
@@ -194,6 +199,7 @@ The full Claim / Evidence / Failure-scenario / Suggested-fix for every finding f
 # Unit 1 — internal/config + internal/expr (clean-slate review, main @ beecc16)
 
 ### config-expr-1. Strict expression mode breaks `$item`/`$index` — control.loop / transform.map / transform.filter cannot boot
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: Medium / Confidence: 0.9 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/expr/compiler.go:66-72, 121-129; /Users/marten/GolandProjects/noda/internal/engine/context.go:217-229 (ResolveWithVars); /Users/marten/GolandProjects/noda/plugins/core/transform/map.go:59-63
 - Claim: `knownContextEnv` omits the `$item`/`$index` extra variables that `ResolveWithVars` injects for control.loop, transform.map, and transform.filter. With `server.expression_strict_mode: true`, the shared compiler is built with `expr.Env(knownContextEnv)` (internal/registry/bootstrap.go:100-101), and expr's checker rejects any unknown top-level name. Startup validation (`registry.ValidateStartup` → `expr.ValidateExpressions`, validator.go:110) compiles every node-config expression with this same compiler, so any workflow using these core nodes' documented `$item` syntax fails to boot.
@@ -541,6 +547,7 @@ Third-party verification:
 # Unit 2 — internal/engine (clean-slate review, main @ beecc16)
 
 ### engine-1. firstErr atomic.Value.CompareAndSwap with mixed concrete error types can panic and crash the process
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: High / Confidence: 0.8 / Dimension: concurrency
 - Files: /Users/marten/GolandProjects/noda/internal/engine/executor.go:75, executor.go:116, executor.go:155, executor.go:174
 - Claim: `firstErr` is a `sync/atomic.Value` used to record the first error via `CompareAndSwap(nil, err)` from multiple node goroutines. `atomic.Value` panics when the stored value and the new value have different concrete types — even when the CAS would fail anyway. The engine stores errors of at least two distinct concrete types (`*engine.NodeExecutionError` and `*errors.errorString` from `fmt.Errorf` without `%w`), so two concurrently failing parallel branches can crash the entire server. The panic occurs in a bare worker goroutine (no recover at that level — `dispatchNode`'s recover only covers its own frame), so it is process-fatal.
@@ -572,6 +579,7 @@ Third-party verification:
 - Suggested fix: Replace `atomic.Value` with `sync.Once` + a plain `error` variable, or a mutex-guarded `if firstErr == nil { firstErr = err }`, or wrap all stores in one concrete type (e.g. `type errBox struct{ err error }` and CAS `*errBox`), or use `atomic.Pointer[error]`.
 
 ### engine-2. Workflow timeout/cancellation can produce a nil error: partial execution silently reported as success
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: High / Confidence: 0.8 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/engine/executor.go:63-71, executor.go:89-92, executor.go:222-259
 - Claim: When the graph context expires (workflow `timeout` or parent cancellation), freshly dispatched node goroutines return silently without recording any error. If no in-flight node happens to surface `ctx.Err()` itself, `wg.Wait()` returns with `firstErr` empty and `ExecuteGraph` returns nil — the workflow logs "workflow completed / status success" and callers treat a truncated execution as a full success. `ExecuteGraph` never checks `execCtx2.Err()` after `wg.Wait()`.
@@ -593,6 +601,7 @@ Third-party verification:
 - Suggested fix: After `wg.Wait()`, if `firstErr` is empty and `execCtx2.Err() != nil`, return a timeout/cancellation error (e.g. `fmt.Errorf("workflow %q aborted: %w", graph.WorkflowID, execCtx2.Err())` or an `api.TimeoutError` so the server maps it to 504).
 
 ### engine-3. AND-join whose legs cannot all fire (error edges / independent conditionals) silently skips the join node and succeeds
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: Medium / Confidence: 0.75 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/engine/compiler.go:313-334 (computeJoinTypes), /Users/marten/GolandProjects/noda/internal/engine/executor.go:203-207
 - Claim: `computeJoinTypes` classifies a multi-inbound node as `JoinAND` whenever the inbound sources have no common conditional ancestor. `DepCount` counts every inbound edge, including edges that are not guaranteed to fire (error edges, or exclusive outputs of the *same* source node feeding the join alongside another source). At runtime the pending counter then never reaches zero, the node is never dispatched, `wg.Wait()` returns, and the workflow reports success with the node (and everything downstream of it) silently skipped. Neither `Compile` nor config validation rejects such graphs.
@@ -615,6 +624,7 @@ Third-party verification:
 - Suggested fix: At compile time, reject (or explicitly warn on) AND-joins where any inbound edge is an "error" edge or where the inbound set mixes mutually exclusive outputs, since those joins can structurally never fire on all legs. At minimum, after `wg.Wait()` detect never-dispatched nodes with partially decremented AND counters and surface a diagnostic.
 
 ### engine-4. Join classification and workflow.output exclusivity validation are nondeterministic (map iteration order + first-match break)
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: Medium / Confidence: 0.7 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/engine/compiler.go:380-396 (hasCommonConditionalAncestor), /Users/marten/GolandProjects/noda/internal/engine/exclusivity.go:79-105 (findOutputLeadingTo)
 - Claim: Both routines pick "the output of the conditional ancestor through which node X is reached" by iterating `g.Adjacency[ancestor]` (a Go map, random iteration order) and taking the first output that reaches X (`break` / early `return`). When a node is reachable through *multiple* outputs of the ancestor (branches that reconverge and then split again), the chosen output is nondeterministic. Consequences: (a) the same workflow compiles to `JoinOR` on one boot and `JoinAND` on the next — changing runtime semantics between "dispatch on first arrival" and "wait for all/starve"; (b) `ValidateOutputExclusivity` randomly accepts or rejects the same config, and when it wrongly accepts, two `workflow.output` nodes fire in one run and `SetWorkflowOutput` is last-write-wins, so sub-workflow results are nondeterministic.
@@ -641,6 +651,7 @@ Third-party verification:
 - Suggested fix: Collect *all* outputs through which each inbound source is reachable (no break), and treat a source reachable via multiple outputs as non-exclusive. Same for `findOutputLeadingTo`: return the set of outputs and require disjoint singleton sets for exclusivity. This also makes compilation deterministic.
 
 ### engine-5. `$env` expressions alias the pooled expression-context map — corrupted outputs and fatal concurrent map access
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: Medium / Confidence: 0.75 / Dimension: concurrency
 - Files: /Users/marten/GolandProjects/noda/internal/engine/context.go:19-24, context.go:205-213, context.go:354-391
 - Claim: `buildExprContext` hands out a map from `exprContextPool` and `returnExprContext` puts it back immediately after `Resolve` returns. expr-lang supports the builtin identifier `$env`, which evaluates to the environment map *itself* — i.e. the pooled map. If a config expression is `{{ $env }}` (allowed even in strict mode), the resolved value stored as a node output (or sent in a response) IS the pooled map. The pool then hands the same map to the next `Resolve` call, which deletes all keys and repopulates it — mutating data already stored as a node output, and doing so concurrently with any reader (JSON serialization of the response, another node's expression referencing that output) → wrong data or `fatal error: concurrent map iteration and map write` (unrecoverable, process crash).
@@ -663,6 +674,7 @@ Third-party verification:
 - Suggested fix: Don't pool the env map (allocation is 5 keys — the pool wins little), or copy-on-return, or disable `$env` by compiling with a patched checker/`expr.DisableBuiltin`-style guard (expr provides no direct off switch for `$env`; the safest fix is dropping the pool).
 
 ### engine-6. Node alias may collide with another node's ID — outputs silently overwrite each other
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: Medium / Confidence: 0.7 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/engine/compiler.go:169-178, /Users/marten/GolandProjects/noda/internal/engine/context.go:264-287
 - Claim: `Compile` validates alias-vs-alias uniqueness but never checks an alias against the set of node IDs. `SetOutput` keys outputs by alias when present and by node ID otherwise, in one shared `outputs` map. If node `a` declares `as: "b"` and a node with ID `b` exists, both write to `outputs["b"]`; expressions `nodes.b` nondeterministically observe whichever node finished last, and the eviction tracker's `outputKeys`/`refs` for the two nodes merge under one key.
@@ -689,6 +701,7 @@ Third-party verification:
 - Suggested fix: In the alias-uniqueness pass, also reject `alias` values that equal any node ID in `wf.Nodes` (and, for symmetry, node IDs that equal another node's alias).
 
 ### engine-7. Workflow cache double-indexing by JSON "id" silently overwrites other workflows (no duplicate-ID validation, map-order dependent)
+- **✅ Shipped 2026-07-05 — PR #270, tranche B (engine execution safety).**
 - Severity: Medium / Confidence: 0.7 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/engine/cache.go:33-37, cache.go:65-69
 - Claim: `NewWorkflowCache`/`Invalidate` index each compiled graph under both its map key and its JSON `id` field with no collision check. If one workflow's `id` equals another workflow's key (or two workflows share an `id`), one entry silently overwrites the other — and because the source is a Go map iterated in random order, *which* workflow wins differs between process starts. I verified there is no duplicate-id validation anywhere in `internal/config` (grep for "duplicate" across internal/config returns nothing; `crossrefs.go collectIDs` just builds a set).
@@ -831,6 +844,7 @@ if requireExpiry { parserOpts = append(parserOpts, jwt.WithExpirationRequired())
 - Suggested fix: Default `require_expiry` to true (require an explicit opt-out), and log a loud warning when `audience`/`issuer` are unset. At minimum document that HS* keys shared across services MUST set `audience`/`issuer`.
 
 ### server-2. Typed workflow errors leak internal DB/schema details to clients regardless of dev mode
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Low / Confidence: 0.75 / Dimension: security
 - Files: internal/server/errors.go:57-83 (ConflictError/NotFound/ServiceUnavailable paths)
 - Claim: `MapErrorToHTTP` gates only the generic 500 branch behind `devMode`. For `ConflictError`, `NotFoundError`, `ServiceUnavailableError`, `TimeoutError` it always returns `err.Error()` as the client-facing `Message`. The db plugin populates `ConflictError.Reason` with the raw driver error string.
@@ -976,6 +990,7 @@ General assessment: the core crypto primitives are sound — argon2id with OWASP
 ---
 
 ### auth-1. Default register template enables account enumeration (status + behavior divergence)
+- **✅ Shipped 2026-07-07 — PR #289, tranche auth (anti-enumeration).**
 - Severity: Medium / Confidence: 0.6 / Dimension: security
 - Files: cmd/noda/auth_templates/workflows/auth.register.json.tmpl (respond_exists), cmd/noda/auth_templates/routes/auth.register.json; plugins/auth/create_user.go:116-122
 - Claim: The shipped register flow discloses whether an email is already registered. `create_user` returns the `exists` output on a unique-constraint violation, which the template routes to `respond_exists` with HTTP 400, while a new registration returns HTTP 201 with a session cookie and triggers a verification email. The status code, response body shape, presence of a Set-Cookie, and the side effect of sending an email all differ between "email taken" and "email free".
@@ -986,6 +1001,7 @@ General assessment: the core crypto primitives are sound — argon2id with OWASP
 - Suggested fix: Make the register response indistinguishable — on `exists`, return the same 200/generic body as success and (optionally) send an "account already exists / did you mean to log in?" email rather than a differing status; or gate registration behind email-verification-first so both branches send an email and return identical responses.
 
 ### auth-2. Reset-password / resend-verification flows leak account existence via response timing
+- **✅ Shipped 2026-07-07 — PR #289, tranche auth (anti-enumeration).**
 - Severity: Medium / Confidence: 0.6 / Dimension: security
 - Files: cmd/noda/auth_templates/workflows/auth.request-password-reset.json.tmpl, cmd/noda/auth_templates/workflows/auth.resend-verification.json.tmpl
 - Claim: Both flows return a uniform "If that account exists, an email was sent" body specifically to avoid enumeration, but the *code path* diverges sharply: an existing user runs `auth.create_token` (an UPDATE + INSERT) **and a synchronous `email.send` over SMTP**, then responds; a non-existent user goes straight to `respond_unknown`. The SMTP round-trip (typically tens-to-hundreds of ms) makes the response time for a known email dramatically larger than for an unknown one, defeating the uniform-message protection.
@@ -1080,6 +1096,7 @@ Repo: /Users/marten/GolandProjects/noda @ main (beecc16). All non-test .go files
 ---
 
 ### worker-sched-1. Worker TimeoutMiddleware timeout is chain-wide and hard-coded to 5m at the call site — per-worker `timeout` config is silently overridden by the middleware
+- **✅ Shipped 2026-07-06 — PR #282, tranche E1 (worker/scheduler hardening).**
 
 - Severity: Medium / Confidence: 0.85 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/worker/middleware.go:74-81, 135-141; /Users/marten/GolandProjects/noda/internal/worker/runtime.go:307-311; /Users/marten/GolandProjects/noda/cmd/noda/runtime.go:223; /Users/marten/GolandProjects/noda/cmd/noda/main.go:977-984
@@ -1111,6 +1128,7 @@ Repo: /Users/marten/GolandProjects/noda @ main (beecc16). All non-test .go files
 ---
 
 ### worker-sched-2. Reaper claims a 16-message page but processes it at worker concurrency — claimed-but-unprocessed messages exceed min_idle and get stolen by another instance, causing duplicate workflow execution
+- **✅ Shipped 2026-07-06 — PR #282, tranche E1 (worker/scheduler hardening).**
 
 - Severity: Medium / Confidence: 0.7 / Dimension: concurrency
 - Files: /Users/marten/GolandProjects/noda/internal/worker/runtime.go:622-666
@@ -1166,6 +1184,7 @@ Repo: /Users/marten/GolandProjects/noda @ main (beecc16). All non-test .go files
 ---
 
 ### worker-sched-4. Scheduler distributed-lock key is truncated to the minute while WithSeconds is enabled — sub-minute schedules with locking silently skip all but one firing per minute
+- **✅ Shipped 2026-07-06 — PR #282, tranche E1 (worker/scheduler hardening).**
 
 - Severity: Medium / Confidence: 0.85 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/scheduler/runtime.go:108, 229, 277-280
@@ -1190,6 +1209,7 @@ Repo: /Users/marten/GolandProjects/noda @ main (beecc16). All non-test .go files
 ---
 
 ### worker-sched-5. No same-instance overlap protection for scheduled jobs — a job slower than its interval self-overlaps even with locking enabled
+- **✅ Shipped 2026-07-06 — PR #282, tranche E1 (worker/scheduler hardening).**
 
 - Severity: Medium / Confidence: 0.75 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/scheduler/runtime.go:108-136, 184-351
@@ -1440,6 +1460,7 @@ Scope: `internal/connmgr`, `internal/trace`, `plugins/livekit`. Repo main @ beec
 ---
 
 ### realtime-2. Trace redaction silently bypassed for slice-typed node data (`[]map[string]any`) → DB rows with secret columns leak to trace stream
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.8 / Dimension: security
 - Files: internal/trace/events.go:122-127 ; internal/trace/redact.go:37-55 ; plugins/db/query.go:66-77 ; internal/engine/dispatch.go:130
 - Claim: `EventHub.Emit` only redacts when `event.Data` is `map[string]any` or `*api.HTTPResponse`. Node executors that return `[]map[string]any` (db.query, db.find) — and any map value whose type is `[]map[string]any` rather than `[]any` — are marshalled to the trace stream with no redaction, because `redactSecrets`'s `switch` has cases only for `map[string]any` and `[]any`.
@@ -1472,6 +1493,7 @@ Scope: `internal/connmgr`, `internal/trace`, `plugins/livekit`. Repo main @ beec
 ---
 
 ### realtime-3. LiveKit ingress `stream_key` is not caught by trace redaction (sensitiveExact "key" only matches the exact key name)
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.7 / Dimension: security
 - Files: plugins/livekit/ingress_create.go:104-113 ; internal/trace/redact.go:9-23,163-177
 - Claim: `ingressInfoToMap` returns `"stream_key": info.StreamKey` (a publish credential) and `"url"` in the node's output map. Trace redaction matches keys containing `password/secret/token/authorization/credential/api_key/apikey` or exactly equal to `key`. `stream_key` contains none of these substrings and is not exactly `key`, so the ingress publish secret is emitted unredacted to the trace stream.
@@ -1492,6 +1514,7 @@ Scope: `internal/connmgr`, `internal/trace`, `plugins/livekit`. Repo main @ beec
 ---
 
 ### realtime-4. Dev-mode `/ws/trace` has no authentication and no Origin check → remote trace exfiltration via victim browser
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.7 / Dimension: security
 - Files: internal/trace/websocket.go:14-16
 - Claim: `RegisterTraceWebSocket` registers `/ws/trace` with `websocket.New(...)` and no auth middleware and default (allow-all) Origins. Every execution trace event (request params, node outputs, DB rows per realtime-2, tokens per realtime-3) is broadcast to any client that connects.
@@ -1609,6 +1632,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-1. Guest execution is uninterruptible: timeouts only abandon goroutines; a hung guest pins a core, piles up goroutines every tick, and deadlocks shutdown
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: High / Confidence: 0.9 / Dimension: resource|correctness
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/runtime.go:66-77, /Users/marten/GolandProjects/noda/internal/wasm/module.go:417-442, /Users/marten/GolandProjects/noda/internal/wasm/tick.go:135
 - Claim: Noda never sets `extism.Manifest.Timeout`, and extism only enables wazero's `WithCloseOnContextDone(true)` when `manifest.Timeout > 0` (verified: `~/go/pkg/mod/github.com/extism/go-sdk@v1.7.1/plugin.go:128-131` — `if manifest.Timeout > 0 { runtimeConfig = runtimeConfig.WithCloseOnContextDone(true) }`). Per wazero (`config.go:149-170`), without that flag there is *no way* to interrupt guest execution — not by context cancel, not by `Module.Close`. So:
@@ -1634,6 +1658,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-2. Concurrent `Plugin.Call` on the same instance after a tick timeout — extism Plugin/wazero function calls are not goroutine-safe; guest memory state gets corrupted
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: High / Confidence: 0.85 / Dimension: concurrency
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/module.go:424-429, /Users/marten/GolandProjects/noda/internal/wasm/tick.go:90, /Users/marten/GolandProjects/noda/internal/wasm/tick.go:112-135, /Users/marten/GolandProjects/noda/internal/wasm/module.go:208
 - Claim: When `callWithTimeout` times out, its goroutine is still inside `m.Plugin.Call` (nothing interrupts it — see wasm-pdk-1). The tick loop then proceeds: the next ticker fire calls `executeTick` → another `Plugin.Call`, and `drainQueries`/`processQuery` calls `Plugin.Call` directly. Result: two goroutines concurrently inside `Plugin.Call` on the *same* extism plugin instance. Verified against vendored source that this is unsafe on two levels:
@@ -1659,6 +1684,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-3. Host-call errors are written as ordinary output — the PDK can never see them; permission denials and validation errors are silently consumed as data
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: High / Confidence: 0.9 / Dimension: correctness|security
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/runtime.go:137-147, /Users/marten/GolandProjects/noda/internal/wasm/runtime.go:122-127,149-166, /Users/marten/GolandProjects/noda/pdk/go/noda/host.go:14-24, /Users/marten/GolandProjects/noda/pdk/go/noda/noda.go:23-32
 - Claim: When `dispatcher.Call` fails (PERMISSION_DENIED, VALIDATION_ERROR, NOT_FOUND, service errors), the host writes the error envelope with `p.WriteBytes` and returns its offset as the function's normal PTR result. The in-code comment claims "the PDK reads this via pdk.GetError()", and docs/_internal/wasm-host-api.md §4.3 documents the same contract ("Noda returns an error through Extism's error mechanism (accessible via `pdk.GetError()`)"). Neither is true: `CurrentPlugin.WriteBytes` (extism host.go:180-192) just allocates kernel memory and writes bytes — it never touches the kernel's error register. The PDK's `call()` returns `(bytes, nil)` unconditionally, so `noda.Call`/`CallInto` **never return a host-side error**. Additionally, all internal host failures (`ReadBytes`, marshal, `WriteBytes` failure e.g. under a memory_pages limit) set `stack[0] = 0`, which the PDK interprets as a void *success*.
@@ -1692,6 +1718,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-4. `encoding: "msgpack"` breaks every host call: host functions hardcode jsonCodec while the PDK marshals requests (and parses responses) with msgpack
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: High / Confidence: 0.85 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/runtime.go:129-135,154, /Users/marten/GolandProjects/noda/internal/wasm/runtime.go:185-190, /Users/marten/GolandProjects/noda/pdk/go/noda/noda.go:9-20, /Users/marten/GolandProjects/noda/pdk/go/noda/codec.go:15-17
 - Claim: `Module.Codec` honors `cfg.Encoding` for tick/query I/O, and the PDK switches `activeCodec` to msgpack after `GetInitInput` — but both host functions unconditionally use `&jsonCodec{}` to decode `HostCallRequest` and to encode the response. msgpack bytes (fixmap `0x83…`) are not valid JSON, so `json.Unmarshal` fails for every request; the host then returns a *JSON* error envelope which the PDK tries to parse with the *msgpack* codec. `encoding` is a real, parsed config option (`cmd/noda/main.go:918-920`), so this is reachable purely from config.
@@ -1712,6 +1739,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-5. PDK `SetTimer` sends `interval_ms` but the host reads `interval` — timers set via the Go PDK never fire, and the error is invisible
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: Medium / Confidence: 0.95 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/pdk/go/noda/system.go:35-41, /Users/marten/GolandProjects/noda/internal/wasm/hostapi.go:186-192
 - Claim: The host's `set_timer` reads `payload["interval"]` (matching docs/_internal/wasm-host-api.md:469 `{ "name": "save-state", "interval": 30000 }`); the PDK sends the key `interval_ms`. `intervalMs` therefore stays 0 and the host returns `VALIDATION_ERROR: interval must be positive` — which, due to wasm-pdk-3, comes back to the guest as data with `err == nil`. So `noda.SetTimer` returns success and does nothing, always.
@@ -1737,6 +1765,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-6. `wasm.send` commands are misrouted to the `query` export when a module exports both `query` and `command`
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: Medium / Confidence: 0.9 / Dimension: correctness
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/module.go:286-316, /Users/marten/GolandProjects/noda/internal/wasm/tick.go:127-135
 - Claim: `SendCommand` takes the "call `command` directly" branch whenever the module exports `command`, and enqueues the payload on `queryCh`. But `processQuery` re-derives the function name from exports alone: it only picks `command` if `query` does **not** exist. For a module exporting both (the documented shape — wasm-host-api.md §3.4 query + §3.5 command describe independent exports), every `wasm.send` payload is delivered to the `query` export instead of `command`.
@@ -1759,6 +1788,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-7. Data race on `m.lifecycleCtx`: `Stop` reassigns the field while async host-call goroutines read it unsynchronized
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: Medium / Confidence: 0.75 / Dimension: concurrency
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/module.go:204, /Users/marten/GolandProjects/noda/internal/wasm/hostapi.go:108, /Users/marten/GolandProjects/noda/internal/wasm/hostapi.go:176, /Users/marten/GolandProjects/noda/internal/wasm/module.go:439
 - Claim: `Stop()` writes `m.lifecycleCtx, m.lifecycleCancel = context.WithCancel(...)` (module.go:204) and cancels again at line 211, with no lock. Concurrent readers of the same field: the `CallAsync` goroutine (`d.Call(d.module.lifecycleCtx, …)`, hostapi.go:108), the `trigger_workflow` goroutine (`d.runner(d.module.lifecycleCtx, …)`, hostapi.go:176), and any in-flight `callWithTimeout` select (`<-m.lifecycleCtx.Done()`, module.go:439). `Stop` only waits on `outstandingCalls` *after* the reassignment (lines 216-227), so goroutines registered before Stop can read the field concurrently with the write. Interface-value writes are not atomic in Go; this is a genuine race (racy read of a two-word value), detectable by `-race` and with the theoretical possibility of a torn read/crash.
@@ -1780,6 +1810,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-8. `Gateway.Connect` with a duplicate id silently orphans the old connection: it keeps reading, keeps injecting messages under the same id, and can never be closed
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: Medium / Confidence: 0.85 / Dimension: resource|correctness
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/gateway.go:114-119
 - Claim: `Connect` unconditionally overwrites `g.conns[id]`. The previous `gatewayConn` for that id is not closed: its `readLoop` continues, delivering `IncomingWSMsg{Connection: id}` indistinguishable from the new connection's messages; its heartbeat keeps running; if reconnect is enabled it will even resurrect itself on disconnect. `CloseConn(id)` and `CloseAll` only reach the map entry, so the old socket is unreachable and leaks until process exit.
@@ -1816,6 +1847,7 @@ Third-party behavior verified against vendored sources:
 ---
 
 ### wasm-pdk-10. No default memory limit: `memory_pages` unset gives each module up to 4 GiB of linear memory
+- **✅ Shipped 2026-07-05 — PR #263, tranche A (wasm runtime hardening).**
 - Severity: Medium / Confidence: 0.75 / Dimension: security|resource
 - Files: /Users/marten/GolandProjects/noda/internal/wasm/runtime.go:73-77, /Users/marten/GolandProjects/noda/internal/wasm/types.go:17
 - Claim: `manifest.Memory` is only set when `cfg.MemoryPages > 0`; otherwise extism applies no `WithMemoryLimitPages`, and wazero's default is 65536 pages = 4 GiB per instance (verified: wazero config.go:55-57 "The default is 65536, allowing 4GB total memory per instance if the maximum is not encoded in a Wasm binary"; extism plugin.go:133-137 only calls `WithMemoryLimitPages` when `manifest.Memory.MaxPages > 0`). Module file size is capped (50MB default) but runtime memory growth is not — asymmetric hardening for what the architecture treats as sandboxed third-party code.
@@ -1923,6 +1955,7 @@ No skipped files.
 Clean-slate review @ main beecc16. Baseline linters assumed clean; findings below are semantic.
 
 ### platform-1. Shutdown signal during StartAll is silently swallowed; StartAll resurrects "started" state after a StopAll
+- **✅ Shipped 2026-07-06 — PR #286, tranche E2 (lifecycle/devmode/registry hardening).**
 - Severity: High / Confidence: 0.8 / Dimension: concurrency
 - Files: internal/lifecycle/lifecycle.go:51-76, internal/lifecycle/lifecycle.go:83-89 (scenario wiring: cmd/noda/runtime.go:293-307, 335)
 - Claim: `StopAll` only stops components counted in `l.started`, which remains 0 for the entire duration of `StartAll`. A concurrent `StopAll` (the signal handler installed *before* `StartAll` in cmd/noda) therefore stops nothing, and `StartAll` then continues starting the remaining components and unconditionally sets `l.started = n` — even though shutdown was already requested and (from the caller's perspective) already "completed".
@@ -1963,6 +1996,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Track a `stopping bool` in `Lifecycle`. `StopAll` sets it (and, if `StartAll` is in flight, waits for or interrupts it). `StartAll` should (a) advance `l.started` incrementally after each successful `Start`, and (b) check `stopping` before starting each component, aborting with rollback of the already-started prefix. That makes a concurrent `StopAll` stop exactly the started prefix and prevents post-stop resurrection.
 
 ### platform-2. Concurrent HandleChange invocations can install a stale config last (editor save + watcher race)
+- **✅ Shipped 2026-07-06 — PR #286, tranche E2 (lifecycle/devmode/registry hardening).**
 - Severity: Medium / Confidence: 0.7 / Dimension: concurrency
 - Files: internal/devmode/reload.go:58-115 (concurrent callers: internal/server/editor_files.go:108,133, internal/server/editor_codegen.go:164,263; internal/devmode/watcher.go:118-121)
 - Claim: `HandleChange` is not serialized. It runs `config.ValidateAll` (slow, reads the whole config dir) outside any lock, then takes `r.mu` and swaps. Two overlapping invocations can complete in inverted order, so the swap installs the *older* directory snapshot while logging "config reloaded successfully". Overlap is routine, not theoretical: every editor save calls `reloader.HandleChange` synchronously from the HTTP handler *and* the same disk write fires the fsnotify debounce timer ~100ms later; each `time.AfterFunc` also runs on its own goroutine, so a save while a previous validation is still running produces concurrent calls.
@@ -1985,6 +2019,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Serialize `HandleChange` with a mutex (validation included) and coalesce: stamp a generation counter when validation starts; before swapping, discard the result if a newer generation has already swapped. Alternatively funnel all triggers (editor + watcher) through one single-consumer channel.
 
 ### platform-3. In-flight reload is not awaited at shutdown: debounce-timer goroutine is untracked, and SetShuttingDown is only checked at entry
+- **✅ Shipped 2026-07-06 — PR #286, tranche E2 (lifecycle/devmode/registry hardening).**
 - Severity: Medium / Confidence: 0.7 / Dimension: concurrency
 - Files: internal/devmode/watcher.go:118-121, internal/devmode/watcher.go:70-83, internal/devmode/reload.go:58-60,96-114 (shutdown ordering: internal/lifecycle/adapters.go:119-124, cmd/noda/runtime.go:309-333)
 - Claim: `w.onChange` runs on a `time.AfterFunc` goroutine that is not in `w.wg`, so `Watcher.Stop` returns while a `HandleChange` may still be validating. `Reloader.SetShuttingDown` is checked only at the top of `HandleChange`; a call that passed that check keeps running through the rest of shutdown and will still swap config, `hub.Emit`, and invoke `onReload` (workflow cache invalidation against `Bootstrap.Nodes`) after later components — including the service registry and tracer — have been stopped.
@@ -2015,6 +2050,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Re-check `shuttingDown` under `r.mu` immediately before the swap/callback, and track in-flight reloads in a `sync.WaitGroup` that `SetShuttingDown` (or `Watcher.Stop`) waits on. Simplest structural fix: fire the debounce by sending on a channel consumed inside `loop()` so `w.wg` naturally covers `onChange`.
 
 ### platform-4. Timed-out CreateService cleanup calls Close(), but service instances don't implement it — late-completing creates leak connections
+- **✅ Shipped 2026-07-06 — PR #286, tranche E2 (lifecycle/devmode/registry hardening).**
 - Severity: Medium / Confidence: 0.85 / Dimension: resource
 - Files: internal/registry/lifecycle.go:95-107 (contract: plugins/db/plugin.go:39-77,156-166)
 - Claim: When `CreateService` outruns `createTimeout`, the cleanup goroutine tries `res.instance.(interface{ Close() error })`. But the teardown contract for services is `plugin.Shutdown(instance)`, and the actual instances don't implement `Close`: the db plugin returns a `*gorm.DB` (no `Close` method — its own `Shutdown` must go through `db.DB()` to reach `sql.DB.Close`). So the type assertion fails silently and the late-created connection pool is never released, while the log still says the resource was handled.
@@ -2044,6 +2080,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: The owning `plugin` is in scope — call `_ = plugin.Shutdown(res.instance)` (fall back to the `Close` probe only if `Shutdown` errors on type), and only log "resource closed" when a teardown path actually ran.
 
 ### platform-5. Watcher never watches subdirectories created after startup (fsnotify is non-recursive; dir-create events are filtered out)
+- **✅ Shipped 2026-07-06 — PR #286, tranche E2 (lifecycle/devmode/registry hardening).**
 - Severity: Medium / Confidence: 0.9 / Dimension: correctness
 - Files: internal/devmode/watcher.go:45-61, internal/devmode/watcher.go:104-110
 - Claim: `WatchDir` walks the tree once at startup and adds each existing directory. fsnotify watches are non-recursive — verified in vendored source `~/go/pkg/mod/github.com/fsnotify/fsnotify@v1.9.0/fsnotify.go:297-299`: "All files in a directory are monitored… Subdirectories are not watched (i.e. it's non-recursive)." When a new subdirectory is created later, the parent watch does deliver a Create event for it, but `loop()` discards it because the path has no `.json` extension, and no `watcher.Add` is ever issued for it.
@@ -2065,6 +2102,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: In `loop()`, before the extension filter, check `event.Op.Has(fsnotify.Create)` and `os.Stat(event.Name).IsDir()`; if a directory, call `w.WatchDir(event.Name)` (covers nested creation) and optionally trigger a reload.
 
 ### platform-6. Deleting a config file never triggers a reload (Remove events filtered)
+- **✅ Shipped 2026-07-06 — PR #286, tranche E2 (lifecycle/devmode/registry hardening).**
 - Severity: Medium / Confidence: 0.8 / Dimension: correctness
 - Files: internal/devmode/watcher.go:104-107
 - Claim: The event mask reacts only to Write/Create/Rename. `fsnotify.Remove` is excluded, so deleting a JSON config file produces no reload, and the runtime keeps serving the deleted file's routes/workflows indefinitely.
@@ -2281,6 +2319,7 @@ the residual real issues.
 ---
 
 ### data-1. ConflictError returns raw DB error (constraint/schema/value details) to clients in production
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.85 / Dimension: security
 - Files: plugins/db/create.go:77-84, plugins/db/upsert.go:91-100, internal/server/errors.go:57-65
 - Claim: On a unique-constraint violation the plugin puts the raw driver error string into
@@ -2503,6 +2542,7 @@ No files in scope were skipped or unreadable.
 Repo: /Users/marten/GolandProjects/noda @ main (beecc16)
 
 ### edge-io-1. image.resize enlarges to arbitrary output dimensions — decompression/allocation bomb
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.7 / Dimension: resource
 - Files: plugins/image/resize.go:44-74, plugins/image/helpers.go:29-66
 - Claim: `validateImageInput` caps *input* size (20 MiB) and *input* pixel count (50 MP), but nothing caps the *output* dimensions. bimg's resizer forces an exact resize to the caller-supplied Width/Height, enlarging without bound.
@@ -2657,6 +2697,7 @@ Notes on things checked and deliberately NOT filed (to show coverage of the focu
 Repo: /Users/marten/GolandProjects/noda (main @ beecc16)
 
 ### nodes-1. response.redirect: `/\`-prefixed URL bypasses the protocol-relative open-redirect guard
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.6 / Dimension: security
 - Files: plugins/core/response/redirect.go:54-63
 - Claim: The redirect node blocks protocol-relative `//host` but a URL beginning with `/\` (or `/\/`) passes the `HasPrefix(urlStr, "/")` check and is emitted verbatim in the `Location` header. Browsers normalize backslashes to forward slashes in the authority, so `Location: /\evil.com` navigates to `http://evil.com/` — the exact open-redirect the `//` check was written to prevent.
@@ -2674,6 +2715,7 @@ if !strings.HasPrefix(urlStr, "/") && !strings.HasPrefix(urlStr, "http://") && !
 - Suggested fix: After the CR/LF check, reject any URL whose second character (when the first is `/`) is `/` or `\`; i.e. reject `strings.HasPrefix(urlStr, "//")`, `strings.HasPrefix(urlStr, "/\\")`, and normalize backslashes before the prefix checks. Better: parse with `net/url` and validate scheme/host explicitly.
 
 ### nodes-2. ws.send / sse.send: channel resolved from expression is passed to a wildcard matcher, enabling cross-user / broadcast injection
+- **✅ Shipped 2026-07-06 — PR #278, tranche D (edge & trace hardening).**
 - Severity: Medium / Confidence: 0.55 / Dimension: security
 - Files: plugins/core/ws/send.go:51-63, plugins/core/sse/send.go:51-64 (sink: internal/connmgr/manager.go:190-216 matchConnections / matchWildcard)
 - Claim: `channel` is resolved from a config expression and forwarded to `svc.Send`/`svc.SendSSE` with no validation. The connection manager interprets `*` and `seg.*` as wildcards (`matchConnections`), so a channel value of `*` fans a message out to every connected client and `user.*` to every user's channel. Neither node rejects wildcard metacharacters.
@@ -2793,6 +2835,7 @@ No files were skipped or unreadable.
 Clean-slate review @ main beecc16. Baseline linters assumed clean; findings below are semantic.
 
 ### cmd-misc-1. MCP scaffold and example patterns use a nonexistent `request.*` namespace in route trigger inputs — every generated route 500s
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: High / Confidence: 0.85 / Dimension: correctness
 - Files: internal/mcp/tools.go:979-989 (scaffoldSampleRoute), internal/mcp/tools.go:293 (variableRe), internal/mcp/examples.go:23-35 (crud route), examples.go:94-105 & 180-192 (auth routes), examples.go:264-276 (websocket POST route)
 - Claim: The HTTP route trigger expression context exposes top-level `body`, `params`, `query`, `headers`, `method`, `path`, `auth` (internal/server/trigger.go:92-99 `buildRawRequestContext`); there is no `request` key. Yet the MCP server's scaffolded sample route and the crud/auth/websocket example patterns all use `request.params.*` / `request.body.*`. The compiler runs with `AllowUndefinedVariables` (internal/expr/compiler.go:128), so validation passes, but evaluation fails at request time.
@@ -2819,6 +2862,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Change scaffold + all example route trigger inputs to `{{ params.x }}` / `{{ body.x }}` / `{{ query.x }}`; drop `request` from `variableRe` (or warn on it in route contexts); optionally have `buildRawRequestContext` also expose a `request` alias map for compatibility.
 
 ### cmd-misc-2. `noda auth init` only recognizes services with `"plugin": "db"`, but `noda init` and the MCP scaffold emit `"plugin": "postgres"` — auth init always fails on scaffolded projects
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: High / Confidence: 0.8 / Dimension: correctness
 - Files: cmd/noda/auth_init.go:56-58, 194-208; cmd/noda/templates/noda.json:11; internal/mcp/tools.go:932-934 (scaffoldNodaJSON)
 - Claim: The runtime accepts both the plugin name `"postgres"` and the prefix `"db"` for the database plugin (plugins/db/plugin.go:20-21 `Name()="postgres"`, `Prefix()="db"`; internal/registry/plugins.go:100-113 `GetByName` falls back to prefix). But `runAuthInit` matches only the literal string `"db"`:
@@ -2838,6 +2882,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Resolve the service's plugin through `registry.GetByName`-equivalent matching (accept both `"db"` and `"postgres"`, deriving driver from `config.driver` with `"postgres"` plugin implying driver postgres).
 
 ### cmd-misc-3. `noda migrate` auto-detection matches only `"plugin": "postgres"` — projects using the equally valid `"plugin": "db"` (including the auth flow's own convention) need an explicit --service
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: Medium / Confidence: 0.75 / Dimension: correctness
 - Files: cmd/noda/migrate_service.go:16-38
 - Claim: `postgresServiceNames` filters on `m["plugin"] == "postgres"` only. Projects that configure the same plugin via its prefix (`"plugin": "db"`, `config.driver: "postgres"`) — the form used by examples/auth-demo (`"main-db": {"plugin": "db", "config": {"driver": "postgres", ...}}`) and by all `noda auth init` test fixtures — are not auto-detected, so `noda migrate up` falls back to requiring a service literally named `db`. The doc comment's claim that "the shipped examples (which name it \"main-db\") work without the flag" is false for auth-demo.
@@ -2851,6 +2896,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Treat `"db"` and `"postgres"` as the same plugin during detection (and consider `config.driver` to exclude sqlite-only services, or include them since migrate supports sqlite too).
 
 ### cmd-misc-4. GenerateCRUD tenant scoping (ScopeCol/ScopeParam) is never threaded from the route into workflow input — broken scoping, and update takes the scope value from the request body (tenant bypass)
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: High / Confidence: 0.7 / Dimension: security
 - Files: internal/generate/crud.go:70-92 & 148-177 (route input maps), 357-359 (create), 396-398 (list), 453-458 (get), 490-495 & 507-515 (update), 538-543 (delete); caller: internal/server/editor_codegen.go:232-241
 - Claim: When `ScopeCol`/`ScopeParam` are set (multi-tenant CRUD), every generated workflow references `input.<ScopeParam>` in its `where`/`data`, but no generated route ever maps the URL param into trigger input — the route input maps contain only `id` and body columns. So `input.<ScopeParam>` is nil at runtime. Worse: for update (and create, when the scope column is a model column), the route maps `<col>: {{ body.<col> }}`, so if `ScopeParam` equals the column name (the natural choice), the "scope" value used in the WHERE clause is client-controlled request-body data.
@@ -2873,6 +2919,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Map `opts.ScopeParam: expr("params."+opts.ScopeParam)` into every generated route's trigger input (and exclude the scope column from body-derived input for create/update, or overwrite it after body mapping); exclude `id`/scope from the update `data` payload.
 
 ### cmd-misc-5. MCP example configs are invalid: `util.jwt_sign` missing required `secret` + wrong `expires_in` key; crud example uses nonexistent `"$ref(...)"` string syntax
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: Medium / Confidence: 0.85 / Dimension: correctness
 - Files: internal/mcp/examples.go:137-145 (sign_token node), examples.go:40-44 (validate node)
 - Claim: (a) The auth example's `util.jwt_sign` node omits `secret`, which the node schema marks required (plugins/core/util/jwt.go:40 `"required": []any{"claims", "secret"}`) and whose absence fails at execution (`secret must resolve to a string, got <nil>`); and it uses `"expires_in"` while the node only reads `"expiry"` (jwt.go:89) — so even with a secret added, the `exp` claim is silently never set and tokens never expire. (b) The crud example's `transform.validate` sets `"schema": "$ref(schemas/user.json)"` — a string; the node requires an object (`config["schema"].(map[string]any)`, transform/validate.go:43-45 → `missing required field "schema"`), and Noda's actual ref syntax is the object form `{"$ref": "name"}` (internal/config/refs.go:73-74). There is no `$ref(...)` function syntax.
@@ -2896,6 +2943,7 @@ Clean-slate review @ main beecc16. Baseline linters assumed clean; findings belo
 - Suggested fix: Add `"secret": "{{ secrets.JWT_SECRET }}"` and rename to `"expiry"`; replace the validate schema with the object `{"$ref": "user"}` form or an inline schema.
 
 ### cmd-misc-6. `noda init` and MCP `noda_scaffold_project` silently overwrite existing files (no collision check)
+- **✅ Shipped 2026-07-05 — PR #274, tranche C (scaffold/runtime alignment).**
 - Severity: Medium / Confidence: 0.9 / Dimension: correctness
 - Files: cmd/noda/init.go:86-90; internal/mcp/tools.go:754-784
 - Claim: Both scaffolders write with `os.WriteFile(..., 0644)` into the target directory without checking for existing files — unlike `noda auth init`, which builds the output set and refuses on collision (auth_init.go:127-135). The MCP tool is the more dangerous surface: an agent (mis)pointing `path` at an existing project replaces `noda.json`, `.env`, `docker-compose.yml`, `routes/api.json`, etc. with scaffold content.
