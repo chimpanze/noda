@@ -3,35 +3,59 @@
   "workflow": "auth-resend-verification",
   "tests": [
     {
-      "name": "unverified account gets a fresh token and generic response",
-      "input": { "email": "alice@example.com" },
+      "name": "unknown email: generic 200",
+      "input": { "email": "nobody@example.com" },
       "mocks": {
-        "find_user": { "output": { "id": "user-1", "email": "alice@example.com", "email_verified_at": null } },
-        "check_unverified": { "output_name": "then", "output": true },
-        "verify_token": { "output": { "token": "verify-tok", "expires_at": "2030-01-01T00:00:00Z" } },
-        "send_verify_email": { "output": { "sent": true } },
-        "respond_sent": { "output": { "status": 200 } }
+        "start_ts": { "output": 1000 },
+        "find_user": { "output_name": "not_found", "output": {} },
+        "now_ts_unknown": { "output": 1001 },
+        "pad_unknown": { "output": null },
+        "respond_unknown": { "output": { "status": 200 } }
       },
-      "expect": { "status": "success", "output": { "respond_sent.status": 200 } }
+      "expect": { "status": "success", "output": { "respond_unknown.status": 200 } }
     },
     {
-      "name": "already-verified account gets the identical generic response",
-      "input": { "email": "bob@example.com" },
+      "name": "already verified: identical generic 200",
+      "input": { "email": "alice@example.com" },
       "mocks": {
-        "find_user": { "output": { "id": "user-2", "email": "bob@example.com", "email_verified_at": "2026-01-01T00:00:00Z" } },
-        "check_unverified": { "output_name": "else", "output": false },
+        "start_ts": { "output": 1000 },
+        "find_user": { "output": { "id": "user-1", "email": "alice@example.com", "email_verified_at": "2020-01-01T00:00:00Z" } },
+        "check_unverified": { "output_name": "else", "output": {} },
+        "now_ts_verified": { "output": 1002 },
+        "pad_verified": { "output": null },
         "respond_verified": { "output": { "status": 200 } }
       },
       "expect": { "status": "success", "output": { "respond_verified.status": 200 } }
     },
     {
-      "name": "unknown email gets the identical generic response",
-      "input": { "email": "nobody@example.com" },
+      "name": "unverified: verify email sent, generic 200",
+      "input": { "email": "bob@example.com" },
       "mocks": {
-        "find_user": { "output_name": "not_found", "output": {} },
-        "respond_unknown": { "output": { "status": 200 } }
+        "start_ts": { "output": 1000 },
+        "find_user": { "output": { "id": "user-2", "email": "bob@example.com", "email_verified_at": null } },
+        "check_unverified": { "output_name": "then", "output": {} },
+        "verify_token": { "output": { "token": "verify-tok", "expires_at": "2030-01-01T00:00:00Z" } },
+        "send_verify_email": { "output": { "sent": true } },
+        "now_ts_sent": { "output": 1100 },
+        "pad_sent": { "output": null },
+        "respond_sent": { "output": { "status": 200 } }
       },
-      "expect": { "status": "success", "output": { "respond_unknown.status": 200 } }
+      "expect": { "status": "success", "output": { "respond_sent.status": 200 } }
+    },
+    {
+      "name": "unverified, SMTP send fails: still generic 200 (no failure oracle)",
+      "input": { "email": "bob@example.com" },
+      "mocks": {
+        "start_ts": { "output": 1000 },
+        "find_user": { "output": { "id": "user-2", "email": "bob@example.com", "email_verified_at": null } },
+        "check_unverified": { "output_name": "then", "output": {} },
+        "verify_token": { "output": { "token": "verify-tok", "expires_at": "2030-01-01T00:00:00Z" } },
+        "send_verify_email": { "error": { "message": "smtp unavailable" } },
+        "now_ts_sent": { "output": 1100 },
+        "pad_sent": { "output": null },
+        "respond_sent": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_sent.status": 200 } }
     }
   ]
 }
