@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -9,9 +10,32 @@ import (
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/trace"
+	"github.com/chimpanze/noda/pkg/api"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
+
+// firstError records the first error seen across parallel node goroutines.
+// It replaces a sync/atomic.Value, which panics when errors of different
+// concrete types are stored (even on a losing CompareAndSwap).
+type firstError struct {
+	mu  sync.Mutex
+	err error
+}
+
+func (f *firstError) set(err error) {
+	f.mu.Lock()
+	if f.err == nil {
+		f.err = err
+	}
+	f.mu.Unlock()
+}
+
+func (f *firstError) get() error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.err
+}
 
 // ExecuteGraph runs a compiled workflow graph to completion.
 func ExecuteGraph(
@@ -72,7 +96,7 @@ func ExecuteGraph(
 
 	var (
 		wg       sync.WaitGroup
-		firstErr atomic.Value
+		firstErr firstError
 	)
 
 	// dispatchIfReady launches a goroutine to execute a node.
@@ -113,7 +137,7 @@ func ExecuteGraph(
 					"node_id": node.ID,
 					"error":   err.Error(),
 				})
-				firstErr.CompareAndSwap(nil, err)
+				firstErr.set(err)
 				cancel()
 				return
 			}
@@ -152,7 +176,7 @@ func ExecuteGraph(
 					execCtx.Log("warn", "node error with no error edge", map[string]any{
 						"node_id": nodeID,
 					})
-					firstErr.CompareAndSwap(nil, nodeErr)
+					firstErr.set(nodeErr)
 					cancel()
 					return
 				}
@@ -171,7 +195,7 @@ func ExecuteGraph(
 					}
 					retryOutput, retryErr := retryNode(execCtx2, node, execCtx, services, nodes, edge.Retry)
 					if retryErr != nil {
-						firstErr.CompareAndSwap(nil, retryErr)
+						firstErr.set(retryErr)
 						cancel()
 						return
 					}
@@ -223,11 +247,41 @@ func ExecuteGraph(
 
 	duration := time.Since(startTime)
 
-	if errVal := firstErr.Load(); errVal != nil {
+	// Determine the workflow result: a recorded node error takes precedence;
+	// otherwise a truncated execution (context expired) is itself a failure —
+	// never report success for work that did not complete.
+	resultErr := firstErr.get()
+	if resultErr == nil && execCtx2.Err() != nil {
+		if errors.Is(execCtx2.Err(), context.DeadlineExceeded) {
+			resultErr = &api.TimeoutError{Duration: graph.Timeout, Operation: "workflow " + graph.WorkflowID}
+		} else {
+			resultErr = fmt.Errorf("workflow %q aborted: %w", graph.WorkflowID, execCtx2.Err())
+		}
+	}
+
+	if resultErr == nil {
+		for id, jt := range graph.JoinTypes {
+			if jt != JoinAND {
+				continue
+			}
+			total := graph.DepCount[id]
+			remaining := int(pending[id].Load())
+			// Received at least one leg (remaining < total) but never fired
+			// (an AND-join fires only when remaining reaches 0). remaining == total
+			// means zero legs arrived — a normal unreached branch, not an error.
+			if remaining > 0 && remaining < total {
+				resultErr = fmt.Errorf("workflow %q incomplete: AND-join %q received %d of %d legs and never fired",
+					graph.WorkflowID, id, total-remaining, total)
+				break
+			}
+		}
+	}
+
+	if resultErr != nil {
 		execCtx.Log("info", "workflow failed", map[string]any{
 			"duration": duration.String(),
 		})
-		workflowErr = errVal.(error)
+		workflowErr = resultErr
 		// Record workflow error metrics
 		if m := execCtx.Metrics(); m != nil {
 			wfAttrs := metric.WithAttributes(

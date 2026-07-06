@@ -160,3 +160,29 @@ func TestExecutionContext_EvictOutput(t *testing.T) {
 	_, ok = ctx.GetOutput("temp")
 	assert.False(t, ok)
 }
+
+func TestResolve_EnvCaptureNotCorruptedByConcurrentResolves(t *testing.T) {
+	c := NewExecutionContext(WithInput(map[string]any{"marker": "orig"}))
+	// Capture the whole environment map via $env (expr-lang exposes it by reference).
+	captured, err := c.Resolve("{{ $env }}")
+	require.NoError(t, err)
+	capturedMap, ok := captured.(map[string]any)
+	require.True(t, ok)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = c.Resolve("{{ input.marker }}")
+		}()
+	}
+	// Read the captured map concurrently with the Resolves above.
+	for i := 0; i < 50; i++ {
+		_ = capturedMap["input"]
+	}
+	wg.Wait()
+
+	// Under the pool, capturedMap was recycled/cleared by a concurrent Resolve.
+	require.Contains(t, capturedMap, "input", "captured $env map must remain intact")
+}

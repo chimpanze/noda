@@ -1,6 +1,9 @@
 package engine
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // ValidateOutputExclusivity checks that all workflow.output nodes in a graph
 // are on mutually exclusive branches (i.e., only one can fire per execution).
@@ -77,7 +80,13 @@ func areMutuallyExclusive(graph *CompiledGraph, nodeA, nodeB string) bool {
 
 // findOutputLeadingTo finds which output of ancestor eventually leads to target.
 func findOutputLeadingTo(graph *CompiledGraph, ancestor, target string) string {
-	for outputName, targets := range graph.Adjacency[ancestor] {
+	names := make([]string, 0, len(graph.Adjacency[ancestor]))
+	for n := range graph.Adjacency[ancestor] {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	for _, outputName := range names {
+		targets := graph.Adjacency[ancestor][outputName]
 		visited := make(map[string]bool)
 		queue := make([]string, len(targets))
 		copy(queue, targets)
