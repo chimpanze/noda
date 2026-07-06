@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -276,8 +277,17 @@ func TestScratch_PasswordResetPadExpressionResolvesUnmocked(t *testing.T) {
 	require.NoError(t, err)
 
 	execCtx := engine.NewExecutionContext()
+	start := time.Now()
 	err = engine.ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	elapsed := time.Since(start)
 	require.NoError(t, err, "real util.timestamp -> util.delay pad expression must resolve without error")
+
+	// Duration floor: the pad must actually wait toward the ~50ms deadline. This
+	// guards against a regression where the pad expression silently resolves to
+	// "0ms" (e.g. swapped operands or a broken ternary) — which would still reach
+	// respond_unknown at 200 and pass a status-only assertion.
+	assert.GreaterOrEqual(t, elapsed, 40*time.Millisecond,
+		"pad delay must approach the 50ms deadline; got %s (expression may have resolved to ~0ms)", elapsed)
 
 	out, ok := execCtx.GetOutput("respond_unknown")
 	require.True(t, ok, "respond_unknown must have run")
