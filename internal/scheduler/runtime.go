@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
@@ -64,6 +65,8 @@ type Runtime struct {
 	cron    *cron.Cron
 	mu      sync.RWMutex
 	history []JobRun
+
+	running map[string]*atomic.Bool // per-schedule same-instance overlap guard (keyed by schedule ID)
 }
 
 // NewRuntime creates a new scheduler runtime.
@@ -85,6 +88,10 @@ func NewRuntime(
 	if compiler == nil {
 		compiler = expr.NewCompilerWithFunctions()
 	}
+	running := make(map[string]*atomic.Bool, len(schedules))
+	for _, sc := range schedules {
+		running[sc.ID] = &atomic.Bool{}
+	}
 	return &Runtime{
 		schedules:      schedules,
 		services:       services,
@@ -95,6 +102,7 @@ func NewRuntime(
 		tracer:         tracer,
 		logger:         logger,
 		secretsContext: secretsContext,
+		running:        running,
 	}
 }
 
@@ -190,6 +198,14 @@ func scheduleLockKey(id string, t time.Time) string {
 
 // runJob executes a single scheduled job with optional distributed locking.
 func (r *Runtime) runJob(sc ScheduleConfig) {
+	if guard := r.running[sc.ID]; guard != nil {
+		if !guard.CompareAndSwap(false, true) {
+			r.logger.Warn("scheduler: skipping overlapping run", "schedule_id", sc.ID, "cron", sc.Cron)
+			return
+		}
+		defer guard.Store(false)
+	}
+
 	start := time.Now()
 	traceID := uuid.New().String()
 

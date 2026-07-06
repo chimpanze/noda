@@ -515,3 +515,15 @@ func TestRuntime_MultipleJobs(t *testing.T) {
 		return foundA && foundB
 	}, 5*time.Second, 100*time.Millisecond)
 }
+
+func TestRunJob_SkipsOverlappingRun(t *testing.T) {
+	sc := ScheduleConfig{ID: "s1", Cron: "* * * * * *", WorkflowID: "wf"}
+	rt := NewRuntime([]ScheduleConfig{sc}, nil, nil, nil, nil, nil, nil, nil, nil)
+	// Simulate a run already in progress on this instance.
+	rt.running["s1"].Store(true)
+
+	before := len(rt.jobHistory())
+	rt.runJob(sc) // must skip immediately: no lock, no workflow, no history entry
+	require.Equal(t, before, len(rt.jobHistory()), "overlapping run must be skipped (no new history)")
+	require.True(t, rt.running["s1"].Load(), "the guard owned by the in-progress run stays set")
+}
