@@ -31,6 +31,7 @@ func TestMapErrorToHTTP_ConflictError(t *testing.T) {
 	status, resp := MapErrorToHTTP(err, "", false)
 	assert.Equal(t, 409, status)
 	assert.Equal(t, "CONFLICT", resp.Error.Code)
+	assert.Equal(t, "conflict on user", resp.Error.Message)
 }
 
 func TestMapErrorToHTTP_ServiceUnavailableError(t *testing.T) {
@@ -38,6 +39,28 @@ func TestMapErrorToHTTP_ServiceUnavailableError(t *testing.T) {
 	status, resp := MapErrorToHTTP(err, "", false)
 	assert.Equal(t, 503, status)
 	assert.Equal(t, "SERVICE_UNAVAILABLE", resp.Error.Code)
+	assert.Equal(t, "service unavailable: db", resp.Error.Message)
+}
+
+func TestMapErrorToHTTP_ConflictGatedOnDevMode(t *testing.T) {
+	cf := &api.ConflictError{Resource: "users", Reason: `duplicate key value violates unique constraint "users_email_key" (email)=(a@b.com)`}
+	// production: no raw driver detail
+	status, resp := MapErrorToHTTP(cf, "trace-1", false)
+	assert.Equal(t, 409, status)
+	assert.NotContains(t, resp.Error.Message, "users_email_key")
+	assert.NotContains(t, resp.Error.Message, "a@b.com")
+	assert.Contains(t, resp.Error.Message, "users") // resource name is fine
+	// dev: full detail
+	_, devResp := MapErrorToHTTP(cf, "trace-1", true)
+	assert.Contains(t, devResp.Error.Message, "users_email_key")
+}
+
+func TestMapErrorToHTTP_ServiceUnavailableGatedOnDevMode(t *testing.T) {
+	su := &api.ServiceUnavailableError{Service: "db", Cause: errors.New("dial tcp 10.0.0.5:5432: connection refused")}
+	_, resp := MapErrorToHTTP(su, "t", false)
+	assert.NotContains(t, resp.Error.Message, "10.0.0.5")
+	_, devResp := MapErrorToHTTP(su, "t", true)
+	assert.Contains(t, devResp.Error.Message, "10.0.0.5")
 }
 
 func TestMapErrorToHTTP_TimeoutError(t *testing.T) {

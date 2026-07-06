@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/pkg/api"
@@ -56,19 +57,27 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 		}
 	case errors.As(err, &cfErr):
 		status = 409
+		msg := fmt.Sprintf("conflict on %s", cfErr.Resource)
+		if devMode {
+			msg = cfErr.Error()
+		}
 		resp = ErrorResponse{
 			Error: api.ErrorData{
 				Code:    "CONFLICT",
-				Message: cfErr.Error(),
+				Message: msg,
 				TraceID: traceID,
 			},
 		}
 	case errors.As(err, &suErr):
 		status = 503
+		msg := fmt.Sprintf("service unavailable: %s", suErr.Service)
+		if devMode {
+			msg = suErr.Error()
+		}
 		resp = ErrorResponse{
 			Error: api.ErrorData{
 				Code:    "SERVICE_UNAVAILABLE",
-				Message: suErr.Error(),
+				Message: msg,
 				TraceID: traceID,
 			},
 		}

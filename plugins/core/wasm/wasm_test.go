@@ -45,7 +45,7 @@ func newMockPlugin() *mockPlugin {
 	}
 }
 
-func (m *mockPlugin) Call(name string, data []byte) (uint32, []byte, error) {
+func (m *mockPlugin) CallWithContext(_ context.Context, name string, data []byte) (uint32, []byte, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, mockCall{Name: name, Data: data})
 	resp, ok := m.responses[name]

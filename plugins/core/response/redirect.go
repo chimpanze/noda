@@ -54,8 +54,9 @@ func (e *redirectExecutor) Execute(_ context.Context, nCtx api.ExecutionContext,
 	if strings.ContainsAny(urlStr, "\r\n") {
 		return "", nil, fmt.Errorf("response.redirect: url contains invalid characters")
 	}
-	// Reject open redirect via protocol-relative URLs or other schemes
-	if strings.HasPrefix(urlStr, "//") {
+	// Reject open redirect via protocol-relative URLs. Browsers normalize
+	// backslashes to forward slashes, so "/\evil.com" is also protocol-relative.
+	if len(urlStr) >= 2 && urlStr[0] == '/' && (urlStr[1] == '/' || urlStr[1] == '\\') {
 		return "", nil, fmt.Errorf("response.redirect: url must start with /, http://, or https://")
 	}
 	if !strings.HasPrefix(urlStr, "/") && !strings.HasPrefix(urlStr, "http://") && !strings.HasPrefix(urlStr, "https://") {

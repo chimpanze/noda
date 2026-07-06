@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -51,6 +52,10 @@ func (e *sendExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	channel, err := plugin.ResolveString(nCtx, config, "channel")
 	if err != nil {
 		return "", nil, fmt.Errorf("ws.send: %w", err)
+	}
+
+	if strings.Contains(channel, "*") {
+		return "", nil, fmt.Errorf("ws.send: channel must be a literal name, not a pattern")
 	}
 
 	data, err := plugin.ResolveDeepAny(nCtx, config, "data")

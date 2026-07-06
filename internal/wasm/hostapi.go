@@ -4,10 +4,22 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 )
+
+// classifyError maps a dispatcher error to a wire error code based on its prefix.
+func classifyError(err error) string {
+	msg := err.Error()
+	for _, code := range []string{"PERMISSION_DENIED", "VALIDATION_ERROR", "SERVICE_UNAVAILABLE", "NOT_FOUND"} {
+		if strings.HasPrefix(msg, code) {
+			return code
+		}
+	}
+	return "INTERNAL_ERROR"
+}
 
 // requireString extracts a required string value from a payload map.
 // Returns an error if the key is missing or not a string.
@@ -105,7 +117,7 @@ func (d *HostDispatcher) CallAsync(ctx context.Context, req HostCallRequest) err
 	d.module.outstandingCalls.Add(1)
 	go func() {
 		defer d.module.outstandingCalls.Done()
-		result, err := d.Call(d.module.lifecycleCtx, HostCallRequest{
+		result, err := d.Call(d.module.shutdownCtx, HostCallRequest{
 			Service:   req.Service,
 			Operation: req.Operation,
 			Payload:   req.Payload,
@@ -173,7 +185,7 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 			d.module.outstandingCalls.Add(1)
 			go func() {
 				defer d.module.outstandingCalls.Done()
-				_ = d.runner(d.module.lifecycleCtx, workflowID, input)
+				_ = d.runner(d.module.shutdownCtx, workflowID, input)
 			}()
 		}
 		return map[string]any{"status": "triggered"}, nil
@@ -183,12 +195,9 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		if err != nil {
 			return nil, err
 		}
-		intervalMs := int64(0)
-		if v, ok := payload["interval"].(float64); ok {
-			intervalMs = int64(v)
-		}
-		if intervalMs <= 0 {
-			return nil, fmt.Errorf("VALIDATION_ERROR: interval must be positive")
+		intervalMs, ok := toInt64(payload["interval_ms"])
+		if !ok || intervalMs <= 0 {
+			return nil, fmt.Errorf("VALIDATION_ERROR: interval_ms must be a positive number")
 		}
 		d.module.SetTimer(name, intervalMs)
 		return nil, nil
@@ -260,7 +269,7 @@ func (d *HostDispatcher) dispatchCache(ctx context.Context, svc api.CacheService
 		}
 		value := payload["value"]
 		ttl := 0
-		if v, ok := payload["ttl"].(float64); ok {
+		if v, ok := toInt64(payload["ttl"]); ok {
 			ttl = int(v)
 		}
 		return nil, svc.Set(ctx, key, value, ttl)
@@ -329,12 +338,18 @@ func (d *HostDispatcher) dispatchConnection(ctx context.Context, svc api.Connect
 		if err != nil {
 			return nil, err
 		}
+		if strings.Contains(channel, "*") {
+			return nil, fmt.Errorf("VALIDATION_ERROR: channel must be a literal name, not a pattern")
+		}
 		data := payload["data"]
 		return nil, svc.Send(ctx, channel, data)
 	case "send_sse":
 		channel, err := requireString(payload, "channel")
 		if err != nil {
 			return nil, err
+		}
+		if strings.Contains(channel, "*") {
+			return nil, fmt.Errorf("VALIDATION_ERROR: channel must be a literal name, not a pattern")
 		}
 		event := optionalString(payload, "event")
 		data := payload["data"]

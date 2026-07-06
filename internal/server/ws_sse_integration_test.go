@@ -206,8 +206,12 @@ type sseTestEvent struct {
 	ID    string
 }
 
-// TestE2E_WebSocketWildcardBroadcast tests: ws.send with wildcard channel delivers to multiple clients.
-func TestE2E_WebSocketWildcardBroadcast(t *testing.T) {
+// TestE2E_WebSocketWildcardBroadcastRejected tests: ws.send with a wildcard
+// channel is rejected end-to-end (wildcard broadcast is no longer supported;
+// see the "Security" changelog entry for edge & trace hardening) — the node
+// errors, the workflow fails, and no client on a matching literal channel
+// receives anything.
+func TestE2E_WebSocketWildcardBroadcastRejected(t *testing.T) {
 	mgr := connmgr.NewManager()
 	svc := connmgr.NewEndpointService(mgr, "ws-broadcast")
 
@@ -280,16 +284,13 @@ func TestE2E_WebSocketWildcardBroadcast(t *testing.T) {
 
 	resp, err := srv.App().Test(req)
 	require.NoError(t, err)
-	assert.Equal(t, 200, resp.StatusCode)
+	assert.Equal(t, 500, resp.StatusCode, "wildcard channel must fail the workflow, not broadcast")
 
-	// All 3 clients should receive the message
-	for i := 0; i < 3; i++ {
-		select {
-		case msg := <-received:
-			assert.Equal(t, "broadcast!", msg)
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timeout waiting for message %d", i+1)
-		}
+	// No client should have received anything.
+	select {
+	case msg := <-received:
+		t.Fatalf("unexpected message delivered via rejected wildcard send: %q", msg)
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 

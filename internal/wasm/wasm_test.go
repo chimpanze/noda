@@ -66,7 +66,7 @@ func newMockPlugin() *mockPlugin {
 	}
 }
 
-func (m *mockPlugin) Call(name string, data []byte) (uint32, []byte, error) {
+func (m *mockPlugin) CallWithContext(_ context.Context, name string, data []byte) (uint32, []byte, error) {
 	m.mu.Lock()
 	m.calls = append(m.calls, mockCall{Name: name, Data: data})
 	resp, ok := m.responses[name]
@@ -105,6 +105,75 @@ func (m *mockPlugin) getCalls(name string) []mockCall {
 
 func testLogger() *slog.Logger {
 	return slog.Default()
+}
+
+// blockingPlugin simulates a guest export that only stops when its context
+// is cancelled — used to prove callWithTimeout is interruptible and runs
+// synchronously (inline) rather than spawning an abandoned goroutine.
+type blockingPlugin struct {
+	mockPlugin
+	started chan struct{}
+}
+
+func (b *blockingPlugin) CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error) {
+	close(b.started)
+	<-ctx.Done() // simulate a guest that only stops when the context is cancelled
+	return 0, nil, ctx.Err()
+}
+
+func TestCallWithTimeout_InterruptibleAndSynchronous(t *testing.T) {
+	bp := &blockingPlugin{mockPlugin: *newMockPlugin(), started: make(chan struct{})}
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "b", TickTimeout: 20 * time.Millisecond}, bp)
+	require.NoError(t, err)
+
+	start := time.Now()
+	_, _, callErr := m.callWithTimeout(m.shutdownCtx, "tick", []byte("{}"), 20*time.Millisecond)
+	require.Error(t, callErr)
+	require.Less(t, time.Since(start), 500*time.Millisecond, "must return at the deadline, not hang")
+	<-bp.started // proves the call actually ran inline
+}
+
+// concurrencyPlugin fails the test if two CallWithContext run at once.
+type concurrencyPlugin struct {
+	mockPlugin
+	inFlight  atomic.Int32
+	maxSeen   atomic.Int32
+	hangQuery bool
+}
+
+func (c *concurrencyPlugin) CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error) {
+	n := c.inFlight.Add(1)
+	if n > c.maxSeen.Load() {
+		c.maxSeen.Store(n)
+	}
+	defer c.inFlight.Add(-1)
+	if c.hangQuery && name == "query" {
+		<-ctx.Done()
+		return 0, nil, ctx.Err()
+	}
+	time.Sleep(time.Millisecond)
+	return 0, nil, nil
+}
+
+func TestGuestCalls_NeverConcurrent_AndHungQueryDoesNotDeadlockStop(t *testing.T) {
+	cp := &concurrencyPlugin{mockPlugin: *newMockPlugin(), hangQuery: true}
+	cp.exports["query"] = true
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "c", TickRate: 60, TickTimeout: 10 * time.Millisecond}, cp)
+	m.Start()
+	// fire a query that hangs; it must time out, not wedge the loop
+	go func() { _, _ = m.Query(context.Background(), map[string]any{}, 20*time.Millisecond) }()
+	time.Sleep(50 * time.Millisecond)
+
+	done := make(chan error, 1)
+	go func() { done <- m.Stop(context.Background()) }()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Stop deadlocked on a hung query")
+	}
+	require.LessOrEqual(t, cp.maxSeen.Load(), int32(1), "guest calls overlapped")
 }
 
 // --- Encoding Tests ---
@@ -147,6 +216,17 @@ func TestCodec_Default(t *testing.T) {
 func TestCodec_Unknown(t *testing.T) {
 	_, err := NewCodec("xml")
 	assert.Error(t, err)
+}
+
+func TestBuildManifest_DefaultMemoryCap(t *testing.T) {
+	man := buildManifest(ModuleConfig{}, []byte{0x00})
+	require.NotNil(t, man.Memory)
+	require.Equal(t, uint32(defaultMemoryPages), man.Memory.MaxPages)
+	require.Greater(t, man.Timeout, uint64(0))
+
+	man2 := buildManifest(ModuleConfig{MemoryPages: 512}, []byte{0x00})
+	require.NotNil(t, man2.Memory)
+	require.Equal(t, uint32(512), man2.Memory.MaxPages)
 }
 
 // --- Module Tests ---
@@ -444,6 +524,19 @@ func TestModule_SendCommand_Buffered(t *testing.T) {
 	assert.True(t, commandDelivered, "command should be delivered in tick")
 }
 
+func TestSendCommand_RoutesToCommandExport(t *testing.T) {
+	mp := newMockPlugin()
+	mp.exports["query"] = true
+	mp.exports["command"] = true
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "cmd", TickRate: 60}, mp)
+	m.Start()
+	defer func() { _ = m.Stop(context.Background()) }()
+	m.SendCommand(map[string]any{"hello": "world"})
+	require.Eventually(t, func() bool { return len(mp.getCalls("command")) > 0 }, time.Second, 5*time.Millisecond)
+	require.Empty(t, mp.getCalls("query"), "command must not be routed to query")
+}
+
 func TestModule_IsServiceAllowed(t *testing.T) {
 	plugin := newMockPlugin()
 	svcReg := registry.NewServiceRegistry()
@@ -495,7 +588,7 @@ func TestHostDispatcher_SystemTimer(t *testing.T) {
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
 		Operation: "set_timer",
-		Payload:   map[string]any{"name": "save", "interval": float64(5000)},
+		Payload:   map[string]any{"name": "save", "interval_ms": float64(5000)},
 	})
 	require.NoError(t, err)
 
@@ -515,6 +608,21 @@ func TestHostDispatcher_SystemTimer(t *testing.T) {
 	_, exists = m.timers["save"]
 	m.mu.Unlock()
 	assert.False(t, exists)
+}
+
+func TestSetTimer_ReadsIntervalMs(t *testing.T) {
+	rt := NewRuntime(registry.NewServiceRegistry(), nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "t"}, newMockPlugin())
+	d := &HostDispatcher{module: m, logger: testLogger()}
+	_, err := d.handleSystemOp(context.Background(), HostCallRequest{
+		Operation: "set_timer",
+		Payload:   map[string]any{"name": "beat", "interval_ms": float64(100)},
+	})
+	require.NoError(t, err)
+	m.mu.Lock()
+	_, exists := m.timers["beat"]
+	m.mu.Unlock()
+	require.True(t, exists, "timer should be registered from interval_ms")
 }
 
 func TestHostDispatcher_TriggerWorkflow(t *testing.T) {
@@ -756,8 +864,9 @@ func TestWasmService_SendCommand(t *testing.T) {
 // --- Mock Services ---
 
 type mockCacheService struct {
-	mu    sync.Mutex
-	store map[string]any
+	mu      sync.Mutex
+	store   map[string]any
+	lastTTL int
 }
 
 func (m *mockCacheService) Get(_ context.Context, key string) (any, error) {
@@ -770,10 +879,11 @@ func (m *mockCacheService) Get(_ context.Context, key string) (any, error) {
 	return v, nil
 }
 
-func (m *mockCacheService) Set(_ context.Context, key string, value any, _ int) error {
+func (m *mockCacheService) Set(_ context.Context, key string, value any, ttl int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.store[key] = value
+	m.lastTTL = ttl
 	return nil
 }
 
@@ -1019,6 +1129,52 @@ func TestHostDispatcher_ConnectionService(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unknown connection operation")
+}
+
+func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	connSvc := &mockConnectionService{}
+	require.NoError(t, svcReg.Register("ws-conn", connSvc, nil))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+	_, _ = NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 1,
+		Services: []string{"ws-conn"},
+	}, dispatcher, testLogger())
+
+	for _, channel := range []string{"*", "user.*"} {
+		// send
+		_, err := dispatcher.Call(context.Background(), HostCallRequest{
+			Service:   "ws-conn",
+			Operation: "send",
+			Payload:   map[string]any{"channel": channel, "data": "hello"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "VALIDATION_ERROR")
+
+		// send_sse
+		_, err = dispatcher.Call(context.Background(), HostCallRequest{
+			Service:   "ws-conn",
+			Operation: "send_sse",
+			Payload:   map[string]any{"channel": channel, "event": "score", "data": "100"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "VALIDATION_ERROR")
+	}
+
+	assert.Empty(t, connSvc.sent, "wildcard channel must not reach ConnectionService.Send")
+	assert.Empty(t, connSvc.sentSSE, "wildcard channel must not reach ConnectionService.SendSSE")
+
+	// Literal channel still works.
+	_, err := dispatcher.Call(context.Background(), HostCallRequest{
+		Service:   "ws-conn",
+		Operation: "send",
+		Payload:   map[string]any{"channel": "game.1", "data": "hello"},
+	})
+	require.NoError(t, err)
+	assert.Len(t, connSvc.sent, 1)
 }
 
 // --- Host Dispatcher: Stream dispatch ---
@@ -1440,10 +1596,10 @@ func TestHostDispatcher_SetTimer_InvalidInterval(t *testing.T) {
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
 		Operation: "set_timer",
-		Payload:   map[string]any{"name": "test", "interval": float64(-100)},
+		Payload:   map[string]any{"name": "test", "interval_ms": float64(-100)},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "interval must be positive")
+	assert.Contains(t, err.Error(), "interval_ms must be a positive number")
 }
 
 // --- System ops: clear_timer missing name ---
@@ -1825,10 +1981,10 @@ func TestHostDispatcher_SetTimer_ZeroInterval(t *testing.T) {
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
 		Service:   "",
 		Operation: "set_timer",
-		Payload:   map[string]any{"name": "test", "interval": float64(0)},
+		Payload:   map[string]any{"name": "test", "interval_ms": float64(0)},
 	})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "interval must be positive")
+	assert.Contains(t, err.Error(), "interval_ms must be a positive number")
 }
 
 // --- Runtime: StartAll with initialize error ---
@@ -1864,6 +2020,37 @@ func TestModule_Tick_PluginCallError(t *testing.T) {
 	time.Sleep(150 * time.Millisecond)
 	require.NoError(t, m.Stop(context.Background()))
 	// Should not crash despite tick errors
+}
+
+// TestModule_Tick_GuestErrorDoesNotFailModule proves that a plain guest-side
+// tick error (e.g. a wasm trap, or the guest returning noda.Fail/noda.FailMsg)
+// — one NOT caused by the call's context deadline firing — is logged and the
+// tick loop keeps running instead of permanently marking the module failed.
+// The instance is still alive in this case (mockPlugin never touches ctx), so
+// a subsequent Query must still succeed.
+func TestModule_Tick_GuestErrorDoesNotFailModule(t *testing.T) {
+	plugin := newMockPlugin()
+	plugin.responses["tick"] = mockResponse{err: fmt.Errorf("guest returned noda.Fail")}
+	plugin.responses["query"] = mockResponse{data: []byte(`{"ok":true}`)}
+	plugin.exports["query"] = true
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 20}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+
+	m.Start()
+	defer func() { _ = m.Stop(context.Background()) }()
+
+	time.Sleep(150 * time.Millisecond)
+
+	require.False(t, m.failed.Load(), "a recoverable guest tick error must not mark the module failed")
+
+	// The loop must still be alive and servicing queries.
+	result, err := m.Query(context.Background(), map[string]any{"q": "test"}, 2*time.Second)
+	require.NoError(t, err)
+	_ = result
 }
 
 func TestModule_Tick_NonZeroExitCode(t *testing.T) {
@@ -2197,7 +2384,7 @@ func TestModule_CallWithTimeout(t *testing.T) {
 	m, _ := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 1}, dispatcher, testLogger())
 
 	// Normal call should succeed quickly
-	_, _, err := m.callWithTimeout("initialize", []byte("{}"), 1*time.Second)
+	_, _, err := m.callWithTimeout(m.shutdownCtx, "initialize", []byte("{}"), 1*time.Second)
 	require.NoError(t, err)
 }
 
@@ -3020,11 +3207,27 @@ func newSlowMockPlugin() *slowMockPlugin {
 	}
 }
 
-func (s *slowMockPlugin) Call(name string, data []byte) (uint32, []byte, error) {
+// CallWithContext records the call immediately (a real guest call has
+// "started" the moment it's invoked, even if it then hangs), then simulates
+// a slow/hanging guest by delaying — honoring ctx cancellation so a timed-out
+// call actually returns promptly instead of blocking the caller.
+func (s *slowMockPlugin) CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error) {
+	s.mu.Lock()
+	s.calls = append(s.calls, mockCall{Name: name, Data: data})
+	resp, ok := s.responses[name]
+	s.mu.Unlock()
+
 	if d, ok := s.delays[name]; ok {
-		time.Sleep(d)
+		select {
+		case <-time.After(d):
+		case <-ctx.Done():
+			return 0, nil, ctx.Err()
+		}
 	}
-	return s.mockPlugin.Call(name, data)
+	if ok {
+		return resp.exitCode, resp.data, resp.err
+	}
+	return 0, nil, nil
 }
 
 func TestModule_Tick_HangingTickKilledByTimeout(t *testing.T) {
@@ -3193,7 +3396,7 @@ func TestModule_QueryOnly(t *testing.T) {
 // test knows the host call is in flight.
 //
 // Crucially, Get does NOT honour context cancellation. This means when
-// Module.Stop cancels lifecycleCtx, the in-flight goroutine is NOT released
+// Module.Stop cancels shutdownCtx, the in-flight goroutine is NOT released
 // via ctx.Done(). Only closing release unblocks it. This forces Stop to
 // genuinely wait at outstandingCalls.Wait() — proving that the Add(1)/Done()
 // fix in CallAsync is what keeps Stop blocked, not lifecycle cancellation.
@@ -3251,7 +3454,7 @@ func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 	// outstandingCalls.Wait() because:
 	//  - CallAsync's Add(1) means the WG counter is non-zero
 	//  - blockingCacheService.Get does not honor ctx.Done(), so
-	//    lifecycleCancel() does NOT release the goroutine
+	//    shutdownCancel() does NOT release the goroutine
 	// Without the fix (no Add(1)), Wait returns immediately and Stop
 	// completes — at which point the still-running goroutine eventually
 	// wakes after `release` is closed and either panics on the cleared
@@ -3284,4 +3487,232 @@ func TestModule_StopWhileCallAsyncInFlight(t *testing.T) {
 		t.Fatal("Stop did not complete after release; outstandingCalls Wait may have hung")
 	}
 	// goleak.VerifyNone (deferred above) verifies the async goroutine exited.
+}
+
+func TestHostCall_ErrorEnvelope(t *testing.T) {
+	code := classifyError(fmt.Errorf("PERMISSION_DENIED: service \"x\" not allowed"))
+	require.Equal(t, "PERMISSION_DENIED", code)
+	require.Equal(t, "INTERNAL_ERROR", classifyError(fmt.Errorf("boom")))
+}
+
+func TestToInt64_Coercion(t *testing.T) {
+	for _, v := range []any{
+		float64(42), float32(42),
+		int64(42), int32(42), int16(42), int8(42), int(42),
+		uint64(42), uint32(42), uint16(42), uint8(42), uint(42),
+		json.Number("42"),
+	} {
+		got, ok := toInt64(v)
+		require.True(t, ok, "%T", v)
+		require.Equal(t, int64(42), got)
+	}
+	_, ok := toInt64("nope")
+	require.False(t, ok)
+}
+
+func TestToFloat_Coercion(t *testing.T) {
+	for _, v := range []any{
+		float64(42), float32(42),
+		int64(42), int32(42), int16(42), int8(42), int(42),
+		uint64(42), uint32(42), uint16(42), uint8(42), uint(42),
+		json.Number("42"),
+	} {
+		got, ok := toFloat(v)
+		require.True(t, ok, "%T", v)
+		require.Equal(t, float64(42), got)
+	}
+	_, ok := toFloat("nope")
+	require.False(t, ok)
+}
+
+// TestHostCall_Msgpack verifies that a payload decoded from msgpack (where
+// numbers arrive as int64 rather than JSON's float64) still works for
+// operations that assert on numeric fields, such as cache.set's ttl.
+func TestHostCall_Msgpack(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	cache := &mockCacheService{store: make(map[string]any)}
+	require.NoError(t, svcReg.Register("app-cache", cache, nil))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+	_, err := NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 1,
+		Services: []string{"app-cache"},
+		Encoding: "msgpack",
+	}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	codec := &msgpackCodec{}
+	raw, err := codec.Marshal(map[string]any{"key": "score", "value": 100, "ttl": 60})
+	require.NoError(t, err)
+
+	// Decode via the same codec a msgpack-configured module would use for
+	// its host-call payload. msgpack picks the narrowest integer type for
+	// the wire value, so small numbers like ttl=60 decode as int8 rather
+	// than the float64 that JSON would have produced.
+	var payload map[string]any
+	require.NoError(t, codec.Unmarshal(raw, &payload))
+	require.NotEqual(t, float64(0), payload["ttl"])
+	require.IsType(t, int8(0), payload["ttl"])
+
+	_, err = dispatcher.Call(context.Background(), HostCallRequest{
+		Service:   "app-cache",
+		Operation: "set",
+		Payload:   payload,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 60, cache.lastTTL)
+}
+
+// blockingCacheServiceMulti is a test-only cache service whose Get blocks
+// until release is closed, while signaling started each time it's called.
+type blockingCacheServiceMulti struct {
+	release chan struct{}
+	started atomic.Int32
+}
+
+func (s *blockingCacheServiceMulti) Get(_ context.Context, _ string) (any, error) {
+	s.started.Add(1)
+	<-s.release
+	return "ok", nil
+}
+func (s *blockingCacheServiceMulti) Set(_ context.Context, _ string, _ any, _ int) error { return nil }
+func (s *blockingCacheServiceMulti) Del(_ context.Context, _ string) error               { return nil }
+func (s *blockingCacheServiceMulti) Exists(_ context.Context, _ string) (bool, error) {
+	return false, nil
+}
+
+// TestNoRaceOnShutdownCtx verifies that concurrent async host calls during
+// module shutdown do not race on the shutdownCtx field. This is a regression
+// test for wasm-pdk-7: the old code reassigned m.lifecycleCtx in Stop(),
+// which created a data race with async goroutines reading it. The fix ensures
+// shutdownCtx is created once in NewModule and never reassigned; async
+// goroutines capture it, and Stop's shutdown export call uses a fresh context.
+// This test uses a blocking cache service to ensure CallAsync goroutines are
+// in-flight when Stop() is called, forcing concurrent operations on the module.
+func TestNoRaceOnShutdownCtx(t *testing.T) {
+	release := make(chan struct{})
+	bsvc := &blockingCacheServiceMulti{release: release}
+
+	svcReg := registry.NewServiceRegistry()
+	require.NoError(t, svcReg.Register("blocker", bsvc, nil))
+
+	mp := newMockPlugin()
+	rt := NewRuntime(svcReg, nil, testLogger())
+	m, _ := rt.LoadModuleWithPlugin(ModuleConfig{Name: "r", Services: []string{"blocker"}}, mp)
+	d := m.dispatcher
+	m.Start()
+
+	// Fire 20 async calls that block on release
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			_ = d.CallAsync(context.Background(), HostCallRequest{
+				Service: "blocker", Operation: "get", Label: fmt.Sprintf("l%d", i),
+				Payload: map[string]any{"key": "x"},
+			})
+		}(i)
+	}
+
+	// Wait for async calls to start entering the blocking service
+	deadline := time.Now().Add(5 * time.Second)
+	for bsvc.started.Load() < 20 && time.Now().Before(deadline) {
+		time.Sleep(1 * time.Millisecond)
+	}
+
+	// Now call Stop while async calls are in-flight
+	_ = m.Stop(context.Background())
+
+	// Release the blocking calls
+	close(release)
+	wg.Wait()
+}
+
+// mirrorEnvelope mirrors the PDK's envelopeAny (pdk/go/noda/host.go) field-for-field,
+// including json/msgpack tags, so this test locks the wire shape the PDK's
+// decodeEnvelope() depends on: {"ok":bool,"data":any,"error":{"code","message"}}.
+type mirrorEnvelope struct {
+	OK    bool `json:"ok" msgpack:"ok"`
+	Data  any  `json:"data,omitempty" msgpack:"data,omitempty"`
+	Error *struct {
+		Code    string `json:"code" msgpack:"code"`
+		Message string `json:"message" msgpack:"message"`
+	} `json:"error,omitempty" msgpack:"error,omitempty"`
+}
+
+// TestHostPDKEnvelopeContract locks the host<->PDK wire agreement for the
+// {"ok","data","error"} envelope (wasm-pdk-3/wasm-pdk-4) across both codecs
+// the runtime supports. It does NOT load a compiled .wasm module — CI has no
+// tinygo and *.wasm is gitignored, so no test here can exercise the real
+// guest binary. Instead it round-trips the exact envelope shapes the host
+// writes (see runtime.go's writeEnvelope calls) through the same codecs
+// (jsonCodec/msgpackCodec) and decodes them into a struct mirroring the PDK's
+// envelopeAny, verifying field names/nesting/types survive both encodings.
+// This is the CI-safe regression guard; the true cross-binary proof is a
+// local `tinygo build` of the example guest modules against the updated PDK
+// (done manually per the Task 11 brief, since CI cannot run tinygo).
+//
+// Note: a *void* success (host handler returns nil result) is represented by
+// stack[0]==0 on the wasm stack, not by an envelope at all — call() in the
+// PDK short-circuits that case to (nil, nil) before decodeEnvelope ever runs.
+// That path has no envelope shape to test here.
+func TestHostPDKEnvelopeContract(t *testing.T) {
+	codecs := map[string]Codec{
+		"json":    &jsonCodec{},
+		"msgpack": &msgpackCodec{},
+	}
+
+	for name, codec := range codecs {
+		t.Run(name, func(t *testing.T) {
+			t.Run("error envelope", func(t *testing.T) {
+				// Exact shape the host writes on dispatch failure (runtime.go).
+				src := map[string]any{
+					"ok": false,
+					"error": map[string]any{
+						"code":    "PERMISSION_DENIED",
+						"message": "service not permitted",
+					},
+				}
+				raw, err := codec.Marshal(src)
+				require.NoError(t, err)
+
+				var env mirrorEnvelope
+				require.NoError(t, codec.Unmarshal(raw, &env))
+
+				assert.False(t, env.OK)
+				require.NotNil(t, env.Error)
+				assert.Equal(t, "PERMISSION_DENIED", env.Error.Code)
+				assert.Equal(t, "service not permitted", env.Error.Message)
+			})
+
+			t.Run("success envelope", func(t *testing.T) {
+				// Exact shape the host writes on dispatch success (runtime.go).
+				data := map[string]any{"foo": "bar", "count": int64(3)}
+				src := map[string]any{"ok": true, "data": data}
+				raw, err := codec.Marshal(src)
+				require.NoError(t, err)
+
+				var env mirrorEnvelope
+				require.NoError(t, codec.Unmarshal(raw, &env))
+
+				assert.True(t, env.OK)
+				assert.Nil(t, env.Error)
+
+				// Re-marshal/unmarshal env.Data (any) into a comparable map to
+				// avoid codec-specific numeric-type differences (e.g. msgpack
+				// picking int8 for small ints while JSON produces float64) —
+				// decodeEnvelope in the PDK does exactly this re-marshal step.
+				dataRaw, err := codec.Marshal(env.Data)
+				require.NoError(t, err)
+				var got map[string]any
+				require.NoError(t, codec.Unmarshal(dataRaw, &got))
+
+				assert.Equal(t, "bar", got["foo"])
+				assert.EqualValues(t, 3, got["count"])
+			})
+		})
+	}
 }

@@ -120,10 +120,10 @@ func (h *EventHub) Emit(event Event) {
 		event.Timestamp = time.Now().UTC().Format(time.RFC3339Nano)
 	}
 	switch data := event.Data.(type) {
-	case map[string]any:
-		event.Data = redactSecrets(data)
 	case *api.HTTPResponse:
 		event.Data = redactHTTPResponse(data)
+	default:
+		event.Data = redactValue(data)
 	}
 	data, err := json.Marshal(event)
 	if err != nil {
