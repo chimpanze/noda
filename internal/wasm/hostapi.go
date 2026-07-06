@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
@@ -329,12 +330,18 @@ func (d *HostDispatcher) dispatchConnection(ctx context.Context, svc api.Connect
 		if err != nil {
 			return nil, err
 		}
+		if strings.Contains(channel, "*") {
+			return nil, fmt.Errorf("VALIDATION_ERROR: channel must be a literal name, not a pattern")
+		}
 		data := payload["data"]
 		return nil, svc.Send(ctx, channel, data)
 	case "send_sse":
 		channel, err := requireString(payload, "channel")
 		if err != nil {
 			return nil, err
+		}
+		if strings.Contains(channel, "*") {
+			return nil, fmt.Errorf("VALIDATION_ERROR: channel must be a literal name, not a pattern")
 		}
 		event := optionalString(payload, "event")
 		data := payload["data"]
