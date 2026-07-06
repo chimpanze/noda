@@ -84,7 +84,24 @@ func TestDelay_MissingTimeout(t *testing.T) {
 
 	_, _, err := executor.Execute(context.Background(), execCtx, config, nil)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid duration")
+	assert.Contains(t, err.Error(), "timeout")
+}
+
+func TestDelay_ResolvesTemplatedTimeout(t *testing.T) {
+	// A computed expression must resolve per-request to a duration string.
+	config := map[string]any{"timeout": "{{ 10 + 5 }}ms"}
+	executor := newDelayExecutor(config)
+	execCtx := engine.NewExecutionContext()
+
+	start := time.Now()
+	output, data, err := executor.Execute(context.Background(), execCtx, config, nil)
+	elapsed := time.Since(start)
+
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	assert.Nil(t, data)
+	assert.GreaterOrEqual(t, elapsed, 12*time.Millisecond)
+	assert.Less(t, elapsed, 200*time.Millisecond)
 }
 
 func TestDelay_Descriptor(t *testing.T) {
