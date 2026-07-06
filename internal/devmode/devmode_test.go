@@ -313,6 +313,47 @@ func TestReloader_ConfigVisibleOnlyAfterOnReloadCompletes(t *testing.T) {
 		"reader observed new config while onReload was still running")
 }
 
+func TestReloader_ShutdownAwaitsInFlightReload(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "noda.json"), map[string]any{
+		"server": map[string]any{"port": 3000},
+	})
+
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+
+	r := NewReloader(dir, "", initial, nil, slog.Default())
+	inReload := make(chan struct{})
+	releaseReload := make(chan struct{})
+	var reloadRan atomic.Bool
+	var closeOnce sync.Once
+	r.OnReload(func(*config.ResolvedConfig) {
+		reloadRan.Store(true)
+		closeOnce.Do(func() { close(inReload) })
+		<-releaseReload // hold the reload open
+	})
+
+	go r.HandleChange(filepath.Join(dir, "noda.json")) // enters onReload, blocks
+	<-inReload
+
+	shutdownReturned := make(chan struct{})
+	go func() { r.Shutdown(); close(shutdownReturned) }()
+	select {
+	case <-shutdownReturned:
+		t.Fatal("Shutdown returned before the in-flight reload finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(releaseReload) // let the reload finish
+	<-shutdownReturned   // Shutdown now returns
+
+	// A reload after shutdown must not fire onReload again.
+	reloadRan.Store(false)
+	r.HandleChange(filepath.Join(dir, "noda.json"))
+	require.False(t, reloadRan.Load(), "onReload must not fire after Shutdown")
+}
+
 // --- helpers ---
 
 func writeJSON(t *testing.T, path string, data any) {
