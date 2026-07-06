@@ -16,6 +16,7 @@ import (
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // loadResolvedConfigForTest loads and validates a project directory through
@@ -228,6 +229,61 @@ func runScaffoldedAuthSuite(t *testing.T, suiteID string) {
 
 func TestAuthScaffold_RegisterIsAntiEnumerating(t *testing.T) {
 	runScaffoldedAuthSuite(t, "test-auth-register")
+}
+
+func TestAuthScaffold_RequestPasswordResetIsConstantTime(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-request-password-reset")
+}
+
+// TestScratch_PasswordResetPadExpressionResolvesUnmocked is a one-off proof
+// that the pad_* timeout expression in
+// auth_templates/workflows/auth.request-password-reset.json.tmpl actually
+// resolves against real (unmocked) util.timestamp output. The scaffolded
+// suite mocks pad_* directly, so it would pass even if the expression
+// referenced a nonexistent field like `nodes.start_ts.value` — this test is
+// the only one that exercises the real util.timestamp -> computed
+// util.delay timeout -> time.ParseDuration path. It mirrors just the
+// "unknown email" timing chain (start_ts -> now_ts_unknown -> pad_unknown ->
+// respond_unknown) with a short 50ms deadline (instead of the shipped
+// template's 500ms) so it stays fast; the shipped template itself keeps
+// T=500ms.
+func TestScratch_PasswordResetPadExpressionResolvesUnmocked(t *testing.T) {
+	nodeReg, err := buildCoreNodeRegistry()
+	require.NoError(t, err)
+	svcReg := registry.NewServiceRegistry()
+
+	wf := engine.WorkflowConfig{
+		ID: "scratch-pad-unknown",
+		Nodes: map[string]engine.NodeConfig{
+			"start_ts":       {Type: "util.timestamp", Config: map[string]any{"format": "unix_ms"}},
+			"now_ts_unknown": {Type: "util.timestamp", Config: map[string]any{"format": "unix_ms"}},
+			"pad_unknown": {Type: "util.delay", Config: map[string]any{
+				"timeout": "{{ (nodes.start_ts + 50) > nodes.now_ts_unknown ? (nodes.start_ts + 50 - nodes.now_ts_unknown) : 0 }}ms",
+			}},
+			"respond_unknown": {Type: "response.json", Config: map[string]any{
+				"status": 200,
+				"body":   map[string]any{"message": "If that account exists, an email was sent"},
+			}},
+		},
+		Edges: []engine.EdgeConfig{
+			{From: "start_ts", To: "now_ts_unknown"},
+			{From: "now_ts_unknown", To: "pad_unknown"},
+			{From: "pad_unknown", To: "respond_unknown"},
+		},
+	}
+
+	graph, err := engine.Compile(wf, &engine.DefaultOutputResolver{})
+	require.NoError(t, err)
+
+	execCtx := engine.NewExecutionContext()
+	err = engine.ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.NoError(t, err, "real util.timestamp -> util.delay pad expression must resolve without error")
+
+	out, ok := execCtx.GetOutput("respond_unknown")
+	require.True(t, ok, "respond_unknown must have run")
+	resp, ok := out.(*api.HTTPResponse)
+	require.True(t, ok, "respond_unknown output must be *api.HTTPResponse, got %T", out)
+	assert.Equal(t, 200, resp.Status)
 }
 
 // TestAuthInitRegisterRouteEnforcesPasswordLength proves scaffolded projects
