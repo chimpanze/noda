@@ -124,6 +124,39 @@ func TestWatcher_SubdirectoryWatch(t *testing.T) {
 	assert.GreaterOrEqual(t, called.Load(), int32(1))
 }
 
+func TestWatcher_ReactsToNewSubdirAndDelete(t *testing.T) {
+	dir := t.TempDir()
+	changes := make(chan string, 8)
+	w, err := NewWatcher(func(p string) { changes <- p }, slog.Default())
+	require.NoError(t, err)
+	w.debounce = 20 * time.Millisecond
+	require.NoError(t, w.WatchDir(dir))
+	w.Start()
+	defer func() { _ = w.Stop(context.Background()) }()
+
+	// (platform-5) a .json created under a NEW subdirectory triggers a reload.
+	sub := filepath.Join(dir, "routes")
+	require.NoError(t, os.Mkdir(sub, 0755))
+	time.Sleep(50 * time.Millisecond) // let the watcher pick up the new dir
+	require.NoError(t, os.WriteFile(filepath.Join(sub, "r.json"), []byte("{}"), 0644))
+	select {
+	case <-changes:
+	case <-time.After(time.Second):
+		t.Fatal("no reload for a .json created under a new subdirectory")
+	}
+
+	// (platform-6) deleting a watched .json triggers a reload.
+	f := filepath.Join(dir, "top.json")
+	require.NoError(t, os.WriteFile(f, []byte("{}"), 0644))
+	<-changes // the create
+	require.NoError(t, os.Remove(f))
+	select {
+	case <-changes:
+	case <-time.After(time.Second):
+		t.Fatal("no reload on .json delete")
+	}
+}
+
 // --- Reloader tests ---
 
 func TestReloader_HandleChange_Valid(t *testing.T) {
