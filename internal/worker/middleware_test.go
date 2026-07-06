@@ -92,6 +92,34 @@ func TestTimeoutMiddleware_DefaultTimeout(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// worker-sched-1: the middleware chain is built once and shared across all
+// workers, so m.Timeout is a single construction-time value. A per-message
+// Timeout on MessageContext must govern instead, so each worker's configured
+// timeout is honored rather than silently overridden by the shared default.
+func TestTimeoutMiddleware_UsesPerMessageTimeout(t *testing.T) {
+	m := &TimeoutMiddleware{Timeout: 20 * time.Millisecond} // shared/default (small)
+	msgCtx := &MessageContext{WorkerID: "w", Logger: slog.Default(), Timeout: 200 * time.Millisecond}
+	handler := m.Wrap(func(ctx context.Context) error {
+		select {
+		case <-time.After(80 * time.Millisecond): // > 20ms, < 200ms
+			return nil
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}, msgCtx)
+	require.NoError(t, handler(context.Background()), "per-message timeout (200ms) must govern, not the 20ms default")
+}
+
+func TestTimeoutMiddleware_FallsBackWhenNoPerMessageTimeout(t *testing.T) {
+	m := &TimeoutMiddleware{Timeout: 20 * time.Millisecond}
+	msgCtx := &MessageContext{WorkerID: "w", Logger: slog.Default()} // Timeout == 0
+	handler := m.Wrap(func(ctx context.Context) error {
+		<-ctx.Done()
+		return ctx.Err()
+	}, msgCtx)
+	require.Error(t, handler(context.Background()), "with no per-message timeout, the 20ms default still applies")
+}
+
 // execution-1: a panic in the handler must be recovered inside the timeout
 // goroutine and surfaced as an error, not crash the worker process.
 func TestTimeoutMiddleware_RecoversPanicInChildGoroutine(t *testing.T) {

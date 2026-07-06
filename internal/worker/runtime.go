@@ -401,10 +401,14 @@ func (r *Runtime) runMessage(ctx context.Context, w WorkerConfig, msg redis.XMes
 	handler := func(ctx context.Context) error {
 		return engine.RunWorkflow(ctx, w.WorkflowID, execCtx, r.workflowCache, r.workflows, r.services, r.nodes)
 	}
+	msgTimeout := w.Timeout
+	if msgTimeout == 0 {
+		msgTimeout = defaultMessageTimeout
+	}
 	for i := len(r.middleware) - 1; i >= 0; i-- {
 		handler = r.middleware[i].Wrap(handler, &MessageContext{
 			WorkerID: w.ID, MessageID: msg.ID, TraceID: traceID,
-			Topic: w.Topic, Group: w.Group, Logger: r.logger,
+			Topic: w.Topic, Group: w.Group, Timeout: msgTimeout, Logger: r.logger,
 		})
 	}
 	return msgResult{err: handler(ctx)}
