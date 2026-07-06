@@ -7,6 +7,7 @@ import (
 	"runtime/debug"
 	"slices"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/chimpanze/noda/internal/engine"
@@ -64,6 +65,8 @@ type Runtime struct {
 	cron    *cron.Cron
 	mu      sync.RWMutex
 	history []JobRun
+
+	running map[string]*atomic.Bool // per-schedule same-instance overlap guard (keyed by schedule ID)
 }
 
 // NewRuntime creates a new scheduler runtime.
@@ -85,6 +88,10 @@ func NewRuntime(
 	if compiler == nil {
 		compiler = expr.NewCompilerWithFunctions()
 	}
+	running := make(map[string]*atomic.Bool, len(schedules))
+	for _, sc := range schedules {
+		running[sc.ID] = &atomic.Bool{}
+	}
 	return &Runtime{
 		schedules:      schedules,
 		services:       services,
@@ -95,6 +102,7 @@ func NewRuntime(
 		tracer:         tracer,
 		logger:         logger,
 		secretsContext: secretsContext,
+		running:        running,
 	}
 }
 
@@ -180,8 +188,24 @@ func (r *Runtime) nextRun(scheduleID string) (time.Time, bool) {
 // defaultJobTimeout is used when no per-schedule timeout is configured.
 const defaultJobTimeout = 5 * time.Minute
 
+// scheduleLockKey builds the distributed-lock key for a single fire of a
+// schedule. The time is truncated to the second (not the minute) so that
+// sub-minute schedules (cron WithSeconds allows a 1s minimum interval) get a
+// distinct key per fire rather than colliding within the minute.
+func scheduleLockKey(id string, t time.Time) string {
+	return fmt.Sprintf("noda:schedule:%s:%d", id, t.Truncate(time.Second).Unix())
+}
+
 // runJob executes a single scheduled job with optional distributed locking.
 func (r *Runtime) runJob(sc ScheduleConfig) {
+	if guard := r.running[sc.ID]; guard != nil {
+		if !guard.CompareAndSwap(false, true) {
+			r.logger.Warn("scheduler: skipping overlapping run", "schedule_id", sc.ID, "cron", sc.Cron)
+			return
+		}
+		defer guard.Store(false)
+	}
+
 	start := time.Now()
 	traceID := uuid.New().String()
 
@@ -226,7 +250,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			lockTTL = timeout + 30*time.Second
 		}
 
-		lockKey := fmt.Sprintf("noda:schedule:%s:%d", sc.ID, now.Truncate(time.Minute).Unix())
+		lockKey := scheduleLockKey(sc.ID, now)
 		lockSvc, ok := r.services.Get(sc.LockSvcName)
 		if !ok {
 			r.logger.Error("scheduler: lock service not found",
@@ -275,8 +299,9 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			return
 		}
 		// Do NOT release the lock after execution. The lock key is scoped to a
-		// time window (truncated to the minute), so it must be held until the TTL
-		// expires to prevent another instance from executing in the same window.
+		// per-fire time window (truncated to the second — see scheduleLockKey), so
+		// it must be held until the TTL expires to prevent another instance from
+		// executing in the same window.
 		_ = lockToken
 	}
 
