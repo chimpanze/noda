@@ -16,7 +16,7 @@ import (
 func registerFakeDuplicateKeyErr(t *testing.T, db *gorm.DB, name string) {
 	t.Helper()
 	err := db.Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
-		tx.AddError(errors.New(`ERROR: duplicate key value violates unique constraint "tasks_title_key" (title)=(dup)`))
+		_ = tx.AddError(errors.New(`ERROR: duplicate key value violates unique constraint "tasks_title_key" (title)=(dup)`))
 	})
 	require.NoError(t, err)
 }
