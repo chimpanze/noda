@@ -2,6 +2,7 @@ package trace
 
 import (
 	"log/slog"
+	neturl "net/url"
 	"sync"
 
 	"github.com/gofiber/contrib/v3/websocket"
@@ -10,9 +11,12 @@ import (
 
 // RegisterTraceWebSocket registers the /ws/trace endpoint on the Fiber app.
 // It subscribes each connected client to the EventHub and streams execution
-// events as JSON text messages. Used in dev mode only.
+// events as JSON text messages. Used in dev mode only (dev mode binds
+// loopback, but the browser still sends a same-origin Origin header, so we
+// still guard against a malicious page on another origin driving a
+// cross-site WebSocket upgrade against a developer's local instance).
 func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) {
-	app.Get("/ws/trace", websocket.New(func(c *websocket.Conn) {
+	app.Get("/ws/trace", traceOriginGuard, websocket.New(func(c *websocket.Conn) {
 		logger.Info("trace websocket client connected", "remote", c.RemoteAddr().String())
 
 		// Buffered channel serializes writes — hub subscribers may be
@@ -58,6 +62,30 @@ func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) 
 		writeWg.Wait() // ensure write goroutine exits before handler returns
 		logger.Info("trace websocket client disconnected", "remote", c.RemoteAddr().String())
 	}))
+}
+
+// traceOriginGuard rejects cross-origin WebSocket upgrades to the dev trace
+// stream (which carries workflow inputs, DB rows, and secrets). An empty
+// Origin (non-browser clients like the CLI) is allowed; browser origins must
+// be same-host or localhost.
+func traceOriginGuard(c fiber.Ctx) error {
+	origin := c.Get("Origin")
+	if origin == "" || originAllowed(origin, c.Hostname()) {
+		return c.Next()
+	}
+	return c.SendStatus(fiber.StatusForbidden)
+}
+
+func originAllowed(origin, host string) bool {
+	u, err := neturl.Parse(origin)
+	if err != nil {
+		return false
+	}
+	oh := u.Hostname()
+	if oh == host {
+		return true
+	}
+	return oh == "localhost" || oh == "127.0.0.1" || oh == "::1"
 }
 
 // RegisterNoOpTraceWebSocket registers a /ws/trace endpoint that accepts
