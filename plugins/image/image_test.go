@@ -170,6 +170,29 @@ func TestThumbnail(t *testing.T) {
 	assert.Equal(t, 64, size.Height)
 }
 
+func TestThumbnail_RejectsOversizedDimensions(t *testing.T) {
+	services, svc := newTestServices(t)
+	ctx := context.Background()
+
+	img := createTestPNG(t)
+	require.NoError(t, svc.Write(ctx, "input.png", img))
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	e := newThumbnailExecutor(nil)
+	_, _, err := e.Execute(ctx, execCtx, map[string]any{
+		"input":  "input.png",
+		"output": "thumb_bomb.png",
+		"width":  float64(100000),
+		"height": float64(100000),
+	}, services)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "exceed")
+
+	// oversized output must never be written
+	_, readErr := svc.Read(ctx, "thumb_bomb.png")
+	assert.Error(t, readErr)
+}
+
 func TestResize_WithQuality(t *testing.T) {
 	services, svc := newTestServices(t)
 	ctx := context.Background()
