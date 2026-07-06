@@ -41,6 +41,21 @@
         "respond_sent": { "output": { "status": 200 } }
       },
       "expect": { "status": "success", "output": { "respond_sent.status": 200 } }
+    },
+    {
+      "name": "unverified, SMTP send fails: still generic 200 (no failure oracle)",
+      "input": { "email": "bob@example.com" },
+      "mocks": {
+        "start_ts": { "output": 1000 },
+        "find_user": { "output": { "id": "user-2", "email": "bob@example.com", "email_verified_at": null } },
+        "check_unverified": { "output_name": "then", "output": {} },
+        "verify_token": { "output": { "token": "verify-tok", "expires_at": "2030-01-01T00:00:00Z" } },
+        "send_verify_email": { "error": { "message": "smtp unavailable" } },
+        "now_ts_sent": { "output": 1100 },
+        "pad_sent": { "output": null },
+        "respond_sent": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_sent.status": 200 } }
     }
   ]
 }

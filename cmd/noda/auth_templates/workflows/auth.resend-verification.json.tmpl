@@ -44,6 +44,7 @@
     { "from": "check_unverified", "output": "else", "to": "now_ts_verified" },
     { "from": "verify_token", "to": "send_verify_email" },
     { "from": "send_verify_email", "to": "now_ts_sent" },
+    { "from": "send_verify_email", "output": "error", "to": "now_ts_sent" },
     { "from": "now_ts_sent", "to": "pad_sent" },
     { "from": "pad_sent", "to": "respond_sent" },
     { "from": "now_ts_unknown", "to": "pad_unknown" },
