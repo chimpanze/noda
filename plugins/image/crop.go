@@ -55,6 +55,10 @@ func (e *cropExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 		return "", nil, fmt.Errorf("image.crop: %w", err)
 	}
 
+	if err := enforceDimensionLimit(nCtx, config, width, height); err != nil {
+		return "", nil, fmt.Errorf("image.crop: %w", err)
+	}
+
 	gravity := bimg.GravityCentre
 	if g, gOk, _ := plugin.ResolveOptionalString(nCtx, config, "gravity"); gOk {
 		gravity = parseGravity(g)

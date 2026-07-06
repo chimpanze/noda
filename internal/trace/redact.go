@@ -1,6 +1,7 @@
 package trace
 
 import (
+	"reflect"
 	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -15,6 +16,9 @@ var sensitiveContains = []string{
 	"credential",
 	"api_key",
 	"apikey",
+	"stream_key",
+	"signing_key",
+	"private_key",
 }
 
 // sensitiveExact lists exact key names (lowercase) that are sensitive.
@@ -32,25 +36,78 @@ var sensitiveExact = []string{
 var cookieObjectKeys = []string{"cookie", "clear_cookie"}
 
 // redactSecrets returns a deep copy of the map with values redacted for keys
-// matching common sensitive patterns. Nested maps are walked recursively.
-// Slices and non-map values are left untouched.
+// matching common sensitive patterns. Nested maps and slices (of any
+// concrete element type) are walked recursively via redactValueDepth.
 func redactSecrets(m map[string]any) map[string]any {
+	return redactStringMap(m, 0)
+}
+
+const maxRedactDepth = 32
+
+// redactValue returns a deep, redacted copy of any value. Maps (string-keyed)
+// have sensitive keys replaced and values recursed; slices/arrays of any
+// element type are recursed element-wise; scalars pass through. This handles
+// concretely-typed values like []map[string]any (db.query results) that a
+// plain map[string]any/[]any type switch would miss.
+func redactValue(v any) any { return redactValueDepth(v, 0) }
+
+func redactValueDepth(v any, depth int) any {
+	if depth > maxRedactDepth {
+		return v
+	}
+	switch val := v.(type) {
+	case nil:
+		return nil
+	case map[string]any:
+		return redactStringMap(val, depth)
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Map:
+		if rv.Type().Key().Kind() != reflect.String {
+			return v // non-string keys: can't classify; leave as-is
+		}
+		out := make(map[string]any, rv.Len())
+		iter := rv.MapRange()
+		for iter.Next() {
+			k := iter.Key().String()
+			if IsSensitiveKey(k) {
+				out[k] = "[REDACTED]"
+			} else {
+				out[k] = redactValueDepth(iter.Value().Interface(), depth+1)
+			}
+		}
+		return out
+	case reflect.Slice, reflect.Array:
+		if rv.Kind() == reflect.Slice && rv.IsNil() {
+			return v
+		}
+		n := rv.Len()
+		out := make([]any, n)
+		for i := 0; i < n; i++ {
+			out[i] = redactValueDepth(rv.Index(i).Interface(), depth+1)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+// redactStringMap preserves the existing map[string]any behavior, including
+// the narrow cookie-container redaction, but recurses values through
+// redactValueDepth so nested concretely-typed maps/slices are covered too.
+func redactStringMap(m map[string]any, depth int) map[string]any {
 	out := make(map[string]any, len(m))
 	for k, v := range m {
 		if IsSensitiveKey(k) {
 			out[k] = "[REDACTED]"
 			continue
 		}
-		switch val := v.(type) {
-		case map[string]any:
-			out[k] = redactSecrets(val)
-			if isCookieContainerKey(k) {
-				redactCookieValue(out[k].(map[string]any))
+		out[k] = redactValueDepth(v, depth+1)
+		if isCookieContainerKey(k) {
+			if inner, ok := out[k].(map[string]any); ok {
+				redactCookieValue(inner)
 			}
-		case []any:
-			out[k] = redactSlice(val)
-		default:
-			out[k] = v
 		}
 	}
 	return out
@@ -132,31 +189,8 @@ func redactHTTPResponse(resp *api.HTTPResponse) map[string]any {
 		"cookies": cookies,
 	}
 
-	switch body := resp.Body.(type) {
-	case map[string]any:
-		out["body"] = redactSecrets(body)
-	case []any:
-		out["body"] = redactSlice(body)
-	default:
-		out["body"] = body
-	}
+	out["body"] = redactValue(resp.Body)
 
-	return out
-}
-
-// redactSlice returns a copy of the slice with sensitive values in nested maps redacted.
-func redactSlice(s []any) []any {
-	out := make([]any, len(s))
-	for i, v := range s {
-		switch val := v.(type) {
-		case map[string]any:
-			out[i] = redactSecrets(val)
-		case []any:
-			out[i] = redactSlice(val)
-		default:
-			out[i] = v
-		}
-	}
 	return out
 }
 

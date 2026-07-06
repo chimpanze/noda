@@ -56,6 +56,10 @@ func (e *thumbnailExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
 	}
 
+	if err := enforceDimensionLimit(nCtx, config, width, height); err != nil {
+		return "", nil, fmt.Errorf("image.thumbnail: %w", err)
+	}
+
 	// Thumbnail: crop to exact dimensions with smart gravity
 	opts := bimg.Options{
 		Width:   width,

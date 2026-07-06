@@ -70,7 +70,7 @@ Examples:
 
 ## Wildcard Channel Matching
 
-When sending messages via `ws.send` or `sse.send`, the channel field supports wildcard patterns using `*` as a segment placeholder. Wildcards match on dot-separated segments:
+A connection's `channels.pattern` (see the connection config) may use `*` as a segment placeholder to subscribe to a family of channels. Wildcards match on dot-separated segments:
 
 | Pattern | Matches | Does Not Match |
 |---------|---------|----------------|
@@ -81,22 +81,9 @@ When sending messages via `ws.send` or `sse.send`, the channel field supports wi
 
 Wildcard matching requires the pattern and channel to have the same number of dot-separated segments. A `*` in any segment position matches any value in that position.
 
-This is useful for broadcasting to all channels of a type:
+**`ws.send` and `sse.send` do not accept wildcards.** The `channel` a send targets must be a literal channel name — a `*` anywhere in the resolved channel is rejected with an error. This prevents a channel value derived from user input from broadcasting to unintended recipients (e.g. an attacker-supplied `channel` of `user.*` fanning a message out to every user). Wildcards are only meaningful on the *subscribing* side (a connection's `channels.pattern`), not on the send side.
 
-```json
-{
-  "broadcast_all_rooms": {
-    "type": "ws.send",
-    "config": {
-      "channel": "chat.*",
-      "data": {
-        "type": "system",
-        "message": "Server maintenance in 5 minutes"
-      }
-    }
-  }
-}
-```
+To broadcast to a group of connections, subscribe each connection with a shared literal channel (e.g. every connection in `chat.general` joins channel `"chat.general"`) and send to that literal channel — do not rely on `*` at send time.
 
 ## Lifecycle Workflows
 

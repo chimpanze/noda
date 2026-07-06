@@ -1131,6 +1131,52 @@ func TestHostDispatcher_ConnectionService(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown connection operation")
 }
 
+func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	connSvc := &mockConnectionService{}
+	require.NoError(t, svcReg.Register("ws-conn", connSvc, nil))
+
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	plugin := newMockPlugin()
+	_, _ = NewModule("test", plugin, ModuleConfig{
+		Name:     "test",
+		TickRate: 1,
+		Services: []string{"ws-conn"},
+	}, dispatcher, testLogger())
+
+	for _, channel := range []string{"*", "user.*"} {
+		// send
+		_, err := dispatcher.Call(context.Background(), HostCallRequest{
+			Service:   "ws-conn",
+			Operation: "send",
+			Payload:   map[string]any{"channel": channel, "data": "hello"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "VALIDATION_ERROR")
+
+		// send_sse
+		_, err = dispatcher.Call(context.Background(), HostCallRequest{
+			Service:   "ws-conn",
+			Operation: "send_sse",
+			Payload:   map[string]any{"channel": channel, "event": "score", "data": "100"},
+		})
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "VALIDATION_ERROR")
+	}
+
+	assert.Empty(t, connSvc.sent, "wildcard channel must not reach ConnectionService.Send")
+	assert.Empty(t, connSvc.sentSSE, "wildcard channel must not reach ConnectionService.SendSSE")
+
+	// Literal channel still works.
+	_, err := dispatcher.Call(context.Background(), HostCallRequest{
+		Service:   "ws-conn",
+		Operation: "send",
+		Payload:   map[string]any{"channel": "game.1", "data": "hello"},
+	})
+	require.NoError(t, err)
+	assert.Len(t, connSvc.sent, 1)
+}
+
 // --- Host Dispatcher: Stream dispatch ---
 
 func TestHostDispatcher_StreamService(t *testing.T) {

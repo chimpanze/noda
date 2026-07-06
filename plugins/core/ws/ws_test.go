@@ -141,7 +141,7 @@ func TestWsSend_NoClients(t *testing.T) {
 	assert.Equal(t, "success", output)
 }
 
-func TestWsSend_Wildcard(t *testing.T) {
+func TestWSSend_RejectsWildcardChannel(t *testing.T) {
 	mgr := connmgr.NewManager()
 	var count int
 
@@ -156,15 +156,26 @@ func TestWsSend_Wildcard(t *testing.T) {
 	svc := connmgr.NewEndpointService(mgr, "ws-test")
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
-
 	e := newSendExecutor(nil)
+
+	for _, bad := range []string{"*", "room.*", "a*b"} {
+		_, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+			"channel": bad,
+			"data":    "broadcast",
+		}, services)
+		require.Error(t, err, "must reject wildcard channel %q", bad)
+		assert.Contains(t, err.Error(), "literal")
+	}
+	assert.Equal(t, 0, count, "no message should have been sent for wildcard channels")
+
+	// Literal channel still works.
 	output, _, err := e.Execute(context.Background(), execCtx, map[string]any{
-		"channel": "room.*",
-		"data":    "broadcast",
+		"channel": "room.1",
+		"data":    "direct",
 	}, services)
 	require.NoError(t, err)
 	assert.Equal(t, "success", output)
-	assert.Equal(t, 3, count)
+	assert.Equal(t, 1, count)
 }
 
 // --- Error path tests ---

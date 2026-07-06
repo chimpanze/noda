@@ -2,8 +2,10 @@ package trace
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -85,7 +87,11 @@ func TestRedactSecrets_PreservesNonMapValues(t *testing.T) {
 	result := redactSecrets(input)
 
 	assert.Equal(t, 42, result["count"])
-	assert.Equal(t, []string{"a", "b"}, result["items"])
+	// items is a concretely-typed []string; the reflection-based redactor
+	// recurses it element-wise (to catch any nested sensitive maps) and
+	// returns a []any of the same (unredacted, since no elements are
+	// sensitive) contents rather than preserving the original slice type.
+	assert.Equal(t, []any{"a", "b"}, result["items"])
 	assert.Equal(t, true, result["active"])
 	assert.Equal(t, "[REDACTED]", result["token"])
 }
@@ -258,5 +264,37 @@ func TestIsSensitiveKey(t *testing.T) {
 	}
 	for _, k := range safe {
 		assert.False(t, IsSensitiveKey(k), "expected %q to be safe", k)
+	}
+}
+
+func TestRedactValue_TypedSliceOfMaps(t *testing.T) {
+	in := []map[string]any{
+		{"id": 1, "password": "hunter2"},
+		{"id": 2, "api_key": "sk-abc"},
+	}
+	out := redactValue(in).([]any)
+	require.Equal(t, "[REDACTED]", out[0].(map[string]any)["password"])
+	require.Equal(t, "[REDACTED]", out[1].(map[string]any)["api_key"])
+	require.Equal(t, 1, out[0].(map[string]any)["id"])
+}
+
+func TestRedactValue_StreamKey(t *testing.T) {
+	out := redactValue(map[string]any{"stream_key": "live_xyz", "room": "r1"}).(map[string]any)
+	require.Equal(t, "[REDACTED]", out["stream_key"])
+	require.Equal(t, "r1", out["room"])
+}
+
+func TestEmit_RedactsSliceData(t *testing.T) {
+	hub := NewEventHub()
+	got := make(chan []byte, 1)
+	unsub := hub.Subscribe(func(b []byte) { got <- b })
+	defer unsub()
+	hub.Emit(Event{Type: "node.completed", Data: []map[string]any{{"password": "p"}}})
+	select {
+	case b := <-got:
+		require.NotContains(t, string(b), "\"p\"")
+		require.Contains(t, string(b), "[REDACTED]")
+	case <-time.After(time.Second):
+		t.Fatal("no event")
 	}
 }
