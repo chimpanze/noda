@@ -9,9 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
+	nodatesting "github.com/chimpanze/noda/internal/testing"
 )
 
 // loadResolvedConfigForTest loads and validates a project directory through
@@ -181,6 +185,49 @@ func TestAuthInitOutputValidates(t *testing.T) {
 
 func containsString(haystack, needle string) bool {
 	return len(haystack) >= len(needle) && strings.Contains(haystack, needle)
+}
+
+// scaffoldAuthProject scaffolds auth into a fresh temp project directory and
+// returns the directory. Shared by TestAuthInitScaffold-style tests and the
+// runner-based behavior tests below.
+func scaffoldAuthProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	writeMinimalProject(t, dir, true)
+	require.NoError(t, runAuthInit(dir))
+	return dir
+}
+
+// runScaffoldedAuthSuite scaffolds auth into a temp project, then runs one
+// scaffolded test suite through the real workflow-test runner and asserts every
+// case passes. This exercises the rendered templates end-to-end.
+func runScaffoldedAuthSuite(t *testing.T, suiteID string) {
+	t.Helper()
+	dir := scaffoldAuthProject(t)
+	rc, err := loadResolvedConfigForTest(dir)
+	require.NoError(t, err)
+
+	suites, err := nodatesting.LoadTests(rc)
+	require.NoError(t, err)
+
+	reg, err := buildCoreNodeRegistry()
+	require.NoError(t, err)
+
+	var ran bool
+	for _, suite := range suites {
+		if suite.ID != suiteID {
+			continue
+		}
+		ran = true
+		for _, res := range nodatesting.RunTestSuite(suite, rc, reg) {
+			assert.Truef(t, res.Passed, "case %q failed: %s", res.CaseName, res.Error)
+		}
+	}
+	require.Truef(t, ran, "suite %q not found among scaffolded tests", suiteID)
+}
+
+func TestAuthScaffold_RegisterIsAntiEnumerating(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-register")
 }
 
 // TestAuthInitRegisterRouteEnforcesPasswordLength proves scaffolded projects
