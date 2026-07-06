@@ -78,7 +78,7 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		if strings.Contains(errMsg, "duplicate key") || strings.Contains(errMsg, "unique constraint") {
 			return "", nil, &api.ConflictError{
 				Resource: table,
-				Reason:   errMsg,
+				Reason:   "unique constraint violation",
 			}
 		}
 		return "", nil, fmt.Errorf("db.create: %w", tx.Error)

@@ -184,6 +184,62 @@ func (p *hungPlugin) CreateService(_ map[string]any) (any, error) {
 	return struct{}{}, nil
 }
 
+// TestInitializeServices_LateCreateShutDownViaPlugin verifies that when a
+// plugin's CreateService completes AFTER the create timeout has already
+// fired (a "late" result), the cleanup goroutine tears the resulting
+// instance down via the plugin's Shutdown method — not via a Close()
+// type-assertion, which no service instance implements (platform-4).
+func TestInitializeServices_LateCreateShutDownViaPlugin(t *testing.T) {
+	shutdownCalled := make(chan any, 1)
+	lateInstance := &struct{ id int }{id: 1}
+
+	p := &servicePlugin{
+		name:   "late-db",
+		prefix: "db",
+		createFunc: func(config map[string]any) (any, error) {
+			time.Sleep(200 * time.Millisecond)
+			return lateInstance, nil
+		},
+	}
+	// Wrap Shutdown behavior via a dedicated plugin type so we can assert
+	// on the exact instance passed, rather than just a name string.
+	shutdownPlugin := &shutdownRecordingPlugin{servicePlugin: p, onShutdown: func(inst any) error {
+		shutdownCalled <- inst
+		return nil
+	}}
+
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(shutdownPlugin))
+
+	servicesConfig := map[string]any{
+		"main-db": map[string]any{"plugin": "db"},
+	}
+
+	// Short create timeout so CreateService's 200ms sleep triggers the
+	// "creation timed out" path, exercising the cleanup goroutine.
+	_, errs := InitializeServices(context.Background(), servicesConfig, plugins, 20*time.Millisecond)
+	require.NotEmpty(t, errs)
+	require.Contains(t, errs[0].Error(), "timed out")
+
+	select {
+	case inst := <-shutdownCalled:
+		assert.Same(t, lateInstance, inst, "cleanup must Shutdown the late-completing instance via the plugin")
+	case <-time.After(2 * time.Second):
+		t.Fatal("plugin.Shutdown was not called on the late-completing instance")
+	}
+}
+
+// shutdownRecordingPlugin wraps a servicePlugin to record/override Shutdown
+// calls with a full instance value, rather than just a name string.
+type shutdownRecordingPlugin struct {
+	*servicePlugin
+	onShutdown func(inst any) error
+}
+
+func (p *shutdownRecordingPlugin) Shutdown(service any) error {
+	return p.onShutdown(service)
+}
+
 func TestInitializeServices_HungCreate_GoroutineExitsOnShutdown(t *testing.T) {
 	defer goleak.VerifyNone(t)
 

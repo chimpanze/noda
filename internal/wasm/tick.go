@@ -1,6 +1,7 @@
 package wasm
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -18,6 +19,9 @@ func (m *Module) tickLoop() {
 	}
 
 	for {
+		if m.failed.Load() {
+			return
+		}
 		select {
 		case <-m.stopCh:
 			return
@@ -87,10 +91,20 @@ func (m *Module) executeTick() {
 
 	// Call tick with timeout to prevent hung modules from blocking the loop
 	start := time.Now()
-	exitCode, _, err := m.callWithTimeout("tick", data, m.Config.TickTimeout)
+	exitCode, _, err := m.callWithTimeout(m.shutdownCtx, "tick", data, m.Config.TickTimeout)
 	elapsed := time.Since(start)
 
 	if err != nil {
+		if errors.Is(err, errGuestInterrupted) {
+			// The guest instance was actually terminated (timeout or shutdown
+			// cancellation) — every further call would fail, so stop the loop.
+			m.markFailed("tick call: " + err.Error())
+			return
+		}
+		// A recoverable guest-side error (wasm trap, or the guest returning
+		// noda.Fail/noda.FailMsg): the instance is still alive. Log and keep
+		// ticking rather than permanently killing a long-lived module over
+		// one bad frame.
 		m.Logger.Error("tick call failed", "module", m.Name, "error", err)
 		return
 	}
@@ -124,21 +138,28 @@ func (m *Module) drainQueries() {
 	}
 }
 
-// processQuery handles a query or command request.
+// processQuery handles a query or command request. req.target names the
+// guest export to call; it defaults to "query" (Task 7 adds full
+// command/query routing).
 func (m *Module) processQuery(req queryRequest) {
-	// Determine if this is a command or query based on function existence
-	funcName := "query"
-	if m.Plugin.FunctionExists("command") && !m.Plugin.FunctionExists("query") {
-		funcName = "command"
+	if req.target == "" {
+		req.target = "query"
 	}
 
-	exitCode, output, err := m.Plugin.Call(funcName, req.data)
+	exitCode, output, err := m.callWithTimeout(m.shutdownCtx, req.target, req.data, wasmCallTimeout)
 	if err != nil {
-		req.result <- queryResponse{err: fmt.Errorf("%s call failed: %w", funcName, err)}
+		if errors.Is(err, errGuestInterrupted) {
+			// Instance was terminated (timeout/shutdown) — dead for good.
+			m.markFailed("query call: " + err.Error())
+		}
+		// A plain guest error (trap, or noda.Fail/noda.FailMsg) leaves the
+		// instance alive; just report it to the caller without killing the
+		// module.
+		req.result <- queryResponse{err: fmt.Errorf("%s call failed: %w", req.target, err)}
 		return
 	}
 	if exitCode != 0 {
-		req.result <- queryResponse{err: fmt.Errorf("%s returned exit code %d", funcName, exitCode)}
+		req.result <- queryResponse{err: fmt.Errorf("%s returned exit code %d", req.target, exitCode)}
 		return
 	}
 

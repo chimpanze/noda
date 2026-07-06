@@ -22,6 +22,7 @@ type projectData struct {
 }
 
 func newInitCmd() *cobra.Command {
+	var force bool
 	cmd := &cobra.Command{
 		Use:   "init [project-name]",
 		Short: "Initialize a new Noda project",
@@ -29,15 +30,43 @@ func newInitCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
 			name := args[0]
-			return scaffoldProject(name)
+			return scaffoldProject(name, force)
 		},
 	}
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite existing files")
 	return cmd
 }
 
-func scaffoldProject(name string) error {
+func scaffoldProject(name string, force bool) error {
 	data := projectData{
 		ProjectName: filepath.Base(name),
+	}
+
+	if !force {
+		var conflicts []string
+		err := fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if path == "templates" || d.IsDir() {
+				return nil
+			}
+			relPath := strings.TrimPrefix(path, "templates/")
+			outPath := filepath.Join(name, relPath)
+			if strings.HasSuffix(relPath, ".tmpl") {
+				outPath = strings.TrimSuffix(outPath, ".tmpl")
+			}
+			if _, statErr := os.Stat(outPath); statErr == nil {
+				conflicts = append(conflicts, outPath)
+			}
+			return nil
+		})
+		if err != nil {
+			return fmt.Errorf("scaffold project: %w", err)
+		}
+		if len(conflicts) > 0 {
+			return fmt.Errorf("refusing to overwrite existing files (use --force): %s", strings.Join(conflicts, ", "))
+		}
 	}
 
 	// Also create the migrations directory (empty, not in templates)

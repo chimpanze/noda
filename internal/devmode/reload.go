@@ -21,6 +21,9 @@ type Reloader struct {
 	config *config.ResolvedConfig
 
 	onReload func(rc *config.ResolvedConfig)
+
+	reloadMu sync.Mutex // serializes the whole HandleChange (latest wins);
+	// also the shutdown barrier — Shutdown drains it to await an in-flight reload
 }
 
 // NewReloader creates a new config hot-reloader.
@@ -49,16 +52,38 @@ func (r *Reloader) Config() *config.ResolvedConfig {
 // HandleChange processes a file change event. It re-validates the full config.
 // On success, it swaps the config atomically and calls the reload callback.
 // On failure, it keeps the old config and emits an error event via the trace hub.
-// SetShuttingDown marks the reloader as shutting down, preventing further
-// reload callbacks from firing.
-func (r *Reloader) SetShuttingDown() {
+// Concurrent invocations of HandleChange (e.g. an editor save racing the
+// watcher's debounce) are serialized via reloadMu, so the last reload to run
+// always wins.
+//
+// Shutdown marks the reloader as shutting down and blocks until any in-flight
+// reload has finished, so no onReload callback fires into a closing system.
+//
+// The flag is set before the barrier is taken: any HandleChange that acquires
+// reloadMu after this point observes shuttingDown at the post-lock re-check and
+// bails without firing onReload. Draining reloadMu (a reload holds it across the
+// swap and onReload) guarantees any truly in-flight reload has fully completed
+// before Shutdown returns.
+func (r *Reloader) Shutdown() {
 	r.shuttingDown.Store(true)
+	r.reloadMu.Lock()
+	r.reloadMu.Unlock() //nolint:staticcheck // intentional barrier: drain to await in-flight reload
 }
 
 func (r *Reloader) HandleChange(path string) {
 	if r.shuttingDown.Load() {
 		return
 	}
+
+	r.reloadMu.Lock()
+	defer r.reloadMu.Unlock()
+
+	// Re-check after acquiring the serialization lock (shutdown may have begun
+	// while we queued behind another reload).
+	if r.shuttingDown.Load() {
+		return
+	}
+
 	r.logger.Info("reloading config", "trigger", path)
 
 	sm, smErr := config.NewSecretsManager(r.configDir, r.envFlag)
@@ -93,6 +118,17 @@ func (r *Reloader) HandleChange(path string) {
 		return
 	}
 
+	// Re-check after validation (which is slow) before swapping / firing
+	// onReload — shutdown may have begun while validation was running.
+	if r.shuttingDown.Load() {
+		return
+	}
+
+	// Hold mu across the swap and the onReload callback so that Config()
+	// readers never observe the new config while onReload is still running
+	// (see TestReloader_ConfigVisibleOnlyAfterOnReloadCompletes). reloadMu
+	// already serializes concurrent HandleChange calls; mu here only guards
+	// visibility for readers of Config().
 	r.mu.Lock()
 	defer r.mu.Unlock()
 

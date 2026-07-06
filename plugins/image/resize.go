@@ -56,6 +56,10 @@ func (e *resizeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		return "", nil, fmt.Errorf("image.resize: %w", err)
 	}
 
+	if err := enforceDimensionLimit(nCtx, config, width, height); err != nil {
+		return "", nil, fmt.Errorf("image.resize: %w", err)
+	}
+
 	opts := bimg.Options{
 		Width:  width,
 		Height: height,

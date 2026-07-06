@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
@@ -13,12 +14,15 @@ import (
 )
 
 type mockComponent struct {
-	name     string
-	startErr error
-	stopErr  error
-	started  bool
-	stopped  bool
-	log      *[]string
+	name      string
+	startErr  error
+	stopErr   error
+	started   bool
+	stopped   bool
+	log       *[]string
+	startGate chan struct{} // if non-nil, Start blocks until closed (used to interleave shutdown mid-boot)
+
+	mu sync.Mutex // guards started/stopped for concurrent-access tests
 }
 
 func (m *mockComponent) Name() string { return m.name }
@@ -26,18 +30,35 @@ func (m *mockComponent) Start(_ context.Context) error {
 	if m.log != nil {
 		*m.log = append(*m.log, "start:"+m.name)
 	}
+	if m.startGate != nil {
+		<-m.startGate
+	}
 	if m.startErr != nil {
 		return m.startErr
 	}
+	m.mu.Lock()
 	m.started = true
+	m.mu.Unlock()
 	return nil
 }
 func (m *mockComponent) Stop(_ context.Context) error {
 	if m.log != nil {
 		*m.log = append(*m.log, "stop:"+m.name)
 	}
+	m.mu.Lock()
 	m.stopped = true
+	m.mu.Unlock()
 	return m.stopErr
+}
+func (m *mockComponent) isStarted() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.started
+}
+func (m *mockComponent) isStopped() bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.stopped
 }
 
 func testLogger() *slog.Logger {
@@ -187,6 +208,44 @@ func TestStopAll_PropagatesParentCancel(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("StopAll did not return after parent ctx cancelled")
 	}
+}
+
+func TestStartAll_ShutdownDuringBootIsHonored(t *testing.T) {
+	lc := New(testLogger())
+	gate := make(chan struct{})
+	a := &mockComponent{name: "a"}                  // starts immediately
+	b := &mockComponent{name: "b", startGate: gate} // blocks in Start
+	lc.Register(a)
+	lc.Register(b)
+
+	startErr := make(chan error, 1)
+	go func() { startErr <- lc.StartAll(context.Background()) }()
+
+	// Wait until "a" has started and StartAll is blocked in b.Start.
+	require.Eventually(t, func() bool { return a.isStarted() }, time.Second, 5*time.Millisecond)
+
+	// Fire shutdown while b is still starting.
+	go lc.StopAll(context.Background())
+	// Let b finish starting.
+	time.Sleep(20 * time.Millisecond)
+	close(gate)
+
+	<-startErr
+	require.Eventually(t, func() bool { return a.isStopped() }, time.Second, 5*time.Millisecond,
+		"started component must be stopped by the shutdown")
+	// b must also end up stopped if it started, OR never counted — in all cases not left running.
+	require.Eventually(t, func() bool { return !b.isStarted() || b.isStopped() }, time.Second, 5*time.Millisecond,
+		"a component that started must not be left running after shutdown")
+}
+
+func TestStartAll_AbortsWhenAlreadyShuttingDown(t *testing.T) {
+	lc := New(testLogger())
+	x := &mockComponent{name: "x"}
+	lc.Register(x)
+	lc.StopAll(context.Background()) // sets shuttingDown
+	err := lc.StartAll(context.Background())
+	require.Error(t, err)
+	require.False(t, x.isStarted(), "no component should start once shutting down")
 }
 
 func TestRegisterOrder(t *testing.T) {

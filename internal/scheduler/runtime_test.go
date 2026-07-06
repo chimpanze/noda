@@ -458,6 +458,15 @@ func TestResolveInput_Expressions(t *testing.T) {
 	assert.Equal(t, "my-job", input["job"])
 }
 
+func TestScheduleLockKey_DistinctPerSubMinuteFire(t *testing.T) {
+	base := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	k0 := scheduleLockKey("s1", base)
+	k30 := scheduleLockKey("s1", base.Add(30*time.Second)) // second fire in the same minute
+	require.NotEqual(t, k0, k30, "sub-minute fires must get distinct lock keys")
+	// same second -> same key (not cron-expressible to fire twice in one second)
+	require.Equal(t, k0, scheduleLockKey("s1", base.Add(500*time.Millisecond)))
+}
+
 func TestRuntime_MultipleJobs(t *testing.T) {
 	svcReg, nodeReg := newTestSetup(t)
 
@@ -505,4 +514,16 @@ func TestRuntime_MultipleJobs(t *testing.T) {
 		}
 		return foundA && foundB
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+func TestRunJob_SkipsOverlappingRun(t *testing.T) {
+	sc := ScheduleConfig{ID: "s1", Cron: "* * * * * *", WorkflowID: "wf"}
+	rt := NewRuntime([]ScheduleConfig{sc}, nil, nil, nil, nil, nil, nil, nil, nil)
+	// Simulate a run already in progress on this instance.
+	rt.running["s1"].Store(true)
+
+	before := len(rt.jobHistory())
+	rt.runJob(sc) // must skip immediately: no lock, no workflow, no history entry
+	require.Equal(t, before, len(rt.jobHistory()), "overlapping run must be skipped (no new history)")
+	require.True(t, rt.running["s1"].Load(), "the guard owned by the in-progress run stays set")
 }

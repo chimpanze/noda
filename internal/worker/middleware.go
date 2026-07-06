@@ -14,6 +14,7 @@ type MessageContext struct {
 	TraceID   string
 	Topic     string
 	Group     string
+	Timeout   time.Duration // per-worker processing timeout; 0 = use middleware default
 	Logger    *slog.Logger
 }
 
@@ -73,7 +74,10 @@ func (m *TimeoutMiddleware) Name() string { return "worker.timeout" }
 
 func (m *TimeoutMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
 	return func(ctx context.Context) error {
-		timeout := m.Timeout
+		timeout := msgCtx.Timeout
+		if timeout == 0 {
+			timeout = m.Timeout
+		}
 		if timeout == 0 {
 			timeout = 30 * time.Second
 		}

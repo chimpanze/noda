@@ -59,7 +59,7 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 	}
 	// Generate schemas
 	if artifactSet["schemas"] {
-		result.Files[fmt.Sprintf("schemas/models/%s.json", capitalize(singular))] = generateModelSchemas(singular, columns)
+		result.Files[fmt.Sprintf("schemas/models/%s.json", capitalize(singular))] = generateModelSchemas(singular, columns, opts.ScopeCol)
 	}
 
 	// Generate routes and workflows
@@ -71,10 +71,13 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 				// Map body fields to workflow input
 				inputMap := map[string]any{}
 				for _, col := range columns {
-					if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
+					if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" || col.Name == opts.ScopeCol {
 						continue
 					}
 					inputMap[col.Name] = expr("body." + col.Name)
+				}
+				if opts.ScopeCol != "" && opts.ScopeParam != "" {
+					inputMap[opts.ScopeParam] = expr("params." + opts.ScopeParam)
 				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
 					"id":     wfName + "-route",
@@ -98,6 +101,13 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 		case "list":
 			wfName := "list-" + table
 			if artifactSet["routes"] {
+				listInput := map[string]any{
+					"limit":  expr("query.limit ?? '20'"),
+					"offset": expr("query.offset ?? '0'"),
+				}
+				if opts.ScopeCol != "" && opts.ScopeParam != "" {
+					listInput[opts.ScopeParam] = expr("params." + opts.ScopeParam)
+				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
 					"id":     wfName + "-route",
 					"method": "GET",
@@ -107,10 +117,7 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 					},
 					"trigger": map[string]any{
 						"workflow": wfName,
-						"input": map[string]any{
-							"limit":  expr("query.limit ?? '20'"),
-							"offset": expr("query.offset ?? '0'"),
-						},
+						"input":    listInput,
 					},
 					"summary": fmt.Sprintf("List %s", table),
 					"tags":    []any{table},
@@ -123,6 +130,12 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 		case "get":
 			wfName := "get-" + singular
 			if artifactSet["routes"] {
+				getInput := map[string]any{
+					"id": expr("params.id"),
+				}
+				if opts.ScopeCol != "" && opts.ScopeParam != "" {
+					getInput[opts.ScopeParam] = expr("params." + opts.ScopeParam)
+				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
 					"id":     wfName + "-route",
 					"method": "GET",
@@ -132,9 +145,7 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 					},
 					"trigger": map[string]any{
 						"workflow": wfName,
-						"input": map[string]any{
-							"id": expr("params.id"),
-						},
+						"input":    getInput,
 					},
 					"summary": fmt.Sprintf("Get a %s by ID", singular),
 					"tags":    []any{table},
@@ -152,10 +163,13 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 					"id": expr("params.id"),
 				}
 				for _, col := range columns {
-					if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
+					if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" || col.Name == opts.ScopeCol {
 						continue
 					}
 					inputMap[col.Name] = expr("body." + col.Name)
+				}
+				if opts.ScopeCol != "" && opts.ScopeParam != "" {
+					inputMap[opts.ScopeParam] = expr("params." + opts.ScopeParam)
 				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
 					"id":     wfName + "-route",
@@ -176,12 +190,18 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 				}
 			}
 			if artifactSet["workflows"] {
-				result.Files["workflows/"+wfName+".json"] = generateUpdateWorkflow(table, singular, opts)
+				result.Files["workflows/"+wfName+".json"] = generateUpdateWorkflow(table, singular, columns, opts)
 			}
 
 		case "delete":
 			wfName := "delete-" + singular
 			if artifactSet["routes"] {
+				deleteInput := map[string]any{
+					"id": expr("params.id"),
+				}
+				if opts.ScopeCol != "" && opts.ScopeParam != "" {
+					deleteInput[opts.ScopeParam] = expr("params." + opts.ScopeParam)
+				}
 				result.Files["routes/"+wfName+".json"] = map[string]any{
 					"id":     wfName + "-route",
 					"method": "DELETE",
@@ -191,9 +211,7 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 					},
 					"trigger": map[string]any{
 						"workflow": wfName,
-						"input": map[string]any{
-							"id": expr("params.id"),
-						},
+						"input":    deleteInput,
 					},
 					"summary": fmt.Sprintf("Delete a %s", singular),
 					"tags":    []any{table},
@@ -249,7 +267,7 @@ func parseColumns(model map[string]any) []colInfo {
 	return result
 }
 
-func generateModelSchemas(singular string, columns []colInfo) map[string]any {
+func generateModelSchemas(singular string, columns []colInfo, scopeCol string) map[string]any {
 	createProps := make(map[string]any)
 	updateProps := make(map[string]any)
 	var createRequired []any
@@ -260,6 +278,9 @@ func generateModelSchemas(singular string, columns []colInfo) map[string]any {
 		}
 		if col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" {
 			continue
+		}
+		if scopeCol != "" && col.Name == scopeCol {
+			continue // scope column comes from the URL path param, not the body
 		}
 
 		prop := map[string]any{"type": jsonSchemaType(col.Type)}
@@ -483,7 +504,7 @@ func generateGetWorkflow(table, singular string, opts CRUDOptions) map[string]an
 	}
 }
 
-func generateUpdateWorkflow(table, singular string, opts CRUDOptions) map[string]any {
+func generateUpdateWorkflow(table, singular string, columns []colInfo, opts CRUDOptions) map[string]any {
 	nodes := map[string]any{}
 	edges := []any{}
 
@@ -504,12 +525,20 @@ func generateUpdateWorkflow(table, singular string, opts CRUDOptions) map[string
 		"services": map[string]any{"database": opts.Service},
 	}
 
+	data := map[string]any{}
+	for _, col := range columns {
+		if col.PrimaryKey || col.Name == "created_at" || col.Name == "updated_at" || col.Name == "deleted_at" || col.Name == opts.ScopeCol {
+			continue
+		}
+		data[col.Name] = expr("input." + col.Name)
+	}
+
 	nodes["update"] = map[string]any{
 		"type": "db.update",
 		"config": map[string]any{
 			"table": table,
 			"where": where,
-			"data":  expr("input"),
+			"data":  data,
 		},
 		"services": map[string]any{"database": opts.Service},
 	}

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sort"
 	"time"
+
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // defaultCreateTimeout bounds how long InitializeServices waits for a
@@ -92,19 +94,20 @@ func InitializeServices(ctx context.Context, servicesConfig map[string]any, plug
 			// Cleanup goroutine: wait for the orphan to complete OR for ctx
 			// shutdown. On ctx shutdown, abandon the result (we'll leak the
 			// underlying call goroutine, but not the cleanup one).
-			go func(name string) {
+			go func(name string, plugin api.Plugin) {
 				select {
 				case res := <-resultCh:
 					if res.err == nil && res.instance != nil {
-						if closer, ok := res.instance.(interface{ Close() error }); ok {
-							_ = closer.Close()
+						if err := plugin.Shutdown(res.instance); err != nil {
+							slog.Warn("timed-out service creation completed late, shutdown failed", "name", name, "error", err.Error())
+						} else {
+							slog.Warn("timed-out service creation completed late, resource shut down", "name", name)
 						}
-						slog.Warn("timed-out service creation completed late, resource closed", "name", name)
 					}
 				case <-ctx.Done():
 					slog.Warn("timed-out service creation cleanup abandoned at shutdown", "name", name)
 				}
-			}(name)
+			}(name, plugin)
 			continue
 		}
 

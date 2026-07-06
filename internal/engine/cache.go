@@ -14,13 +14,19 @@ type WorkflowCache struct {
 	graphs map[string]*CompiledGraph
 }
 
-// NewWorkflowCache creates a cache and pre-compiles all workflows from the given
-// raw workflow map. Returns an error if any workflow fails to parse or compile.
-func NewWorkflowCache(workflows map[string]map[string]any, resolver NodeOutputResolver) (*WorkflowCache, error) {
-	c := &WorkflowCache{
-		graphs: make(map[string]*CompiledGraph, len(workflows)),
+// buildGraphs parses+compiles all workflows and indexes each by its file key
+// and (if different) its logical "id" field, rejecting any id collision.
+func buildGraphs(workflows map[string]map[string]any, resolver NodeOutputResolver) (map[string]*CompiledGraph, error) {
+	graphs := make(map[string]*CompiledGraph, len(workflows))
+	source := make(map[string]string) // index key → file key that declared it
+	put := func(key, fileKey string, g *CompiledGraph) error {
+		if prev, ok := source[key]; ok {
+			return fmt.Errorf("duplicate workflow id %q (declared by %q and %q)", key, prev, fileKey)
+		}
+		source[key] = fileKey
+		graphs[key] = g
+		return nil
 	}
-
 	for id, raw := range workflows {
 		wfConfig, err := ParseWorkflowFromMap(id, raw)
 		if err != nil {
@@ -30,16 +36,29 @@ func NewWorkflowCache(workflows map[string]map[string]any, resolver NodeOutputRe
 		if err != nil {
 			return nil, fmt.Errorf("compile workflow %q: %w", id, err)
 		}
-		c.graphs[id] = graph
-		// Also index by the workflow's "id" field so routes can reference by logical ID
+		if err := put(id, id, graph); err != nil {
+			return nil, err
+		}
 		if jsonID, ok := raw["id"].(string); ok && jsonID != id {
-			c.graphs[jsonID] = graph
+			if err := put(jsonID, id, graph); err != nil {
+				return nil, err
+			}
 		}
 	}
+	return graphs, nil
+}
 
-	slog.Info("workflows compiled", "count", len(c.graphs))
+// NewWorkflowCache creates a cache and pre-compiles all workflows from the given
+// raw workflow map. Returns an error if any workflow fails to parse or compile.
+func NewWorkflowCache(workflows map[string]map[string]any, resolver NodeOutputResolver) (*WorkflowCache, error) {
+	graphs, err := buildGraphs(workflows, resolver)
+	if err != nil {
+		return nil, err
+	}
 
-	return c, nil
+	slog.Info("workflows compiled", "count", len(graphs))
+
+	return &WorkflowCache{graphs: graphs}, nil
 }
 
 // Get returns the compiled graph for a workflow ID.
@@ -52,21 +71,9 @@ func (c *WorkflowCache) Get(workflowID string) (*CompiledGraph, bool) {
 
 // Invalidate clears and rebuilds the cache. Used by dev mode hot reload.
 func (c *WorkflowCache) Invalidate(workflows map[string]map[string]any, resolver NodeOutputResolver) error {
-	newGraphs := make(map[string]*CompiledGraph, len(workflows))
-	for id, raw := range workflows {
-		wfConfig, err := ParseWorkflowFromMap(id, raw)
-		if err != nil {
-			return fmt.Errorf("parse workflow %q: %w", id, err)
-		}
-		graph, err := Compile(wfConfig, resolver)
-		if err != nil {
-			return fmt.Errorf("compile workflow %q: %w", id, err)
-		}
-		newGraphs[id] = graph
-		// Also index by the workflow's "id" field so routes can reference by logical ID
-		if jsonID, ok := raw["id"].(string); ok && jsonID != id {
-			newGraphs[jsonID] = graph
-		}
+	newGraphs, err := buildGraphs(workflows, resolver)
+	if err != nil {
+		return err
 	}
 
 	c.mu.Lock()

@@ -16,8 +16,8 @@
 - Duplicate `Gateway.Connect` id: **reject** with `VALIDATION_ERROR`, do not close-old.
 - Host-call envelope: success `{"ok":true,"data":<v>}`, error `{"ok":false,"error":{"code":<s>,"message":<s>}}`; `stack[0]==0` means void success only.
 - Timer interval key on the wire: **`interval_ms`**.
-- All `internal/wasm` + `pdk` tests run under `-race`.
-- Pre-push gate: `gofmt -l .`, `go vet ./...`, `golangci-lint run`, `go test -race ./internal/wasm/... ./pdk/...`.
+- All `internal/wasm` tests run under `-race`. **The PDK (`pdk/go`, module `github.com/nodafw/noda-pdk-go`) compiles only for `wasip1/wasm`** (extism go-pdk has no host implementation), so verify it with a wasip1 build — not host `go test`. Behavioral verification of the PDK-side envelope decode happens end-to-end via a recompiled example guest module (Task 11).
+- Pre-push gate: `gofmt -l .`, `go vet ./...`, `golangci-lint run`, `go test -race ./internal/wasm/...`, and `(cd pdk/go && GOOS=wasip1 GOARCH=wasm go build ./...)`.
 - Only one goroutine may call the guest during `running`; never abandon a guest call while permitting a new one.
 
 **Worktree:** `.worktrees/wasm-runtime-hardening`, branch `feat/wasm-runtime-hardening` off `main`. Spec + this plan are force-added (`git add -f docs/superpowers/...`).
@@ -420,36 +420,17 @@ git commit -m "fix(wasm): host-call error envelope, host side (wasm-pdk-3)"
 **Files:**
 - Create: `pdk/go/noda/errors.go`
 - Modify: `pdk/go/noda/host.go`, `pdk/go/noda/noda.go`
-- Test: `pdk/go/noda/noda_test.go` *(create if absent)*
 
 **Interfaces:**
 - Produces: `type HostError struct { Code, Message string }` with `Error() string`; `call([]byte) ([]byte, error)` now decodes the envelope.
 - Consumes: envelope from Task 3.
 
-- [ ] **Step 1: Write the failing test**
+> **Testing note — PDK is wasm-only.** `pdk/go` (module `github.com/nodafw/noda-pdk-go`) imports `github.com/extism/go-pdk`, which has no host implementation, so `go test ./pdk/...` on the host fails to build. TDD's red/green signal for this task is therefore: (1) the code must **compile for `wasip1/wasm`**, and (2) the envelope's runtime behavior is proven end-to-end in **Task 11** by a recompiled example guest module that makes a denied host call and asserts it receives a `HostError`. Do not add a host `go test` file for this package.
 
-```go
-// pdk/go/noda/noda_test.go
-func TestDecodeEnvelope_Error(t *testing.T) {
-	data := []byte(`{"ok":false,"error":{"code":"PERMISSION_DENIED","message":"nope"}}`)
-	_, err := decodeEnvelope(data)
-	var he *HostError
-	if !errors.As(err, &he) || he.Code != "PERMISSION_DENIED" {
-		t.Fatalf("want HostError PERMISSION_DENIED, got %v", err)
-	}
-}
+- [ ] **Step 1: Establish the red signal — confirm the current PDK build is clean, then that Task 11's behavioral test is not yet satisfiable**
 
-func TestDecodeEnvelope_Success(t *testing.T) {
-	data, err := decodeEnvelope([]byte(`{"ok":true,"data":{"value":1}}`))
-	if err != nil { t.Fatal(err) }
-	if data == nil { t.Fatal("want data bytes") }
-}
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `go test ./pdk/go/noda/ -run TestDecodeEnvelope`
-Expected: FAIL — `decodeEnvelope`/`HostError` undefined.
+Run: `cd pdk/go && GOOS=wasip1 GOARCH=wasm go build ./...`
+Expected: PASS (baseline compiles). The behavioral gap (host errors invisible) is what Task 11's end-to-end test will catch after implementation.
 
 - [ ] **Step 3: Implement `HostError` and envelope decode**
 
@@ -544,10 +525,10 @@ func decodeEnvelope(raw []byte) ([]byte, error) {
 
 Use the single `envelopeAny` version (delete the `json.RawMessage` variant). Add imports as needed.
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [ ] **Step 4: Verify the PDK compiles for wasip1**
 
-Run: `go test ./pdk/go/noda/ -run TestDecodeEnvelope`
-Expected: PASS.
+Run: `cd pdk/go && GOOS=wasip1 GOARCH=wasm go build ./...`
+Expected: PASS. (Behavioral green comes in Task 11 via the recompiled example module; there is no host `go test` for this package.)
 
 - [ ] **Step 5: Remove the dead `pdk.GetError()` contract mention**
 
@@ -556,7 +537,7 @@ Delete the "PDK reads this via pdk.GetError()" comment already removed on the ho
 - [ ] **Step 6: Commit**
 
 ```bash
-git add pdk/go/noda/errors.go pdk/go/noda/host.go pdk/go/noda/noda.go pdk/go/noda/noda_test.go
+git add pdk/go/noda/errors.go pdk/go/noda/host.go pdk/go/noda/noda.go
 git commit -m "fix(wasm/pdk): decode host-call error envelope into HostError (wasm-pdk-3)"
 ```
 
@@ -969,16 +950,31 @@ git commit -m "fix(wasm): default 16 MiB guest memory cap (wasm-pdk-10)"
 - Modify: `examples/wasm-counter/wasm/*`, `examples/wasm-helpers/wasm/*`, `examples/discord-bot/wasm/*` (rebuild `.wasm`)
 - Modify: `docs/_internal/wasm-host-api.md` (§4.3 error mechanism; timer key), `CHANGELOG.md`, `REVIEW-FINDINGS-2026-07-05.md`
 
-- [ ] **Step 1: Rebuild the example guest modules against the updated PDK**
+> **CI reality (found at worktree setup):** `*.wasm` is **gitignored** (no `.wasm` is tracked), CI has **no tinygo**, and every existing wasm test uses the `mockPlugin` fake — there is no real-compiled-module integration test. So a `go test` that loads a rebuilt `.wasm` cannot run in CI. Verification is therefore split: a **local** tinygo compile (Step 1, proves the ABI break doesn't break real guest source) plus a **host-runnable envelope contract test** (Step 2, the CI-safe regression guard that the host emits exactly what the PDK decodes). Together with Task 4's wasip1 build, these are the proof.
 
-Run (per example dir with a build script/Makefile target; use the existing TinyGo invocation):
-`cd examples/wasm-counter/wasm && tinygo build -o counter.wasm -target wasi .` (repeat for helpers, bot — match each dir's existing build command).
-Expected: modules compile against the new PDK envelope/error API.
+- [ ] **Step 1: Locally recompile the example guest modules against the updated PDK (verification gate, not a committed artifact)**
 
-- [ ] **Step 2: Load-and-tick smoke check**
+Each example's `go.mod` already has `replace github.com/nodafw/noda-pdk-go => ../../../../pdk/go`, so a rebuild picks up the PDK changes with no version bump. Source dirs are `examples/*/wasm/<name>/` (confirm with `ls examples/*/wasm/`). With tinygo 0.40.x, from the worktree root:
 
-Run the example's own test if present, else a minimal load: `go test ./internal/wasm/ -run TestExampleModulesLoad` (add a small test that `LoadModule`s each example `.wasm` and ticks once).
-Expected: PASS — modules load with the new manifest (memory cap + timeout) and the host envelope.
+```bash
+cd examples/wasm-counter/wasm/counter && tinygo build -o /tmp/counter.wasm -target wasi . && cd - >/dev/null
+cd examples/wasm-helpers/wasm/helpers && tinygo build -o /tmp/helpers.wasm -target wasi . && cd - >/dev/null
+cd examples/discord-bot/wasm/bot && tinygo build -o /tmp/bot.wasm -target wasi . && cd - >/dev/null
+```
+
+Expected: all three compile against the new PDK envelope/error API (this is the real-guest-source ABI-break check). Output goes to `/tmp` because `.wasm` is gitignored and must NOT be committed. If any example's `main.go` calls `noda.Call`/`CallInto` and inspects the result, confirm it still compiles under the new `(bytes, error)` semantics; if a guest ignored the old always-nil error, that still compiles (the return is unchanged in arity). Record the three build results in your report.
+
+- [ ] **Step 2: Host-runnable envelope contract test (CI-safe green signal for Tasks 3+4)**
+
+Add `TestHostPDKEnvelopeContract` in `internal/wasm/wasm_test.go`. It does NOT load a `.wasm` (can't, per the CI reality above); it locks the wire agreement between the host encoder (Task 3) and the PDK decoder (Task 4) by round-tripping the exact envelope shape through **both** codecs. In the host test package, define a struct mirroring the PDK's `envelopeAny` (`OK bool`, `Data any`, `Error *struct{Code,Message string}` with matching `json:`/`msgpack:` tags) and assert:
+- An error envelope built as the host builds it (`map[string]any{"ok":false,"error":map[string]any{"code":"PERMISSION_DENIED","message":"…"}}`) marshalled with `&jsonCodec{}` and again with `&msgpackCodec{}`, when unmarshalled into the mirror struct, yields `OK==false`, `Error.Code=="PERMISSION_DENIED"`, `Error.Message` preserved — i.e. what the PDK's `decodeEnvelope` turns into a `HostError`.
+- A success envelope `{"ok":true,"data":<map>}` yields `OK==true` and `Data` deep-equal to the original, for both codecs.
+- A void success is represented by `stack[0]==0` (documented in a comment), not an envelope.
+
+This proves the field names, nesting, and codec-agnosticism that Task 4's PDK decoder relies on, and fails loudly if either side's shape drifts. Add a comment noting the true cross-binary proof is the Step-1 local tinygo compile (CI cannot run guest wasm).
+
+Run: `go test ./internal/wasm/ -run TestHostPDKEnvelopeContract -race`
+Expected: PASS for both json and msgpack.
 
 - [ ] **Step 3: Update docs**
 
@@ -986,18 +982,22 @@ In `docs/_internal/wasm-host-api.md`: replace the §4.3 "pdk.GetError()" error p
 
 - [ ] **Step 4: CHANGELOG + findings note**
 
-Add a `CHANGELOG.md` entry: "Wasm runtime hardening (tranche A) — **BREAKING (guest ABI):** host calls now return a `{ok,data,error}` envelope decoded by the PDK into `HostError`; rebuild guest modules against the updated PDK. Guest execution is now interruptible; default 16 MiB memory cap." Append a "Shipped 2026-07-05" note under the nine items in `REVIEW-FINDINGS-2026-07-05.md`.
+Add a `CHANGELOG.md` entry: "Wasm runtime hardening (tranche A) — **BREAKING (guest ABI):** host calls now return a `{ok,data,error}` envelope decoded by the PDK into `HostError`; rebuild guest modules against the updated PDK. Guest execution is now interruptible; default 16 MiB memory cap."
+
+Note: `REVIEW-FINDINGS-2026-07-05.md` is NOT in this worktree (it lives on the review PR branch off `main`, not this feature branch), so do not try to edit it here. The "Shipped 2026-07-05" note against the nine findings is handled by the controller at merge time, not in this task.
 
 - [ ] **Step 5: Full gate**
 
-Run: `gofmt -l . && go vet ./... && golangci-lint run && go test -race ./internal/wasm/... ./pdk/...`
-Expected: clean, all pass.
+Run: `gofmt -l . && go vet ./... && golangci-lint run && go test -race ./internal/wasm/... && (cd pdk/go && GOOS=wasip1 GOARCH=wasm go build ./...)`
+Expected: clean, all pass (host tests race-clean; PDK compiles for wasip1).
 
 - [ ] **Step 6: Commit**
 
+The rebuilt `.wasm` are gitignored (Step 1 wrote them to `/tmp`) — there is nothing to stage from `examples/`. Stage only the real changes:
+
 ```bash
-git add examples docs/_internal/wasm-host-api.md CHANGELOG.md REVIEW-FINDINGS-2026-07-05.md internal/wasm/wasm_test.go
-git commit -m "docs(wasm): recompile examples, document ABI break, mark findings shipped"
+git add docs/_internal/wasm-host-api.md CHANGELOG.md internal/wasm/wasm_test.go
+git commit -m "docs(wasm): document ABI break + envelope contract test; verify examples recompile"
 ```
 
 ---
@@ -1008,3 +1008,4 @@ git commit -m "docs(wasm): recompile examples, document ABI break, mark findings
 - **Type consistency:** `queryRequest.target` introduced in Task 2 (default `"query"`), set in Task 7 — consistent. `callWithTimeout(parent, name, data, timeout)` used identically in Tasks 1/2. `shutdownCtx` naming consistent across Tasks 1/2/8. `toInt64`/`toFloat` defined in Task 5, reused in Task 6. Envelope shape identical host (Task 3) and PDK (Task 4).
 - **Ordering constraint:** Task 1 introduces a temporary `CallWithContext(context.Background(), …)` shim in `processQuery`/`SendCommand` that Tasks 2/7 replace; noted inline so no dangling TODO ships (Task 7 removes the last inference).
 - **Deferred (out of scope, per spec):** wasm-pdk-9/11/12/13.
+- **PDK testing constraint (found at worktree setup):** `pdk/go` is a separate module (`github.com/nodafw/noda-pdk-go`) that only compiles for `wasip1/wasm`, so Task 4 is verified by a wasip1 build plus the Task 11 end-to-end test (denied call → `HostError`), not a host `go test`. The Global Constraints gate and Tasks 4/11 reflect this.

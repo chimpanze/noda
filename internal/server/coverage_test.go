@@ -2906,14 +2906,22 @@ func TestMapErrorToHTTP_NotFoundMessage(t *testing.T) {
 
 func TestMapErrorToHTTP_ConflictMessage(t *testing.T) {
 	err := &api.ConflictError{Resource: "email", Reason: "already exists"}
-	_, resp := MapErrorToHTTP(err, "t", false)
-	assert.Contains(t, resp.Error.Message, "already exists")
+	_, prodResp := MapErrorToHTTP(err, "t", false)
+	assert.NotContains(t, prodResp.Error.Message, "already exists")
+	assert.Contains(t, prodResp.Error.Message, "email")
+
+	_, devResp := MapErrorToHTTP(err, "t", true)
+	assert.Contains(t, devResp.Error.Message, "already exists")
 }
 
 func TestMapErrorToHTTP_ServiceUnavailableMessage(t *testing.T) {
 	err := &api.ServiceUnavailableError{Service: "redis", Cause: fmt.Errorf("timeout")}
-	_, resp := MapErrorToHTTP(err, "t", false)
-	assert.Contains(t, resp.Error.Message, "redis")
+	_, prodResp := MapErrorToHTTP(err, "t", false)
+	assert.Contains(t, prodResp.Error.Message, "redis")
+	assert.NotContains(t, prodResp.Error.Message, "timeout")
+
+	_, devResp := MapErrorToHTTP(err, "t", true)
+	assert.Contains(t, devResp.Error.Message, "timeout")
 }
 
 func TestMapErrorToHTTP_TimeoutMessage(t *testing.T) {
