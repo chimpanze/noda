@@ -98,3 +98,25 @@ func TestRedirect_CustomStatus(t *testing.T) {
 	resp := data.(*api.HTTPResponse)
 	assert.Equal(t, 301, resp.Status)
 }
+
+func TestRedirect_RejectsBackslashAuthority(t *testing.T) {
+	executor := &redirectExecutor{}
+
+	// These should be rejected: backslash-authority open redirect attempts
+	for _, bad := range []string{`/\evil.com`, `/\\evil.com`, `//evil.com`} {
+		t.Run("reject "+bad, func(t *testing.T) {
+			config := map[string]any{"url": bad}
+			_, _, err := executor.Execute(context.Background(), &mockExecCtx{}, config, nil)
+			require.Error(t, err, "must reject %q", bad)
+		})
+	}
+
+	// These should be allowed: valid URLs
+	for _, ok := range []string{`/dashboard`, `https://example.com/x`, `http://example.com`} {
+		t.Run("allow "+ok, func(t *testing.T) {
+			config := map[string]any{"url": ok}
+			_, _, err := executor.Execute(context.Background(), &mockExecCtx{}, config, nil)
+			require.NoError(t, err, "must allow %q", ok)
+		})
+	}
+}

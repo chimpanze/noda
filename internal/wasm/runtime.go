@@ -36,6 +36,41 @@ func NewRuntime(services *registry.ServiceRegistry, runner api.WorkflowRunner, l
 // defaultMaxModuleSize is the default maximum Wasm module file size (50MB).
 const defaultMaxModuleSize int64 = 50 * 1024 * 1024
 
+// defaultMemoryPages caps guest linear memory when MemoryPages is unset.
+// 256 pages * 64 KiB = 16 MiB (wazero's default is unbounded up to 4 GiB).
+const defaultMemoryPages uint32 = 256
+
+// buildManifest constructs the Extism manifest for a module, applying a
+// bounded default guest memory cap and the timeout needed to make context
+// cancellation actually terminate a running guest call (see wazero's
+// WithCloseOnContextDone).
+func buildManifest(cfg ModuleConfig, wasmBytes []byte) extism.Manifest {
+	manifest := extism.Manifest{
+		Wasm: []extism.Wasm{
+			extism.WasmData{Data: wasmBytes},
+		},
+		AllowedHosts: cfg.AllowHTTP, // Extism enforces HTTP host whitelist via its built-in HTTP host function
+	}
+
+	pages := cfg.MemoryPages
+	if pages == 0 {
+		pages = defaultMemoryPages
+	}
+	manifest.Memory = &extism.ManifestMemory{MaxPages: pages}
+
+	// Set the manifest timeout so extism enables wazero's WithCloseOnContextDone,
+	// which makes a context deadline/cancellation actually terminate a running
+	// guest call rather than just abandoning it. Use the larger of the tick
+	// timeout and the general call timeout so no legitimate call is cut short.
+	timeout := cfg.TickTimeout
+	if timeout < wasmCallTimeout {
+		timeout = wasmCallTimeout
+	}
+	manifest.Timeout = uint64(timeout / time.Millisecond)
+
+	return manifest
+}
+
 // LoadModule loads a Wasm module from config and registers it.
 func (r *Runtime) LoadModule(ctx context.Context, cfg ModuleConfig) (*Module, error) {
 	// Check file size before loading
@@ -63,18 +98,7 @@ func (r *Runtime) LoadModule(ctx context.Context, cfg ModuleConfig) (*Module, er
 // loadModuleFromBytes loads a module from raw wasm bytes (used by tests too).
 func (r *Runtime) loadModuleFromBytes(ctx context.Context, cfg ModuleConfig, wasmBytes []byte) (*Module, error) {
 	// Create Extism manifest
-	manifest := extism.Manifest{
-		Wasm: []extism.Wasm{
-			extism.WasmData{Data: wasmBytes},
-		},
-		AllowedHosts: cfg.AllowHTTP, // Extism enforces HTTP host whitelist via its built-in HTTP host function
-	}
-
-	if cfg.MemoryPages > 0 {
-		manifest.Memory = &extism.ManifestMemory{
-			MaxPages: cfg.MemoryPages,
-		}
-	}
+	manifest := buildManifest(cfg, wasmBytes)
 
 	// Create host dispatcher
 	dispatcher := NewHostDispatcher(r.services, r.runner, r.logger)
@@ -119,52 +143,50 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 	nodaCall := extism.NewHostFunctionWithStack(
 		"noda_call",
 		func(ctx context.Context, p *extism.CurrentPlugin, stack []uint64) {
+			codec := dispatcher.module.Codec
+			writeEnvelope := func(env map[string]any) {
+				out, mErr := codec.Marshal(env)
+				if mErr != nil {
+					// Do not silently fall back to void-success (stack[0]=0) here:
+					// the guest reads offset 0 as "void success" (see pdk/go/noda
+					// host.go hostCall), so collapsing a marshal failure on an ERROR
+					// envelope into that would turn a real PERMISSION_DENIED/NOT_FOUND
+					// into a false success. Fall back to a hardcoded error envelope so
+					// the guest still observes a failure.
+					logger.Error("noda_call: marshal envelope failed", "error", mErr)
+					out = []byte(`{"ok":false,"error":{"code":"INTERNAL_ERROR","message":"marshal envelope failed"}}`)
+				}
+				off, wErr := p.WriteBytes(out)
+				if wErr != nil {
+					// WriteBytes failing leaves no way to signal an error to the
+					// guest (offset 0 means void success) — log loudly so this is
+					// visible in ops rather than silently swallowed as a success.
+					logger.Error("noda_call: write envelope failed", "error", wErr)
+					stack[0] = 0
+					return
+				}
+				stack[0] = off
+			}
 			input, err := p.ReadBytes(stack[0])
 			if err != nil {
-				logger.Error("noda_call: read input failed", "error", err)
-				stack[0] = 0
+				writeEnvelope(map[string]any{"ok": false, "error": map[string]any{"code": "INTERNAL_ERROR", "message": "read input: " + err.Error()}})
 				return
 			}
-
 			var req HostCallRequest
-			codec := &jsonCodec{}
 			if err := codec.Unmarshal(input, &req); err != nil {
-				offset, _ := p.WriteString(fmt.Sprintf(`{"code":"VALIDATION_ERROR","message":"invalid request: %s"}`, err.Error()))
-				stack[0] = offset
+				writeEnvelope(map[string]any{"ok": false, "error": map[string]any{"code": "VALIDATION_ERROR", "message": "invalid request: " + err.Error()}})
 				return
 			}
-
 			result, err := dispatcher.Call(ctx, req)
 			if err != nil {
-				// Set error via Extism's error mechanism — the PDK reads this via pdk.GetError()
-				errMsg, _ := codec.Marshal(map[string]any{
-					"code":    "INTERNAL_ERROR",
-					"message": err.Error(),
-				})
-				offset, _ := p.WriteBytes(errMsg) // write error as output so PDK can read it
-				stack[0] = offset
+				writeEnvelope(map[string]any{"ok": false, "error": map[string]any{"code": classifyError(err), "message": err.Error()}})
 				return
 			}
-
 			if result == nil {
-				stack[0] = 0
+				stack[0] = 0 // void success
 				return
 			}
-
-			out, err := codec.Marshal(result)
-			if err != nil {
-				logger.Error("noda_call: marshal response failed", "error", err)
-				stack[0] = 0
-				return
-			}
-
-			offset, err := p.WriteBytes(out)
-			if err != nil {
-				logger.Error("noda_call: write response failed", "error", err)
-				stack[0] = 0
-				return
-			}
-			stack[0] = offset
+			writeEnvelope(map[string]any{"ok": true, "data": result})
 		},
 		[]extism.ValueType{extism.ValueTypePTR},
 		[]extism.ValueType{extism.ValueTypePTR},
@@ -183,7 +205,7 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 			}
 
 			var req HostCallRequest
-			codec := &jsonCodec{}
+			codec := dispatcher.module.Codec
 			if err := codec.Unmarshal(input, &req); err != nil {
 				logger.Error("noda_call_async: invalid request", "error", err)
 				return

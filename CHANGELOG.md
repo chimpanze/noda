@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+- Edge & trace hardening: DB conflict/unavailable error bodies no longer leak driver/constraint detail in production (detail gated behind dev mode); trace redaction now covers slice-typed node data (e.g. `db.query` rows) and `stream_key`; the dev `/ws/trace` endpoint rejects cross-origin connections; `response.redirect` rejects `/\`-authority open redirects; `ws.send`/`sse.send` (and the Wasm host connection API) reject wildcard channels — **broadcasting via a wildcard send is no longer supported; subscribe connections to a shared literal channel instead**; `image.resize`/`crop`/`thumbnail` cap output dimensions.
+
 ### Added
 - `auth.jwt` optional claim validation: `audience`, `issuer`, and `require_expiry` (all default off — when unset, behavior is unchanged)
 - Prometheus metrics endpoint (`/metrics`) with OTel metrics API
@@ -23,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CHANGELOG.md
 
 ### Changed
+- Wasm runtime hardening (tranche A) — **BREAKING (guest ABI):** host calls now return a `{ok,data,error}` envelope decoded by the PDK into `HostError`; rebuild guest modules against the updated PDK. Guest execution is now interruptible; default 16 MiB memory cap.
 - Route-group middleware now resolves **deterministically**: overlapping group prefixes (e.g. `/api` and `/api/admin`) **merge** their middleware (outermost-first, deduped) instead of one winning at random, and prefix matching is path-segment aware (`/api` no longer matches `/api-docs`). **Upgrade note:** a config that nested groups with a cross-group ordering conflict (e.g. a parent group placing `casbin.enforce` before a child group's `auth.jwt`) previously booted non-deterministically but now fails fast at route registration with a clear ordering error — reorder the affected groups to fix.
 - Dockerfile: non-root user, HEALTHCHECK directive, embedded editor build, version metadata via ldflags
 - WebSocket/SSE connections are now gracefully closed during shutdown
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deployment docs corrected for `sampling_rate` config field name
 - Worker now reclaims idle pending messages via XAutoClaim, so failed messages are actually redelivered and dead-letter (`dead_letter.after`) and retry limits are enforced (previously pending messages were never re-processed).
 - Worker pre-handler panics are now retried and dead-lettered/dropped through the normal disposition instead of being stranded in the pending-entries list (#243); panic errors now include a stack trace.
+- Lifecycle/devmode hardening: a shutdown signal received during startup is now honored (stops what started, aborts the rest) instead of being swallowed until a second signal; dev-mode config reloads are serialized (the latest change wins) and awaited at shutdown so no reload callback fires into a closing system; the dev-mode file watcher now reacts to config files created under new subdirectories and to config-file deletions; a service whose creation times out is properly shut down via its plugin if it completes late (no leaked connection pool).
 - New worker `retry` config (`min_idle`, `max_attempts`); without a `dead_letter` topic a repeatedly-failing message is dropped with a loud error after `max_attempts`.
 - Worker ack/dead-letter disposition runs on a fresh context, so a message that fails by exhausting the handler timeout is still counted, dead-lettered, or dropped instead of retrying forever.
 - Worker `dead_letter.after` defaults to `retry.max_attempts` when omitted, so a topic-only `dead_letter` config dead-letters poison messages instead of silently dropping them; an empty `dead_letter.topic` disables dead-lettering with an ERROR log instead of publishing to a stream named `""`.
@@ -45,6 +50,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Worker `min_idle` is clamped to `timeout` + 30s margin (not exactly `timeout`), so the reaper cannot reclaim a message whose consumer is still finishing or acknowledging.
 - Worker reaper processes reclaimed messages with the worker's `concurrency` instead of serially, so one slow poison message no longer head-of-line-blocks redelivery.
 - Worker/scheduler hardening: a worker's configured `timeout` is honored by the middleware chain (no longer capped by a shared default); the pending-message reaper claims only as many messages as it processes concurrently (closing a duplicate-execution window under contention); sub-minute schedules with distributed locking get a per-second lock key (no longer skip fires within a minute); a scheduled job that runs longer than its interval skips overlapping same-instance runs instead of self-overlapping.
+- Engine execution safety: a workflow that times out now returns a `504`/error instead of silently reporting success on a truncated run; parallel branches failing with different error types no longer crash the process; starved AND-joins fail loudly; join classification is deterministic; alias/node-ID and duplicate workflow-ID collisions are rejected at load.
+
+### Security
+- Bumped `github.com/buger/jsonparser` v1.1.1 → v1.1.2 (GO-2026-4514, DoS in the parser; the package is imported transitively but the vulnerable symbol is not called) and `golang.org/x/crypto` v0.51.0 → v0.53.0 (clears 13 module-level `ssh/*` advisories; `golang.org/x/crypto/ssh` is not imported, so there was no call-path exposure — `argon2`/`bcrypt` used by auth are unchanged). `govulncheck` reports no vulnerabilities.
 
 ### Removed
 - Stream plugin consume-side API (`Subscribe`, `Ack`, `PendingCount`): unused by the platform (workers consume streams directly) and its hardcoded 60s reclaim conflicted with the worker reaper's timeout-clamped policy. `Publish` and the `pkg/api.StreamService` contract are unchanged.

@@ -234,3 +234,53 @@ func TestCompile_DefaultOutputIsSuccess(t *testing.T) {
 	targets := g.Adjacency["a"]["success"]
 	assert.Contains(t, targets, "b")
 }
+
+func TestComputeJoinTypes_Deterministic(t *testing.T) {
+	// A node reachable through two outputs of a conditional ancestor is the
+	// ambiguous case the old first-match break decided by map order.
+	wf := WorkflowConfig{
+		ID: "det",
+		Nodes: map[string]NodeConfig{
+			"cond": {Type: "test.cond"}, "x": {Type: "test.x"}, "y": {Type: "test.y"}, "j": {Type: "test.j"},
+		},
+		Edges: []EdgeConfig{
+			{From: "cond", To: "x", Output: "go"},
+			{From: "cond", To: "y", Output: "skip"},
+			{From: "x", To: "j"},
+			{From: "y", To: "j"},
+		},
+	}
+	var first JoinType
+	for i := 0; i < 50; i++ {
+		g, err := Compile(wf, twoOutResolver{})
+		require.NoError(t, err)
+		if i == 0 {
+			first = g.JoinTypes["j"]
+		} else {
+			require.Equal(t, first, g.JoinTypes["j"], "join classification must be deterministic across compiles")
+		}
+	}
+	require.Equal(t, JoinOR, first, "j reached via two different conditional outputs → OR-join")
+}
+
+func TestCompile_AliasCollidesWithNodeID(t *testing.T) {
+	wf := WorkflowConfig{
+		ID:    "c1",
+		Nodes: map[string]NodeConfig{"x": {Type: "test.x"}, "y": {Type: "test.y", As: "x"}},
+		Edges: []EdgeConfig{{From: "x", To: "y"}},
+	}
+	_, err := Compile(wf, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "collides")
+}
+
+func TestCompile_DuplicateAlias(t *testing.T) {
+	wf := WorkflowConfig{
+		ID:    "c2",
+		Nodes: map[string]NodeConfig{"a": {Type: "test.a", As: "dup"}, "b": {Type: "test.b", As: "dup"}},
+		Edges: []EdgeConfig{{From: "a", To: "b"}},
+	}
+	_, err := Compile(wf, nil)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "dup")
+}

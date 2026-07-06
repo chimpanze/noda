@@ -2,6 +2,7 @@ package engine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -166,17 +167,6 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		g.Adjacency[id] = make(map[string][]string)
 	}
 
-	// Validate alias uniqueness
-	aliases := make(map[string]string) // alias -> nodeID
-	for id, node := range wf.Nodes {
-		if node.As != "" {
-			if existingID, exists := aliases[node.As]; exists {
-				return nil, fmt.Errorf("duplicate alias %q: used by both node %q and %q", node.As, existingID, id)
-			}
-			aliases[node.As] = id
-		}
-	}
-
 	// Compile edges
 	for _, edge := range wf.Edges {
 		if _, ok := g.Nodes[edge.From]; !ok {
@@ -247,6 +237,11 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 	// Compute join types
 	computeJoinTypes(g)
 
+	// Validate aliases
+	if err := validateAliases(g); err != nil {
+		return nil, err
+	}
+
 	// Validate output exclusivity (compile-time check)
 	if err := ValidateOutputExclusivity(g); err != nil {
 		return nil, err
@@ -303,6 +298,25 @@ func detectCycle(g *CompiledGraph) error {
 				return err
 			}
 		}
+	}
+	return nil
+}
+
+// validateAliases rejects an "as" alias that equals a node ID or duplicates
+// another alias — both would silently overwrite outputs at runtime.
+func validateAliases(g *CompiledGraph) error {
+	seen := make(map[string]string) // alias → nodeID that declared it
+	for id, n := range g.Nodes {
+		if n.As == "" {
+			continue
+		}
+		if _, isNodeID := g.Nodes[n.As]; isNodeID {
+			return fmt.Errorf("workflow %q: node %q alias %q collides with an existing node ID", g.WorkflowID, id, n.As)
+		}
+		if prev, dup := seen[n.As]; dup {
+			return fmt.Errorf("workflow %q: alias %q declared by both %q and %q", g.WorkflowID, n.As, prev, id)
+		}
+		seen[n.As] = id
 	}
 	return nil
 }
@@ -377,21 +391,28 @@ func hasCommonConditionalAncestor(g *CompiledGraph, _ string, inbound []string) 
 		outputs := g.Adjacency[ancestor]
 		if len(outputs) > 1 {
 			// Check if the inbound nodes are reached through different outputs
-			reachedThrough := make(map[string]string) // inbound src → output name
+			reachedThrough := make(map[string]map[string]bool) // src → set of output names
 			for _, src := range inbound {
-				for outputName, targets := range outputs {
-					if reachableFrom(g, targets, src) {
-						reachedThrough[src] = outputName
-						break
+				reachedThrough[src] = make(map[string]bool)
+				names := make([]string, 0, len(outputs))
+				for n := range outputs {
+					names = append(names, n)
+				}
+				sort.Strings(names)
+				for _, outputName := range names {
+					if reachableFrom(g, outputs[outputName], src) {
+						reachedThrough[src][outputName] = true
 					}
 				}
 			}
-			// If inbound nodes come through different outputs, it's OR-join
-			outputsSeen := make(map[string]bool)
-			for _, output := range reachedThrough {
-				outputsSeen[output] = true
+			// OR-join iff the inbound sources are reached through different outputs.
+			allOutputs := make(map[string]bool)
+			for _, set := range reachedThrough {
+				for o := range set {
+					allOutputs[o] = true
+				}
 			}
-			if len(outputsSeen) > 1 {
+			if len(allOutputs) > 1 {
 				return true
 			}
 		}

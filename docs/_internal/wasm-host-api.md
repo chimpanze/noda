@@ -162,11 +162,14 @@ All fields are optional — Noda omits empty arrays/objects from the tick input 
 
 During tick execution, the module processes events, updates internal state, and makes `noda_call` or `noda_call_async` host function calls as needed.
 
-**Return:** A status object or empty. A non-zero return code is logged as an error.
+**Return:** A status object or empty. A non-zero return code is logged as an error and ticking continues.
 
 **Tick budget:** If a tick exceeds its time budget (`1000 / tick_rate` milliseconds), Noda logs a warning with the actual duration. This helps module authors detect performance problems during development. Consecutive budget overruns are logged at increasing severity.
 
-**Tick timeout:** Each tick call must complete within `tick_timeout` (default: 10x the tick budget). If a tick exceeds this hard limit, Noda terminates the call with an error and continues the tick loop. This prevents a hung module from blocking the runtime indefinitely. The timeout is configurable per module in the `wasm_runtimes` config (e.g. `"tick_timeout": "5s"`).
+**Tick errors vs. tick timeout:** These are two different failure modes with different consequences:
+
+- A **non-zero exit code**, or the guest call returning a Go `error` from within the instance (a wasm trap, or the guest explicitly signaling failure — e.g. the Go PDK's `noda.Fail`/`noda.FailMsg`) — leaves the Wasm instance alive and untouched. Noda logs the error and the tick loop **keeps running** on the next interval; the module does not need to be reloaded. This is the normal way for a tick handler to signal "this frame failed" without taking down a long-lived (game/bot) module.
+- A **tick timeout** is different: each tick call must complete within `tick_timeout` (default: 10x the tick budget). If a tick exceeds this hard limit, the context deadline actually terminates the running guest call (Extism's manifest timeout enables wazero's `WithCloseOnContextDone`, so the instance is interrupted rather than merely abandoned). Because the instance itself has been torn down and any further call would also fail, Noda marks the module **failed**: the tick loop exits and subsequent `Query`/`SendCommand` calls fail fast. A timed-out guest does not get to keep running in the background, and it does not resume ticking afterward; the module must be reloaded to recover. The same applies if Noda's shutdown context is cancelled mid-call. The timeout is configurable per module in the `wasm_runtimes` config (e.g. `"tick_timeout": "5s"`).
 
 ### 3.4 Query
 
@@ -181,7 +184,7 @@ Noda calls the module's `query` export when a workflow executes a `wasm.query` n
 
 The input is the `data` field from the `wasm.query` node's config (with expressions already resolved by the workflow engine).
 
-**Return:** Response data. This becomes the output of the `wasm.query` node in the parent workflow. A non-zero return code causes the `wasm.query` node to fail with an error.
+**Return:** Response data. This becomes the output of the `wasm.query` node in the parent workflow. A non-zero return code, or the guest export returning a Go `error`, causes the `wasm.query` node to fail with an error — the instance stays alive and the module keeps running. Only a query that times out or is interrupted by shutdown terminates the instance and marks the module failed, per the same distinction described in [Tick errors vs. tick timeout](#33-tick).
 
 Queries must be fast — the `wasm.query` node has a mandatory `timeout` in its config, and the workflow's `context.Context` deadline applies. The module should read from its in-memory state, not perform expensive I/O during a query.
 
@@ -265,15 +268,19 @@ Use for slow operations: outbound HTTP requests, large storage reads/writes, any
 
 ### 4.3 Error Handling
 
-`noda_call` returns a response on success. On failure, Noda returns an error through Extism's error mechanism (accessible via `pdk.GetError()` or equivalent in each PDK). The error is a structured object:
+`noda_call` wraps every response — success or failure — in an envelope, written to the same return pointer:
 
 ```json
-{
-  "code": "NOT_FOUND",
-  "message": "Key 'leaderboard' does not exist",
-  "operation": "cache.get"
-}
+{ "ok": true, "data": { "...": "..." } }
 ```
+
+```json
+{ "ok": false, "error": { "code": "NOT_FOUND", "message": "Key 'leaderboard' does not exist" } }
+```
+
+A *void* success (the host operation produced no result, e.g. a fire-and-forget `ws.send`) skips the envelope entirely — the host writes nothing and the guest's return pointer is `0`.
+
+The Go PDK's `decodeEnvelope` (in `pdk/go/noda/host.go`) parses this envelope for every synchronous `noda.Call`/`noda.CallInto`: on `"ok": false` it returns a `*noda.HostError{Code, Message}` as a real Go `error` (so callers do `if err != nil { var herr *noda.HostError; errors.As(err, &herr) }` or just check `err.Error()`); on `"ok": true` it re-marshals `data` through the active codec and returns the raw bytes for the caller to unmarshal. A `0` return pointer short-circuits to `(nil, nil)` before the envelope is even parsed. Other PDKs should follow the same contract: decode `{ok, data, error}` using whichever codec the module is configured for (JSON or msgpack — the envelope shape and field names are identical in both).
 
 Error codes match Noda's standard error codes: `NOT_FOUND`, `VALIDATION_ERROR`, `SERVICE_UNAVAILABLE`, `TIMEOUT`, `PERMISSION_DENIED`, `INTERNAL_ERROR`.
 
@@ -466,19 +473,17 @@ Modules can register named timers that fire on a schedule:
 
 ```json
 // noda_call("", "set_timer", payload)
-{ "name": "save-state", "interval": 30000 }
-// response
-{}
+{ "name": "save-state", "interval_ms": 30000 }
+// response: void success (no envelope; return pointer is 0)
 ```
 
 ```json
 // noda_call("", "clear_timer", payload)
 { "name": "save-state" }
-// response
-{}
+// response: void success (no envelope; return pointer is 0)
 ```
 
-`interval` is in milliseconds. When a timer fires, its name appears in the `timers` array of the next tick input. Timers are not precise — they fire on the next tick after the interval elapses.
+`interval_ms` is in milliseconds and must be a positive number. When a timer fires, its name appears in the `timers` array of the next tick input. Timers are not precise — they fire on the next tick after the interval elapses.
 
 ### 6.4 Emit Event
 
@@ -637,7 +642,7 @@ Not all modules need persistent state — a stateless bot that only reacts to in
 
 The recommended pattern is a timer-based snapshot:
 
-1. During `initialize`, set a timer: `noda_call("", "set_timer", { "name": "save-state", "interval": 30000 })`
+1. During `initialize`, set a timer: `noda_call("", "set_timer", { "name": "save-state", "interval_ms": 30000 })`
 2. During `tick`, check `timers` for `"save-state"` and write state to storage via `noda_call_async`
 3. During `initialize` on restart, load the last snapshot from storage
 
@@ -776,9 +781,9 @@ The module is configured in `noda.json` under `wasm_runtimes`:
 
 - **Service isolation** — the module can only access services listed in its config. `noda_call` to any other service returns `PERMISSION_DENIED`.
 - **Network isolation** — outbound HTTP and WebSocket connections are only allowed to whitelisted hosts. No wildcards.
-- **Memory isolation** — each module instance has its own linear memory space, enforced by the Wasm sandbox. Instances cannot access each other's memory.
+- **Memory isolation** — each module instance has its own linear memory space, enforced by the Wasm sandbox. Instances cannot access each other's memory. Guest linear memory is capped at **256 pages (16 MiB) by default** (`ModuleConfig.MemoryPages`, 64 KiB/page; not yet exposed as a `wasm_runtimes` JSON field) — wazero's own default is unbounded up to 4 GiB, so Noda applies this bound to keep a single module from exhausting host memory.
 - **No filesystem access** — all storage goes through `noda_call` to a storage service. No direct filesystem operations.
 - **No database access** — modules cannot access the database directly. For database operations, modules trigger workflows that contain database nodes. This keeps the database boundary clean and maintains GORM as the single database interface.
 - **Call serialization** — `tick`, `command`, and `query` are never called concurrently on the same instance, preventing data races.
-- **Resource limits** — Extism supports memory limits per module. Noda enforces a per-tick timeout (`tick_timeout`, default 10x tick budget) to prevent hung modules from blocking the runtime.
+- **Resource limits** — Extism supports memory limits per module (see the 16 MiB default memory cap above). Noda enforces a per-tick timeout (`tick_timeout`, default 10x tick budget) to prevent hung modules from blocking the runtime; a call that exceeds it is actually terminated (not just abandoned) and the module is marked failed, ending its tick loop.
 - **Secret isolation** — environment variables are resolved by Noda in the config before passing to the module. Modules cannot read arbitrary environment variables — only values explicitly included in their config.

@@ -124,6 +124,39 @@ func TestWatcher_SubdirectoryWatch(t *testing.T) {
 	assert.GreaterOrEqual(t, called.Load(), int32(1))
 }
 
+func TestWatcher_ReactsToNewSubdirAndDelete(t *testing.T) {
+	dir := t.TempDir()
+	changes := make(chan string, 8)
+	w, err := NewWatcher(func(p string) { changes <- p }, slog.Default())
+	require.NoError(t, err)
+	w.debounce = 20 * time.Millisecond
+	require.NoError(t, w.WatchDir(dir))
+	w.Start()
+	defer func() { _ = w.Stop(context.Background()) }()
+
+	// (platform-5) a .json created under a NEW subdirectory triggers a reload.
+	sub := filepath.Join(dir, "routes")
+	require.NoError(t, os.Mkdir(sub, 0755))
+	time.Sleep(50 * time.Millisecond) // let the watcher pick up the new dir
+	require.NoError(t, os.WriteFile(filepath.Join(sub, "r.json"), []byte("{}"), 0644))
+	select {
+	case <-changes:
+	case <-time.After(time.Second):
+		t.Fatal("no reload for a .json created under a new subdirectory")
+	}
+
+	// (platform-6) deleting a watched .json triggers a reload.
+	f := filepath.Join(dir, "top.json")
+	require.NoError(t, os.WriteFile(f, []byte("{}"), 0644))
+	<-changes // the create
+	require.NoError(t, os.Remove(f))
+	select {
+	case <-changes:
+	case <-time.After(time.Second):
+		t.Fatal("no reload on .json delete")
+	}
+}
+
 // --- Reloader tests ---
 
 func TestReloader_HandleChange_Valid(t *testing.T) {
@@ -311,6 +344,47 @@ func TestReloader_ConfigVisibleOnlyAfterOnReloadCompletes(t *testing.T) {
 	defer mu.Unlock()
 	assert.Equal(t, 0, violations,
 		"reader observed new config while onReload was still running")
+}
+
+func TestReloader_ShutdownAwaitsInFlightReload(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "noda.json"), map[string]any{
+		"server": map[string]any{"port": 3000},
+	})
+
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+
+	r := NewReloader(dir, "", initial, nil, slog.Default())
+	inReload := make(chan struct{})
+	releaseReload := make(chan struct{})
+	var reloadRan atomic.Bool
+	var closeOnce sync.Once
+	r.OnReload(func(*config.ResolvedConfig) {
+		reloadRan.Store(true)
+		closeOnce.Do(func() { close(inReload) })
+		<-releaseReload // hold the reload open
+	})
+
+	go r.HandleChange(filepath.Join(dir, "noda.json")) // enters onReload, blocks
+	<-inReload
+
+	shutdownReturned := make(chan struct{})
+	go func() { r.Shutdown(); close(shutdownReturned) }()
+	select {
+	case <-shutdownReturned:
+		t.Fatal("Shutdown returned before the in-flight reload finished")
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(releaseReload) // let the reload finish
+	<-shutdownReturned   // Shutdown now returns
+
+	// A reload after shutdown must not fire onReload again.
+	reloadRan.Store(false)
+	r.HandleChange(filepath.Join(dir, "noda.json"))
+	require.False(t, reloadRan.Load(), "onReload must not fire after Shutdown")
 }
 
 // --- helpers ---

@@ -705,6 +705,16 @@ func TestWorkflowCache_JSONIDIndex(t *testing.T) {
 	assert.True(t, ok)
 }
 
+func TestNewWorkflowCache_DuplicateLogicalID(t *testing.T) {
+	workflows := map[string]map[string]any{
+		"fileA": {"id": "shared", "nodes": map[string]any{"n": map[string]any{"type": "test.n"}}},
+		"fileB": {"id": "shared", "nodes": map[string]any{"n": map[string]any{"type": "test.n"}}},
+	}
+	_, err := NewWorkflowCache(workflows, &DefaultOutputResolver{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate workflow id")
+}
+
 // --- Parse edge case tests ---
 
 func TestParseWorkflowFromMap_InvalidNodeFormat(t *testing.T) {

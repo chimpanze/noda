@@ -2,6 +2,7 @@ package wasm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -23,7 +24,7 @@ const (
 
 // PluginInstance abstracts the Extism plugin for testability.
 type PluginInstance interface {
-	Call(name string, data []byte) (uint32, []byte, error)
+	CallWithContext(ctx context.Context, name string, data []byte) (uint32, []byte, error)
 	FunctionExists(name string) bool
 	Close(ctx context.Context) error
 }
@@ -57,14 +58,22 @@ type Module struct {
 	// Timers (protected by mu)
 	timers map[string]timerEntry
 
-	// Lifecycle context for goroutine management
-	lifecycleCtx     context.Context
-	lifecycleCancel  context.CancelFunc
+	// shutdownCtx is a stable context for the module's lifetime, cancelled once
+	// by Stop() to unblock any in-flight callWithTimeout calls. Unlike the old
+	// lifecycleCtx, it is never reset — callers needing a fresh context (e.g.
+	// the shutdown export call in Stop) create their own.
+	shutdownCtx      context.Context
+	shutdownCancel   context.CancelFunc
 	outstandingCalls sync.WaitGroup
 
 	// stopping is set by Stop() before the async-result maps are cleared.
 	// AddAsyncResult checks it to drop late-arriving writes silently.
 	stopping atomic.Bool
+
+	// failed is set once a guest call errors out (e.g. a hung call that hit
+	// its timeout). Once set, the tick loop exits and Query/SendCommand fail
+	// fast instead of queuing work a dead loop will never service.
+	failed atomic.Bool
 
 	// Outbound gateway connections
 	gateway *Gateway
@@ -85,6 +94,9 @@ type timerEntry struct {
 }
 
 type queryRequest struct {
+	// target is the guest export to call. Defaults to "query"; Task 7 will
+	// set it per-request to support full command/query routing.
+	target string
 	data   []byte
 	result chan queryResponse
 }
@@ -130,7 +142,7 @@ func NewModule(name string, plugin PluginInstance, cfg ModuleConfig, dispatcher 
 		tickDone:      make(chan struct{}),
 	}
 
-	m.lifecycleCtx, m.lifecycleCancel = context.WithCancel(context.Background())
+	m.shutdownCtx, m.shutdownCancel = context.WithCancel(context.Background())
 
 	dispatcher.SetModule(m)
 	m.dispatcher = dispatcher
@@ -152,7 +164,7 @@ func (m *Module) Initialize(ctx context.Context) error {
 		return fmt.Errorf("marshal initialize input: %w", err)
 	}
 
-	exitCode, _, err := m.callWithTimeout("initialize", data, wasmCallTimeout)
+	exitCode, _, err := m.callWithTimeout(m.shutdownCtx, "initialize", data, wasmCallTimeout)
 	if err != nil {
 		return fmt.Errorf("initialize call failed: %w", err)
 	}
@@ -194,21 +206,18 @@ func (m *Module) Stop(ctx context.Context) error {
 	// Mark as stopping so AddAsyncResult drops late writes.
 	m.stopping.Store(true)
 
-	// Cancel lifecycle context to unblock any in-flight callWithTimeout calls
-	m.lifecycleCancel()
+	// Cancel the shutdown context to unblock any in-flight callWithTimeout calls
+	m.shutdownCancel()
 
 	// Wait for the tick loop goroutine to fully exit before touching the plugin
 	<-m.tickDone
 
-	// Reset lifecycle context so the shutdown call below can proceed
-	m.lifecycleCtx, m.lifecycleCancel = context.WithCancel(context.Background())
-
-	// Call shutdown with timeout to prevent hung exports from blocking lifecycle
+	// Call shutdown with timeout to prevent hung exports from blocking lifecycle.
+	// Use a fresh context since shutdownCtx is already cancelled above.
 	data, _ := m.Codec.Marshal(map[string]any{})
-	_, _, err := m.callWithTimeout("shutdown", data, wasmCallTimeout)
-
-	// Cancel the temporary context
-	m.lifecycleCancel()
+	ctx2, cancel2 := context.WithTimeout(context.Background(), wasmCallTimeout)
+	defer cancel2()
+	_, _, err := m.callWithTimeout(ctx2, "shutdown", data, wasmCallTimeout)
 
 	// Wait for outstanding async-call goroutines BEFORE clearing the maps
 	// they write into. With the Add(1)/Done() wrapping in CallAsync this
@@ -243,12 +252,17 @@ func (m *Module) Stop(ctx context.Context) error {
 
 // Query calls the module's query export synchronously, serialized with ticks.
 func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration) (any, error) {
+	if m.failed.Load() {
+		return nil, fmt.Errorf("module %q has failed", m.Name)
+	}
+
 	data, err := m.Codec.Marshal(queryData)
 	if err != nil {
 		return nil, fmt.Errorf("marshal query: %w", err)
 	}
 
 	req := queryRequest{
+		target: "query",
 		data:   data,
 		result: make(chan queryResponse, 1),
 	}
@@ -281,6 +295,11 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 
 // SendCommand delivers a command to the module.
 func (m *Module) SendCommand(data any) {
+	if m.failed.Load() {
+		m.Logger.Error("dropping command on failed module", "module", m.Name)
+		return
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -295,7 +314,7 @@ func (m *Module) SendCommand(data any) {
 		m.outstandingCalls.Add(1)
 		go func() {
 			defer m.outstandingCalls.Done()
-			req := queryRequest{data: cmdData, result: make(chan queryResponse, 1)}
+			req := queryRequest{target: "command", data: cmdData, result: make(chan queryResponse, 1)}
 			select {
 			case m.queryCh <- req:
 				select {
@@ -412,32 +431,38 @@ func (m *Module) IsServiceAllowed(service string) bool {
 	return false
 }
 
-// callWithTimeout calls a plugin function with a timeout. Returns an error if
-// the call doesn't complete within the given duration.
-func (m *Module) callWithTimeout(name string, data []byte, timeout time.Duration) (uint32, []byte, error) {
-	type callResult struct {
-		exitCode uint32
-		output   []byte
-		err      error
+// errGuestInterrupted is a sentinel wrapped into the error returned by
+// callWithTimeout when the guest call was interrupted (its context deadline
+// expired or the parent shutdown context was cancelled). In that case wazero
+// has actually terminated the guest instance, so every subsequent call would
+// also fail — callers must stop and mark the module failed. Any other
+// non-nil error from CallWithContext (a wasm trap, or a guest that returned
+// noda.Fail/noda.FailMsg) leaves the instance alive and recoverable, so
+// callers should log it and keep going instead of tearing down the module.
+var errGuestInterrupted = errors.New("guest call interrupted")
+
+// callWithTimeout calls a guest export synchronously with a per-call deadline.
+// It runs inline on the caller's goroutine (the tick loop during running),
+// so only one goroutine ever touches the plugin. With extism manifest.Timeout
+// set, a context deadline actually terminates the guest.
+func (m *Module) callWithTimeout(parent context.Context, name string, data []byte, timeout time.Duration) (uint32, []byte, error) {
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
+	exitCode, out, err := m.Plugin.CallWithContext(ctx, name, data)
+	if err != nil && ctx.Err() != nil {
+		// The call's own deadline expired, or the parent shutdown context was
+		// cancelled mid-call — either way the guest instance is now closed.
+		return exitCode, out, fmt.Errorf("%s call interrupted (%v): %w: %w", name, ctx.Err(), err, errGuestInterrupted)
 	}
-	ch := make(chan callResult, 1)
-	m.outstandingCalls.Add(1)
-	go func() {
-		defer m.outstandingCalls.Done()
-		exitCode, output, err := m.Plugin.Call(name, data)
-		ch <- callResult{exitCode, output, err}
-	}()
+	return exitCode, out, err
+}
 
-	timer := time.NewTimer(timeout)
-	defer timer.Stop()
-
-	select {
-	case r := <-ch:
-		return r.exitCode, r.output, r.err
-	case <-timer.C:
-		return 0, nil, fmt.Errorf("%s call timed out after %s", name, timeout)
-	case <-m.lifecycleCtx.Done():
-		return 0, nil, fmt.Errorf("%s call cancelled: module shutting down", name)
+// markFailed marks the module as failed, causing the tick loop to exit and
+// subsequent Query/SendCommand calls to fail fast. Idempotent — only the
+// first call logs.
+func (m *Module) markFailed(reason string) {
+	if m.failed.CompareAndSwap(false, true) {
+		m.Logger.Error("wasm module failed; stopping tick loop", "module", m.Name, "reason", reason)
 	}
 }
 

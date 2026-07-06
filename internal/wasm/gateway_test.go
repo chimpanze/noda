@@ -12,7 +12,20 @@ import (
 
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+// wasm-pdk-8: Connect must reject a duplicate connection id rather than
+// silently overwriting the existing gatewayConn, which would orphan its
+// readLoop (it keeps running under the same id and can never be closed).
+func TestGatewayConnect_RejectsDuplicateID(t *testing.T) {
+	g := NewGateway(&Module{Name: "m", Codec: &jsonCodec{}}, testLogger())
+	g.conns["c1"] = &gatewayConn{id: "c1", stopCh: make(chan struct{})} // simulate a live conn
+	_, err := g.Connect(context.Background(), map[string]any{"id": "c1", "url": "ws://example/x"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "already in use")
+	require.NotNil(t, g.conns["c1"], "existing connection must be left intact")
+}
 
 // wasm-3 (sibling): heartbeatLoop must not race reconnectLoop's reassignment of
 // gc.stopCh. Run under -race; without the fix the unlocked select-read of

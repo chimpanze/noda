@@ -118,7 +118,7 @@ func (c *watcherComponent) Start(_ context.Context) error {
 }
 func (c *watcherComponent) Stop(ctx context.Context) error {
 	if c.reloader != nil {
-		c.reloader.SetShuttingDown()
+		c.reloader.Shutdown()
 	}
 	return c.w.Stop(ctx)
 }

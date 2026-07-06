@@ -101,10 +101,35 @@ func (w *Watcher) loop() {
 				return
 			}
 
-			// Only react to write/create/rename operations on JSON files
-			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) == 0 {
+			// React to write/create/rename/remove.
+			if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename|fsnotify.Remove) == 0 {
 				continue
 			}
+
+			// A newly created directory must be added to the watcher (fsnotify is
+			// non-recursive), and its subtree covered in case a tree was created
+			// at once. Then fall through to schedule a reload.
+			if event.Op&fsnotify.Create != 0 {
+				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+					if len(info.Name()) == 0 || info.Name()[0] != '.' { // skip hidden dirs, matching WatchDir
+						if werr := w.WatchDir(event.Name); werr != nil {
+							w.logger.Warn("watcher: failed to watch new directory", "path", event.Name, "error", werr.Error())
+						}
+					}
+					// a dir create schedules a reload (new config may live under it)
+					lastPath = event.Name
+					if timer != nil {
+						timer.Stop()
+					}
+					path := lastPath
+					timer = time.AfterFunc(w.debounce, func() {
+						w.logger.Info("config file changed", "path", path)
+						w.onChange(path)
+					})
+					continue
+				}
+			}
+
 			ext := filepath.Ext(event.Name)
 			if ext != ".json" {
 				continue
