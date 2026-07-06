@@ -299,8 +299,9 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			return
 		}
 		// Do NOT release the lock after execution. The lock key is scoped to a
-		// time window (truncated to the minute), so it must be held until the TTL
-		// expires to prevent another instance from executing in the same window.
+		// per-fire time window (truncated to the second — see scheduleLockKey), so
+		// it must be held until the TTL expires to prevent another instance from
+		// executing in the same window.
 		_ = lockToken
 	}
 
