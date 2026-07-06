@@ -180,6 +180,14 @@ func (r *Runtime) nextRun(scheduleID string) (time.Time, bool) {
 // defaultJobTimeout is used when no per-schedule timeout is configured.
 const defaultJobTimeout = 5 * time.Minute
 
+// scheduleLockKey builds the distributed-lock key for a single fire of a
+// schedule. The time is truncated to the second (not the minute) so that
+// sub-minute schedules (cron WithSeconds allows a 1s minimum interval) get a
+// distinct key per fire rather than colliding within the minute.
+func scheduleLockKey(id string, t time.Time) string {
+	return fmt.Sprintf("noda:schedule:%s:%d", id, t.Truncate(time.Second).Unix())
+}
+
 // runJob executes a single scheduled job with optional distributed locking.
 func (r *Runtime) runJob(sc ScheduleConfig) {
 	start := time.Now()
@@ -226,7 +234,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			lockTTL = timeout + 30*time.Second
 		}
 
-		lockKey := fmt.Sprintf("noda:schedule:%s:%d", sc.ID, now.Truncate(time.Minute).Unix())
+		lockKey := scheduleLockKey(sc.ID, now)
 		lockSvc, ok := r.services.Get(sc.LockSvcName)
 		if !ok {
 			r.logger.Error("scheduler: lock service not found",

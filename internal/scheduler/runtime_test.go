@@ -458,6 +458,15 @@ func TestResolveInput_Expressions(t *testing.T) {
 	assert.Equal(t, "my-job", input["job"])
 }
 
+func TestScheduleLockKey_DistinctPerSubMinuteFire(t *testing.T) {
+	base := time.Date(2026, 7, 6, 12, 0, 0, 0, time.UTC)
+	k0 := scheduleLockKey("s1", base)
+	k30 := scheduleLockKey("s1", base.Add(30*time.Second)) // second fire in the same minute
+	require.NotEqual(t, k0, k30, "sub-minute fires must get distinct lock keys")
+	// same second -> same key (not cron-expressible to fire twice in one second)
+	require.Equal(t, k0, scheduleLockKey("s1", base.Add(500*time.Millisecond)))
+}
+
 func TestRuntime_MultipleJobs(t *testing.T) {
 	svcReg, nodeReg := newTestSetup(t)
 
