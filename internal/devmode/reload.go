@@ -22,8 +22,8 @@ type Reloader struct {
 
 	onReload func(rc *config.ResolvedConfig)
 
-	reloadMu sync.Mutex     // serializes the whole HandleChange (latest wins)
-	reloadWg sync.WaitGroup // tracks in-flight reloads for Shutdown to await
+	reloadMu sync.Mutex // serializes the whole HandleChange (latest wins);
+	// also the shutdown barrier — Shutdown drains it to await an in-flight reload
 }
 
 // NewReloader creates a new config hot-reloader.
@@ -58,17 +58,22 @@ func (r *Reloader) Config() *config.ResolvedConfig {
 //
 // Shutdown marks the reloader as shutting down and blocks until any in-flight
 // reload has finished, so no onReload callback fires into a closing system.
+//
+// The flag is set before the barrier is taken: any HandleChange that acquires
+// reloadMu after this point observes shuttingDown at the post-lock re-check and
+// bails without firing onReload. Draining reloadMu (a reload holds it across the
+// swap and onReload) guarantees any truly in-flight reload has fully completed
+// before Shutdown returns.
 func (r *Reloader) Shutdown() {
 	r.shuttingDown.Store(true)
-	r.reloadWg.Wait()
+	r.reloadMu.Lock()
+	r.reloadMu.Unlock() //nolint:staticcheck // intentional barrier: drain to await in-flight reload
 }
 
 func (r *Reloader) HandleChange(path string) {
 	if r.shuttingDown.Load() {
 		return
 	}
-	r.reloadWg.Add(1)
-	defer r.reloadWg.Done()
 
 	r.reloadMu.Lock()
 	defer r.reloadMu.Unlock()
