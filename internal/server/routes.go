@@ -423,43 +423,65 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			}
 		}
 
-		timer := time.NewTimer(responseTimeout)
-		defer timer.Stop()
+		return s.awaitWorkflowResponse(c, responseCh, workflowDone, responseTimeout, routeID, traceID, respValidator)
+	}
+}
 
-		select {
-		case resp := <-responseCh:
-			// Response node fired — send response immediately
-			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+// awaitWorkflowResponse waits for the first of: a produced response, workflow
+// completion, or the response timeout — and writes the HTTP result. On the
+// error and timeout arms it first drains responseCh: a response the workflow
+// already produced wins deterministically over a synthesized error, because
+// select chooses randomly among ready cases and the client would have
+// received that response under a marginally different interleaving. The
+// suppressed workflow error stays visible in logs and the trace.
+func (s *Server) awaitWorkflowResponse(c fiber.Ctx, responseCh chan *api.HTTPResponse, workflowDone chan error, responseTimeout time.Duration, routeID, traceID string, respValidator *responseValidator) error {
+	timer := time.NewTimer(responseTimeout)
+	defer timer.Stop()
 
-		case wfErr := <-workflowDone:
-			// Workflow completed — check if a response was sent before returning
-			if wfErr != nil {
-				status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
-				return writeErrorResponse(c, status, errResp)
-			}
-			// Drain responseCh: the response node may have fired just before
-			// the workflow finished, and select picked this case randomly.
+	select {
+	case resp := <-responseCh:
+		// Response node fired — send response immediately
+		return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+
+	case wfErr := <-workflowDone:
+		if wfErr != nil {
 			select {
 			case resp := <-responseCh:
+				s.logger.Warn("workflow failed after producing a response; returning the response",
+					"route", routeID, "error", wfErr, "trace_id", traceID)
 				return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
 			default:
 			}
-			// No response node → 202 Accepted
-			return c.Status(fiber.StatusAccepted).JSON(map[string]any{
-				"status":   "accepted",
-				"trace_id": traceID,
-			})
-
-		case <-timer.C:
-			// Response timeout — cancel cancels the workflow goroutine
-			return writeErrorResponse(c, 504, ErrorResponse{
-				Error: api.ErrorData{
-					Code:    "TIMEOUT",
-					Message: "Response timeout exceeded",
-					TraceID: traceID,
-				},
-			})
+			status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
+			return writeErrorResponse(c, status, errResp)
 		}
+		// Drain responseCh: the response node may have fired just before
+		// the workflow finished, and select picked this case randomly.
+		select {
+		case resp := <-responseCh:
+			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+		default:
+		}
+		// No response node → 202 Accepted
+		return c.Status(fiber.StatusAccepted).JSON(map[string]any{
+			"status":   "accepted",
+			"trace_id": traceID,
+		})
+
+	case <-timer.C:
+		select {
+		case resp := <-responseCh:
+			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+		default:
+		}
+		// Response timeout — the handler's deferred cancel stops the workflow goroutine
+		return writeErrorResponse(c, 504, ErrorResponse{
+			Error: api.ErrorData{
+				Code:    "TIMEOUT",
+				Message: "Response timeout exceeded",
+				TraceID: traceID,
+			},
+		})
 	}
 }
 

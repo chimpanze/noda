@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http/httptest"
 	"strings"
@@ -19,6 +20,8 @@ import (
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
+	"github.com/chimpanze/noda/pkg/api"
+	"github.com/gofiber/fiber/v3"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -904,4 +907,71 @@ func TestRoute_CORS_Preflight(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, 404, resp.StatusCode)
 	assert.NotEmpty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+}
+
+// A response the workflow already produced must win deterministically over a
+// synthesized workflow error / 504: Go's select picks randomly among ready
+// cases, so without the drain an identical run could 500/504 or succeed
+// depending on scheduling (#271, reachable since tranche B made truncation
+// fail loudly). Both channels are pre-filled, so whichever case the select
+// picks the outcome must be the response — run with -count to exercise both.
+func TestAwaitWorkflowResponse_ErrorAfterResponse_ResponseWins(t *testing.T) {
+	srv := newTestServer(t, map[string]map[string]any{}, map[string]map[string]any{}, nil)
+
+	responseCh := make(chan *api.HTTPResponse, 1)
+	responseCh <- &api.HTTPResponse{Status: 201, Body: map[string]any{"ok": true}}
+	workflowDone := make(chan error, 1)
+	workflowDone <- fmt.Errorf("workflow timed out after response fired")
+
+	srv.App().Get("/await-error", func(c fiber.Ctx) error {
+		return srv.awaitWorkflowResponse(c, responseCh, workflowDone, time.Second, "r", "tid", nil)
+	})
+	resp, err := srv.App().Test(httptest.NewRequest("GET", "/await-error", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 201, resp.StatusCode)
+}
+
+func TestAwaitWorkflowResponse_TimeoutAfterResponse_ResponseWins(t *testing.T) {
+	srv := newTestServer(t, map[string]map[string]any{}, map[string]map[string]any{}, nil)
+
+	responseCh := make(chan *api.HTTPResponse, 1)
+	responseCh <- &api.HTTPResponse{Status: 200, Body: map[string]any{"ok": true}}
+	workflowDone := make(chan error, 1) // never closes: workflow still running
+
+	srv.App().Get("/await-timeout", func(c fiber.Ctx) error {
+		return srv.awaitWorkflowResponse(c, responseCh, workflowDone, time.Nanosecond, "r", "tid", nil)
+	})
+	resp, err := srv.App().Test(httptest.NewRequest("GET", "/await-timeout", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+}
+
+// Polarity controls: with no produced response the existing behavior stands.
+func TestAwaitWorkflowResponse_ErrorWithoutResponse_MapsError(t *testing.T) {
+	srv := newTestServer(t, map[string]map[string]any{}, map[string]map[string]any{}, nil)
+
+	responseCh := make(chan *api.HTTPResponse, 1)
+	workflowDone := make(chan error, 1)
+	workflowDone <- fmt.Errorf("boom")
+
+	srv.App().Get("/await-plain-error", func(c fiber.Ctx) error {
+		return srv.awaitWorkflowResponse(c, responseCh, workflowDone, time.Second, "r", "tid", nil)
+	})
+	resp, err := srv.App().Test(httptest.NewRequest("GET", "/await-plain-error", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 500, resp.StatusCode)
+}
+
+func TestAwaitWorkflowResponse_TimeoutWithoutResponse_504(t *testing.T) {
+	srv := newTestServer(t, map[string]map[string]any{}, map[string]map[string]any{}, nil)
+
+	responseCh := make(chan *api.HTTPResponse, 1)
+	workflowDone := make(chan error, 1)
+
+	srv.App().Get("/await-plain-timeout", func(c fiber.Ctx) error {
+		return srv.awaitWorkflowResponse(c, responseCh, workflowDone, 10*time.Millisecond, "r", "tid", nil)
+	})
+	resp, err := srv.App().Test(httptest.NewRequest("GET", "/await-plain-timeout", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 504, resp.StatusCode)
 }
