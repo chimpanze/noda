@@ -1,0 +1,18 @@
+{
+  "id": "auth-logout",
+  "name": "Auth: Logout",
+  "nodes": {
+    "revoke": {
+      "type": "auth.revoke_session",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "session_id": "{{ input.session_id }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 204, "cookies": "{{ [nodes.revoke.clear_cookie] }}" }
+    }
+  },
+  "edges": [
+    { "from": "revoke", "to": "respond" }
+  ]
+}

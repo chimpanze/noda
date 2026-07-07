@@ -1,0 +1,36 @@
+{
+  "id": "test-drop-upload",
+  "workflow": "drop-upload",
+  "tests": [
+    {
+      "name": "uploads a file with a comment",
+      "input": { "text": "the report" },
+      "mocks": {
+        "upload": { "output": { "path": "drops/abc", "size": 1024, "content_type": "application/pdf", "filename": "report.pdf" } },
+        "insert": { "output": { "id": "d1", "text": "the report", "file_name": "report.pdf", "file_size": 1024, "file_mime": "application/pdf" } },
+        "respond": { "output": { "status": 201 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 201 } }
+    },
+    {
+      "name": "rejected upload gets 400",
+      "input": { "text": "" },
+      "mocks": {
+        "upload": { "output_name": "error", "output": { "error": "file too large" } },
+        "respond_invalid": { "output": { "status": 400 } }
+      },
+      "expect": { "status": "success", "output": { "respond_invalid.status": 400 } }
+    },
+    {
+      "name": "insert failure cleans up the written bytes",
+      "input": { "text": "" },
+      "mocks": {
+        "upload": { "output": { "path": "drops/abc", "size": 1024, "content_type": "application/pdf", "filename": "report.pdf" } },
+        "insert": { "output_name": "error", "output": { "error": "db down" } },
+        "cleanup": { "output": {} },
+        "respond_insert_failed": { "output": { "status": 500 } }
+      },
+      "expect": { "status": "success", "output": { "respond_insert_failed.status": 500 } }
+    }
+  ]
+}

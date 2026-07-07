@@ -1,0 +1,12 @@
+{
+  "id": "shares-list",
+  "method": "GET",
+  "path": "/shares",
+  "summary": "List active share links",
+  "tags": ["shares"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "shares-list",
+    "input": {}
+  }
+}

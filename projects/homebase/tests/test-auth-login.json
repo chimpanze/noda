@@ -1,0 +1,25 @@
+{
+  "id": "test-auth-login",
+  "workflow": "auth-login",
+  "tests": [
+    {
+      "name": "valid credentials get a session",
+      "input": { "email": "admin@example.com", "password": "password123" },
+      "mocks": {
+        "verify": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
+        "session": { "output": { "token": "tok", "session_id": "s1", "cookie": { "name": "noda_session", "value": "tok" } } },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
+    },
+    {
+      "name": "invalid credentials get 401",
+      "input": { "email": "admin@example.com", "password": "wrong" },
+      "mocks": {
+        "verify": { "output_name": "invalid", "output": {} },
+        "respond_invalid": { "output": { "status": 401 } }
+      },
+      "expect": { "status": "success", "output": { "respond_invalid.status": 401 } }
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "id": "drop-create",
+  "method": "POST",
+  "path": "/drops",
+  "summary": "Create a text drop",
+  "tags": ["drops"],
+  "middleware": ["auth.session"],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["text"],
+      "properties": {
+        "text": { "type": "string", "minLength": 1 }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "drop-create",
+    "input": { "text": "{{ body.text }}" }
+  }
+}

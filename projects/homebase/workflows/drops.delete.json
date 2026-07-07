@@ -1,0 +1,63 @@
+{
+  "id": "drop-delete",
+  "name": "Drops: Delete",
+  "nodes": {
+    "get": {
+      "type": "db.findOne",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "drops",
+        "select": ["id", "file_key"],
+        "where": { "id": "{{ input.id }}" },
+        "required": true
+      }
+    },
+    "del_row": {
+      "type": "db.delete",
+      "services": { "database": "main-db" },
+      "config": { "table": "drops", "where": { "id": "{{ input.id }}" } }
+    },
+    "has_file": {
+      "type": "control.if",
+      "config": { "condition": "{{ nodes.get.file_key != nil }}" }
+    },
+    "del_file": {
+      "type": "storage.delete",
+      "services": { "storage": "files" },
+      "config": { "path": "{{ nodes.get.file_key }}" }
+    },
+    "log_orphan": {
+      "type": "util.log",
+      "config": {
+        "level": "warn",
+        "message": "orphaned file bytes after drop delete: {{ nodes.get.file_key }}"
+      }
+    },
+    "respond_file_deleted": {
+      "type": "response.json",
+      "config": { "status": 204 }
+    },
+    "respond_orphan": {
+      "type": "response.json",
+      "config": { "status": 204 }
+    },
+    "respond_no_file": {
+      "type": "response.json",
+      "config": { "status": 204 }
+    },
+    "respond_missing": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "drop not found" }
+    }
+  },
+  "edges": [
+    { "from": "get", "to": "del_row" },
+    { "from": "get", "output": "error", "to": "respond_missing" },
+    { "from": "del_row", "to": "has_file" },
+    { "from": "has_file", "output": "then", "to": "del_file" },
+    { "from": "has_file", "output": "else", "to": "respond_no_file" },
+    { "from": "del_file", "to": "respond_file_deleted" },
+    { "from": "del_file", "output": "error", "to": "log_orphan" },
+    { "from": "log_orphan", "to": "respond_orphan" }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "test-auth-logout",
+  "workflow": "auth-logout",
+  "tests": [
+    {
+      "name": "revokes the current session",
+      "input": { "session_id": "s1" },
+      "mocks": {
+        "revoke": { "output": { "revoked_count": 1, "clear_cookie": { "name": "noda_session", "value": "" } } },
+        "respond": { "output": { "status": 204 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 204 } }
+    }
+  ]
+}

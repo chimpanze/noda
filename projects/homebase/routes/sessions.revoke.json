@@ -1,0 +1,12 @@
+{
+  "id": "session-revoke",
+  "method": "DELETE",
+  "path": "/auth/sessions/:id",
+  "summary": "Revoke one session (device)",
+  "tags": ["auth"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "session-revoke",
+    "input": { "session_id": "{{ params.id }}", "user_id": "{{ auth.sub }}" }
+  }
+}

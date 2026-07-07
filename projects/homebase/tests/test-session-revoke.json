@@ -1,0 +1,25 @@
+{
+  "id": "test-session-revoke",
+  "workflow": "session-revoke",
+  "tests": [
+    {
+      "name": "revokes an owned session",
+      "input": { "session_id": "s2", "user_id": "u1" },
+      "mocks": {
+        "find": { "output": { "id": "s2", "user_id": "u1" } },
+        "revoke": { "output": { "revoked_count": 1, "clear_cookie": { "name": "noda_session", "value": "" } } },
+        "respond": { "output": { "status": 204 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 204 } }
+    },
+    {
+      "name": "unknown session gets 404",
+      "input": { "session_id": "nope", "user_id": "u1" },
+      "mocks": {
+        "find": { "output_name": "error", "output": { "error": "not found" } },
+        "respond_missing": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_missing.status": 404 } }
+    }
+  ]
+}

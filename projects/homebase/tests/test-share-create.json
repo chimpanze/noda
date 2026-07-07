@@ -1,0 +1,35 @@
+{
+  "id": "test-share-create",
+  "workflow": "share-create",
+  "tests": [
+    {
+      "name": "creates a permanent share link",
+      "input": { "id": "d1", "expires_in": "" },
+      "mocks": {
+        "get": { "output": { "id": "d1" } },
+        "insert": { "output": { "id": "sh1", "drop_id": "d1", "token": "tok", "expires_at": null } },
+        "respond": { "output": { "status": 201 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 201 } }
+    },
+    {
+      "name": "creates an expiring share link",
+      "input": { "id": "d1", "expires_in": "168h" },
+      "mocks": {
+        "get": { "output": { "id": "d1" } },
+        "insert": { "output": { "id": "sh2", "drop_id": "d1", "token": "tok", "expires_at": "2026-07-14T10:00:00Z" } },
+        "respond": { "output": { "status": 201 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 201 } }
+    },
+    {
+      "name": "unknown drop gets 404",
+      "input": { "id": "nope", "expires_in": "" },
+      "mocks": {
+        "get": { "output_name": "error", "output": { "error": "not found" } },
+        "respond_missing": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_missing.status": 404 } }
+    }
+  ]
+}

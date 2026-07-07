@@ -1,0 +1,44 @@
+{
+  "id": "test-drop-download",
+  "workflow": "drop-download",
+  "tests": [
+    {
+      "name": "downloads file bytes",
+      "input": { "id": "d1" },
+      "mocks": {
+        "get": { "output": { "id": "d1", "file_key": "drops/abc", "file_name": "report.pdf", "file_mime": "application/pdf" } },
+        "read": { "output": { "data": "bytes", "size": 1024, "content_type": "application/pdf" } },
+        "respond_file": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_file.status": 200 } }
+    },
+    {
+      "name": "text-only drop gets 404",
+      "input": { "id": "d2" },
+      "mocks": {
+        "get": { "output": { "id": "d2", "file_key": null } },
+        "respond_no_file": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_no_file.status": 404 } }
+    },
+    {
+      "name": "missing bytes get 500",
+      "input": { "id": "d3" },
+      "mocks": {
+        "get": { "output": { "id": "d3", "file_key": "drops/gone", "file_name": "x", "file_mime": "text/plain" } },
+        "read": { "output_name": "error", "output": { "error": "not found" } },
+        "respond_bytes_missing": { "output": { "status": 500 } }
+      },
+      "expect": { "status": "success", "output": { "respond_bytes_missing.status": 500 } }
+    },
+    {
+      "name": "unknown drop gets 404",
+      "input": { "id": "nope" },
+      "mocks": {
+        "get": { "output_name": "error", "output": { "error": "not found" } },
+        "respond_missing": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_missing.status": 404 } }
+    }
+  ]
+}

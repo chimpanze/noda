@@ -1,0 +1,49 @@
+{
+  "id": "test-setup",
+  "workflow": "setup",
+  "tests": [
+    {
+      "name": "creates admin when token matches and no users exist",
+      "input": { "setup_token": "test-setup-token", "email": "admin@example.com", "password": "password123" },
+      "mocks": {
+        "check_token": { "output_name": "then", "output": true },
+        "count_users": { "output": { "count": 0 } },
+        "create_admin": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
+        "respond_success": { "output": { "status": 201 } }
+      },
+      "expect": { "status": "success", "output": { "respond_success.status": 201 } }
+    },
+    {
+      "name": "wrong setup token gets 403",
+      "input": { "setup_token": "wrong", "email": "admin@example.com", "password": "password123" },
+      "mocks": {
+        "check_token": { "output_name": "else", "output": false },
+        "create_admin": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
+        "respond_bad_token": { "output": { "status": 403 } }
+      },
+      "expect": { "status": "success", "output": { "respond_bad_token.status": 403 } }
+    },
+    {
+      "name": "already initialized gets 403",
+      "input": { "setup_token": "test-setup-token", "email": "admin@example.com", "password": "password123" },
+      "mocks": {
+        "check_token": { "output_name": "then", "output": true },
+        "count_users": { "output": { "count": 1 } },
+        "create_admin": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
+        "respond_not_empty": { "output": { "status": 403 } }
+      },
+      "expect": { "status": "success", "output": { "respond_not_empty.status": 403 } }
+    },
+    {
+      "name": "duplicate admin (setup race) gets 403",
+      "input": { "setup_token": "test-setup-token", "email": "admin@example.com", "password": "password123" },
+      "mocks": {
+        "check_token": { "output_name": "then", "output": true },
+        "count_users": { "output": { "count": 0 } },
+        "create_admin": { "output_name": "exists", "output": {} },
+        "respond_exists": { "output": { "status": 403 } }
+      },
+      "expect": { "status": "success", "output": { "respond_exists.status": 403 } }
+    }
+  ]
+}

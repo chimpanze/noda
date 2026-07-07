@@ -1,0 +1,23 @@
+{
+  "id": "share-create",
+  "method": "POST",
+  "path": "/drops/:id/share",
+  "summary": "Create a share link for a drop",
+  "tags": ["shares"],
+  "middleware": ["auth.session"],
+  "body": {
+    "schema": {
+      "type": ["object", "null"],
+      "properties": {
+        "expires_in": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "share-create",
+    "input": {
+      "id": "{{ params.id }}",
+      "expires_in": "{{ (body ?? {}).expires_in ?? '' }}"
+    }
+  }
+}

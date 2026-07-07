@@ -1,0 +1,77 @@
+services:
+  # The noda/migrate images run as the distroless "nonroot" user (uid/gid
+  # 65532), but the files-data named volume is created root-owned by Docker.
+  # This one-shot container chowns it before noda ever touches it, so
+  # upload.handle/storage.delete can mkdir under /data/files.
+  files-init:
+    image: busybox
+    command: ["sh", "-c", "mkdir -p /data/files && chown -R 65532:65532 /data/files"]
+    volumes:
+      - files-data:/data/files
+
+  noda:
+    build: ../..
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      files-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
+      FILES_PATH: /data/files
+      SETUP_TOKEN: ${SETUP_TOKEN:?set SETUP_TOKEN in .env}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    volumes:
+      - .:/app/config
+      - files-data:/data/files
+    command: ["start", "--config", "/app/config", "--server"]
+
+  migrate:
+    build: ../..
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
+      FILES_PATH: /data/files
+    volumes:
+      - .:/app/config
+    command: ["migrate", "up", "--config", "/app/config", "--service", "main-db"]
+
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: noda
+      POSTGRES_PASSWORD: noda
+      POSTGRES_DB: noda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noda -d noda"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: ["edge"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+
+volumes:
+  pgdata:
+  files-data:
+  caddy-data:

@@ -1,0 +1,27 @@
+{
+  "id": "setup",
+  "method": "POST",
+  "path": "/setup",
+  "summary": "One-time admin bootstrap",
+  "tags": ["auth"],
+  "middleware": ["limiter"],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["setup_token", "email", "password"],
+      "properties": {
+        "setup_token": { "type": "string", "minLength": 1 },
+        "email": { "type": "string", "minLength": 3 },
+        "password": { "type": "string", "minLength": 8, "maxLength": 512 }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "setup",
+    "input": {
+      "setup_token": "{{ body.setup_token }}",
+      "email": "{{ body.email }}",
+      "password": "{{ body.password }}"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "id": "drops-list",
+  "name": "Drops: List & search",
+  "nodes": {
+    "find": {
+      "type": "db.find",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "drops",
+        "select": ["id", "text", "file_name", "file_size", "file_mime", "created_at", "updated_at"],
+        "where_clause": {
+          "query": "(text ILIKE '%' || ? || '%' OR file_name ILIKE '%' || ? || '%') AND created_at < COALESCE(NULLIF(?, '')::timestamptz, 'infinity')",
+          "params": ["{{ input.q }}", "{{ input.q }}", "{{ input.before }}"]
+        },
+        "order": "created_at DESC",
+        "limit": 50
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "drops": "{{ nodes.find }}",
+          "next_before": "{{ len(nodes.find) > 0 ? nodes.find[-1].created_at : nil }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "find", "to": "respond" }
+  ]
+}

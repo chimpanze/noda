@@ -1,0 +1,29 @@
+{
+  "id": "sessions-list",
+  "name": "Sessions: List devices",
+  "nodes": {
+    "find": {
+      "type": "db.find",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "auth_sessions",
+        "select": ["id", "created_at", "last_used_at", "expires_at", "ip", "user_agent"],
+        "where_clause": {
+          "query": "user_id = ? AND revoked_at IS NULL AND expires_at > now()",
+          "params": ["{{ input.user_id }}"]
+        },
+        "order": "created_at DESC"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "sessions": "{{ nodes.find }}", "current_session_id": "{{ input.session_id }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "find", "to": "respond" }
+  ]
+}

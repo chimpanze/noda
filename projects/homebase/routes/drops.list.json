@@ -1,0 +1,15 @@
+{
+  "id": "drops-list",
+  "method": "GET",
+  "path": "/drops",
+  "summary": "List and search drops, newest first",
+  "tags": ["drops"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "drops-list",
+    "input": {
+      "q": "{{ query.q ?? '' }}",
+      "before": "{{ query.before ?? '' }}"
+    }
+  }
+}

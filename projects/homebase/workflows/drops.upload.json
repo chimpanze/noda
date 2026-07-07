@@ -1,0 +1,60 @@
+{
+  "id": "drop-upload",
+  "name": "Drops: Upload file",
+  "nodes": {
+    "upload": {
+      "type": "upload.handle",
+      "services": { "destination": "files" },
+      "config": {
+        "max_size": 1073741824,
+        "allowed_types": ["*"],
+        "path": "drops/{{ $uuid() }}",
+        "field": "file"
+      }
+    },
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "drops",
+        "data": {
+          "id": "{{ $uuid() }}",
+          "text": "{{ input.text != '' ? input.text : nil }}",
+          "file_name": "{{ replace(replace(replace(nodes.upload.filename, '\"', ''), \"\\r\", ''), \"\\n\", '') }}",
+          "file_key": "{{ nodes.upload.path }}",
+          "file_size": "{{ nodes.upload.size }}",
+          "file_mime": "{{ nodes.upload.content_type }}"
+        }
+      }
+    },
+    "cleanup": {
+      "type": "storage.delete",
+      "services": { "storage": "files" },
+      "config": { "path": "{{ nodes.upload.path }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 201, "body": "{{ nodes.insert }}" }
+    },
+    "respond_invalid": {
+      "type": "response.error",
+      "config": { "status": 400, "code": "UPLOAD_INVALID", "message": "upload rejected" }
+    },
+    "respond_insert_failed": {
+      "type": "response.error",
+      "config": { "status": 500, "code": "CREATE_FAILED", "message": "could not store drop" }
+    },
+    "respond_cleanup_failed": {
+      "type": "response.error",
+      "config": { "status": 500, "code": "CREATE_FAILED", "message": "could not store drop" }
+    }
+  },
+  "edges": [
+    { "from": "upload", "to": "insert" },
+    { "from": "upload", "output": "error", "to": "respond_invalid" },
+    { "from": "insert", "to": "respond" },
+    { "from": "insert", "output": "error", "to": "cleanup" },
+    { "from": "cleanup", "to": "respond_insert_failed" },
+    { "from": "cleanup", "output": "error", "to": "respond_cleanup_failed" }
+  ]
+}

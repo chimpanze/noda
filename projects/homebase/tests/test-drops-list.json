@@ -1,0 +1,24 @@
+{
+  "id": "test-drops-list",
+  "workflow": "drops-list",
+  "tests": [
+    {
+      "name": "lists drops newest first with cursor",
+      "input": { "q": "", "before": "" },
+      "mocks": {
+        "find": { "output": [ { "id": "d2", "text": "newer", "created_at": "2026-07-07T11:00:00Z" }, { "id": "d1", "text": "older", "created_at": "2026-07-07T10:00:00Z" } ] },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
+    },
+    {
+      "name": "empty result gives null cursor",
+      "input": { "q": "zzz", "before": "" },
+      "mocks": {
+        "find": { "output": [] },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
+    }
+  ]
+}

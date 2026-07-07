@@ -1,0 +1,12 @@
+{
+  "id": "auth-me",
+  "method": "GET",
+  "path": "/auth/me",
+  "summary": "Current user",
+  "tags": ["auth"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "auth-me",
+    "input": { "user_id": "{{ auth.sub }}" }
+  }
+}
