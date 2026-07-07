@@ -240,6 +240,10 @@ func TestAuthScaffold_ResendVerificationIsConstantTime(t *testing.T) {
 	runScaffoldedAuthSuite(t, "test-auth-resend-verification")
 }
 
+func TestAuthScaffold_ResetPasswordIsAtomic(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-reset-password")
+}
+
 // TestScratch_PasswordResetPadExpressionResolvesUnmocked is a one-off proof
 // that the pad_* timeout expression in
 // auth_templates/workflows/auth.request-password-reset.json.tmpl actually
