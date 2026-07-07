@@ -131,6 +131,11 @@ func setupAuthEngine(t *testing.T) (*registry.ServiceRegistry, *registry.NodeReg
 	require.NoError(t, nodeReg.RegisterFromPlugin(&dbplugin.Plugin{}))
 	require.NoError(t, nodeReg.RegisterFromPlugin(&coreresponse.Plugin{}))
 	require.NoError(t, nodeReg.RegisterFromPlugin(&emailplugin.Plugin{}))
+	// util.timestamp/util.delay: the constant-time pad chains (#289/#290)
+	// in login, request-password-reset, and resend-verification need these —
+	// the pre-regeneration fixture predated the pads, so the old registry
+	// never had to know about them.
+	require.NoError(t, nodeReg.RegisterFromPlugin(&coreutil.Plugin{}))
 
 	mb := &mailbox{}
 	// Override just the factory (keep the real descriptor registered above,
@@ -183,6 +188,11 @@ func httpOutput(t *testing.T, execCtx *engine.ExecutionContextImpl, nodeID strin
 func TestEngineE2E_AuthFlows(t *testing.T) {
 	svcReg, nodeReg, gdb, mb := setupAuthEngine(t)
 
+	// Captured by the register subtest; consumed by verify_email. The
+	// duplicate-register check below sends a token-less "already registered"
+	// notice after the verification email, so mb.last() is no longer it.
+	var verifyToken string
+
 	t.Run("register", func(t *testing.T) {
 		wf := loadWorkflow(t, "auth.register.json", "auth-register")
 		execCtx := runWorkflow(t, svcReg, nodeReg, wf, map[string]any{
@@ -190,26 +200,47 @@ func TestEngineE2E_AuthFlows(t *testing.T) {
 			"password": "password123",
 		})
 
+		// Verification-first (#289): a generic 200, no session, no token.
 		resp := httpOutput(t, execCtx, "respond")
-		assert.Equal(t, 201, resp.Status)
+		assert.Equal(t, 200, resp.Status)
 		body, ok := resp.Body.(map[string]any)
 		require.True(t, ok)
-		require.NotEmpty(t, body["token"])
+		assert.Equal(t, "Check your email to continue", body["message"])
+		assert.NotContains(t, body, "token")
 
 		var userCount, sessionCount int64
 		require.NoError(t, gdb.Table("auth_users").Where("email = ?", "alice@example.com").Count(&userCount).Error)
 		assert.Equal(t, int64(1), userCount)
 		require.NoError(t, gdb.Table("auth_sessions").Count(&sessionCount).Error)
-		assert.Equal(t, int64(1), sessionCount)
+		assert.Equal(t, int64(0), sessionCount, "verification-first register must not create a session")
 
 		// A verification email was "sent" via the mocked mailer node.
 		sent := mb.last()
 		assert.Equal(t, "alice@example.com", sent.To)
-		require.NotEmpty(t, extractToken(t, sent.Body))
+		verifyToken = extractToken(t, sent.Body)
+		require.NotEmpty(t, verifyToken)
+
+		// Anti-enumeration: registering the same email again returns the
+		// byte-identical body (from respond_exists) and sends the
+		// "already registered" notice instead of a second verification.
+		execCtx2 := runWorkflow(t, svcReg, nodeReg, wf, map[string]any{
+			"email":    "alice@example.com",
+			"password": "password123",
+		})
+		resp2 := httpOutput(t, execCtx2, "respond_exists")
+		assert.Equal(t, 200, resp2.Status)
+		freshJSON, err := json.Marshal(resp.Body)
+		require.NoError(t, err)
+		existsJSON, err := json.Marshal(resp2.Body)
+		require.NoError(t, err)
+		assert.JSONEq(t, string(freshJSON), string(existsJSON))
+		assert.Equal(t, "Account already registered", mb.last().Subject)
+		require.NoError(t, gdb.Table("auth_users").Where("email = ?", "alice@example.com").Count(&userCount).Error)
+		assert.Equal(t, int64(1), userCount, "duplicate register must not create a second user")
 	})
 
 	t.Run("verify_email", func(t *testing.T) {
-		verifyToken := extractToken(t, mb.last().Body)
+		require.NotEmpty(t, verifyToken, "register subtest must run first")
 
 		wf := loadWorkflow(t, "auth.verify-email.json", "auth-verify-email")
 		execCtx := runWorkflow(t, svcReg, nodeReg, wf, map[string]any{"token": verifyToken})
@@ -259,8 +290,16 @@ func TestEngineE2E_AuthFlows(t *testing.T) {
 		knownCtx := runWorkflow(t, svcReg, nodeReg, wf, map[string]any{"email": "alice@example.com"})
 		knownResp := httpOutput(t, knownCtx, "respond_sent")
 
+		unknownStart := time.Now()
 		unknownCtx := runWorkflow(t, svcReg, nodeReg, wf, map[string]any{"email": "nobody@example.com"})
+		unknownElapsed := time.Since(unknownStart)
 		unknownResp := httpOutput(t, unknownCtx, "respond_unknown")
+
+		// The unknown branch is the fast path the constant-time pad exists
+		// to slow down (#289): without util.delay it returns in ~1 ms.
+		// Loose lower bound (deadline is ~500 ms) to avoid timer flake.
+		assert.GreaterOrEqual(t, unknownElapsed, 400*time.Millisecond,
+			"unknown-email branch must be padded to the fixed deadline")
 
 		// Mandatory enumeration check: byte-identical response node output
 		// for an existing vs. an unknown email.
@@ -289,6 +328,14 @@ func TestEngineE2E_AuthFlows(t *testing.T) {
 		})
 		resp := httpOutput(t, execCtx, "respond")
 		assert.Equal(t, 200, resp.Status)
+
+		// The token was consumed atomically inside set_password (#290);
+		// reuse must hit respond_invalid, single-use and undifferentiated.
+		reuseCtx := runWorkflow(t, svcReg, nodeReg, resetWF, map[string]any{
+			"token":    resetToken,
+			"password": "anotherpassword789",
+		})
+		assert.Equal(t, 400, httpOutput(t, reuseCtx, "respond_invalid").Status)
 
 		loginWF := loadWorkflow(t, "auth.login.json", "auth-login")
 
