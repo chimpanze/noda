@@ -339,13 +339,13 @@ func parseReconnectConfig(m map[string]any) *ReconnectConfig {
 	if v, ok := m["enabled"].(bool); ok {
 		rc.Enabled = v
 	}
-	if v, ok := m["max_attempts"].(float64); ok {
+	if v, ok := toInt64(m["max_attempts"]); ok {
 		rc.MaxAttempts = int(v)
 	}
 	if v, ok := m["backoff"].(string); ok {
 		rc.Backoff = v
 	}
-	if v, ok := m["initial_delay"].(float64); ok {
+	if v, ok := toFloat(m["initial_delay"]); ok {
 		rc.InitialDelay = time.Duration(v) * time.Millisecond
 	}
 	return rc

@@ -114,3 +114,30 @@ func TestReconnectLoop_DoesNotResurrectAfterClose(t *testing.T) {
 	assert.True(t, gc.closed, "reconnectLoop must not resurrect a closed connection (closed flipped to false)")
 	assert.False(t, gc.readLoopRunning.Load(), "reconnectLoop must not spawn a new readLoop after close")
 }
+
+// parseReconnectConfig must accept msgpack-decoded numerics: msgpack picks
+// the narrowest integer type (int8/int64), not float64 like JSON. With raw
+// .(float64) assertions the values silently coerce to zero and reconnection
+// is disabled (#264).
+func TestParseReconnectConfig_MsgpackIntegerWidths(t *testing.T) {
+	rc := parseReconnectConfig(map[string]any{
+		"enabled":       true,
+		"max_attempts":  int8(5),
+		"backoff":       "exponential",
+		"initial_delay": int64(250),
+	})
+	assert.True(t, rc.Enabled)
+	assert.Equal(t, 5, rc.MaxAttempts)
+	assert.Equal(t, "exponential", rc.Backoff)
+	assert.Equal(t, 250*time.Millisecond, rc.InitialDelay)
+}
+
+func TestParseReconnectConfig_JSONFloats(t *testing.T) {
+	rc := parseReconnectConfig(map[string]any{
+		"enabled":       true,
+		"max_attempts":  float64(3),
+		"initial_delay": float64(100),
+	})
+	assert.Equal(t, 3, rc.MaxAttempts)
+	assert.Equal(t, 100*time.Millisecond, rc.InitialDelay)
+}
