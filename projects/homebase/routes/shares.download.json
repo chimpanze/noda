@@ -1,0 +1,12 @@
+{
+  "id": "share-download",
+  "method": "GET",
+  "path": "/s/:token/file",
+  "summary": "Download a shared file (no auth)",
+  "tags": ["public"],
+  "middleware": ["limiter", "security.headers"],
+  "trigger": {
+    "workflow": "share-download",
+    "input": { "token": "{{ params.token }}" }
+  }
+}

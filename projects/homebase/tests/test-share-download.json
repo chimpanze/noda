@@ -1,0 +1,47 @@
+{
+  "id": "test-share-download",
+  "workflow": "share-download",
+  "tests": [
+    {
+      "name": "valid token downloads the file",
+      "input": { "token": "tok" },
+      "mocks": {
+        "find": { "output": { "id": "sh1", "drop_id": "d1" } },
+        "get_drop": { "output": { "file_key": "drops/abc", "file_name": "report.pdf", "file_mime": "application/pdf" } },
+        "read": { "output": { "data": "bytes", "size": 5, "content_type": "application/pdf" } },
+        "respond_file": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_file.status": 200 } }
+    },
+    {
+      "name": "unknown token gets uniform 404",
+      "input": { "token": "nope" },
+      "mocks": {
+        "find": { "output": null },
+        "respond_no_link": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_no_link.status": 404 } }
+    },
+    {
+      "name": "text-only drop behind a link gets uniform 404",
+      "input": { "token": "tok" },
+      "mocks": {
+        "find": { "output": { "id": "sh1", "drop_id": "d1" } },
+        "get_drop": { "output": { "file_key": null } },
+        "respond_no_file": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_no_file.status": 404 } }
+    },
+    {
+      "name": "missing bytes get uniform 404",
+      "input": { "token": "tok" },
+      "mocks": {
+        "find": { "output": { "id": "sh1", "drop_id": "d1" } },
+        "get_drop": { "output": { "file_key": "drops/gone", "file_name": "x", "file_mime": "text/plain" } },
+        "read": { "output_name": "error", "output": { "error": "not found" } },
+        "respond_no_bytes": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_no_bytes.status": 404 } }
+    }
+  ]
+}
