@@ -1,0 +1,54 @@
+{
+  "id": "drop-download",
+  "name": "Drops: Download file",
+  "nodes": {
+    "get": {
+      "type": "db.findOne",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "drops",
+        "select": ["id", "file_key", "file_name", "file_mime"],
+        "where": { "id": "{{ input.id }}" },
+        "required": true
+      }
+    },
+    "has_file": {
+      "type": "control.if",
+      "config": { "condition": "{{ nodes.get.file_key != nil }}" }
+    },
+    "read": {
+      "type": "storage.read",
+      "services": { "storage": "files" },
+      "config": { "path": "{{ nodes.get.file_key }}" }
+    },
+    "respond_file": {
+      "type": "response.file",
+      "config": {
+        "status": 200,
+        "data": "{{ nodes.read.data }}",
+        "content_type": "{{ nodes.get.file_mime ?? 'application/octet-stream' }}",
+        "filename": "{{ nodes.get.file_name ?? 'file' }}"
+      }
+    },
+    "respond_no_file": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "drop has no file" }
+    },
+    "respond_bytes_missing": {
+      "type": "response.error",
+      "config": { "status": 500, "code": "STORAGE_ERROR", "message": "file bytes missing" }
+    },
+    "respond_missing": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "drop not found" }
+    }
+  },
+  "edges": [
+    { "from": "get", "to": "has_file" },
+    { "from": "get", "output": "error", "to": "respond_missing" },
+    { "from": "has_file", "output": "then", "to": "read" },
+    { "from": "has_file", "output": "else", "to": "respond_no_file" },
+    { "from": "read", "to": "respond_file" },
+    { "from": "read", "output": "error", "to": "respond_bytes_missing" }
+  ]
+}
