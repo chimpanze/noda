@@ -58,12 +58,42 @@ curl -H "$AUTH" -X DELETE "$BASE/auth/sessions/<id>" # lost-laptop kill switch
 | `POST /drops/:id/share`, `GET /shares`, `DELETE /shares/:id` | session | share links |
 | `GET /s/:token`, `GET /s/:token/file` | none | friend access |
 
+## Rooms (meetings & screen streaming)
+
+Meetings and screen streams are LiveKit rooms. Set `LIVEKIT_URL`,
+`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` in `.env` (LiveKit Cloud → project
+→ Keys). Rooms auto-close 10 minutes after the last person leaves.
+
+```bash
+# create a meeting (or "stream"); share the guest_url with friends
+curl -H "$AUTH" -X POST "$BASE/rooms" -d '{"type":"meeting"}' -H 'Content-Type: application/json'
+# → {"room":"hb-meet-…","guest_url":"…/j/<token>","livekit_url":"wss://…",...}
+
+curl "$BASE/j/<token>?name=Alice"          # friend: no auth → {livekit_url, token, meet_url}
+curl -H "$AUTH" -X POST "$BASE/rooms/<room>/token"   # your own (publisher) token
+curl -H "$AUTH" "$BASE/rooms"              # active rooms + guest links
+curl -H "$AUTH" -X POST "$BASE/rooms/<room>/link"    # rotate the guest link
+curl -H "$AUTH" -X DELETE "$BASE/rooms/<room>/link"  # revoke (room stays up)
+curl -H "$AUTH" -X DELETE "$BASE/rooms/<room>"       # end the room for everyone
+```
+
+Meetings: everyone can publish camera/mic/screen (up to 10 people). Streams:
+only you can publish (screen + screen-audio + mic, up to 50 viewers). Paste
+`meet_url` into a browser, or use `livekit_url` + `token` in any LiveKit
+client.
+
+**Manual acceptance check** (E2E covers the API, not WebRTC): create a
+meeting, open `meet_url` for both the owner token and a guest token in two
+browser tabs, confirm audio/video flows.
+
 ## Tests
 
 ```bash
 # workflow tests (no containers)
 DATABASE_URL='postgres://x' FILES_PATH=/tmp/hb SETUP_TOKEN=test-setup-token \
-  PUBLIC_BASE_URL=http://localhost:3000 go run ./cmd/noda test --config projects/homebase
+  PUBLIC_BASE_URL=http://localhost:3000 LIVEKIT_URL=ws://localhost:7880 \
+  LIVEKIT_API_KEY=devkey LIVEKIT_API_SECRET=secret \
+  go run ./cmd/noda test --config projects/homebase
 
 # full E2E against the compose stack
 ./projects/homebase/e2e/run.sh
