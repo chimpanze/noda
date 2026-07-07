@@ -14,7 +14,7 @@ type setPasswordDescriptor struct{}
 
 func (d *setPasswordDescriptor) Name() string { return "set_password" }
 func (d *setPasswordDescriptor) Description() string {
-	return "Sets a new password (argon2id) and revokes the user's sessions"
+	return "Sets a new password (argon2id), optionally consuming a reset token atomically, and revokes the user's sessions"
 }
 func (d *setPasswordDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{
@@ -27,16 +27,18 @@ func (d *setPasswordDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"user_id":         map[string]any{"type": "string", "description": "User id (expression)"},
+			"token":           map[string]any{"type": "string", "description": "Password-reset token to consume atomically in the same transaction (expression); mutually exclusive with user_id"},
 			"password":        map[string]any{"type": "string", "description": "New plaintext password (expression)"},
 			"revoke_sessions": map[string]any{"type": "boolean", "description": "Revoke all existing sessions (default true)"},
 		},
-		"required": []any{"user_id", "password"},
+		"required": []any{"password"},
 	}
 }
 func (d *setPasswordDescriptor) OutputDescriptions() map[string]string {
 	return map[string]string{
 		"success": "{revoked_sessions} count",
-		"error":   "Infrastructure error or unknown user",
+		"invalid": "Reset token unknown, expired, or already used (token mode only)",
+		"error":   "Infrastructure error, unknown user, or invalid new password",
 	}
 }
 
@@ -44,7 +46,7 @@ type setPasswordExecutor struct{}
 
 func newSetPasswordExecutor(_ map[string]any) api.NodeExecutor { return &setPasswordExecutor{} }
 
-func (e *setPasswordExecutor) Outputs() []string { return api.DefaultOutputs() }
+func (e *setPasswordExecutor) Outputs() []string { return []string{"success", "invalid", "error"} }
 
 func (e *setPasswordExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, "auth")
@@ -55,14 +57,23 @@ func (e *setPasswordExecutor) Execute(ctx context.Context, nCtx api.ExecutionCon
 	if err != nil {
 		return "", nil, fmt.Errorf("auth.set_password: %w", err)
 	}
-	userID, err := plugin.ResolveString(nCtx, config, "user_id")
+	userID, hasUserID, err := plugin.ResolveOptionalString(nCtx, config, "user_id")
 	if err != nil {
 		return "", nil, fmt.Errorf("auth.set_password: %w", err)
+	}
+	token, hasToken, err := plugin.ResolveOptionalString(nCtx, config, "token")
+	if err != nil {
+		return "", nil, fmt.Errorf("auth.set_password: %w", err)
+	}
+	if hasUserID == hasToken {
+		return "", nil, fmt.Errorf("auth.set_password: exactly one of user_id or token must be set")
 	}
 	password, err := plugin.ResolveString(nCtx, config, "password")
 	if err != nil {
 		return "", nil, fmt.Errorf("auth.set_password: %w", err)
 	}
+	// Validate before any DB write: in token mode a rejected password must
+	// not consume the token (auth-3).
 	if err := validatePassword(password); err != nil {
 		return "", nil, fmt.Errorf("auth.set_password: %w", err)
 	}
@@ -76,24 +87,50 @@ func (e *setPasswordExecutor) Execute(ctx context.Context, nCtx api.ExecutionCon
 		return "", nil, fmt.Errorf("auth.set_password: %w", err)
 	}
 	now := time.Now().UTC()
-	res := db.WithContext(ctx).Table("auth_users").Where("id = ?", userID).
-		Updates(map[string]any{"password_hash": hash, "updated_at": now})
-	if res.Error != nil {
-		return "", nil, fmt.Errorf("auth.set_password: %w", res.Error)
-	}
-	if res.RowsAffected == 0 {
-		return "", nil, fmt.Errorf("auth.set_password: user not found")
-	}
 
 	var revoked int64
-	if revoke {
-		r := db.WithContext(ctx).Table("auth_sessions").
-			Where("user_id = ? AND revoked_at IS NULL", userID).
-			Update("revoked_at", now)
-		if r.Error != nil {
-			return "", nil, fmt.Errorf("auth.set_password: revoke sessions: %w", r.Error)
+	invalid := false
+	// Token consumption, the password update, and session revocation commit
+	// or fail together: any failure rolls back the consume, so the token
+	// stays usable for a retry.
+	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		uid := userID
+		if hasToken {
+			var inv bool
+			var err error
+			uid, inv, err = consumeTokenInTx(tx, HashToken(token), PurposeResetPassword, now)
+			if err != nil {
+				return err
+			}
+			if inv {
+				invalid = true
+				return nil
+			}
 		}
-		revoked = r.RowsAffected
+		res := tx.Table("auth_users").Where("id = ?", uid).
+			Updates(map[string]any{"password_hash": hash, "updated_at": now})
+		if res.Error != nil {
+			return res.Error
+		}
+		if res.RowsAffected == 0 {
+			return fmt.Errorf("user not found")
+		}
+		if revoke {
+			r := tx.Table("auth_sessions").
+				Where("user_id = ? AND revoked_at IS NULL", uid).
+				Update("revoked_at", now)
+			if r.Error != nil {
+				return fmt.Errorf("revoke sessions: %w", r.Error)
+			}
+			revoked = r.RowsAffected
+		}
+		return nil
+	})
+	if err != nil {
+		return "", nil, fmt.Errorf("auth.set_password: %w", err)
+	}
+	if invalid {
+		return "invalid", map[string]any{}, nil
 	}
 	return api.OutputSuccess, map[string]any{"revoked_sessions": revoked}, nil
 }

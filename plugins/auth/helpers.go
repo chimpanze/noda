@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"strings"
+	"unicode/utf8"
 )
 
 var (
@@ -74,11 +75,15 @@ func userView(row map[string]any) map[string]any {
 	return out
 }
 
+// validatePassword counts runes, matching the code-point semantics of the
+// scaffolded routes' JSON-Schema minLength/maxLength — the two layers must
+// agree or a schema-passing password fails here after side effects ran.
 func validatePassword(pw string) error {
-	if len(pw) < 8 {
+	n := utf8.RuneCountInString(pw)
+	if n < 8 {
 		return errPasswordTooShort
 	}
-	if len(pw) > 512 {
+	if n > 512 {
 		return errPasswordTooLong
 	}
 	return nil

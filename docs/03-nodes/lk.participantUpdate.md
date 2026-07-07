@@ -19,6 +19,13 @@ Updates a participant's metadata or permissions.
 | `canSubscribe` | boolean | Allow subscribing to tracks |
 | `canPublishData` | boolean | Allow publishing data messages |
 | `hidden` | boolean | Hide participant from others |
+| `recorder` | boolean | Mark as a recorder instance (deprecated upstream) |
+
+Permissions are **merged**: the node reads the participant's current permission
+set (one extra `GetParticipant` call) and overlays only the keys you provide,
+so omitted keys keep their current values. Unknown or non-boolean keys are
+rejected with an error. The read and the write are two calls — a concurrent
+permission change in between can be lost.
 
 ## Outputs
 
@@ -28,7 +35,11 @@ Output: updated participant object.
 
 ## Behavior
 
-Updates the specified participant's metadata and/or permissions. Other participants receive update events. At least one of `metadata` or `permissions` should be provided. Fires `success` with the updated participant object.
+Updates the specified participant's metadata and/or permissions. Other participants receive update events. At least one of `metadata` or `permissions` should be provided. When
+`permissions` is present the node first fetches the participant's current
+permissions and merges your overrides into them (LiveKit replaces the whole
+permission set on update — before this merge, omitting a key silently revoked
+it). Fires `success` with the updated participant object.
 
 ## Service Dependencies
 
