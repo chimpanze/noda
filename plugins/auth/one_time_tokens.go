@@ -104,6 +104,30 @@ func (e *createTokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionCon
 	return api.OutputSuccess, map[string]any{"token": raw, "expires_at": expiresAt}, nil
 }
 
+// consumeTokenInTx atomically claims the (hash, purpose) token inside tx and
+// returns its owner. The WHERE guard on consumed_at makes concurrent
+// consumption impossible — exactly one UPDATE can match. invalid reports
+// unknown/expired/wrong-purpose/already-consumed without distinguishing them.
+func consumeTokenInTx(tx *gorm.DB, hash, purpose string, now time.Time) (userID string, invalid bool, err error) {
+	res := tx.Table("auth_tokens").
+		Where("token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?", hash, purpose, now).
+		Update("consumed_at", now)
+	if res.Error != nil {
+		return "", false, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return "", true, nil
+	}
+	if err := tx.Table("auth_tokens").
+		Where("token_hash = ?", hash).Pluck("user_id", &userID).Error; err != nil {
+		return "", false, err
+	}
+	if userID == "" {
+		return "", false, fmt.Errorf("consumed token row disappeared")
+	}
+	return userID, false, nil
+}
+
 type consumeTokenDescriptor struct{}
 
 func (d *consumeTokenDescriptor) Name() string { return "consume_token" }
@@ -169,26 +193,15 @@ func (e *consumeTokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionCo
 	// atomic — if the verify step fails, the consume-UPDATE rolls back too,
 	// so the token remains usable.
 	err = db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Atomic single-use: the WHERE guard on consumed_at makes concurrent
-		// consumption impossible — exactly one UPDATE can match.
-		res := tx.Table("auth_tokens").
-			Where("token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > ?", hash, purpose, now).
-			Update("consumed_at", now)
-		if res.Error != nil {
-			return res.Error
+		uid, inv, err := consumeTokenInTx(tx, hash, purpose, now)
+		if err != nil {
+			return err
 		}
-		if res.RowsAffected == 0 {
+		if inv {
 			invalid = true
 			return nil
 		}
-
-		if err := tx.Table("auth_tokens").
-			Where("token_hash = ?", hash).Pluck("user_id", &userID).Error; err != nil {
-			return err
-		}
-		if userID == "" {
-			return fmt.Errorf("consumed token row disappeared")
-		}
+		userID = uid
 
 		if purpose == PurposeVerifyEmail {
 			if err := tx.Table("auth_users").Where("id = ?", userID).
