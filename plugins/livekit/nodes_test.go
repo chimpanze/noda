@@ -491,6 +491,166 @@ func TestParticipantUpdateNode_WithPermissions(t *testing.T) {
 	assert.Equal(t, "success", output)
 }
 
+func TestParticipantUpdateNode_PartialPermissionsMergeCurrent(t *testing.T) {
+	svc := testService()
+	var sentReq *lkproto.UpdateParticipantRequest
+	svc.Room = &mockRoomClient{
+		getParticipantFn: func(_ context.Context, req *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error) {
+			assert.Equal(t, "r", req.Room)
+			assert.Equal(t, "u", req.Identity)
+			return &lkproto.ParticipantInfo{
+				Sid: "PA_1", Identity: req.Identity,
+				Permission: &lkproto.ParticipantPermission{
+					CanPublish:        true,
+					CanSubscribe:      true,
+					CanPublishData:    true,
+					CanUpdateMetadata: true, // not config-settable; must survive the merge
+				},
+			}, nil
+		},
+		updateParticipantFn: func(_ context.Context, req *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error) {
+			sentReq = req
+			return &lkproto.ParticipantInfo{Sid: "PA_1", Identity: req.Identity}, nil
+		},
+	}
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	output, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{"canPublish": false},
+		},
+		testServices(svc))
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	require.NotNil(t, sentReq)
+	require.NotNil(t, sentReq.Permission)
+	assert.False(t, sentReq.Permission.CanPublish, "explicitly-set key must be applied")
+	assert.True(t, sentReq.Permission.CanSubscribe, "omitted key must keep its current value")
+	assert.True(t, sentReq.Permission.CanPublishData, "omitted key must keep its current value")
+	assert.True(t, sentReq.Permission.CanUpdateMetadata, "non-settable field must survive the merge")
+}
+
+func TestParticipantUpdateNode_PermissionsNilCurrentUsesZeroBase(t *testing.T) {
+	svc := testService()
+	var sentReq *lkproto.UpdateParticipantRequest
+	svc.Room = &mockRoomClient{
+		// default getParticipantFn returns ParticipantInfo with nil Permission
+		updateParticipantFn: func(_ context.Context, req *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error) {
+			sentReq = req
+			return &lkproto.ParticipantInfo{Sid: "PA_1", Identity: req.Identity}, nil
+		},
+	}
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{"canSubscribe": true},
+		},
+		testServices(svc))
+	require.NoError(t, err)
+	require.NotNil(t, sentReq)
+	require.NotNil(t, sentReq.Permission)
+	assert.True(t, sentReq.Permission.CanSubscribe)
+	assert.False(t, sentReq.Permission.CanPublish)
+}
+
+func TestParticipantUpdateNode_UnknownPermissionKeyErrors(t *testing.T) {
+	svc := testService()
+	rpcCalled := false
+	svc.Room = &mockRoomClient{
+		getParticipantFn: func(_ context.Context, _ *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error) {
+			rpcCalled = true
+			return &lkproto.ParticipantInfo{}, nil
+		},
+		updateParticipantFn: func(_ context.Context, _ *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error) {
+			rpcCalled = true
+			return &lkproto.ParticipantInfo{}, nil
+		},
+	}
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{"canpublish": false}, // typo: lowercase p
+		},
+		testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown permission key "canpublish"`)
+	assert.False(t, rpcCalled, "no RPC may be sent for a rejected permissions map")
+}
+
+func TestParticipantUpdateNode_NonBoolPermissionValueErrors(t *testing.T) {
+	svc := testService()
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{"canPublish": "true"},
+		},
+		testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `permission key "canPublish" must be a boolean`)
+}
+
+func TestParticipantUpdateNode_GetParticipantErrorSurfaces(t *testing.T) {
+	svc := testService()
+	updateCalled := false
+	svc.Room = &mockRoomClient{
+		getParticipantFn: func(_ context.Context, _ *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error) {
+			return nil, fmt.Errorf("room not found")
+		},
+		updateParticipantFn: func(_ context.Context, _ *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error) {
+			updateCalled = true
+			return &lkproto.ParticipantInfo{}, nil
+		},
+	}
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{"canPublish": true},
+		},
+		testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "room not found")
+	assert.False(t, updateCalled)
+}
+
+func TestParticipantUpdateNode_MetadataOnlySkipsGetParticipant(t *testing.T) {
+	svc := testService()
+	getCalled := false
+	svc.Room = &mockRoomClient{
+		getParticipantFn: func(_ context.Context, _ *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error) {
+			getCalled = true
+			return &lkproto.ParticipantInfo{}, nil
+		},
+	}
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	output, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{"room": "r", "identity": "u", "metadata": "m"},
+		testServices(svc))
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	assert.False(t, getCalled, "metadata-only update must not fetch permissions")
+}
+
 // --- Mute Track tests ---
 
 func TestMuteTrackNode_Success(t *testing.T) {
