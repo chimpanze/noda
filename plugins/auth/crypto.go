@@ -98,8 +98,14 @@ func verifyArgon2id(pw, encoded string) (bool, ArgonParams, error) {
 
 // VerifyDummy is called when no user matches, so response timing does not
 // reveal account existence. The dummy hash is derived from the service's
-// configured params — with defaults, a heavier configuration would otherwise
-// make unknown-email checks measurably faster than known-email ones.
+// *currently configured* params, which only equalizes CPU time while stored
+// hashes carry those same params. After a cost raise, existing hashes verify
+// at their embedded (cheaper) params until rehash-on-login upgrades them, so
+// a wrong password on a legacy account completes faster than this dummy — a
+// drift oracle no single dummy can close, because stored hash costs are
+// heterogeneous. The scaffolded login flow closes it with a wall-clock pad
+// on the invalid path (util.timestamp + util.delay to a fixed deadline);
+// custom login flows should copy that pattern.
 func (s *Service) VerifyDummy(pw string) {
 	s.dummyOnce.Do(func() {
 		// best-effort: on the (rand.Read) failure path VerifyDummy degrades

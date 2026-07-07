@@ -244,6 +244,25 @@ func TestAuthScaffold_ResetPasswordIsAtomic(t *testing.T) {
 	runScaffoldedAuthSuite(t, "test-auth-reset-password")
 }
 
+func TestAuthScaffold_LoginPadsInvalidPath(t *testing.T) {
+	runScaffoldedAuthSuite(t, "test-auth-login")
+}
+
+// TestAuthInitLoginPadExpressionWiring guards the pad expression's node
+// references in the rendered login workflow. The scaffolded suite mocks
+// pad_invalid, so a typo like `nodes.now_ts_invalld` would pass the suite
+// and only explode at runtime (see
+// TestScratch_PasswordResetPadExpressionResolvesUnmocked for why the
+// expression itself is known-good).
+func TestAuthInitLoginPadExpressionWiring(t *testing.T) {
+	dir := scaffoldAuthProject(t)
+	b, err := os.ReadFile(filepath.Join(dir, "workflows", "auth.login.json"))
+	require.NoError(t, err)
+	s := string(b)
+	assert.Contains(t, s, "nodes.start_ts + 500")
+	assert.Contains(t, s, "nodes.now_ts_invalid")
+}
+
 // TestScratch_PasswordResetPadExpressionResolvesUnmocked is a one-off proof
 // that the pad_* timeout expression in
 // auth_templates/workflows/auth.request-password-reset.json.tmpl actually
