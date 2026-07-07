@@ -8,6 +8,6 @@
   "trigger": {
     "workflow": "drop-upload",
     "files": ["file"],
-    "input": { "text": "{{ (body ?? {}).text ?? '' }}" }
+    "input": { "file": "file", "text": "{{ (body ?? {}).text ?? '' }}" }
   }
 }
