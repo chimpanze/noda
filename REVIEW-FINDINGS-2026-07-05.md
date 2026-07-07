@@ -6,7 +6,7 @@ Scope: **Go source only** — `internal/`, `plugins/`, `pkg/`, `cmd/`, `pdk/`, `
 Method: Clean-slate, tooling-grounded multi-agent review. **Prior review documents (`REVIEW-FINDINGS.md`, `REVIEW-FINDINGS-2026-06-29.md`) were deliberately NOT consulted** — every area was judged fresh. Pipeline: Phase 0 automated baseline → Phase 1 twelve parallel domain-review agents (each read its unit's non-test files in full and cited `file:line` evidence) → Phase 2 six adversarial verify-agents that attempted to **refute** every candidate against the actual code and vendored library source under `~/go/pkg/mod/`.
 Status: **Verified.** 125 candidate findings entered Phase 2; **all 125 were CONFIRMED, 0 refuted.** Three severities were tempered by the refute pass (recorded inline and in the Phase 2 section). Plus 3 baseline hygiene items. All findings are **Open**.
 
-> **Shipped status (2026-07):** 46 of the confirmed findings have shipped across themed PRs A–F + auth (#263 #270 #274 #278 #282 #286 #288 #289); each is annotated inline below with **✅ Shipped**. The rest remain **Open**. Still open and not yet bucketed: engine-8..11, server-1/3/4/5/6/7, auth-3..7, realtime-1/5/6, platform-7..15, data-2..7, nodes-3..7, config-expr-2..17, worker-sched-3/6..13, wasm-pdk-9/11/12/13, edge-io-2..6, cmd-misc-7..16.
+> **Shipped status (2026-07):** 49 of the confirmed findings have shipped across themed PRs A–G + auth (#263 #270 #274 #278 #282 #286 #288 #289 #290); each is annotated inline below with **✅ Shipped**. The rest remain **Open**. Still open: engine-8..11, server-1/3/4/5/6/7, auth-5/6/7, realtime-1/5, platform-7..15, data-2..7, nodes-3..7, config-expr-2..17, worker-sched-3/6..13, wasm-pdk-9/11/12/13, edge-io-2..6, cmd-misc-7..16 (all Low long-tail — every finding that was bucketed into a tranche has shipped).
 
 Because a clean-slate review does not dedupe against history, some findings here may coincide with previously-recorded items; each is reported on its own fresh evidence with no suppression.
 
@@ -44,6 +44,7 @@ All tranches below have shipped (2026-07-05 → 2026-07-07). Where a tranche's p
 - **(E) Worker/scheduler & lifecycle** — worker-sched-1/2/4/5, platform-1/2/3/4/5/6. **✅ Shipped as two PRs: E1** (worker/scheduler: worker-sched-1/2/4/5) **PR #282 (2026-07-06)**, follow-ups #283–#285; **E2** (lifecycle/devmode/registry: platform-1/2/3/4/5/6) **PR #286 (2026-07-06)**, follow-up #287.
 - **(F) Baseline hygiene** — BASE-1/2/3 (dependency bumps + deprecation). **✅ Shipped PR #288 (2026-07-06)** — BASE-1/2 bumped; BASE-3 verified already handled (justified `//nolint`, no non-deprecated replacement).
 - **(auth) Anti-enumeration** (split from D) — auth-1 (verification-first register) + auth-2 (constant-time reset/resend). **✅ Shipped PR #289 (2026-07-07).**
+- **(G) Review closeout** — realtime-6 (merge-then-send permissions) + auth-3 (atomic consume-in-set_password + rune validation) + auth-4 (login invalid-path pad for the argon2 drift oracle); the last three findings never bucketed into a tranche. **✅ Shipped PR #290 (2026-07-07).**
 
 ---
 
@@ -131,8 +132,8 @@ Severity shown is the **post-verification** severity. `↓` marks a Phase-2 down
 - **server-5** (correctness) — `coerceNumeric` lossily converts numeric-looking strings
 - **server-6** (resource) — `/health` goroutines leak permanently if a dependency Ping hangs
 - **server-7** (quality) — auto CORS preflight route can register twice, carries only CORS handler
-- **auth-3** (correctness) — reset token consumed before new password validated → token burned
-- **auth-4** (security) — VerifyDummy timing oracle when argon2 params drift
+- **auth-3** (correctness) — reset token consumed before new password validated → token burned  **[✅ Shipped PR #290]**
+- **auth-4** (security) — VerifyDummy timing oracle when argon2 params drift  **[✅ Shipped PR #290]**
 - **auth-5** (security) — cookie-shaped maps nested in arrays escape token redaction
 - **auth-6** (resource) — no expiry cleanup of auth_sessions / auth_tokens
 - **auth-7** (correctness) — create_token invalidate-then-insert not atomic
@@ -146,7 +147,7 @@ Severity shown is the **post-verification** severity. `↓` marks a Phase-2 down
 - **worker-sched-12** (quality) — recordRun logs "history capped" every run once capped
 - **worker-sched-13** (correctness) — scheduled jobs uncancellable at shutdown (context.Background root)
 - **realtime-5** (resource) — SSE writer has no write deadline; stuck client pins goroutine
-- **realtime-6** (correctness) — `lk.participantUpdate` full-replace silently revokes unset permissions
+- **realtime-6** (correctness) — `lk.participantUpdate` full-replace silently revokes unset permissions  **[✅ Shipped PR #290]**
 - **wasm-pdk-9** (correctness) — heartbeat lost if ticker fires during reconnect window
 - **wasm-pdk-11** (correctness) — VALIDATION_ERROR envelope via string interp → invalid JSON on quote
 - **wasm-pdk-12** (quality/correctness) — gateway reconnection unusable from PDK; `enabled` w/o max_attempts = 0 attempts
@@ -1010,6 +1011,7 @@ General assessment: the core crypto primitives are sound — argon2id with OWASP
 - Suggested fix: Decouple the email send from the response (enqueue via a background worker / event so the HTTP response returns before SMTP), or send to a null sink on the unknown/verified branches so all paths incur equivalent latency; alternatively add a fixed-time padding step before responding.
 
 ### auth-3. Reset token is consumed before the new password is validated — a bad new password permanently burns a valid reset
+- **✅ Shipped 2026-07-07 — PR #290, tranche G (review closeout).** Partially stale as written: the scaffolded route schema had enforced password length (code points) since #247. Shipped fix: `auth.set_password` gained an atomic token mode (consume + set + revoke in one transaction, `invalid` output, validate-before-write), the template collapsed to it, and `validatePassword` now counts runes to match the route schema.
 - Severity: Low / Confidence: 0.7 / Dimension: correctness
 - Files: cmd/noda/auth_templates/workflows/auth.reset-password.json.tmpl; plugins/auth/one_time_tokens.go:171-200; plugins/auth/set_password.go:66-68
 - Claim: In the reset-password flow, `auth.consume_token` runs first and *commits* the token as consumed, then `auth.set_password` runs and only there is the new password validated (`validatePassword`, 8–512 chars). `set_password` has no `invalid` output and returns a plain error for a too-short/too-long password, which fails the node with no error edge. The token is already gone, so a user who submits a valid token with a weak password cannot retry with the same token.
@@ -1020,6 +1022,7 @@ General assessment: the core crypto primitives are sound — argon2id with OWASP
 - Suggested fix: Validate the new password *before* consuming the token (add a validate/length-check node ahead of `consume`, or fold consumption into `set_password` so both happen in one transaction that rolls back on validation failure).
 
 ### auth-4. VerifyDummy leaves a login timing oracle when argon2 params drift (existing hashes cheaper than the dummy)
+- **✅ Shipped 2026-07-07 — PR #290, tranche G (review closeout).** CPU-equalization is unwinnable with heterogeneous stored costs (and eager rehash is impossible without plaintext), so the fix is a wall-clock floor: the scaffolded login flow pads its whole invalid path to a fixed ~500 ms deadline (the auth-2 pattern); VerifyDummy's comment now states the drift caveat and the guide documents the pattern for custom flows. Pre-existing scaffolds must apply the pad manually.
 - Severity: Low / Confidence: 0.5 / Dimension: security
 - Files: plugins/auth/crypto.go:99-112, plugins/auth/verify_credentials.go:73-97
 - Claim: `VerifyDummy` derives its dummy hash from the *currently configured* `s.Argon` params. When a deployment raises argon2 cost after users were created (the exact param-drift scenario the rehash logic exists for), existing users' stored hashes carry the *old, cheaper* params, so a wrong-password attempt on a real account verifies faster than the unknown-email path, which now burns the *new, heavier* dummy. The code comment only reasons about the opposite direction.
@@ -1556,6 +1559,7 @@ Scope: `internal/connmgr`, `internal/trace`, `plugins/livekit`. Repo main @ beec
 ---
 
 ### realtime-6. `lk.participantUpdate` sends a full `ParticipantPermission`; a partial `permissions` map silently revokes unset permissions
+- **✅ Shipped 2026-07-07 — PR #290, tranche G (review closeout).** Merge-then-send: the node now fetches current permissions (`GetParticipant`), `proto.Clone`s them, and overlays only the config-present keys; unknown or non-boolean permission keys are rejected before any RPC. The read-modify-write race is documented as accepted.
 - Severity: Low / Confidence: 0.65 / Dimension: correctness
 - Files: plugins/livekit/participant_update.go:75-95
 - Claim: When `permissions` is present, the code constructs a fresh `&lkproto.ParticipantPermission{}` and sets only the boolean fields found in the config map. LiveKit's `UpdateParticipantRequest.Permission` replaces the participant's entire permission set ("set to update the participant's permissions"), so any permission field the caller omits is sent as its zero value (`false`) and is revoked.
