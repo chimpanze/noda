@@ -11,8 +11,9 @@ services:
 
   noda:
     build: ../..
+    restart: unless-stopped
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -44,6 +45,7 @@ services:
 
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: noda
       POSTGRES_PASSWORD: noda
@@ -58,6 +60,7 @@ services:
 
   caddy:
     image: caddy:2
+    restart: unless-stopped
     profiles: ["edge"]
     ports:
       - "80:80"

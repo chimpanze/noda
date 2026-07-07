@@ -278,6 +278,29 @@ func TestHomebaseLifecycle(t *testing.T) {
 		}
 	})
 
+	t.Run("owner lists active share links", func(t *testing.T) {
+		resp := machineA.do("GET", "/shares", nil, "")
+		wantStatus(t, resp, 200)
+		body := decode(t, resp)
+		shares, _ := body["shares"].([]any)
+		found := false
+		for _, s := range shares {
+			m, _ := s.(map[string]any)
+			if m["id"] == shareID {
+				found = true
+				if m["drop_id"] != fileDropID {
+					t.Fatalf("share drop_id = %v, want %v", m["drop_id"], fileDropID)
+				}
+				if m["file_name"] != "report.txt" {
+					t.Fatalf("share file_name = %v", m["file_name"])
+				}
+			}
+		}
+		if !found {
+			t.Fatalf("created share %s not in /shares list (%d shares)", shareID, len(shares))
+		}
+	})
+
 	t.Run("expiring link dies", func(t *testing.T) {
 		resp := machineA.doJSON("POST", "/drops/"+todoDropID+"/share", map[string]string{"expires_in": "1s"})
 		wantStatus(t, resp, 201)

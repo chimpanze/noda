@@ -22,6 +22,12 @@ curl -X POST "$PUBLIC_BASE_URL/setup" -H 'Content-Type: application/json' \
   -d '{"setup_token":"<SETUP_TOKEN>","email":"you@example.com","password":"..."}'
 ```
 
+## Deployment notes
+
+- The API container binds to `127.0.0.1:3000` on the host — external traffic must come through the Caddy edge profile (TLS) or an SSH tunnel.
+- Behind the Caddy proxy, per-IP rate limiting and the session device-IP list currently see the proxy's IP, not the client's (runtime limitation; tracked upstream).
+- **Never run `e2e/run.sh` on a production host** — it runs `docker compose down -v` for this compose project and destroys its volumes (database + files).
+
 ## Use
 
 ```bash
