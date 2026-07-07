@@ -1,0 +1,38 @@
+{
+  "id": "rooms-list",
+  "name": "Rooms: List active rooms and links",
+  "nodes": {
+    "list": {
+      "type": "lk.roomList",
+      "services": { "livekit": "lk" },
+      "config": {}
+    },
+    "links": {
+      "type": "db.find",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "room_links",
+        "select": ["id", "room_name", "room_type", "token", "expires_at", "created_at"],
+        "where_clause": {
+          "query": "expires_at IS NULL OR expires_at > now()",
+          "params": []
+        },
+        "order": "created_at DESC"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "rooms": "{{ filter(nodes.list.rooms, {.name startsWith 'hb-'}) }}",
+          "links": "{{ nodes.links }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "links" },
+    { "from": "links", "to": "respond" }
+  ]
+}

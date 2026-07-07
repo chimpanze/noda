@@ -1,0 +1,25 @@
+{
+  "id": "room-create",
+  "method": "POST",
+  "path": "/rooms",
+  "summary": "Create a meeting or stream room with a guest link",
+  "tags": ["rooms"],
+  "middleware": ["auth.session"],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "type": "string", "enum": ["meeting", "stream"] },
+        "expires_in": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "room-create",
+    "input": {
+      "type": "{{ body.type }}",
+      "expires_in": "{{ (body ?? {}).expires_in ?? '' }}"
+    }
+  }
+}
