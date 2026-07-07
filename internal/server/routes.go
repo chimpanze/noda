@@ -423,43 +423,91 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 			}
 		}
 
-		timer := time.NewTimer(responseTimeout)
-		defer timer.Stop()
+		return s.awaitWorkflowResponse(c, responseCh, workflowDone, responseTimeout, routeID, traceID, respValidator)
+	}
+}
 
+// drainResponse non-blockingly takes an already-produced response, or nil.
+func drainResponse(ch chan *api.HTTPResponse) *api.HTTPResponse {
+	select {
+	case resp := <-ch:
+		return resp
+	default:
+		return nil
+	}
+}
+
+// awaitWorkflowResponse waits for the first of: a produced response, workflow
+// completion, or the response timeout — and writes the HTTP result. select
+// chooses randomly among ready cases, so each arm re-checks the others'
+// channels non-blockingly to make the outcome deterministic: a response the
+// workflow already produced always wins (the client would have received it
+// under a marginally different interleaving), a completed workflow's outcome
+// beats a synthesized 504, and a workflow error suppressed by a produced
+// response stays visible in logs and the trace.
+func (s *Server) awaitWorkflowResponse(c fiber.Ctx, responseCh chan *api.HTTPResponse, workflowDone chan error, responseTimeout time.Duration, routeID, traceID string, respValidator *responseValidator) error {
+	timer := time.NewTimer(responseTimeout)
+	defer timer.Stop()
+
+	logSuppressed := func(wfErr error) {
+		if wfErr != nil {
+			s.logger.Warn("workflow failed after producing a response; returning the response",
+				"route", routeID, "error", wfErr, "trace_id", traceID)
+		}
+	}
+	writeAccepted := func() error {
+		// No response node → 202 Accepted
+		return c.Status(fiber.StatusAccepted).JSON(map[string]any{
+			"status":   "accepted",
+			"trace_id": traceID,
+		})
+	}
+
+	select {
+	case resp := <-responseCh:
+		// Response node fired — send it. If the workflow already finished
+		// with an error, surface that in the logs before returning.
 		select {
-		case resp := <-responseCh:
-			// Response node fired — send response immediately
-			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
-
 		case wfErr := <-workflowDone:
-			// Workflow completed — check if a response was sent before returning
+			logSuppressed(wfErr)
+		default:
+		}
+		return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+
+	case wfErr := <-workflowDone:
+		if resp := drainResponse(responseCh); resp != nil {
+			logSuppressed(wfErr)
+			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+		}
+		if wfErr != nil {
+			status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
+			return writeErrorResponse(c, status, errResp)
+		}
+		return writeAccepted()
+
+	case <-timer.C:
+		if resp := drainResponse(responseCh); resp != nil {
+			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+		}
+		// If the workflow in fact completed at the deadline, prefer its
+		// deterministic outcome over a synthesized 504.
+		select {
+		case wfErr := <-workflowDone:
 			if wfErr != nil {
 				status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
 				return writeErrorResponse(c, status, errResp)
 			}
-			// Drain responseCh: the response node may have fired just before
-			// the workflow finished, and select picked this case randomly.
-			select {
-			case resp := <-responseCh:
-				return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
-			default:
-			}
-			// No response node → 202 Accepted
-			return c.Status(fiber.StatusAccepted).JSON(map[string]any{
-				"status":   "accepted",
-				"trace_id": traceID,
-			})
-
-		case <-timer.C:
-			// Response timeout — cancel cancels the workflow goroutine
-			return writeErrorResponse(c, 504, ErrorResponse{
-				Error: api.ErrorData{
-					Code:    "TIMEOUT",
-					Message: "Response timeout exceeded",
-					TraceID: traceID,
-				},
-			})
+			return writeAccepted()
+		default:
 		}
+		// Response timeout — the handler's deferred cancel stops the workflow goroutine
+		return writeErrorResponse(c, 504, ErrorResponse{
+			Error: api.ErrorData{
+				Code:    "TIMEOUT",
+				Message: "Response timeout exceeded",
+				TraceID: traceID,
+			},
+		})
 	}
 }
 

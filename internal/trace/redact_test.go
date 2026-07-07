@@ -1,6 +1,7 @@
 package trace
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -297,4 +298,35 @@ func TestEmit_RedactsSliceData(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("no event")
 	}
+}
+
+// Past the recursion cap the redactor must fail CLOSED: returning the raw
+// value would leak a deeply nested secret — over-redaction is the safe
+// direction for degenerate (>32-deep) payloads (#280).
+func TestRedactValue_PastDepthCapScrubbed(t *testing.T) {
+	leaf := "raw-secret-material"
+	v := any(map[string]any{"leaf": leaf})
+	for i := 0; i < maxRedactDepth+2; i++ {
+		v = map[string]any{"nest": v}
+	}
+	b, err := json.Marshal(redactValue(v))
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), leaf, "leaf value must not survive past the depth cap")
+	assert.Contains(t, string(b), "[REDACTED: max depth]")
+}
+
+func TestRedactValue_UnderDepthCapPassesThrough(t *testing.T) {
+	b, err := json.Marshal(redactValue(map[string]any{"a": map[string]any{"b": "plain"}}))
+	require.NoError(t, err)
+	assert.Contains(t, string(b), "plain", "shallow non-sensitive value must pass through")
+}
+
+// Non-string-keyed maps can't be classified key-by-key; like the depth cap,
+// the redactor must fail closed rather than pass the whole map through raw.
+func TestRedactValue_NonStringKeyedMapScrubbed(t *testing.T) {
+	out := redactValue(map[int]any{1: map[string]any{"password": "hunter2"}})
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "hunter2")
+	assert.Contains(t, string(b), "[REDACTED: unclassifiable keys]")
 }

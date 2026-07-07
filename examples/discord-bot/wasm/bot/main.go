@@ -25,6 +25,16 @@ type pendingRoll struct {
 	message   string
 }
 
+// decodeInto converts a host-decoded value (the PDK delivers Data fields
+// already unmarshalled, as any) into a typed struct via a JSON round-trip.
+func decodeInto(v any, dst any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, dst)
+}
+
 //go:wasmexport initialize
 func initialize() int32 {
 	input, err := noda.GetInitInput()
@@ -90,7 +100,7 @@ func tick() int32 {
 		}
 
 		var payload gatewayPayload
-		if err := json.Unmarshal(msg.Data, &payload); err != nil {
+		if err := decodeInto(msg.Data, &payload); err != nil {
 			noda.LogError("failed to parse gateway payload", map[string]any{"error": err.Error()})
 			continue
 		}

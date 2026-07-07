@@ -53,7 +53,9 @@ func redactValue(v any) any { return redactValueDepth(v, 0) }
 
 func redactValueDepth(v any, depth int) any {
 	if depth > maxRedactDepth {
-		return v
+		// Fail closed: past the cap we can no longer classify keys, and
+		// returning the raw value would leak anything sensitive below it.
+		return "[REDACTED: max depth]"
 	}
 	switch val := v.(type) {
 	case nil:
@@ -65,7 +67,9 @@ func redactValueDepth(v any, depth int) any {
 	switch rv.Kind() {
 	case reflect.Map:
 		if rv.Type().Key().Kind() != reflect.String {
-			return v // non-string keys: can't classify; leave as-is
+			// Fail closed: we can't classify non-string keys, and passing
+			// the map through would leak any sensitive values inside it.
+			return "[REDACTED: unclassifiable keys]"
 		}
 		out := make(map[string]any, rv.Len())
 		iter := rv.MapRange()

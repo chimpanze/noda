@@ -3,6 +3,7 @@ package trace
 import (
 	"log/slog"
 	neturl "net/url"
+	"strings"
 	"sync"
 
 	"github.com/gofiber/contrib/v3/websocket"
@@ -82,10 +83,11 @@ func originAllowed(origin, host string) bool {
 		return false
 	}
 	oh := u.Hostname()
-	if oh == host {
+	// Hostnames are case-insensitive (RFC 4343).
+	if strings.EqualFold(oh, host) {
 		return true
 	}
-	return oh == "localhost" || oh == "127.0.0.1" || oh == "::1"
+	return strings.EqualFold(oh, "localhost") || oh == "127.0.0.1" || oh == "::1"
 }
 
 // RegisterNoOpTraceWebSocket registers a /ws/trace endpoint that accepts

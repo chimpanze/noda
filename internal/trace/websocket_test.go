@@ -43,3 +43,24 @@ func TestTraceWebSocket_RejectsCrossOrigin(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEqual(t, 403, resp4.StatusCode)
 }
+
+// Hostnames are case-insensitive (RFC 4343); originAllowed must not reject
+// same-origin dev traffic over casing (#281). It still fails closed for
+// genuinely foreign origins.
+func TestOriginAllowed_CaseInsensitive(t *testing.T) {
+	cases := []struct {
+		origin, host string
+		want         bool
+	}{
+		{"http://Example.com", "example.com", true},
+		{"http://EXAMPLE.COM:3000", "example.com", true},
+		{"http://LocalHost:5173", "example.com", true},
+		{"http://evil.com", "example.com", false},
+		{"://bad-url", "example.com", false},
+	}
+	for _, tc := range cases {
+		if got := originAllowed(tc.origin, tc.host); got != tc.want {
+			t.Errorf("originAllowed(%q, %q) = %v, want %v", tc.origin, tc.host, got, tc.want)
+		}
+	}
+}
