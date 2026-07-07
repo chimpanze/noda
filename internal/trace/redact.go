@@ -53,7 +53,9 @@ func redactValue(v any) any { return redactValueDepth(v, 0) }
 
 func redactValueDepth(v any, depth int) any {
 	if depth > maxRedactDepth {
-		return v
+		// Fail closed: past the cap we can no longer classify keys, and
+		// returning the raw value would leak anything sensitive below it.
+		return "[REDACTED: max depth]"
 	}
 	switch val := v.(type) {
 	case nil:
