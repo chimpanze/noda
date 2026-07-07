@@ -4,7 +4,7 @@
   "nodes": {
     "check_token": {
       "type": "control.if",
-      "config": { "condition": "{{ sha256(input.setup_token) == sha256($var('SETUP_TOKEN')) }}" }
+      "config": { "condition": "{{ sha256(input.setup_token) == sha256(secrets.SETUP_TOKEN) }}" }
     },
     "count_users": {
       "type": "db.count",
@@ -40,7 +40,6 @@
   "edges": [
     { "from": "check_token", "output": "then", "to": "count_users" },
     { "from": "check_token", "output": "else", "to": "respond_bad_token" },
-    { "from": "check_token", "output": "error", "to": "respond_bad_token" },
     { "from": "count_users", "to": "check_empty" },
     { "from": "check_empty", "output": "then", "to": "create_admin" },
     { "from": "check_empty", "output": "else", "to": "respond_not_empty" },

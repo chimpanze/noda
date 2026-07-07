@@ -8,7 +8,6 @@
       "mocks": {
         "check_token": { "output_name": "then", "output": true },
         "count_users": { "output": { "count": 0 } },
-        "check_empty": { "output_name": "then", "output": true },
         "create_admin": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
         "respond_success": { "output": { "status": 201 } }
       },
@@ -19,7 +18,6 @@
       "input": { "setup_token": "wrong", "email": "admin@example.com", "password": "password123" },
       "mocks": {
         "check_token": { "output_name": "else", "output": false },
-        "count_users": { "output": { "count": 0 } },
         "create_admin": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
         "respond_bad_token": { "output": { "status": 403 } }
       },
@@ -31,7 +29,6 @@
       "mocks": {
         "check_token": { "output_name": "then", "output": true },
         "count_users": { "output": { "count": 1 } },
-        "check_empty": { "output_name": "else", "output": false },
         "create_admin": { "output": { "id": "u1", "email": "admin@example.com", "roles": ["admin"] } },
         "respond_not_empty": { "output": { "status": 403 } }
       },
@@ -43,7 +40,6 @@
       "mocks": {
         "check_token": { "output_name": "then", "output": true },
         "count_users": { "output": { "count": 0 } },
-        "check_empty": { "output_name": "then", "output": true },
         "create_admin": { "output_name": "exists", "output": {} },
         "respond_exists": { "output": { "status": 403 } }
       },
