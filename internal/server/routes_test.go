@@ -975,3 +975,35 @@ func TestAwaitWorkflowResponse_TimeoutWithoutResponse_504(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 504, resp.StatusCode)
 }
+
+// A workflow that completed exactly at the response deadline must get its
+// real outcome, not a coin-flip between it and a synthesized 504.
+func TestAwaitWorkflowResponse_TimeoutWithCompletedWorkflow_202Deterministic(t *testing.T) {
+	srv := newTestServer(t, map[string]map[string]any{}, map[string]map[string]any{}, nil)
+
+	responseCh := make(chan *api.HTTPResponse, 1)
+	workflowDone := make(chan error, 1)
+	workflowDone <- nil // fire-and-forget workflow finished cleanly
+
+	srv.App().Get("/await-done-at-deadline", func(c fiber.Ctx) error {
+		return srv.awaitWorkflowResponse(c, responseCh, workflowDone, time.Nanosecond, "r", "tid", nil)
+	})
+	resp, err := srv.App().Test(httptest.NewRequest("GET", "/await-done-at-deadline", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 202, resp.StatusCode)
+}
+
+func TestAwaitWorkflowResponse_TimeoutWithFailedWorkflow_ErrorDeterministic(t *testing.T) {
+	srv := newTestServer(t, map[string]map[string]any{}, map[string]map[string]any{}, nil)
+
+	responseCh := make(chan *api.HTTPResponse, 1)
+	workflowDone := make(chan error, 1)
+	workflowDone <- fmt.Errorf("boom")
+
+	srv.App().Get("/await-failed-at-deadline", func(c fiber.Ctx) error {
+		return srv.awaitWorkflowResponse(c, responseCh, workflowDone, time.Nanosecond, "r", "tid", nil)
+	})
+	resp, err := srv.App().Test(httptest.NewRequest("GET", "/await-failed-at-deadline", nil))
+	require.NoError(t, err)
+	assert.Equal(t, 500, resp.StatusCode)
+}

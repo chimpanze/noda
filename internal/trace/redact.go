@@ -67,7 +67,9 @@ func redactValueDepth(v any, depth int) any {
 	switch rv.Kind() {
 	case reflect.Map:
 		if rv.Type().Key().Kind() != reflect.String {
-			return v // non-string keys: can't classify; leave as-is
+			// Fail closed: we can't classify non-string keys, and passing
+			// the map through would leak any sensitive values inside it.
+			return "[REDACTED: unclassifiable keys]"
 		}
 		out := make(map[string]any, rv.Len())
 		iter := rv.MapRange()

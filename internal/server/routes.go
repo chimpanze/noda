@@ -427,51 +427,77 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 	}
 }
 
+// drainResponse non-blockingly takes an already-produced response, or nil.
+func drainResponse(ch chan *api.HTTPResponse) *api.HTTPResponse {
+	select {
+	case resp := <-ch:
+		return resp
+	default:
+		return nil
+	}
+}
+
 // awaitWorkflowResponse waits for the first of: a produced response, workflow
-// completion, or the response timeout — and writes the HTTP result. On the
-// error and timeout arms it first drains responseCh: a response the workflow
-// already produced wins deterministically over a synthesized error, because
-// select chooses randomly among ready cases and the client would have
-// received that response under a marginally different interleaving. The
-// suppressed workflow error stays visible in logs and the trace.
+// completion, or the response timeout — and writes the HTTP result. select
+// chooses randomly among ready cases, so each arm re-checks the others'
+// channels non-blockingly to make the outcome deterministic: a response the
+// workflow already produced always wins (the client would have received it
+// under a marginally different interleaving), a completed workflow's outcome
+// beats a synthesized 504, and a workflow error suppressed by a produced
+// response stays visible in logs and the trace.
 func (s *Server) awaitWorkflowResponse(c fiber.Ctx, responseCh chan *api.HTTPResponse, workflowDone chan error, responseTimeout time.Duration, routeID, traceID string, respValidator *responseValidator) error {
 	timer := time.NewTimer(responseTimeout)
 	defer timer.Stop()
 
-	select {
-	case resp := <-responseCh:
-		// Response node fired — send response immediately
-		return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
-
-	case wfErr := <-workflowDone:
+	logSuppressed := func(wfErr error) {
 		if wfErr != nil {
-			select {
-			case resp := <-responseCh:
-				s.logger.Warn("workflow failed after producing a response; returning the response",
-					"route", routeID, "error", wfErr, "trace_id", traceID)
-				return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
-			default:
-			}
-			status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
-			return writeErrorResponse(c, status, errResp)
+			s.logger.Warn("workflow failed after producing a response; returning the response",
+				"route", routeID, "error", wfErr, "trace_id", traceID)
 		}
-		// Drain responseCh: the response node may have fired just before
-		// the workflow finished, and select picked this case randomly.
-		select {
-		case resp := <-responseCh:
-			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
-		default:
-		}
+	}
+	writeAccepted := func() error {
 		// No response node → 202 Accepted
 		return c.Status(fiber.StatusAccepted).JSON(map[string]any{
 			"status":   "accepted",
 			"trace_id": traceID,
 		})
+	}
+
+	select {
+	case resp := <-responseCh:
+		// Response node fired — send it. If the workflow already finished
+		// with an error, surface that in the logs before returning.
+		select {
+		case wfErr := <-workflowDone:
+			logSuppressed(wfErr)
+		default:
+		}
+		return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+
+	case wfErr := <-workflowDone:
+		if resp := drainResponse(responseCh); resp != nil {
+			logSuppressed(wfErr)
+			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+		}
+		if wfErr != nil {
+			status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
+			return writeErrorResponse(c, status, errResp)
+		}
+		return writeAccepted()
 
 	case <-timer.C:
-		select {
-		case resp := <-responseCh:
+		if resp := drainResponse(responseCh); resp != nil {
 			return s.validateAndWriteResponse(c, resp, routeID, traceID, respValidator)
+		}
+		// If the workflow in fact completed at the deadline, prefer its
+		// deterministic outcome over a synthesized 504.
+		select {
+		case wfErr := <-workflowDone:
+			if wfErr != nil {
+				status, errResp := MapErrorToHTTP(wfErr, traceID, s.devMode)
+				return writeErrorResponse(c, status, errResp)
+			}
+			return writeAccepted()
 		default:
 		}
 		// Response timeout — the handler's deferred cancel stops the workflow goroutine

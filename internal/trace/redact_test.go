@@ -320,3 +320,13 @@ func TestRedactValue_UnderDepthCapPassesThrough(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(b), "plain", "shallow non-sensitive value must pass through")
 }
+
+// Non-string-keyed maps can't be classified key-by-key; like the depth cap,
+// the redactor must fail closed rather than pass the whole map through raw.
+func TestRedactValue_NonStringKeyedMapScrubbed(t *testing.T) {
+	out := redactValue(map[int]any{1: map[string]any{"password": "hunter2"}})
+	b, err := json.Marshal(out)
+	require.NoError(t, err)
+	assert.NotContains(t, string(b), "hunter2")
+	assert.Contains(t, string(b), "[REDACTED: unclassifiable keys]")
+}

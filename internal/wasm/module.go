@@ -225,11 +225,13 @@ func (m *Module) Stop(ctx context.Context) error {
 	// Wait for outstanding async-call goroutines BEFORE clearing the maps
 	// they write into. With the Add(1)/Done() wrapping in CallAsync this
 	// actually waits for the right things; without it the wait was a no-op.
-	// Invariant: every outstandingCalls.Add happens-before this Wait —
-	// SendCommand checks stopping under mu, and the hostapi.go Add sites
-	// only run inside guest exports, which are all serialized before this
-	// point (tick loop exited via tickDone; shutdown call above returned).
-	// A new Add site must preserve this or the Wait panics.
+	// Invariant: no Add can start while this Wait sits at counter zero —
+	// SendCommand checks stopping under mu; the hostapi.go CallAsync Add
+	// runs inside a guest export, which is serialized before this point
+	// (tick loop exited via tickDone; shutdown call above returned); and
+	// the nested trigger_workflow Add runs on the CallAsync goroutine,
+	// whose own counter entry stays >0 until after the nested Add. A new
+	// Add site must preserve one of these properties or the Wait panics.
 	done := make(chan struct{})
 	go func() {
 		m.outstandingCalls.Wait()
