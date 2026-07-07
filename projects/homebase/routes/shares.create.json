@@ -7,7 +7,7 @@
   "middleware": ["auth.session"],
   "body": {
     "schema": {
-      "type": "object",
+      "type": ["object", "null"],
       "properties": {
         "expires_in": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" }
       }

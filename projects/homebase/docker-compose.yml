@@ -1,4 +1,14 @@
 services:
+  # The noda/migrate images run as the distroless "nonroot" user (uid/gid
+  # 65532), but the files-data named volume is created root-owned by Docker.
+  # This one-shot container chowns it before noda ever touches it, so
+  # upload.handle/storage.delete can mkdir under /data/files.
+  files-init:
+    image: busybox
+    command: ["sh", "-c", "mkdir -p /data/files && chown -R 65532:65532 /data/files"]
+    volumes:
+      - files-data:/data/files
+
   noda:
     build: ../..
     ports:
@@ -7,6 +17,8 @@ services:
       postgres:
         condition: service_healthy
       migrate:
+        condition: service_completed_successfully
+      files-init:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
@@ -51,7 +63,7 @@ services:
       - "80:80"
       - "443:443"
     environment:
-      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      DOMAIN: ${DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
       - caddy-data:/data
