@@ -1,0 +1,43 @@
+{
+  "id": "test-room-token",
+  "workflow": "room-token",
+  "tests": [
+    {
+      "name": "mints meeting owner token",
+      "input": { "name": "hb-meet-a1b2c3d4" },
+      "mocks": {
+        "exists": { "output": { "rooms": [ { "name": "hb-meet-a1b2c3d4" } ] } },
+        "token_meet": { "output": { "token": "jwt-meet", "identity": "owner", "room": "hb-meet-a1b2c3d4" } },
+        "respond_meet": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_meet.status": 200 } }
+    },
+    {
+      "name": "mints stream owner token",
+      "input": { "name": "hb-stream-a1b2c3d4" },
+      "mocks": {
+        "exists": { "output": { "rooms": [ { "name": "hb-stream-a1b2c3d4" } ] } },
+        "token_stream": { "output": { "token": "jwt-stream", "identity": "owner", "room": "hb-stream-a1b2c3d4" } },
+        "respond_stream": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_stream.status": 200 } }
+    },
+    {
+      "name": "dead room gets 404",
+      "input": { "name": "hb-meet-ffffffff" },
+      "mocks": {
+        "exists": { "output": { "rooms": [] } },
+        "respond_missing": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_missing.status": 404 } }
+    },
+    {
+      "name": "malformed room name gets 404",
+      "input": { "name": "'; DROP TABLE rooms;--" },
+      "mocks": {
+        "respond_badname": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_badname.status": 404 } }
+    }
+  ]
+}

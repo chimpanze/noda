@@ -1,0 +1,39 @@
+{
+  "id": "room-delete",
+  "name": "Rooms: End room and remove links",
+  "nodes": {
+    "checkname": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.name matches '^hb-(meet|stream)-[a-z0-9]{8}$' }}" }
+    },
+    "del": {
+      "type": "lk.roomDelete",
+      "services": { "livekit": "lk" },
+      "config": { "room": "{{ input.name }}" }
+    },
+    "del_links": {
+      "type": "db.delete",
+      "services": { "database": "main-db" },
+      "config": { "table": "room_links", "where": { "room_name": "{{ input.name }}" } }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 204 }
+    },
+    "respond_missing": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "room not found" }
+    },
+    "respond_badname": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "room not found" }
+    }
+  },
+  "edges": [
+    { "from": "checkname", "output": "then", "to": "del" },
+    { "from": "checkname", "output": "else", "to": "respond_badname" },
+    { "from": "del", "to": "del_links" },
+    { "from": "del", "output": "error", "to": "respond_missing" },
+    { "from": "del_links", "to": "respond" }
+  ]
+}
