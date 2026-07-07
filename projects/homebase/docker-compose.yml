@@ -1,0 +1,62 @@
+services:
+  noda:
+    build: ../..
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
+      FILES_PATH: /data/files
+      SETUP_TOKEN: ${SETUP_TOKEN:?set SETUP_TOKEN in .env}
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+    volumes:
+      - .:/app/config
+      - files-data:/data/files
+    command: ["start", "--config", "/app/config", "--server"]
+
+  migrate:
+    build: ../..
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
+      FILES_PATH: /data/files
+    volumes:
+      - .:/app/config
+    command: ["migrate", "up", "--config", "/app/config", "--service", "main-db"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: noda
+      POSTGRES_PASSWORD: noda
+      POSTGRES_DB: noda
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noda -d noda"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  caddy:
+    image: caddy:2
+    profiles: ["edge"]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy-data:/data
+
+volumes:
+  pgdata:
+  files-data:
+  caddy-data:

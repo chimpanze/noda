@@ -1,0 +1,3 @@
+{$DOMAIN} {
+    reverse_proxy noda:3000
+}

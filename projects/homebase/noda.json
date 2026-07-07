@@ -1,0 +1,24 @@
+{
+  "server": {
+    "body_limit": 1073741824
+  },
+  "global_middleware": ["recover", "requestid", "logger"],
+  "middleware": {
+    "limiter": { "max": 30, "expiration": "1m" }
+  },
+  "security": {},
+  "services": {
+    "main-db": {
+      "plugin": "db",
+      "config": { "driver": "postgres", "url": "{{ $env('DATABASE_URL') }}" }
+    },
+    "auth": {
+      "plugin": "auth",
+      "config": { "database": "main-db" }
+    },
+    "files": {
+      "plugin": "storage",
+      "config": { "backend": "local", "path": "{{ $env('FILES_PATH') }}" }
+    }
+  }
+}
