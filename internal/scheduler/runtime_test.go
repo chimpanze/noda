@@ -605,6 +605,9 @@ func TestScheduledFireTime_PrevAndFallback(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return !rt.cron.Entry(id).Prev.IsZero()
 	}, 5*time.Second, 50*time.Millisecond)
+	// Stop the cron before comparing: the @every-1s entry keeps firing, so
+	// two live reads of Prev could straddle a tick and flake.
+	require.NoError(t, rt.Stop(context.Background()))
 	prev := rt.cron.Entry(id).Prev
 	assert.Equal(t, prev, rt.scheduledFireTime(id))
 }

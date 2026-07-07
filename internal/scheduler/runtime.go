@@ -258,8 +258,6 @@ func (r *Runtime) runJob(sc ScheduleConfig, fireTime time.Time) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	now := start
-
 	r.logger.Info("scheduler: job firing",
 		"schedule_id", sc.ID,
 		"cron", sc.Cron,
@@ -360,7 +358,7 @@ func (r *Runtime) runJob(sc ScheduleConfig, fireTime time.Time) {
 		engine.WithInput(input),
 		engine.WithTrigger(api.TriggerData{
 			Type:      "schedule",
-			Timestamp: now,
+			Timestamp: start,
 			TraceID:   traceID,
 		}),
 		engine.WithWorkflowID(sc.WorkflowID),

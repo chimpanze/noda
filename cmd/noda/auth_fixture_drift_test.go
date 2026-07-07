@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -30,29 +29,28 @@ func TestAuthFixtureMatchesTemplates(t *testing.T) {
 	// Scaffold with the fixture's service names so [[.EmailService]] renders
 	// to "email" (scaffoldAuthProject's writeMinimalProject uses "mailer").
 	dir := t.TempDir()
-	services := map[string]any{
-		"main-db": map[string]any{"plugin": "db", "config": map[string]any{"driver": "sqlite", "path": "data/app.db"}},
-		"email":   map[string]any{"plugin": "email", "config": map[string]any{"host": "localhost", "port": 1025}},
-	}
-	b, err := json.MarshalIndent(map[string]any{"services": services}, "", "  ")
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "noda.json"), b, 0644))
+	writeMinimalProjectNamed(t, dir, "email")
 	require.NoError(t, runAuthInit(dir))
 
-	// Byte-compare the rendered trees (file set + contents). The fixture's
-	// workflows/routes/tests directories contain only auth-owned files.
-	for _, sub := range []string{"workflows", "routes", "tests"} {
-		requireDirsEqual(t, filepath.Join(dir, sub), filepath.Join(fixture, sub))
+	// Byte-compare the rendered trees (file set + contents), scoped to the
+	// auth-owned globs the regen recipe above enumerates — a future non-auth
+	// file in the fixture dirs must not trip the guard.
+	for _, cmp := range []struct{ sub, glob string }{
+		{"workflows", "auth.*.json"},
+		{"routes", "auth.*.json"},
+		{"tests", "test-auth-*.json"},
+	} {
+		requireDirsEqual(t, filepath.Join(dir, cmp.sub), filepath.Join(fixture, cmp.sub), cmp.glob)
 	}
 
 	// Migrations: content-equal, generation-timestamp prefix ignored.
 	requireMigrationsEqual(t, filepath.Join(dir, "migrations"), filepath.Join(fixture, "migrations"))
 }
 
-func requireDirsEqual(t *testing.T, got, want string) {
+func requireDirsEqual(t *testing.T, got, want, glob string) {
 	t.Helper()
-	gotNames := dirFileNames(t, got)
-	wantNames := dirFileNames(t, want)
+	gotNames := dirFileNames(t, got, glob)
+	wantNames := dirFileNames(t, want, glob)
 	require.Equal(t, wantNames, gotNames,
 		"testdata/auth/%s file set lags the auth templates — regenerate the fixture (see TestAuthFixtureMatchesTemplates doc comment)", filepath.Base(want))
 	for _, name := range wantNames {
@@ -71,7 +69,7 @@ func requireMigrationsEqual(t *testing.T, got, want string) {
 	t.Helper()
 	norm := func(dir string) map[string]string {
 		out := map[string]string{}
-		for _, name := range dirFileNames(t, dir) {
+		for _, name := range dirFileNames(t, dir, "*_auth_tables.*.sql") {
 			b, err := os.ReadFile(filepath.Join(dir, name))
 			require.NoError(t, err)
 			out[migrationTS.ReplaceAllString(name, "TS_")] = string(b)
@@ -82,13 +80,18 @@ func requireMigrationsEqual(t *testing.T, got, want string) {
 		"testdata/auth/migrations lag the auth templates (timestamps normalized) — regenerate the fixture")
 }
 
-func dirFileNames(t *testing.T, dir string) []string {
+func dirFileNames(t *testing.T, dir, glob string) []string {
 	t.Helper()
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
 	names := make([]string, 0, len(entries))
 	for _, e := range entries {
-		if !e.IsDir() {
+		if e.IsDir() {
+			continue
+		}
+		match, err := filepath.Match(glob, e.Name())
+		require.NoError(t, err)
+		if match {
 			names = append(names, e.Name())
 		}
 	}
