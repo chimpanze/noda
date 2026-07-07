@@ -9,6 +9,16 @@ import (
 // Global counter state — persists across ticks in Wasm linear memory.
 var counter int64
 
+// decodeInto converts a host-decoded value (the PDK delivers Data fields
+// already unmarshalled, as any) into a typed struct via a JSON round-trip.
+func decodeInto(v any, dst any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, dst)
+}
+
 //go:wasmexport initialize
 func initialize() int32 {
 	input, err := noda.GetInitInput()
@@ -37,7 +47,7 @@ func tick() int32 {
 			Op    string `json:"op"`
 			Value int64  `json:"value"`
 		}
-		if err := json.Unmarshal(cmd.Data, &op); err != nil {
+		if err := decodeInto(cmd.Data, &op); err != nil {
 			continue
 		}
 
