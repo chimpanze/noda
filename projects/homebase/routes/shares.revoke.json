@@ -1,0 +1,12 @@
+{
+  "id": "share-revoke",
+  "method": "DELETE",
+  "path": "/shares/:id",
+  "summary": "Revoke a share link",
+  "tags": ["shares"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "share-revoke",
+    "input": { "share_id": "{{ params.id }}" }
+  }
+}
