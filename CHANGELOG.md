@@ -7,9 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Security
-- Edge & trace hardening: DB conflict/unavailable error bodies no longer leak driver/constraint detail in production (detail gated behind dev mode); trace redaction now covers slice-typed node data (e.g. `db.query` rows) and `stream_key`; the dev `/ws/trace` endpoint rejects cross-origin connections; `response.redirect` rejects `/\`-authority open redirects; `ws.send`/`sse.send` (and the Wasm host connection API) reject wildcard channels — **broadcasting via a wildcard send is no longer supported; subscribe connections to a shared literal channel instead**; `image.resize`/`crop`/`thumbnail` cap output dimensions.
-
 ### Added
 - `auth.jwt` optional claim validation: `audience`, `issuer`, and `require_expiry` (all default off — when unset, behavior is unchanged)
 - Prometheus metrics endpoint (`/metrics`) with OTel metrics API
@@ -54,9 +51,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Engine execution safety: a workflow that times out now returns a `504`/error instead of silently reporting success on a truncated run; parallel branches failing with different error types no longer crash the process; starved AND-joins fail loudly; join classification is deterministic; alias/node-ID and duplicate workflow-ID collisions are rejected at load.
 
 ### Security
+- Edge & trace hardening: DB conflict/unavailable error bodies no longer leak driver/constraint detail in production (detail gated behind dev mode); trace redaction now covers slice-typed node data (e.g. `db.query` rows) and `stream_key`; the dev `/ws/trace` endpoint rejects cross-origin connections; `response.redirect` rejects `/\`-authority open redirects; `ws.send`/`sse.send` (and the Wasm host connection API) reject wildcard channels — **broadcasting via a wildcard send is no longer supported; subscribe connections to a shared literal channel instead**; `image.resize`/`crop`/`thumbnail` cap output dimensions.
 - Bumped `github.com/buger/jsonparser` v1.1.1 → v1.1.2 (GO-2026-4514, DoS in the parser; the package is imported transitively but the vulnerable symbol is not called) and `golang.org/x/crypto` v0.51.0 → v0.53.0 (clears 13 module-level `ssh/*` advisories; `golang.org/x/crypto/ssh` is not imported, so there was no call-path exposure — `argon2`/`bcrypt` used by auth are unchanged). `govulncheck` reports no vulnerabilities.
-
-### Security
 - Auth scaffold anti-enumeration: `noda auth init` now generates a **verification-first** register flow — both a new and an already-registered email return an identical `200` with no session cookie and send an email, so registration no longer discloses which addresses exist (it no longer auto-logs-in; users verify then log in). The password-reset and resend-verification flows now respond at a **fixed ~500 ms deadline** on every branch (via `util.timestamp` + `util.delay`), so the synchronous SMTP send on the known-account path no longer leaks account existence (or verified-vs-unverified status) through response timing. For a hard guarantee, move the email send to an async worker (`event.emit` + a worker consumer). Also: `util.delay` now resolves its `timeout` per request, enabling computed delays.
 
 ### Removed
