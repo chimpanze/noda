@@ -1,3 +1,3 @@
-DROP TABLE auth_tokens;
-DROP TABLE auth_sessions;
-DROP TABLE auth_users;
+DROP TABLE IF EXISTS auth_tokens;
+DROP TABLE IF EXISTS auth_sessions;
+DROP TABLE IF EXISTS auth_users;
