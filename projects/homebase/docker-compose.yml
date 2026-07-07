@@ -26,6 +26,9 @@ services:
       FILES_PATH: /data/files
       SETUP_TOKEN: ${SETUP_TOKEN:?set SETUP_TOKEN in .env}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:3000}
+      LIVEKIT_URL: ${LIVEKIT_URL:?set LIVEKIT_URL in .env}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}
     volumes:
       - .:/app/config
       - files-data:/data/files
@@ -39,6 +42,9 @@ services:
     environment:
       DATABASE_URL: postgres://noda:noda@postgres:5432/noda?sslmode=disable
       FILES_PATH: /data/files
+      LIVEKIT_URL: ${LIVEKIT_URL:?set LIVEKIT_URL in .env}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}
     volumes:
       - .:/app/config
     command: ["migrate", "up", "--config", "/app/config", "--service", "main-db"]
