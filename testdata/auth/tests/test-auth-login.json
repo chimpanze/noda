@@ -6,6 +6,7 @@
       "name": "valid credentials get a session",
       "input": { "email": "alice@example.com", "password": "password123" },
       "mocks": {
+        "start_ts": { "output": 1000 },
         "verify": { "output": { "id": "user-1", "email": "alice@example.com", "roles": ["user"] } },
         "session": { "output": { "token": "tok", "session_id": "s1", "cookie": { "name": "noda_session", "value": "tok" } } },
         "respond": { "output": { "status": 200 } }
@@ -13,10 +14,13 @@
       "expect": { "status": "success", "output": { "respond.status": 200 } }
     },
     {
-      "name": "invalid credentials get 401",
+      "name": "invalid credentials get 401 at the fixed deadline",
       "input": { "email": "alice@example.com", "password": "wrong" },
       "mocks": {
+        "start_ts": { "output": 1000 },
         "verify": { "output_name": "invalid", "output": {} },
+        "now_ts_invalid": { "output": 1100 },
+        "pad_invalid": { "output": null },
         "respond_invalid": { "output": { "status": 401 } }
       },
       "expect": { "status": "success", "output": { "respond_invalid.status": 401 } }

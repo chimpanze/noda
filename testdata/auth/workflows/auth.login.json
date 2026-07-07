@@ -2,11 +2,14 @@
   "id": "auth-login",
   "name": "Auth: Login",
   "nodes": {
+    "start_ts": { "type": "util.timestamp", "config": { "format": "unix_ms" } },
     "verify": {
       "type": "auth.verify_credentials",
       "services": { "auth": "auth", "database": "main-db" },
       "config": { "email": "{{ input.email }}", "password": "{{ input.password }}" }
     },
+    "now_ts_invalid": { "type": "util.timestamp", "config": { "format": "unix_ms" } },
+    "pad_invalid": { "type": "util.delay", "config": { "timeout": "{{ (nodes.start_ts + 500) > nodes.now_ts_invalid ? (nodes.start_ts + 500 - nodes.now_ts_invalid) : 0 }}ms" } },
     "respond_invalid": {
       "type": "response.json",
       "config": { "status": 401, "body": { "error": "invalid credentials" } }
@@ -26,8 +29,11 @@
     }
   },
   "edges": [
+    { "from": "start_ts", "to": "verify" },
     { "from": "verify", "to": "session" },
-    { "from": "verify", "output": "invalid", "to": "respond_invalid" },
+    { "from": "verify", "output": "invalid", "to": "now_ts_invalid" },
+    { "from": "now_ts_invalid", "to": "pad_invalid" },
+    { "from": "pad_invalid", "to": "respond_invalid" },
     { "from": "session", "to": "respond" }
   ]
 }

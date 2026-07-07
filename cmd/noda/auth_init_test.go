@@ -57,11 +57,23 @@ func loadResolvedConfigForTest(dir string) (*config.ResolvedConfig, error) {
 
 func writeMinimalProject(t *testing.T, dir string, withEmail bool) {
 	t.Helper()
+	emailService := ""
+	if withEmail {
+		emailService = "mailer"
+	}
+	writeMinimalProjectNamed(t, dir, emailService)
+}
+
+// writeMinimalProjectNamed writes a minimal noda.json whose email service (if
+// emailService is non-empty) uses the given name — the drift-guard test needs
+// "email" to match the committed testdata/auth fixture's rendering.
+func writeMinimalProjectNamed(t *testing.T, dir, emailService string) {
+	t.Helper()
 	services := map[string]any{
 		"main-db": map[string]any{"plugin": "db", "config": map[string]any{"driver": "sqlite", "path": "data/app.db"}},
 	}
-	if withEmail {
-		services["mailer"] = map[string]any{"plugin": "email", "config": map[string]any{"host": "localhost", "port": 1025}}
+	if emailService != "" {
+		services[emailService] = map[string]any{"plugin": "email", "config": map[string]any{"host": "localhost", "port": 1025}}
 	}
 	root := map[string]any{"services": services}
 	b, _ := json.MarshalIndent(root, "", "  ")

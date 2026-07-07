@@ -1,0 +1,21 @@
+{
+  "id": "auth-resend-verification",
+  "method": "POST",
+  "path": "/auth/resend-verification",
+  "summary": "Resend the email-verification token",
+  "tags": ["auth"],
+  "middleware": ["limiter"],
+  "body": {
+    "schema": {
+      "type": "object",
+      "required": ["email"],
+      "properties": {
+        "email": { "type": "string" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "auth-resend-verification",
+    "input": { "email": "{{ body.email }}" }
+  }
+}
