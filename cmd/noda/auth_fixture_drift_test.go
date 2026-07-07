@@ -15,13 +15,13 @@ import (
 // with the fixture's own service names (main-db + email). If this fails you
 // changed the templates without regenerating the fixture — regenerate:
 //
-//	1. remove the "auth" service entry from testdata/auth/noda.json
-//	   (runAuthInit refuses to run while it exists; it re-adds it)
-//	2. rm testdata/auth/workflows/auth.*.json testdata/auth/routes/auth.*.json \
-//	      testdata/auth/tests/test-auth-*.json testdata/auth/migrations/*_auth_tables.*.sql
-//	3. go run ./cmd/noda auth init --dir testdata/auth
-//	4. re-run go test -tags=integration ./plugins/auth/ and adapt the e2e
-//	   if the flow shapes changed
+//  1. remove the "auth" service entry from testdata/auth/noda.json
+//     (runAuthInit refuses to run while it exists; it re-adds it)
+//  2. rm testdata/auth/workflows/auth.*.json testdata/auth/routes/auth.*.json \
+//     testdata/auth/tests/test-auth-*.json testdata/auth/migrations/*_auth_tables.*.sql
+//  3. go run ./cmd/noda auth init --dir testdata/auth
+//  4. re-run go test -tags=integration ./plugins/auth/ and adapt the e2e
+//     if the flow shapes changed
 //
 // (#291 — the fixture rotted silently for three tranches before this guard.)
 func TestAuthFixtureMatchesTemplates(t *testing.T) {
