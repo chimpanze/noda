@@ -3716,3 +3716,56 @@ func TestHostPDKEnvelopeContract(t *testing.T) {
 		})
 	}
 }
+
+// SendCommand after Stop must be a no-op: the outstandingCalls.Add(1) in the
+// command-export branch would otherwise race Stop's Wait-at-zero (the
+// WaitGroup misuse Go disallows), and the buffered branch would grow a dead
+// buffer (#266). The buffered branch is the deterministic observable.
+func TestModule_SendCommand_AfterStopIsDropped(t *testing.T) {
+	plugin := newMockPlugin() // no "command" export → buffered branch
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 20}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+	require.NoError(t, m.Stop(context.Background()))
+
+	m.SendCommand(map[string]any{"action": "late"})
+
+	m.mu.Lock()
+	buffered := len(m.commands)
+	m.mu.Unlock()
+	assert.Zero(t, buffered, "command sent after Stop must be dropped, not buffered")
+}
+
+// Best-effort race probe: hammers SendCommand (command-export branch, the
+// branch that calls outstandingCalls.Add) concurrently with Stop. Against
+// unfixed code -race / the WaitGroup misuse panic trips probabilistically;
+// with the mu-serialized stopping check it never can. The deterministic
+// regression pin is TestModule_SendCommand_AfterStopIsDropped above.
+func TestModule_SendCommand_ConcurrentWithStop(t *testing.T) {
+	plugin := newMockPlugin()
+	plugin.exports["command"] = true
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 60}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for j := 0; j < 50; j++ {
+				m.SendCommand(map[string]any{"n": j})
+			}
+		}()
+	}
+	require.NoError(t, m.Stop(context.Background()))
+	wg.Wait()
+}

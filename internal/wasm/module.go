@@ -200,11 +200,14 @@ func (m *Module) Stop(ctx context.Context) error {
 		return nil
 	}
 	m.running = false
+	// Set under mu so SendCommand's mu-held check is race-free: any
+	// SendCommand that acquires the lock after this point observes
+	// stopping=true and won't outstandingCalls.Add — every Add strictly
+	// happens-before the Wait below. AddAsyncResult also keys off this
+	// to drop late writes.
+	m.stopping.Store(true)
 	close(m.stopCh)
 	m.mu.Unlock()
-
-	// Mark as stopping so AddAsyncResult drops late writes.
-	m.stopping.Store(true)
 
 	// Cancel the shutdown context to unblock any in-flight callWithTimeout calls
 	m.shutdownCancel()
@@ -222,6 +225,11 @@ func (m *Module) Stop(ctx context.Context) error {
 	// Wait for outstanding async-call goroutines BEFORE clearing the maps
 	// they write into. With the Add(1)/Done() wrapping in CallAsync this
 	// actually waits for the right things; without it the wait was a no-op.
+	// Invariant: every outstandingCalls.Add happens-before this Wait —
+	// SendCommand checks stopping under mu, and the hostapi.go Add sites
+	// only run inside guest exports, which are all serialized before this
+	// point (tick loop exited via tickDone; shutdown call above returned).
+	// A new Add site must preserve this or the Wait panics.
 	done := make(chan struct{})
 	go func() {
 		m.outstandingCalls.Wait()
@@ -302,6 +310,14 @@ func (m *Module) SendCommand(data any) {
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Once Stop has begun (stopping set under this same mutex), adding to
+	// outstandingCalls would race Stop's Wait-at-zero — WaitGroup misuse.
+	// Buffering would be equally pointless: no tick will drain it.
+	if m.stopping.Load() {
+		m.Logger.Warn("dropping command on stopped module", "module", m.Name)
+		return
+	}
 
 	// If module exports "command", call it directly (between ticks — queued via queryCh)
 	if m.Plugin.FunctionExists("command") {
