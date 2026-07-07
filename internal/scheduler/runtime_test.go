@@ -378,7 +378,7 @@ func TestDistributedLock_SecondInstanceSkips(t *testing.T) {
 
 	// Both run — the lock from rt1 should cause rt2 to skip
 	// Since lock TTL is 5min, the key is still set, so the next call skips
-	rt2.runJob(sc)
+	rt2.runJob(sc, time.Now())
 
 	h2 := rt2.jobHistory()
 	require.Len(t, h2, 1)
@@ -399,7 +399,7 @@ func TestDistributedLock_LockServiceNotFound(t *testing.T) {
 	}
 
 	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, map[string]map[string]any{}, nil, nil, nil, nil, nil)
-	rt.runJob(sc)
+	rt.runJob(sc, time.Now())
 
 	history := rt.jobHistory()
 	require.Len(t, history, 1)
@@ -523,7 +523,88 @@ func TestRunJob_SkipsOverlappingRun(t *testing.T) {
 	rt.running["s1"].Store(true)
 
 	before := len(rt.jobHistory())
-	rt.runJob(sc) // must skip immediately: no lock, no workflow, no history entry
+	rt.runJob(sc, time.Now()) // must skip immediately: no lock, no workflow, no history entry
 	require.Equal(t, before, len(rt.jobHistory()), "overlapping run must be skipped (no new history)")
 	require.True(t, rt.running["s1"].Load(), "the guard owned by the in-progress run stays set")
+}
+
+// The distributed lock must key on the cron-scheduled tick time, not the
+// wall clock at runJob entry: two instances firing the same logical tick
+// but straddling a second boundary (GC pause, dispatch jitter) must compute
+// the SAME key so exactly one runs (#283). With the old time.Now() keying,
+// wall instants >1s apart yielded different keys and both instances ran —
+// TestDistributedLock_SecondInstanceSkips' loose "skipped OR succeeded"
+// assertion below documents exactly that flake.
+func TestDistributedLock_SameTickAcrossWallSeconds_OneRuns(t *testing.T) {
+	svcReg, nodeReg, _ := newTestSetupWithCache(t)
+
+	workflows := map[string]map[string]any{
+		"tick-wf": {
+			"nodes": map[string]any{
+				"log": map[string]any{
+					"type": "util.log",
+					"config": map[string]any{
+						"message": "executed",
+						"level":   "info",
+					},
+				},
+			},
+			"edges": []any{},
+		},
+	}
+
+	sc := ScheduleConfig{
+		ID:          "tick-job",
+		Cron:        "0 * * * * *",
+		WorkflowID:  "tick-wf",
+		LockEnabled: true,
+		LockSvcName: "app-cache",
+		LockTTL:     5 * time.Minute,
+	}
+
+	tick := time.Date(2026, 7, 7, 12, 0, 0, 0, time.UTC)
+
+	// Instance A handles the tick on time.
+	rtA := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
+	rtA.runJob(sc, tick)
+	hA := rtA.jobHistory()
+	require.Len(t, hA, 1)
+	require.True(t, hA[0].Success, "instance A must run: %+v", hA[0])
+
+	// Instance B handles the SAME tick, delayed past a wall-second boundary.
+	// The sleep is what makes this a real regression pin: with wall-clock
+	// keying (the old bug) A and B would compute different keys across the
+	// boundary and BOTH would run; with tick keying the key is identical
+	// regardless of the wall clock.
+	time.Sleep(1100 * time.Millisecond)
+	rtB := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, workflows, nil, nil, nil, nil, nil)
+	rtB.runJob(sc, tick)
+	hB := rtB.jobHistory()
+	require.Len(t, hB, 1)
+	assert.True(t, hB[0].Skipped, "instance B must skip the tick A already locked: %+v", hB[0])
+}
+
+// scheduledFireTime returns Entry.Prev once the entry has fired, and a
+// non-zero wall-clock fallback before any fire (Prev zero).
+func TestScheduledFireTime_PrevAndFallback(t *testing.T) {
+	svcReg, nodeReg := newTestSetup(t)
+	sc := ScheduleConfig{ID: "sft-job", Cron: "@every 1s", WorkflowID: "wf"}
+	rt := NewRuntime([]ScheduleConfig{sc}, svcReg, nodeReg, map[string]map[string]any{}, nil, nil, nil, nil, nil)
+	require.NoError(t, rt.Start())
+	defer func() { _ = rt.Stop(context.Background()) }()
+
+	entries := rt.cron.Entries()
+	require.Len(t, entries, 1)
+	id := entries[0].ID
+
+	// Before the first fire Prev is zero → fallback must be now-ish.
+	early := rt.scheduledFireTime(id)
+	assert.WithinDuration(t, time.Now(), early, 2*time.Second)
+
+	// After a fire, the helper must return the scheduled tick (Prev).
+	require.Eventually(t, func() bool {
+		return !rt.cron.Entry(id).Prev.IsZero()
+	}, 5*time.Second, 50*time.Millisecond)
+	prev := rt.cron.Entry(id).Prev
+	assert.Equal(t, prev, rt.scheduledFireTime(id))
 }

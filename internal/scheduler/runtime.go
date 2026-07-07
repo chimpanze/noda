@@ -124,8 +124,11 @@ func (r *Runtime) Start() error {
 			spec = "TZ=" + sc.Timezone + " " + spec
 		}
 
-		_, err := r.cron.AddFunc(spec, func() {
-			r.runJob(sc)
+		// entryID is assigned before r.cron.Start(), so no fire can
+		// observe it unset.
+		var entryID cron.EntryID
+		entryID, err := r.cron.AddFunc(spec, func() {
+			r.runJob(sc, r.scheduledFireTime(entryID))
 		})
 		if err != nil {
 			return fmt.Errorf("scheduler: register job %q: %w", sc.ID, err)
@@ -196,8 +199,30 @@ func scheduleLockKey(id string, t time.Time) string {
 	return fmt.Sprintf("noda:schedule:%s:%d", id, t.Truncate(time.Second).Unix())
 }
 
+// scheduledFireTime returns the cron-scheduled instant of the tick being
+// handled: robfig/cron's run loop sets Entry.Prev to the fire time when it
+// launches the job, and Entry() snapshots through that same loop, so a job
+// goroutine always observes its own tick. Falls back to time.Now() if Prev
+// is unset (defensive; direct callers in tests pass explicit times).
+// Residual: if a schedule's dispatch delay exceeds its interval (e.g. a 1s
+// schedule delayed >1s), Prev may already belong to the next tick —
+// boundary sensitivity shrinks from routine sub-second jitter to
+// pathological overload, and is inherent to time-bucketed locking.
+func (r *Runtime) scheduledFireTime(id cron.EntryID) time.Time {
+	if r.cron != nil {
+		if e := r.cron.Entry(id); !e.Prev.IsZero() {
+			return e.Prev
+		}
+	}
+	return time.Now()
+}
+
 // runJob executes a single scheduled job with optional distributed locking.
-func (r *Runtime) runJob(sc ScheduleConfig) {
+// fireTime is the cron-scheduled tick instant (see scheduledFireTime) and is
+// used ONLY for the distributed-lock key, so instances that straddle a
+// wall-clock second boundary while handling the same tick still agree on
+// the key. Durations and history use the actual wall clock.
+func (r *Runtime) runJob(sc ScheduleConfig, fireTime time.Time) {
 	if guard := r.running[sc.ID]; guard != nil {
 		if !guard.CompareAndSwap(false, true) {
 			r.logger.Warn("scheduler: skipping overlapping run", "schedule_id", sc.ID, "cron", sc.Cron)
@@ -250,7 +275,7 @@ func (r *Runtime) runJob(sc ScheduleConfig) {
 			lockTTL = timeout + 30*time.Second
 		}
 
-		lockKey := scheduleLockKey(sc.ID, now)
+		lockKey := scheduleLockKey(sc.ID, fireTime)
 		lockSvc, ok := r.services.Get(sc.LockSvcName)
 		if !ok {
 			r.logger.Error("scheduler: lock service not found",
