@@ -1,0 +1,3 @@
+{
+  "SETUP_TOKEN": "{{ $env('SETUP_TOKEN') }}"
+}
