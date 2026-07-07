@@ -1,0 +1,28 @@
+{
+  "id": "drop-get",
+  "name": "Drops: Get one",
+  "nodes": {
+    "get": {
+      "type": "db.findOne",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "drops",
+        "select": ["id", "text", "file_name", "file_size", "file_mime", "created_at", "updated_at"],
+        "where": { "id": "{{ input.id }}" },
+        "required": true
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.get }}" }
+    },
+    "respond_missing": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "drop not found" }
+    }
+  },
+  "edges": [
+    { "from": "get", "to": "respond" },
+    { "from": "get", "output": "error", "to": "respond_missing" }
+  ]
+}
