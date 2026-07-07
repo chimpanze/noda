@@ -562,6 +562,12 @@ func TestRoomsLifecycle(t *testing.T) {
 		drainAndClose(resp)
 	})
 
+	t.Run("deleting an already-gone room is 404 but harmless", func(t *testing.T) {
+		resp := owner.do("DELETE", "/rooms/hb-meet-ffffffff", nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+	})
+
 	t.Run("delete room removes it and its links", func(t *testing.T) {
 		resp := owner.doJSON("POST", "/rooms/"+streamRoom+"/link", nil)
 		wantStatus(t, resp, 201)

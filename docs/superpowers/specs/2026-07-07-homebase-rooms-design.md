@@ -112,7 +112,9 @@ with a `replace()` chain (`:`→`%3A`, `/`→`%2F`).
 - Migration `room_links`.
 - **E2E:** a `docker-compose.e2e.yml` override (used only by `e2e/run.sh`)
   adds `livekit/livekit-server` in dev mode with fixed dev credentials
-  (API secret ≥ 32 chars so token signing works) and points the noda
+  (the server's built-in dev credentials devkey/secret — the vendored
+  livekit protocol enforces no minimum secret length for signing) and
+  points the noda
   service's `LIVEKIT_*` at it. The production compose file is untouched.
 
 ## Testing

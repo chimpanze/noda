@@ -4,7 +4,7 @@
   "tests": [
     {
       "name": "meeting guest gets full-publish token",
-      "input": { "token": "tok", "name": "Alice" },
+      "input": { "token": "1111111111111111111111111111111111111111111111111111111111111111", "name": "Alice" },
       "mocks": {
         "find": { "output": { "id": "l1", "room_name": "hb-meet-a1b2c3d4", "room_type": "meeting" } },
         "exists": { "output": { "rooms": [ { "name": "hb-meet-a1b2c3d4" } ] } },
@@ -15,7 +15,7 @@
     },
     {
       "name": "stream guest gets subscribe-only token",
-      "input": { "token": "tok2", "name": "" },
+      "input": { "token": "2222222222222222222222222222222222222222222222222222222222222222", "name": "" },
       "mocks": {
         "find": { "output": { "id": "l2", "room_name": "hb-stream-a1b2c3d4", "room_type": "stream" } },
         "exists": { "output": { "rooms": [ { "name": "hb-stream-a1b2c3d4" } ] } },
@@ -26,7 +26,7 @@
     },
     {
       "name": "unknown or expired link gets uniform 404",
-      "input": { "token": "nope", "name": "" },
+      "input": { "token": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "name": "" },
       "mocks": {
         "find": { "output": null },
         "respond_no_link": { "output": { "status": 404 } }
@@ -35,7 +35,7 @@
     },
     {
       "name": "dead room gets uniform 404",
-      "input": { "token": "tok", "name": "" },
+      "input": { "token": "1111111111111111111111111111111111111111111111111111111111111111", "name": "" },
       "mocks": {
         "find": { "output": { "id": "l1", "room_name": "hb-meet-a1b2c3d4", "room_type": "meeting" } },
         "exists": { "output": { "rooms": [] } },
@@ -45,13 +45,21 @@
     },
     {
       "name": "livekit unreachable gets uniform 404",
-      "input": { "token": "tok", "name": "" },
+      "input": { "token": "1111111111111111111111111111111111111111111111111111111111111111", "name": "" },
       "mocks": {
         "find": { "output": { "id": "l1", "room_name": "hb-meet-a1b2c3d4", "room_type": "meeting" } },
         "exists": { "output_name": "error", "output": { "error": "connection refused" } },
         "respond_lk_down": { "output": { "status": 404 } }
       },
       "expect": { "status": "success", "output": { "respond_lk_down.status": 404 } }
+    },
+    {
+      "name": "malformed token gets uniform 404",
+      "input": { "token": "nope", "name": "" },
+      "mocks": {
+        "respond_bad_format": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_bad_format.status": 404 } }
     }
   ]
 }

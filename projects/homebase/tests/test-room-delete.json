@@ -6,20 +6,22 @@
       "name": "deletes a room and its links",
       "input": { "name": "hb-meet-a1b2c3d4" },
       "mocks": {
-        "del": { "output": { "deleted": true } },
         "del_links": { "output": { "rows_affected": 1 } },
+        "exists": { "output": { "rooms": [ { "name": "hb-meet-a1b2c3d4" } ] } },
+        "del": { "output": { "deleted": true } },
         "respond": { "output": { "status": 204 } }
       },
       "expect": { "status": "success", "output": { "respond.status": 204 } }
     },
     {
-      "name": "unknown room gets 404",
-      "input": { "name": "hb-meet-ffffffff" },
+      "name": "already-expired room still cleans links and 404s",
+      "input": { "name": "hb-meet-a1b2c3d4" },
       "mocks": {
-        "del": { "output_name": "error", "output": { "error": "room not found" } },
-        "respond_missing": { "output": { "status": 404 } }
+        "del_links": { "output": { "rows_affected": 1 } },
+        "exists": { "output": { "rooms": [] } },
+        "respond_gone": { "output": { "status": 404 } }
       },
-      "expect": { "status": "success", "output": { "respond_missing.status": 404 } }
+      "expect": { "status": "success", "output": { "respond_gone.status": 404 } }
     },
     {
       "name": "malformed room name gets 404",

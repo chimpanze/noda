@@ -6,21 +6,30 @@
       "type": "control.if",
       "config": { "condition": "{{ input.name matches '^hb-(meet|stream)-[a-z0-9]{8}$' }}" }
     },
-    "del": {
-      "type": "lk.roomDelete",
-      "services": { "livekit": "lk" },
-      "config": { "room": "{{ input.name }}" }
-    },
     "del_links": {
       "type": "db.delete",
       "services": { "database": "main-db" },
       "config": { "table": "room_links", "where": { "room_name": "{{ input.name }}" } }
     },
+    "exists": {
+      "type": "lk.roomList",
+      "services": { "livekit": "lk" },
+      "config": { "names": ["{{ input.name }}"] }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.exists.rooms) > 0 }}" }
+    },
+    "del": {
+      "type": "lk.roomDelete",
+      "services": { "livekit": "lk" },
+      "config": { "room": "{{ input.name }}" }
+    },
     "respond": {
       "type": "response.json",
       "config": { "status": 204 }
     },
-    "respond_missing": {
+    "respond_gone": {
       "type": "response.error",
       "config": { "status": 404, "code": "NOT_FOUND", "message": "room not found" }
     },
@@ -30,10 +39,12 @@
     }
   },
   "edges": [
-    { "from": "checkname", "output": "then", "to": "del" },
+    { "from": "checkname", "output": "then", "to": "del_links" },
     { "from": "checkname", "output": "else", "to": "respond_badname" },
-    { "from": "del", "to": "del_links" },
-    { "from": "del", "output": "error", "to": "respond_missing" },
-    { "from": "del_links", "to": "respond" }
+    { "from": "del_links", "to": "exists" },
+    { "from": "exists", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "del" },
+    { "from": "check_found", "output": "else", "to": "respond_gone" },
+    { "from": "del", "to": "respond" }
   ]
 }
