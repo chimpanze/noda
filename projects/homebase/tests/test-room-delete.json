@@ -1,0 +1,35 @@
+{
+  "id": "test-room-delete",
+  "workflow": "room-delete",
+  "tests": [
+    {
+      "name": "deletes a room and its links",
+      "input": { "name": "hb-meet-a1b2c3d4" },
+      "mocks": {
+        "del_links": { "output": { "rows_affected": 1 } },
+        "exists": { "output": { "rooms": [ { "name": "hb-meet-a1b2c3d4" } ] } },
+        "del": { "output": { "deleted": true } },
+        "respond": { "output": { "status": 204 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 204 } }
+    },
+    {
+      "name": "already-expired room still cleans links and 404s",
+      "input": { "name": "hb-meet-a1b2c3d4" },
+      "mocks": {
+        "del_links": { "output": { "rows_affected": 1 } },
+        "exists": { "output": { "rooms": [] } },
+        "respond_gone": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_gone.status": 404 } }
+    },
+    {
+      "name": "malformed room name gets 404",
+      "input": { "name": "not-a-room" },
+      "mocks": {
+        "respond_badname": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_badname.status": 404 } }
+    }
+  ]
+}

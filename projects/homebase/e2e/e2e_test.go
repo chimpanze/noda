@@ -7,6 +7,7 @@ package e2e
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -381,6 +382,215 @@ func TestHomebaseLifecycle(t *testing.T) {
 		resp = machineA.do("GET", "/drops", nil, "")
 		wantStatus(t, resp, 401)
 		drainAndClose(resp)
+	})
+}
+
+// videoGrant decodes a LiveKit JWT's payload and returns its "video" claim.
+func videoGrant(t *testing.T, jwt string) map[string]any {
+	t.Helper()
+	parts := strings.Split(jwt, ".")
+	if len(parts) != 3 {
+		t.Fatalf("not a JWT: %q", jwt)
+	}
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		t.Fatalf("decode JWT payload: %v", err)
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		t.Fatalf("unmarshal JWT payload: %v", err)
+	}
+	video, _ := claims["video"].(map[string]any)
+	if video == nil {
+		t.Fatalf("JWT has no video grant: %v", claims)
+	}
+	return video
+}
+
+// TestRoomsLifecycle runs after TestHomebaseLifecycle (same stack, admin
+// already exists) and walks the meetings/streaming API against the
+// dev-mode LiveKit container.
+func TestRoomsLifecycle(t *testing.T) {
+	anon := &client{t: t}
+	owner := login(t)
+
+	t.Run("unauthenticated room create is 401", func(t *testing.T) {
+		resp := anon.doJSON("POST", "/rooms", map[string]string{"type": "meeting"})
+		wantStatus(t, resp, 401)
+		drainAndClose(resp)
+	})
+
+	var meetRoom, meetGuestToken, meetLinkPath string
+	t.Run("create a meeting room", func(t *testing.T) {
+		resp := owner.doJSON("POST", "/rooms", map[string]string{"type": "meeting"})
+		wantStatus(t, resp, 201)
+		body := decode(t, resp)
+		meetRoom, _ = body["room"].(string)
+		meetGuestToken, _ = body["guest_token"].(string)
+		if !strings.HasPrefix(meetRoom, "hb-meet-") {
+			t.Fatalf("room = %q, want hb-meet-*", meetRoom)
+		}
+		if len(meetGuestToken) != 64 {
+			t.Fatalf("guest_token length = %d, want 64", len(meetGuestToken))
+		}
+		if body["livekit_url"] == "" || body["type"] != "meeting" {
+			t.Fatalf("bad create body: %v", body)
+		}
+		meetLinkPath = "/j/" + meetGuestToken
+	})
+
+	t.Run("rooms list shows the room and its link", func(t *testing.T) {
+		resp := owner.do("GET", "/rooms", nil, "")
+		wantStatus(t, resp, 200)
+		body := decode(t, resp)
+		rooms, _ := body["rooms"].([]any)
+		foundRoom := false
+		for _, r := range rooms {
+			m, _ := r.(map[string]any)
+			if m["name"] == meetRoom {
+				foundRoom = true
+			}
+		}
+		if !foundRoom {
+			t.Fatalf("room %s not in list", meetRoom)
+		}
+		links, _ := body["links"].([]any)
+		foundLink := false
+		for _, l := range links {
+			m, _ := l.(map[string]any)
+			if m["room_name"] == meetRoom && m["token"] == meetGuestToken {
+				foundLink = true
+			}
+		}
+		if !foundLink {
+			t.Fatalf("guest link for %s not in list", meetRoom)
+		}
+	})
+
+	t.Run("guest joins the meeting via link", func(t *testing.T) {
+		resp := anon.do("GET", meetLinkPath+"?name=Alice", nil, "")
+		wantStatus(t, resp, 200)
+		body := decode(t, resp)
+		if body["type"] != "meeting" || body["room"] != meetRoom {
+			t.Fatalf("join body: %v", body)
+		}
+		grant := videoGrant(t, body["token"].(string))
+		if grant["room"] != meetRoom {
+			t.Fatalf("grant.room = %v", grant["room"])
+		}
+		if grant["canPublish"] != true {
+			t.Fatalf("meeting guest canPublish = %v, want true", grant["canPublish"])
+		}
+	})
+
+	t.Run("owner token carries roomAdmin", func(t *testing.T) {
+		resp := owner.do("POST", "/rooms/"+meetRoom+"/token", nil, "")
+		wantStatus(t, resp, 200)
+		body := decode(t, resp)
+		grant := videoGrant(t, body["token"].(string))
+		if grant["roomAdmin"] != true || grant["room"] != meetRoom {
+			t.Fatalf("owner grant: %v", grant)
+		}
+	})
+
+	t.Run("rotate link kills the old token", func(t *testing.T) {
+		resp := owner.doJSON("POST", "/rooms/"+meetRoom+"/link", nil)
+		wantStatus(t, resp, 201)
+		body := decode(t, resp)
+		newTok, _ := body["guest_token"].(string)
+		if newTok == "" || newTok == meetGuestToken {
+			t.Fatalf("rotate returned %q", newTok)
+		}
+
+		resp = anon.do("GET", meetLinkPath, nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+
+		resp = anon.do("GET", "/j/"+newTok, nil, "")
+		wantStatus(t, resp, 200)
+		drainAndClose(resp)
+		meetGuestToken = newTok
+		meetLinkPath = "/j/" + newTok
+	})
+
+	t.Run("revoke link stops new joins", func(t *testing.T) {
+		resp := owner.do("DELETE", "/rooms/"+meetRoom+"/link", nil, "")
+		wantStatus(t, resp, 204)
+		drainAndClose(resp)
+		resp = anon.do("GET", meetLinkPath, nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+	})
+
+	var streamRoom string
+	t.Run("stream guests are subscribe-only", func(t *testing.T) {
+		resp := owner.doJSON("POST", "/rooms", map[string]string{"type": "stream"})
+		wantStatus(t, resp, 201)
+		body := decode(t, resp)
+		streamRoom, _ = body["room"].(string)
+		tok, _ := body["guest_token"].(string)
+		if !strings.HasPrefix(streamRoom, "hb-stream-") {
+			t.Fatalf("room = %q", streamRoom)
+		}
+
+		resp = anon.do("GET", "/j/"+tok+"?name=Bob", nil, "")
+		wantStatus(t, resp, 200)
+		joinBody := decode(t, resp)
+		if joinBody["type"] != "stream" {
+			t.Fatalf("type = %v", joinBody["type"])
+		}
+		grant := videoGrant(t, joinBody["token"].(string))
+		if grant["canPublish"] != false {
+			t.Fatalf("stream guest canPublish = %v, want false", grant["canPublish"])
+		}
+	})
+
+	t.Run("expiring room link dies", func(t *testing.T) {
+		resp := owner.doJSON("POST", "/rooms/"+streamRoom+"/link", map[string]string{"expires_in": "1s"})
+		wantStatus(t, resp, 201)
+		body := decode(t, resp)
+		tok, _ := body["guest_token"].(string)
+		time.Sleep(1500 * time.Millisecond)
+		resp = anon.do("GET", "/j/"+tok, nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+	})
+
+	t.Run("unknown join token is the same 404", func(t *testing.T) {
+		resp := anon.do("GET", "/j/"+strings.Repeat("e", 64), nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+	})
+
+	t.Run("deleting an already-gone room is 404 but harmless", func(t *testing.T) {
+		resp := owner.do("DELETE", "/rooms/hb-meet-ffffffff", nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+	})
+
+	t.Run("delete room removes it and its links", func(t *testing.T) {
+		resp := owner.doJSON("POST", "/rooms/"+streamRoom+"/link", nil)
+		wantStatus(t, resp, 201)
+		body := decode(t, resp)
+		tok, _ := body["guest_token"].(string)
+
+		resp = owner.do("DELETE", "/rooms/"+streamRoom, nil, "")
+		wantStatus(t, resp, 204)
+		drainAndClose(resp)
+
+		resp = anon.do("GET", "/j/"+tok, nil, "")
+		wantStatus(t, resp, 404)
+		drainAndClose(resp)
+
+		resp = owner.do("GET", "/rooms", nil, "")
+		wantStatus(t, resp, 200)
+		listBody := decode(t, resp)
+		for _, r := range listBody["rooms"].([]any) {
+			m, _ := r.(map[string]any)
+			if m["name"] == streamRoom {
+				t.Fatalf("deleted room %s still listed", streamRoom)
+			}
+		}
 	})
 }
 

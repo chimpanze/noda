@@ -1,0 +1,11 @@
+# E2E-only override: adds a dev-mode LiveKit server and points noda at it.
+# Used exclusively by run.sh (never in production).
+services:
+  livekit:
+    image: livekit/livekit-server:v1.9.0
+    command: ["--dev", "--bind", "0.0.0.0"]
+
+  noda:
+    depends_on:
+      livekit:
+        condition: service_started

@@ -1,0 +1,75 @@
+{
+  "id": "room-link-rotate",
+  "name": "Rooms: Rotate guest link",
+  "nodes": {
+    "checkname": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.name matches '^hb-(meet|stream)-[a-z0-9]{8}$' }}" }
+    },
+    "exists": {
+      "type": "lk.roomList",
+      "services": { "livekit": "lk" },
+      "config": { "names": ["{{ input.name }}"] }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.exists.rooms) > 0 }}" }
+    },
+    "del_old": {
+      "type": "db.delete",
+      "services": { "database": "main-db" },
+      "config": { "table": "room_links", "where": { "room_name": "{{ input.name }}" } }
+    },
+    "gen": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "link_token": "{{ replace($uuid(), '-', '') + replace($uuid(), '-', '') }}"
+        }
+      }
+    },
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "room_links",
+        "data": {
+          "id": "{{ $uuid() }}",
+          "room_name": "{{ input.name }}",
+          "room_type": "{{ input.name startsWith 'hb-meet-' ? 'meeting' : 'stream' }}",
+          "token": "{{ nodes.gen.link_token }}",
+          "expires_at": "{{ input.expires_in != '' ? now() + duration(input.expires_in) : nil }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "guest_token": "{{ nodes.gen.link_token }}",
+          "guest_url": "{{ secrets.PUBLIC_BASE_URL + '/j/' + nodes.gen.link_token }}",
+          "expires_at": "{{ nodes.insert.expires_at }}"
+        }
+      }
+    },
+    "respond_missing": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "room not found" }
+    },
+    "respond_badname": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "NOT_FOUND", "message": "room not found" }
+    }
+  },
+  "edges": [
+    { "from": "checkname", "output": "then", "to": "exists" },
+    { "from": "checkname", "output": "else", "to": "respond_badname" },
+    { "from": "exists", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "del_old" },
+    { "from": "check_found", "output": "else", "to": "respond_missing" },
+    { "from": "del_old", "to": "gen" },
+    { "from": "gen", "to": "insert" },
+    { "from": "insert", "to": "respond" }
+  ]
+}

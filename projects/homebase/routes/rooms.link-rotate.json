@@ -1,0 +1,23 @@
+{
+  "id": "room-link-rotate",
+  "method": "POST",
+  "path": "/rooms/:name/link",
+  "summary": "Rotate the room's guest link (invalidates the old one)",
+  "tags": ["rooms"],
+  "middleware": ["auth.session"],
+  "body": {
+    "schema": {
+      "type": ["object", "null"],
+      "properties": {
+        "expires_in": { "type": "string", "pattern": "^[0-9]+(s|m|h)$" }
+      }
+    }
+  },
+  "trigger": {
+    "workflow": "room-link-rotate",
+    "input": {
+      "name": "{{ params.name }}",
+      "expires_in": "{{ (body ?? {}).expires_in ?? '' }}"
+    }
+  }
+}

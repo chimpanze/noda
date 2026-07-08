@@ -1,0 +1,12 @@
+{
+  "id": "room-delete",
+  "method": "DELETE",
+  "path": "/rooms/:name",
+  "summary": "End a room (disconnects everyone) and remove its guest links",
+  "tags": ["rooms"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "room-delete",
+    "input": { "name": "{{ params.name }}" }
+  }
+}

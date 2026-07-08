@@ -1,0 +1,12 @@
+{
+  "id": "rooms-list",
+  "method": "GET",
+  "path": "/rooms",
+  "summary": "List active rooms and guest links",
+  "tags": ["rooms"],
+  "middleware": ["auth.session"],
+  "trigger": {
+    "workflow": "rooms-list",
+    "input": {}
+  }
+}

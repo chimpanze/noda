@@ -1,0 +1,65 @@
+{
+  "id": "test-room-join",
+  "workflow": "room-join",
+  "tests": [
+    {
+      "name": "meeting guest gets full-publish token",
+      "input": { "token": "1111111111111111111111111111111111111111111111111111111111111111", "name": "Alice" },
+      "mocks": {
+        "find": { "output": { "id": "l1", "room_name": "hb-meet-a1b2c3d4", "room_type": "meeting" } },
+        "exists": { "output": { "rooms": [ { "name": "hb-meet-a1b2c3d4" } ] } },
+        "token_meet": { "output": { "token": "jwt-guest-meet", "identity": "guest-Alice-ab12", "room": "hb-meet-a1b2c3d4" } },
+        "respond_meet": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_meet.status": 200 } }
+    },
+    {
+      "name": "stream guest gets subscribe-only token",
+      "input": { "token": "2222222222222222222222222222222222222222222222222222222222222222", "name": "" },
+      "mocks": {
+        "find": { "output": { "id": "l2", "room_name": "hb-stream-a1b2c3d4", "room_type": "stream" } },
+        "exists": { "output": { "rooms": [ { "name": "hb-stream-a1b2c3d4" } ] } },
+        "token_stream": { "output": { "token": "jwt-guest-stream", "identity": "guest-guest-ab12", "room": "hb-stream-a1b2c3d4" } },
+        "respond_stream": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond_stream.status": 200 } }
+    },
+    {
+      "name": "unknown or expired link gets uniform 404",
+      "input": { "token": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff", "name": "" },
+      "mocks": {
+        "find": { "output": null },
+        "respond_no_link": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_no_link.status": 404 } }
+    },
+    {
+      "name": "dead room gets uniform 404",
+      "input": { "token": "1111111111111111111111111111111111111111111111111111111111111111", "name": "" },
+      "mocks": {
+        "find": { "output": { "id": "l1", "room_name": "hb-meet-a1b2c3d4", "room_type": "meeting" } },
+        "exists": { "output": { "rooms": [] } },
+        "respond_room_gone": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_room_gone.status": 404 } }
+    },
+    {
+      "name": "livekit unreachable gets uniform 404",
+      "input": { "token": "1111111111111111111111111111111111111111111111111111111111111111", "name": "" },
+      "mocks": {
+        "find": { "output": { "id": "l1", "room_name": "hb-meet-a1b2c3d4", "room_type": "meeting" } },
+        "exists": { "output_name": "error", "output": { "error": "connection refused" } },
+        "respond_lk_down": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_lk_down.status": 404 } }
+    },
+    {
+      "name": "malformed token gets uniform 404",
+      "input": { "token": "nope", "name": "" },
+      "mocks": {
+        "respond_bad_format": { "output": { "status": 404 } }
+      },
+      "expect": { "status": "success", "output": { "respond_bad_format.status": 404 } }
+    }
+  ]
+}
