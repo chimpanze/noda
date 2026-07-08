@@ -11,7 +11,7 @@ Spec: `docs/superpowers/specs/2026-07-07-homebase-foundation-design.md`
 
 ```bash
 cp .env.example .env       # set SETUP_TOKEN, PUBLIC_BASE_URL (and DOMAIN for the edge)
-docker compose up -d --build            # api on :3000 (migrations run automatically)
+docker compose up -d                    # pulls ghcr.io/chimpanze/noda; api on :3000 (migrations run automatically)
 docker compose --profile edge up -d     # additionally: Caddy with TLS on :443
 ```
 
