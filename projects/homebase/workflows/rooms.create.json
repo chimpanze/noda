@@ -56,7 +56,7 @@
           "type": "{{ input.type }}",
           "livekit_url": "{{ secrets.LIVEKIT_URL }}",
           "guest_token": "{{ nodes.gen.link_token }}",
-          "guest_url": "{{ secrets.PUBLIC_BASE_URL + '/j/' + nodes.gen.link_token }}",
+          "guest_url": "{{ secrets.PUBLIC_BASE_URL + '/j/' + nodes.gen.link_token + '/join' }}",
           "expires_at": "{{ nodes.insert.expires_at }}"
         }
       }

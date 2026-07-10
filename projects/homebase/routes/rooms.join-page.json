@@ -1,0 +1,12 @@
+{
+  "id": "room-join-page",
+  "method": "GET",
+  "path": "/j/:token/join",
+  "summary": "Guest join landing page (no auth)",
+  "tags": ["public"],
+  "middleware": ["limiter", "security.headers"],
+  "trigger": {
+    "workflow": "room-join-page",
+    "input": {}
+  }
+}
