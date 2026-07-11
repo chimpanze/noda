@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join room</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 16px/1.5 system-ui, sans-serif; background: #f5f5f5; color: #111; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } }
+  .card { background: Canvas; border: 1px solid #8884; border-radius: 12px;
+          padding: 2rem; width: min(90vw, 22rem); box-shadow: 0 4px 24px #0002; }
+  h1 { font-size: 1.25rem; margin: 0 0 1rem; }
+  input { width: 100%; box-sizing: border-box; padding: .6rem .8rem; font: inherit;
+          border: 1px solid #8886; border-radius: 8px; background: transparent; color: inherit; }
+  button { margin-top: 1rem; width: 100%; padding: .6rem; font: inherit; font-weight: 600;
+           border: 0; border-radius: 8px; background: #4f46e5; color: #fff; cursor: pointer; }
+  button:disabled { opacity: .6; cursor: default; }
+  .err { color: #dc2626; margin-top: .75rem; display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Join the room</h1>
+  <form id="f">
+    <input id="name" maxlength="32" placeholder="Your name" autofocus autocomplete="name">
+    <button id="go">Join</button>
+    <p class="err" id="err">This link is no longer valid.</p>
+  </form>
+</div>
+<script>
+  var token = location.pathname.split("/")[2] || "";
+  document.getElementById("f").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var btn = document.getElementById("go"), err = document.getElementById("err");
+    btn.disabled = true; err.style.display = "none";
+    try {
+      var res = await fetch("/j/" + encodeURIComponent(token) + "?name=" +
+        encodeURIComponent(document.getElementById("name").value.trim()));
+      if (!res.ok) throw new Error("bad");
+      location.href = (await res.json()).meet_url;
+    } catch (_) { err.style.display = "block"; btn.disabled = false; }
+  });
+</script>
+</body>
+</html>

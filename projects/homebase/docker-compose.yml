@@ -77,6 +77,7 @@ services:
       DOMAIN: ${DOMAIN:-localhost}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./static:/srv:ro
       - caddy-data:/data
 
 volumes:

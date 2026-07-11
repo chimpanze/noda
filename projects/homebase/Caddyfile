@@ -1,3 +1,14 @@
 {$DOMAIN} {
-    reverse_proxy noda:3000
+    # Guest join landing page — static, served by the edge; noda stays
+    # API-only. Token format mirrors the API's ^[a-f0-9]{64}$ gate.
+    @join path_regexp ^/j/[a-f0-9]{64}/join$
+    handle @join {
+        root * /srv
+        rewrite * /join.html
+        file_server
+    }
+
+    handle {
+        reverse_proxy noda:3000
+    }
 }
