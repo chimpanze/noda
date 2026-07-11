@@ -8,6 +8,19 @@
         file_server
     }
 
+    # Shared-drop viewer — same pattern; share tokens are also 64 hex.
+    @share path_regexp ^/s/[a-f0-9]{64}/view$
+    handle @share {
+        root * /srv
+        rewrite * /share.html
+        file_server
+    }
+
+    handle_path /assets/* {
+        root * /srv/assets
+        file_server
+    }
+
     handle {
         reverse_proxy noda:3000
     }

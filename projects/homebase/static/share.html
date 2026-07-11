@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared drop</title>
+<script src="/assets/marked.umd.js"></script>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center;
+         font: 16px/1.5 system-ui, sans-serif; background: #f5f5f5; color: #111; }
+  @media (prefers-color-scheme: dark) { body { background: #111; color: #eee; } }
+  .card { background: Canvas; border: 1px solid #8884; border-radius: 12px;
+          padding: 2rem; width: min(92vw, 40rem); box-shadow: 0 4px 24px #0002;
+          margin: 2rem 0; }
+  .meta { color: #888; font-size: .85rem; margin-bottom: 1rem; }
+  .prose { overflow-wrap: break-word; }
+  .prose pre { background: #8882; padding: .75rem; border-radius: 8px; overflow-x: auto; }
+  .prose code { background: #8882; padding: .1rem .3rem; border-radius: 4px; }
+  .prose pre code { background: none; padding: 0; }
+  .prose img { max-width: 100%; }
+  img.preview { max-width: 100%; border-radius: 8px; margin-bottom: 1rem; display: block; }
+  a.download { display: inline-block; margin-top: 1rem; padding: .5rem .9rem;
+               border-radius: 8px; background: #4f46e5; color: #fff;
+               text-decoration: none; font-weight: 600; }
+  .err { color: #dc2626; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <p id="loading">Loading…</p>
+  <p class="err hidden" id="err">This link is no longer valid.</p>
+  <div class="hidden" id="content">
+    <p class="meta" id="date"></p>
+    <img class="preview hidden" id="preview" alt="">
+    <div class="prose" id="text"></div>
+    <a class="download hidden" id="download"></a>
+  </div>
+</div>
+<script>
+  // marked v18.0.6 (vendored at /assets/marked.umd.js). Content is
+  // owner-authored, so markdown renders without extra sanitization.
+  var token = location.pathname.split("/")[2] || "";
+  var fileUrl = "/s/" + encodeURIComponent(token) + "/file";
+
+  function humanSize(n) {
+    if (n == null) return "";
+    var units = ["B", "KB", "MB", "GB"], i = 0;
+    while (n >= 1024 && i < units.length - 1) { n /= 1024; i++; }
+    return (i === 0 ? n : n.toFixed(1)) + " " + units[i];
+  }
+
+  fetch("/s/" + encodeURIComponent(token))
+    .then(function (res) { if (!res.ok) throw new Error("bad"); return res.json(); })
+    .then(function (d) {
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("content").classList.remove("hidden");
+      if (d.created_at) {
+        document.getElementById("date").textContent =
+          "Shared drop · " + new Date(d.created_at).toLocaleDateString();
+      }
+      if (d.text) {
+        var el = document.getElementById("text");
+        el.innerHTML = marked.parse(d.text);
+        el.querySelectorAll("input[type=checkbox]").forEach(function (c) { c.disabled = true; });
+      }
+      if (d.has_file && d.file_name) {
+        if ((d.file_mime || "").indexOf("image/") === 0) {
+          var img = document.getElementById("preview");
+          img.src = fileUrl;
+          img.alt = d.file_name;
+          img.classList.remove("hidden");
+        }
+        var a = document.getElementById("download");
+        a.href = fileUrl;
+        a.textContent = "Download " + d.file_name +
+          (d.file_size != null ? " (" + humanSize(d.file_size) + ")" : "");
+        a.classList.remove("hidden");
+      }
+    })
+    .catch(function () {
+      document.getElementById("loading").classList.add("hidden");
+      document.getElementById("err").classList.remove("hidden");
+    });
+</script>
+</body>
+</html>

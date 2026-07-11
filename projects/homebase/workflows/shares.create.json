@@ -40,7 +40,7 @@
         "body": {
           "id": "{{ nodes.insert.id }}",
           "token": "{{ nodes.gen.token }}",
-          "url": "{{ secrets.PUBLIC_BASE_URL + '/s/' + nodes.gen.token }}",
+          "url": "{{ secrets.PUBLIC_BASE_URL + '/s/' + nodes.gen.token + '/view' }}",
           "expires_at": "{{ nodes.insert.expires_at }}"
         }
       }
