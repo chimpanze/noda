@@ -25,7 +25,7 @@ curl -X POST "$PUBLIC_BASE_URL/setup" -H 'Content-Type: application/json' \
 ## Deployment notes
 
 - The API container binds to `127.0.0.1:3000` on the host — external traffic must come through the Caddy edge profile (TLS) or an SSH tunnel.
-- Behind the Caddy proxy, per-IP rate limiting and the session device-IP list currently see the proxy's IP, not the client's (runtime limitation; tracked upstream).
+- With `NODA_ENV=production` set (see `.env.example`), the `noda.production.json` overlay enables `server.trust_proxy` so per-IP rate limiting and the session device-IP list see real client IPs behind Caddy. Requires a noda image newer than 0.0.4 — bump `NODA_VERSION` when the next release is published.
 - **Never run `e2e/run.sh` on a production host** — it runs `docker compose down -v` for this compose project and destroys its volumes (database + files).
 
 ## Use
