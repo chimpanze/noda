@@ -490,7 +490,7 @@ func TestSendSSE_MarshalError(t *testing.T) {
 
 // --- Send with wildcard channel: rejected at the chokepoint (#279) ---
 
-func TestSend_Wildcard_Rejected(t *testing.T) {
+func TestSend_Wildcard_MixedSendFn_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var called bool
 
@@ -1060,7 +1060,7 @@ func TestSendSSE_Wildcard_MixedSSEFn_Rejected(t *testing.T) {
 	assert.False(t, called)
 }
 
-// --- matchConnections with exact match and missing connection ---
+// --- channelConnections with a channel that has no connections ---
 
 func TestSend_ExactMatch_NoConnections(t *testing.T) {
 	mgr := NewManager()

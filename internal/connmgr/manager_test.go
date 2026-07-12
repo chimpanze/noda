@@ -55,7 +55,7 @@ func TestUnregister_NoDelivery(t *testing.T) {
 
 // #279: wildcard channels used to broadcast to matching connections; the
 // wildcard-send guard now lives at the Manager.Send/SendSSE chokepoint, so
-// any channel containing "*" is rejected before matchConnections ever runs.
+// any channel containing "*" is rejected before any delivery lookup runs.
 func TestWildcard_StarDot_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var received1, received2 []byte
@@ -203,33 +203,6 @@ func TestMultipleConnectionsSameChannel(t *testing.T) {
 	// Unregister one
 	mgr.Unregister("a")
 	assert.Equal(t, 2, mgr.ChannelCount("shared"))
-}
-
-func TestMatchWildcard(t *testing.T) {
-	tests := []struct {
-		pattern string
-		channel string
-		match   bool
-	}{
-		{"*", "anything", true},
-		{"*", "a.b", true}, // * matches everything (global wildcard)
-		{"user.*", "user.123", true},
-		{"user.*", "user.abc", true},
-		{"user.*", "admin.123", false},
-		{"user.*", "user.a.b", false},
-		{"*.updates", "user.updates", true},
-		{"*.updates", "admin.updates", true},
-		{"a.b.c", "a.b.c", true},
-		{"a.b.c", "a.b.d", false},
-		{"a.*.c", "a.b.c", true},
-		{"a.*.c", "a.x.c", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.pattern+"_"+tt.channel, func(t *testing.T) {
-			assert.Equal(t, tt.match, matchWildcard(tt.pattern, tt.channel))
-		})
-	}
 }
 
 func TestChannelPattern(t *testing.T) {

@@ -155,7 +155,7 @@ func (m *Manager) Send(_ context.Context, channel string, data any) error {
 	}
 
 	m.mu.RLock()
-	conns := m.matchConnections(channel)
+	conns := m.channelConnections(channel)
 	m.mu.RUnlock()
 
 	for _, conn := range conns {
@@ -181,7 +181,7 @@ func (m *Manager) SendSSE(_ context.Context, channel string, event string, data 
 	}
 
 	m.mu.RLock()
-	conns := m.matchConnections(channel)
+	conns := m.channelConnections(channel)
 	m.mu.RUnlock()
 
 	for _, conn := range conns {
@@ -194,61 +194,19 @@ func (m *Manager) SendSSE(_ context.Context, channel string, event string, data 
 	return nil
 }
 
-// matchConnections returns connections matching a channel pattern.
+// channelConnections returns the connections on the given literal channel.
+// Wildcard patterns never reach here: Send/SendSSE reject them up front.
 // Must be called with at least a read lock held.
-func (m *Manager) matchConnections(pattern string) []*Conn {
+func (m *Manager) channelConnections(channel string) []*Conn {
 	var result []*Conn
-
-	if !strings.Contains(pattern, "*") {
-		// Exact match
-		if connIDs, ok := m.channels[pattern]; ok {
-			for id := range connIDs {
-				if conn, ok := m.connections[id]; ok {
-					result = append(result, conn)
-				}
-			}
-		}
-		return result
-	}
-
-	// Wildcard matching
-	for channel, connIDs := range m.channels {
-		if matchWildcard(pattern, channel) {
-			for id := range connIDs {
-				if conn, ok := m.connections[id]; ok {
-					result = append(result, conn)
-				}
+	if connIDs, ok := m.channels[channel]; ok {
+		for id := range connIDs {
+			if conn, ok := m.connections[id]; ok {
+				result = append(result, conn)
 			}
 		}
 	}
 	return result
-}
-
-// matchWildcard checks if a channel matches a wildcard pattern.
-// "user.*" matches "user.123", "user.abc" but not "user.a.b".
-// "*" matches everything.
-func matchWildcard(pattern, channel string) bool {
-	if pattern == "*" {
-		return true
-	}
-
-	// Split on segments
-	patParts := strings.Split(pattern, ".")
-	chanParts := strings.Split(channel, ".")
-
-	if len(patParts) != len(chanParts) {
-		return false
-	}
-
-	for i, pp := range patParts {
-		if pp == "*" {
-			continue
-		}
-		if pp != chanParts[i] {
-			return false
-		}
-	}
-	return true
 }
 
 // Stop gracefully closes and unregisters all connections.
