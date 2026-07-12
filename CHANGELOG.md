@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Worker reaper polls at `retry.min_idle / 2` (30s floor) instead of a fixed 30s, and fetches delivery counts for each reclaimed page in one `XPENDING` call instead of one per failed message — fewer idle Redis scans, same redelivery semantics
 
 ### Fixed
+- homebase: `GET /drops` returns 400 (not a Postgres-cast 500) on a malformed `before` cursor; pagination gains a `(created_at, id)` tuple cursor (`before_id`/`next_before_id`) so same-timestamp rows can't be skipped (#303)
+- homebase: concurrent `/setup` can no longer create two accounts — single-row unique index on `auth_users` (#304)
+- homebase: Caddy moved to a `docker-compose.edge.yml` override; an unset `DOMAIN` fails at parse time again instead of an opaque ACME error (#305)
 - `examples/saas-backend` upload-attachment route never delivered the multipart file (missing `"file"` input mapping) (#302)
 - `lk.token` `canPublishSources` values are now case-insensitive; unknown values (including `UNKNOWN`) error instead of silently minting a token that cannot publish (#309)
 - Worker process no longer crashes when a message handler panics inside the timeout middleware's goroutine; the panic is recovered and surfaced as an error

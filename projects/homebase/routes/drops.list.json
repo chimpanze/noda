@@ -9,7 +9,8 @@
     "workflow": "drops-list",
     "input": {
       "q": "{{ query.q ?? '' }}",
-      "before": "{{ query.before ?? '' }}"
+      "before": "{{ query.before ?? '' }}",
+      "before_id": "{{ query.before_id ?? '' }}"
     }
   }
 }

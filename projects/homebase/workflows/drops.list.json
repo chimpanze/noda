@@ -2,6 +2,12 @@
   "id": "drops-list",
   "name": "Drops: List & search",
   "nodes": {
+    "check_cursor": {
+      "type": "control.if",
+      "config": {
+        "condition": "{{ input.before == '' || input.before matches '^\\\\d{4}-\\\\d{2}-\\\\d{2}([T ]\\\\d{2}:\\\\d{2}:\\\\d{2}(\\\\.\\\\d+)?(Z|[+-]\\\\d{2}(:?\\\\d{2})?)?)?$' }}"
+      }
+    },
     "find": {
       "type": "db.find",
       "services": { "database": "main-db" },
@@ -9,10 +15,10 @@
         "table": "drops",
         "select": ["id", "text", "file_name", "file_size", "file_mime", "created_at", "updated_at"],
         "where_clause": {
-          "query": "(text ILIKE '%' || ? || '%' OR file_name ILIKE '%' || ? || '%') AND created_at < COALESCE(NULLIF(?, '')::timestamptz, 'infinity')",
-          "params": ["{{ input.q }}", "{{ input.q }}", "{{ input.before }}"]
+          "query": "(text ILIKE '%' || ? || '%' OR file_name ILIKE '%' || ? || '%') AND (created_at, id) < (COALESCE(NULLIF(?, '')::timestamptz, 'infinity'), ?)",
+          "params": ["{{ input.q }}", "{{ input.q }}", "{{ input.before }}", "{{ input.before_id }}"]
         },
-        "order": "created_at DESC",
+        "order": "created_at DESC, id DESC",
         "limit": 50
       }
     },
@@ -22,12 +28,19 @@
         "status": 200,
         "body": {
           "drops": "{{ nodes.find }}",
-          "next_before": "{{ len(nodes.find) > 0 ? nodes.find[-1].created_at : nil }}"
+          "next_before": "{{ len(nodes.find) > 0 ? nodes.find[-1].created_at : nil }}",
+          "next_before_id": "{{ len(nodes.find) > 0 ? nodes.find[-1].id : nil }}"
         }
       }
+    },
+    "respond_bad_cursor": {
+      "type": "response.error",
+      "config": { "status": 400, "code": "INVALID_CURSOR", "message": "invalid before cursor" }
     }
   },
   "edges": [
+    { "from": "check_cursor", "output": "then", "to": "find" },
+    { "from": "check_cursor", "output": "else", "to": "respond_bad_cursor" },
     { "from": "find", "to": "respond" }
   ]
 }

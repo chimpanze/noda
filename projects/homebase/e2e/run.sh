@@ -12,11 +12,11 @@ export LIVEKIT_URL="${LIVEKIT_URL:-ws://livekit:7880}"
 export LIVEKIT_API_KEY="${LIVEKIT_API_KEY:-devkey}"
 export LIVEKIT_API_SECRET="${LIVEKIT_API_SECRET:-secret}"
 
-COMPOSE="docker compose -f docker-compose.yml -f e2e/docker-compose.e2e.yml"
+COMPOSE="docker compose -p homebase-e2e -f docker-compose.yml -f e2e/docker-compose.e2e.yml"
 
 $COMPOSE down -v --remove-orphans 2>/dev/null || true
-$COMPOSE up -d --build
 trap '$COMPOSE down -v --remove-orphans' EXIT
+$COMPOSE up -d --build
 
 echo "waiting for noda ..."
 for _ in $(seq 1 60); do

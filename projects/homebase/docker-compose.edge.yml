@@ -1,0 +1,20 @@
+# Production TLS edge (Caddy). Opt in explicitly:
+#   docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d
+# DOMAIN is required at parse time — an unset DOMAIN fails fast here instead
+# of requesting a certificate for "localhost" and dying later in ACME (#305).
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - ./static:/srv:ro
+      - caddy-data:/data
+
+volumes:
+  caddy-data:

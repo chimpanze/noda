@@ -13,7 +13,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +106,38 @@ func login(t *testing.T) *client {
 	resp := anon.doJSON("POST", "/auth/login", map[string]string{
 		"email": adminEmail, "password": adminPassword,
 	})
+	wantStatus(t, resp, 200)
+	body := decode(t, resp)
+	token, _ := body["token"].(string)
+	if token == "" {
+		t.Fatal("login returned no token")
+	}
+	return &client{t: t, token: token}
+}
+
+// loginOrSetup logs in as the admin, bootstrapping the account via /setup
+// first when the stack is fresh — lets any test run standalone against a
+// fresh stack instead of depending on TestHomebaseLifecycle's setup (#310).
+func loginOrSetup(t *testing.T) *client {
+	t.Helper()
+	anon := &client{t: t}
+	resp := anon.doJSON("POST", "/auth/login", map[string]string{
+		"email": adminEmail, "password": adminPassword,
+	})
+	if resp.StatusCode == 401 {
+		drainAndClose(resp)
+		setupResp := anon.doJSON("POST", "/setup", map[string]string{
+			"setup_token": setupToken, "email": adminEmail, "password": adminPassword,
+		})
+		// 201 on a fresh stack; 403 if something else completed setup first.
+		if setupResp.StatusCode != 201 && setupResp.StatusCode != 403 {
+			t.Fatalf("setup: status %d", setupResp.StatusCode)
+		}
+		drainAndClose(setupResp)
+		resp = anon.doJSON("POST", "/auth/login", map[string]string{
+			"email": adminEmail, "password": adminPassword,
+		})
+	}
 	wantStatus(t, resp, 200)
 	body := decode(t, resp)
 	token, _ := body["token"].(string)
@@ -307,6 +341,8 @@ func TestHomebaseLifecycle(t *testing.T) {
 		wantStatus(t, resp, 201)
 		body := decode(t, resp)
 		tok, _ := body["token"].(string)
+		// #310: deliberate fixed sleep for a 1s TTL. If this ever flakes,
+		// replace with a short poll-until-404 loop — never a bigger sleep.
 		time.Sleep(1500 * time.Millisecond)
 		resp = anon.do("GET", "/s/"+tok, nil, "")
 		wantStatus(t, resp, 404)
@@ -412,7 +448,7 @@ func videoGrant(t *testing.T, jwt string) map[string]any {
 // dev-mode LiveKit container.
 func TestRoomsLifecycle(t *testing.T) {
 	anon := &client{t: t}
-	owner := login(t)
+	owner := loginOrSetup(t)
 
 	t.Run("unauthenticated room create is 401", func(t *testing.T) {
 		resp := anon.doJSON("POST", "/rooms", map[string]string{"type": "meeting"})
@@ -550,6 +586,8 @@ func TestRoomsLifecycle(t *testing.T) {
 		wantStatus(t, resp, 201)
 		body := decode(t, resp)
 		tok, _ := body["guest_token"].(string)
+		// #310: deliberate fixed sleep for a 1s TTL. If this ever flakes,
+		// replace with a short poll-until-404 loop — never a bigger sleep.
 		time.Sleep(1500 * time.Millisecond)
 		resp = anon.do("GET", "/j/"+tok, nil, "")
 		wantStatus(t, resp, 404)
@@ -590,6 +628,137 @@ func TestRoomsLifecycle(t *testing.T) {
 			if m["name"] == streamRoom {
 				t.Fatalf("deleted room %s still listed", streamRoom)
 			}
+		}
+	})
+}
+
+// execPsql runs a statement in the e2e Postgres container (project name from
+// e2e/run.sh). Returns combined output; fails the test on error when
+// mustSucceed is true.
+func execPsql(t *testing.T, sql string, mustSucceed bool) (string, error) {
+	t.Helper()
+	cmd := exec.Command("docker", "exec", "-i", "homebase-e2e-postgres-1",
+		"psql", "-U", "noda", "-d", "noda", "-tAc", sql)
+	out, err := cmd.CombinedOutput()
+	if mustSucceed && err != nil {
+		t.Fatalf("psql %q: %v\n%s", sql, err, out)
+	}
+	return string(out), err
+}
+
+// TestSingleAdminIndex proves the #304 migration: a second auth_users row is
+// impossible at the database level, whatever the workflow does.
+func TestSingleAdminIndex(t *testing.T) {
+	_ = loginOrSetup(t) // guarantees exactly one admin row exists
+	out, err := execPsql(t, `INSERT INTO auth_users (id, email, password_hash, status, roles, metadata, created_at, updated_at)
+		VALUES ('race-probe', 'second@example.com', 'x', 'active', '[]', '{}', now(), now())`, false)
+	if err == nil {
+		execPsql(t, `DELETE FROM auth_users WHERE id = 'race-probe'`, true)
+		t.Fatalf("second auth_users row accepted — single-admin index missing? out=%s", out)
+	}
+	if !strings.Contains(out, "auth_users_single_row") {
+		t.Fatalf("insert failed for an unexpected reason: %s", out)
+	}
+}
+
+// TestSetupRaceNeverTwoAccounts fires two concurrent /setup calls with
+// different emails. On a fresh stack exactly one may win; on an
+// already-initialized stack both lose. Either way: never two 201s.
+func TestSetupRaceNeverTwoAccounts(t *testing.T) {
+	codes := make(chan int, 2)
+	// Note (#304 plan): client.do t.Fatalf's on transport errors; from a
+	// spawned goroutine that only Goexits the goroutine. The deferred
+	// sentinel below keeps the receive from hanging in that case.
+	for i := 0; i < 2; i++ {
+		go func() {
+			code := -1
+			defer func() { codes <- code }()
+			anon := &client{t: t}
+			resp := anon.doJSON("POST", "/setup", map[string]string{
+				"setup_token": setupToken, "email": adminEmail, "password": adminPassword,
+			})
+			code = resp.StatusCode
+			drainAndClose(resp)
+		}()
+	}
+	a, b := <-codes, <-codes
+	if a == 201 && b == 201 {
+		t.Fatalf("both concurrent setups returned 201 — race not closed")
+	}
+}
+
+func TestDropsCursorPagination(t *testing.T) {
+	owner := loginOrSetup(t)
+
+	t.Run("malformed before is 400", func(t *testing.T) {
+		resp := owner.do("GET", "/drops?before=garbage", nil, "")
+		wantStatus(t, resp, 400)
+		drainAndClose(resp)
+	})
+
+	t.Run("same-timestamp rows page without skips", func(t *testing.T) {
+		// 60 drops, then force one shared timestamp (only reachable via SQL —
+		// the API always stamps now()).
+		for i := 0; i < 60; i++ {
+			resp := owner.doJSON("POST", "/drops", map[string]string{
+				"text": fmt.Sprintf("cursor-probe-%02d", i),
+			})
+			wantStatus(t, resp, 201)
+			drainAndClose(resp)
+		}
+		t.Cleanup(func() {
+			execPsql(t, `DELETE FROM drops WHERE text LIKE 'cursor-probe-%'`, true)
+		})
+		execPsql(t, `UPDATE drops SET created_at = now() WHERE text LIKE 'cursor-probe-%'`, true)
+
+		respBody := func(before, beforeID string) map[string]any {
+			u := "/drops?q=cursor-probe"
+			if before != "" {
+				u += "&before=" + url.QueryEscape(before) + "&before_id=" + url.QueryEscape(beforeID)
+			}
+			resp := owner.do("GET", u, nil, "")
+			wantStatus(t, resp, 200)
+			return decode(t, resp)
+		}
+
+		first := respBody("", "")
+		p1, _ := first["drops"].([]any)
+		if len(p1) != 50 {
+			t.Fatalf("page 1 = %d rows, want 50", len(p1))
+		}
+		nb, _ := first["next_before"].(string)
+		nbID, _ := first["next_before_id"].(string)
+		if nb == "" || nbID == "" {
+			t.Fatalf("missing cursor: next_before=%q next_before_id=%q", nb, nbID)
+		}
+
+		page := func(before, beforeID string) []any {
+			drops, _ := respBody(before, beforeID)["drops"].([]any)
+			return drops
+		}
+
+		// Timestamp-only cursor documents the OLD bug: all 60 share one
+		// timestamp, so strict created_at < ts returns nothing.
+		if rest := page(nb, ""); len(rest) != 0 {
+			t.Fatalf("timestamp-only page 2 = %d rows, want 0 (strict-< semantics)", len(rest))
+		}
+
+		// Tuple cursor gets the remaining 10, no dups.
+		p2 := page(nb, nbID)
+		if len(p2) != 10 {
+			t.Fatalf("tuple page 2 = %d rows, want 10", len(p2))
+		}
+		seen := map[string]bool{}
+		for _, raw := range append(append([]any{}, p1...), p2...) {
+			row, _ := raw.(map[string]any)
+			id, _ := row["id"].(string)
+			if seen[id] {
+				t.Fatalf("duplicate id across pages: %s", id)
+			}
+			seen[id] = true
+		}
+		if len(seen) != 60 {
+			t.Fatalf("union = %d unique rows, want 60", len(seen))
 		}
 	})
 }
