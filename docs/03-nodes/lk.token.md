@@ -24,7 +24,7 @@ Generates a LiveKit access token with configurable grants.
 | `canPublish` | boolean | Allow publishing tracks |
 | `canSubscribe` | boolean | Allow subscribing to tracks |
 | `canPublishData` | boolean | Allow publishing data messages |
-| `canPublishSources` | array | Allowed track source types |
+| `canPublishSources` | array | Allowed track source types: CAMERA, MICROPHONE, SCREEN_SHARE, SCREEN_SHARE_AUDIO (case-insensitive). Unknown values are an error. |
 | `canUpdateOwnMetadata` | boolean | Allow updating own metadata |
 | `hidden` | boolean | Hide participant from others |
 | `recorder` | boolean | Mark as recorder participant |
