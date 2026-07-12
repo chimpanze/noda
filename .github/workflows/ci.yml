@@ -134,3 +134,24 @@ jobs:
           name: playwright-report
           path: editor/playwright-report/
           retention-days: 7
+
+  wasm-guests:
+    name: Wasm guest modules (tinygo)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - uses: acifani/setup-tinygo@v2
+        with:
+          tinygo-version: '0.40.1'
+
+      - name: Build example guest modules
+        run: |
+          set -euo pipefail
+          (cd examples/wasm-counter/wasm/counter && tinygo build -o /tmp/counter.wasm -target wasi -buildmode=c-shared .)
+          (cd examples/discord-bot/wasm/bot && tinygo build -o /tmp/bot.wasm -target wasi -buildmode=c-shared .)
+          (cd examples/wasm-helpers/wasm/helpers && tinygo build -o /tmp/helpers.wasm -target wasi -buildmode=c-shared .)

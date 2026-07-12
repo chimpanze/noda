@@ -66,6 +66,12 @@ type Module struct {
 	shutdownCancel   context.CancelFunc
 	outstandingCalls sync.WaitGroup
 
+	// addMu guards the stopping-check+Add pair (tryAddOutstanding) against
+	// Stop's stopping store, so no Add can race Wait-at-zero. LEAF LOCK:
+	// may be acquired while holding m.mu (SendCommand does); never hold it
+	// across guest calls, channel ops, or m.mu acquisition.
+	addMu sync.Mutex
+
 	// stopping is set by Stop() before the async-result maps are cleared.
 	// AddAsyncResult checks it to drop late-arriving writes silently.
 	stopping atomic.Bool
@@ -200,12 +206,12 @@ func (m *Module) Stop(ctx context.Context) error {
 		return nil
 	}
 	m.running = false
-	// Set under mu so SendCommand's mu-held check is race-free: any
-	// SendCommand that acquires the lock after this point observes
-	// stopping=true and won't outstandingCalls.Add — every Add strictly
-	// happens-before the Wait below. AddAsyncResult also keys off this
-	// to drop late writes.
+	// Set under mu so AddAsyncResult's mu-held check is race-free, AND
+	// under addMu so no tryAddOutstanding can Add after this point —
+	// every Add strictly happens-before the Wait below.
+	m.addMu.Lock()
 	m.stopping.Store(true)
+	m.addMu.Unlock()
 	close(m.stopCh)
 	m.mu.Unlock()
 
@@ -225,13 +231,8 @@ func (m *Module) Stop(ctx context.Context) error {
 	// Wait for outstanding async-call goroutines BEFORE clearing the maps
 	// they write into. With the Add(1)/Done() wrapping in CallAsync this
 	// actually waits for the right things; without it the wait was a no-op.
-	// Invariant: no Add can start while this Wait sits at counter zero —
-	// SendCommand checks stopping under mu; the hostapi.go CallAsync Add
-	// runs inside a guest export, which is serialized before this point
-	// (tick loop exited via tickDone; shutdown call above returned); and
-	// the nested trigger_workflow Add runs on the CallAsync goroutine,
-	// whose own counter entry stays >0 until after the nested Add. A new
-	// Add site must preserve one of these properties or the Wait panics.
+	// Invariant: all Add sites go through tryAddOutstanding — see its doc
+	// comment — so no Add can start while this Wait sits at counter zero.
 	done := make(chan struct{})
 	go func() {
 		m.outstandingCalls.Wait()
@@ -260,10 +261,29 @@ func (m *Module) Stop(ctx context.Context) error {
 	return err
 }
 
+// tryAddOutstanding registers one outstanding host call unless the module
+// is stopping. It is the ONLY permitted way to Add to outstandingCalls:
+// Stop sets stopping under the same addMu before Waiting, so an Add can
+// never race Wait-at-zero (the shutdown-panic class from #266). Callers
+// must pair a successful return with outstandingCalls.Done().
+func (m *Module) tryAddOutstanding() bool {
+	m.addMu.Lock()
+	defer m.addMu.Unlock()
+	if m.stopping.Load() {
+		return false
+	}
+	m.outstandingCalls.Add(1)
+	return true
+}
+
 // Query calls the module's query export synchronously, serialized with ticks.
 func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration) (any, error) {
 	if m.failed.Load() {
 		return nil, fmt.Errorf("module %q has failed", m.Name)
+	}
+
+	if m.stopping.Load() {
+		return nil, fmt.Errorf("module %q stopping", m.Name)
 	}
 
 	data, err := m.Codec.Marshal(queryData)
@@ -279,6 +299,8 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 
 	select {
 	case m.queryCh <- req:
+	case <-m.stopCh:
+		return nil, fmt.Errorf("module %q stopping", m.Name)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -298,6 +320,8 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 		return result, nil
 	case <-timer.C:
 		return nil, fmt.Errorf("query timeout after %s", timeout)
+	case <-m.stopCh:
+		return nil, fmt.Errorf("module %q stopping", m.Name)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -329,7 +353,14 @@ func (m *Module) SendCommand(data any) {
 			return
 		}
 		// Queue as a query-like request to serialize with ticks (with timeout)
-		m.outstandingCalls.Add(1)
+		// The false branch is unreachable under the current lock regime
+		// (Stop's stopping store is under m.mu, held here since the fast-path
+		// check above) — belt-and-suspenders so the invariant survives a
+		// future locking change.
+		if !m.tryAddOutstanding() {
+			m.Logger.Warn("dropping command on stopped module", "module", m.Name)
+			return
+		}
 		go func() {
 			defer m.outstandingCalls.Done()
 			req := queryRequest{target: "command", data: cmdData, result: make(chan queryResponse, 1)}

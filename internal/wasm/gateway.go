@@ -79,17 +79,19 @@ func (g *Gateway) Connect(ctx context.Context, payload map[string]any) (any, err
 		return nil, err
 	}
 
+	// Check whitelist before touching connection-id state (#265): a caller
+	// probing with a non-whitelisted URL must not learn anything about
+	// existing connection ids via a different error message.
+	if !g.isAllowed(wsURL) {
+		return nil, fmt.Errorf("PERMISSION_DENIED: host not in allow_outbound.ws whitelist")
+	}
+
 	g.mu.Lock()
 	if _, exists := g.conns[id]; exists {
 		g.mu.Unlock()
 		return nil, fmt.Errorf("VALIDATION_ERROR: connection id %q already in use", id)
 	}
 	g.mu.Unlock()
-
-	// Check whitelist
-	if !g.isAllowed(wsURL) {
-		return nil, fmt.Errorf("PERMISSION_DENIED: host not in allow_outbound.ws whitelist")
-	}
 
 	headers := make(map[string]string)
 	if h, ok := payload["headers"].(map[string]any); ok {

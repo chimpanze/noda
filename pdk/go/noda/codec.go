@@ -26,6 +26,21 @@ type msgpackCodec struct{}
 func (c *msgpackCodec) Marshal(v any) ([]byte, error)      { return msgpack.Marshal(v) }
 func (c *msgpackCodec) Unmarshal(data []byte, v any) error { return msgpack.Unmarshal(data, v) }
 
+// DecodeInto re-encodes a codec-decoded value with the module's active
+// codec and unmarshals it into dst. Use it to get typed access to the
+// Data-any fields the host delivers (Command.Data, ClientMessage.Data,
+// IncomingWSMsg.Data):
+//
+//	var op CounterOp
+//	if err := noda.DecodeInto(cmd.Data, &op); err != nil { ... }
+func DecodeInto(v any, dst any) error {
+	b, err := activeCodec.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return activeCodec.Unmarshal(b, dst)
+}
+
 // detectCodec auto-detects the encoding from the first byte of a payload.
 // JSON objects start with '{' (0x7B). MessagePack maps start with 0x80-0x8F, 0xDE, or 0xDF.
 func detectCodec(data []byte) Codec {

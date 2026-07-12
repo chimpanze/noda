@@ -80,6 +80,22 @@ Input: {
 Output: { "ok": true }
 ```
 
+### Typed access to `Data` fields (Go PDK)
+
+`client_messages[].data`, `commands[].data`, and `incoming_ws[].data` arrive at
+the module already decoded by the codec (JSON or MessagePack) into `any`. If
+you're using the Go PDK (`github.com/nodafw/noda-pdk-go/noda`), don't
+`json.Marshal`/`Unmarshal` these by hand — that hardcodes JSON and silently
+breaks under a MessagePack encoding config. Use `noda.DecodeInto`, which
+re-encodes with the module's active codec:
+
+```go
+var op CounterOp
+if err := noda.DecodeInto(cmd.Data, &op); err != nil {
+    // handle malformed command
+}
+```
+
 ### `command` (optional)
 
 Called immediately when a `wasm.send` node targets this module. Runs outside the tick loop for low-latency fire-and-forget operations.

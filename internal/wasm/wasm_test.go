@@ -2131,6 +2131,25 @@ func TestModule_Query_ContextCancelled(t *testing.T) {
 	require.Error(t, err)
 }
 
+// #293: a Query racing or arriving after Stop must fail fast with a
+// stopping error, not burn its full timeout against a drained queryCh.
+func TestModule_Query_FailsFastAfterStop(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+	require.NoError(t, m.Stop(context.Background()))
+
+	start := time.Now()
+	_, err = m.Query(context.Background(), map[string]any{"probe": true}, 30*time.Second)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stopping")
+	assert.Less(t, time.Since(start), time.Second, "must fail fast, not burn the 30s timeout")
+}
+
 // --- Gateway: Send to nonexistent connection ---
 
 func TestGateway_Send_NotFound(t *testing.T) {
@@ -3251,6 +3270,10 @@ func TestModule_Tick_HangingTickKilledByTimeout(t *testing.T) {
 	// and tick calls should have been attempted
 	calls := plugin.getCalls("tick")
 	assert.NotEmpty(t, calls, "tick should have been called at least once")
+
+	// #268: a tick killed by timeout/interrupt is fatal — the narrowed
+	// markFailed behavior must leave the module marked failed.
+	assert.True(t, m.failed.Load(), "hung-tick interrupt must mark the module failed")
 }
 
 func TestModule_Tick_DefaultTickTimeout(t *testing.T) {
@@ -3526,8 +3549,9 @@ func TestToFloat_Coercion(t *testing.T) {
 }
 
 // TestHostCall_Msgpack verifies that a payload decoded from msgpack (where
-// numbers arrive as int64 rather than JSON's float64) still works for
-// operations that assert on numeric fields, such as cache.set's ttl.
+// numbers arrive as narrow integer types (int8..uint64) rather than JSON's
+// float64) still works for operations that assert on numeric fields, such
+// as cache.set's ttl.
 func TestHostCall_Msgpack(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	cache := &mockCacheService{store: make(map[string]any)}
@@ -3767,5 +3791,43 @@ func TestModule_SendCommand_ConcurrentWithStop(t *testing.T) {
 		}()
 	}
 	require.NoError(t, m.Stop(context.Background()))
+	wg.Wait()
+}
+
+// #295: tryAddOutstanding is the only Add path; Stop's stopping store under
+// the same addMu guarantees no Add races Wait-at-zero. Run under -race —
+// with the guard removed (raw Add), this hits WaitGroup Add-vs-Wait misuse.
+func TestModule_TryAddOutstanding_NoAddAfterStop(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if m.tryAddOutstanding() {
+					time.Sleep(50 * time.Microsecond) // hold the counter briefly
+					m.outstandingCalls.Done()
+				}
+			}
+		}()
+	}
+	time.Sleep(10 * time.Millisecond) // let the hammer run
+	require.NoError(t, m.Stop(context.Background()))
+	assert.False(t, m.tryAddOutstanding(), "no Add may succeed after Stop")
+	close(stop)
 	wg.Wait()
 }

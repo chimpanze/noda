@@ -28,12 +28,12 @@ func query() int32 {
 	raw := pdk.Input()
 
 	var req struct {
-		Op         string `json:"op"`
-		Value      string `json:"value"`
-		Default    string `json:"default_cc"`
-		KeepStart  int    `json:"keep_start"`
-		KeepEnd    int    `json:"keep_end"`
-		MaskChar   string `json:"mask_char"`
+		Op        string `json:"op"`
+		Value     string `json:"value"`
+		Default   string `json:"default_cc"`
+		KeepStart int    `json:"keep_start"`
+		KeepEnd   int    `json:"keep_end"`
+		MaskChar  string `json:"mask_char"`
 	}
 	if err := json.Unmarshal(raw, &req); err != nil {
 		return noda.Fail(fmt.Errorf("invalid query: %w", err))
