@@ -15,6 +15,8 @@ docker compose up -d                    # pulls ghcr.io/chimpanze/noda; api on :
 docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d   # additionally: Caddy with TLS on :443 (requires DOMAIN)
 ```
 
+To stop the edge stack, pass the same file pair: `docker compose -f docker-compose.yml -f docker-compose.edge.yml down` — a plain `docker compose down` won't see the caddy service.
+
 One-time bootstrap (creates the only account):
 
 ```bash

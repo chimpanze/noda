@@ -666,14 +666,18 @@ func TestSingleAdminIndex(t *testing.T) {
 // already-initialized stack both lose. Either way: never two 201s.
 func TestSetupRaceNeverTwoAccounts(t *testing.T) {
 	codes := make(chan int, 2)
+	// Note (#304 plan): client.do t.Fatalf's on transport errors; from a
+	// spawned goroutine that only Goexits the goroutine. The deferred
+	// sentinel below keeps the receive from hanging in that case.
 	for i := 0; i < 2; i++ {
-		email := fmt.Sprintf("race-%d@example.com", i)
 		go func() {
+			code := -1
+			defer func() { codes <- code }()
 			anon := &client{t: t}
 			resp := anon.doJSON("POST", "/setup", map[string]string{
-				"setup_token": setupToken, "email": email, "password": "hunter2hunter2",
+				"setup_token": setupToken, "email": adminEmail, "password": adminPassword,
 			})
-			codes <- resp.StatusCode
+			code = resp.StatusCode
 			drainAndClose(resp)
 		}()
 	}
@@ -702,6 +706,9 @@ func TestDropsCursorPagination(t *testing.T) {
 			wantStatus(t, resp, 201)
 			drainAndClose(resp)
 		}
+		t.Cleanup(func() {
+			execPsql(t, `DELETE FROM drops WHERE text LIKE 'cursor-probe-%'`, true)
+		})
 		execPsql(t, `UPDATE drops SET created_at = now() WHERE text LIKE 'cursor-probe-%'`, true)
 
 		respBody := func(before, beforeID string) map[string]any {
