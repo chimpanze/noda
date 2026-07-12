@@ -646,6 +646,43 @@ func execPsql(t *testing.T, sql string, mustSucceed bool) (string, error) {
 	return string(out), err
 }
 
+// TestSingleAdminIndex proves the #304 migration: a second auth_users row is
+// impossible at the database level, whatever the workflow does.
+func TestSingleAdminIndex(t *testing.T) {
+	_ = loginOrSetup(t) // guarantees exactly one admin row exists
+	out, err := execPsql(t, `INSERT INTO auth_users (id, email, password_hash, status, roles, metadata, created_at, updated_at)
+		VALUES ('race-probe', 'second@example.com', 'x', 'active', '[]', '{}', now(), now())`, false)
+	if err == nil {
+		execPsql(t, `DELETE FROM auth_users WHERE id = 'race-probe'`, true)
+		t.Fatalf("second auth_users row accepted — single-admin index missing? out=%s", out)
+	}
+	if !strings.Contains(out, "auth_users_single_row") {
+		t.Fatalf("insert failed for an unexpected reason: %s", out)
+	}
+}
+
+// TestSetupRaceNeverTwoAccounts fires two concurrent /setup calls with
+// different emails. On a fresh stack exactly one may win; on an
+// already-initialized stack both lose. Either way: never two 201s.
+func TestSetupRaceNeverTwoAccounts(t *testing.T) {
+	codes := make(chan int, 2)
+	for i := 0; i < 2; i++ {
+		email := fmt.Sprintf("race-%d@example.com", i)
+		go func() {
+			anon := &client{t: t}
+			resp := anon.doJSON("POST", "/setup", map[string]string{
+				"setup_token": setupToken, "email": email, "password": "hunter2hunter2",
+			})
+			codes <- resp.StatusCode
+			drainAndClose(resp)
+		}()
+	}
+	a, b := <-codes, <-codes
+	if a == 201 && b == 201 {
+		t.Fatalf("both concurrent setups returned 201 — race not closed")
+	}
+}
+
 func TestDropsCursorPagination(t *testing.T) {
 	owner := loginOrSetup(t)
 
