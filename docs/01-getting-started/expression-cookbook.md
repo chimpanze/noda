@@ -31,16 +31,16 @@ These come from the [expr-lang](https://expr-lang.org/) engine and are always av
 | Function / Operator | Description | Example |
 |---------------------|-------------|---------|
 | `len(v)` | Length of string, array, or map | `{{ len(nodes.fetch) }}` |
-| `contains(haystack, needle)` | True if string/array contains value | `{{ input.roles contains 'admin' }}` |
-| `startsWith(s, prefix)` | True if string starts with prefix | `{{ startsWith(input.path, '/api') }}` |
-| `endsWith(s, suffix)` | True if string ends with suffix | `{{ endsWith(input.email, '@company.com') }}` |
+| `haystack contains needle` | True if string/array contains value | `{{ input.roles contains 'admin' }}` |
+| `s startsWith prefix` | True if string starts with prefix | `{{ input.path startsWith '/api' }}` |
+| `s endsWith suffix` | True if string ends with suffix | `{{ input.email endsWith '@company.com' }}` |
 | `trim(s)` | Remove leading/trailing whitespace | `{{ trim(input.name) }}` |
 | `trimPrefix(s, prefix)` | Remove prefix from string | `{{ trimPrefix(input.path, '/api') }}` |
 | `trimSuffix(s, suffix)` | Remove suffix from string | `{{ trimSuffix(input.file, '.json') }}` |
 | `split(s, sep)` | Split string into array | `{{ split(input.tags, ',') }}` |
 | `join(arr, sep)` | Join array into string | `{{ join(input.ids, ',') }}` |
 | `replace(s, old, new)` | Replace all occurrences | `{{ replace(input.text, ' ', '-') }}` |
-| `matches(s, regex)` | True if string matches regex | `{{ matches(input.email, '^[^@]+@[^@]+$') }}` |
+| `s matches regex` | True if string matches regex | `{{ input.email matches '^[^@]+@[^@]+$' }}` |
 | `indexOf(s, substr)` | Index of first occurrence (-1 if not found) | `{{ indexOf(input.path, '/') }}` |
 | `int(v)` | Cast to int | `{{ int(input.count) }}` |
 | `float(v)` | Cast to float | `{{ float(input.amount) }}` |
@@ -64,6 +64,8 @@ These come from the [expr-lang](https://expr-lang.org/) engine and are always av
 | `? :` (ternary) | Conditional value | `{{ input.count > 0 ? 'yes' : 'no' }}` |
 | `??` | Nil coalescing | `{{ input.nickname ?? input.name }}` |
 | `in` | Membership test | `{{ input.status in ['active', 'pending'] }}` |
+
+> **Note:** `contains`, `startsWith`, `endsWith`, and `matches` are binary **operators**, not callable functions — `startsWith(input.path, '/api')` fails to compile; write `input.path startsWith '/api'`.
 
 ## Context Variables Quick Reference
 

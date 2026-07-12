@@ -1,6 +1,9 @@
 package livekit
 
 import (
+	"fmt"
+	"strings"
+
 	"github.com/livekit/protocol/auth"
 	lkproto "github.com/livekit/protocol/livekit"
 )
@@ -8,7 +11,7 @@ import (
 const serviceDep = "livekit"
 
 // applyGrants maps grant keys from a config map to a VideoGrant.
-func applyGrants(grants map[string]any, vg *auth.VideoGrant) {
+func applyGrants(grants map[string]any, vg *auth.VideoGrant) error {
 	if v, ok := grants["roomJoin"].(bool); ok {
 		vg.RoomJoin = v
 	}
@@ -39,15 +42,24 @@ func applyGrants(grants map[string]any, vg *auth.VideoGrant) {
 	if v, ok := grants["recorder"].(bool); ok {
 		vg.Recorder = v
 	}
-	if v, ok := grants["canPublishSources"].([]any); ok {
+	if raw, ok := grants["canPublishSources"]; ok {
+		v, ok := raw.([]any)
+		if !ok {
+			return fmt.Errorf("canPublishSources: expected array of strings, got %T", raw)
+		}
 		sources := make([]lkproto.TrackSource, 0, len(v))
-		for _, src := range v {
-			if s, ok := src.(string); ok {
-				if val, exists := lkproto.TrackSource_value[s]; exists {
-					sources = append(sources, lkproto.TrackSource(val))
-				}
+		for i, src := range v {
+			s, ok := src.(string)
+			if !ok {
+				return fmt.Errorf("canPublishSources[%d]: expected string, got %T", i, src)
 			}
+			val, exists := lkproto.TrackSource_value[strings.ToUpper(s)]
+			if !exists || val == int32(lkproto.TrackSource_UNKNOWN) {
+				return fmt.Errorf("canPublishSources[%d]: unknown track source %q (valid, case-insensitive: CAMERA, MICROPHONE, SCREEN_SHARE, SCREEN_SHARE_AUDIO)", i, s)
+			}
+			sources = append(sources, lkproto.TrackSource(val))
 		}
 		vg.SetCanPublishSources(sources)
 	}
+	return nil
 }

@@ -79,7 +79,9 @@ func (e *tokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 
 	if raw, ok := config["grants"]; ok {
 		if grantsMap, ok := raw.(map[string]any); ok {
-			applyGrants(grantsMap, vg)
+			if err := applyGrants(grantsMap, vg); err != nil {
+				return "", nil, fmt.Errorf("lk.token: %w", err)
+			}
 		}
 	}
 

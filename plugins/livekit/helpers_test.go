@@ -21,7 +21,7 @@ func TestApplyGrants_AllBoolFields(t *testing.T) {
 		"hidden":     true,
 		"recorder":   true,
 	}
-	applyGrants(grants, vg)
+	require.NoError(t, applyGrants(grants, vg))
 
 	assert.True(t, vg.RoomJoin)
 	assert.True(t, vg.RoomCreate)
@@ -39,7 +39,7 @@ func TestApplyGrants_SetterFields(t *testing.T) {
 		"canPublishData":       true,
 		"canUpdateOwnMetadata": true,
 	}
-	applyGrants(grants, vg)
+	require.NoError(t, applyGrants(grants, vg))
 
 	assert.True(t, vg.GetCanPublish())
 	assert.True(t, vg.GetCanSubscribe())
@@ -52,7 +52,7 @@ func TestApplyGrants_CanPublishSources(t *testing.T) {
 	grants := map[string]any{
 		"canPublishSources": []any{"CAMERA", "MICROPHONE"},
 	}
-	applyGrants(grants, vg)
+	require.NoError(t, applyGrants(grants, vg))
 
 	sources := vg.GetCanPublishSources()
 	assert.Len(t, sources, 2)
@@ -63,16 +63,33 @@ func TestApplyGrants_CanPublishSources_InvalidSource(t *testing.T) {
 	grants := map[string]any{
 		"canPublishSources": []any{"CAMERA", "INVALID_SOURCE", 42},
 	}
-	applyGrants(grants, vg)
+	err := applyGrants(grants, vg)
+	// INVALID_SOURCE is not a valid enum name: this is now a hard error.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canPublishSources[1]")
+	assert.Contains(t, err.Error(), `"INVALID_SOURCE"`)
+	// Atomic: nothing is applied on error, not even the valid CAMERA entry.
+	assert.Empty(t, vg.GetCanPublishSources())
+}
 
-	sources := vg.GetCanPublishSources()
-	// Only CAMERA should be included; INVALID_SOURCE is not in TrackSource_value, 42 is not a string
-	assert.Len(t, sources, 1)
+func TestApplyGrants_UnknownEnumNameRejected(t *testing.T) {
+	vg := &auth.VideoGrant{}
+	// "unknown" maps to TrackSource_UNKNOWN (0) in TrackSource_value, but it
+	// is not a real publishable source and must be rejected like any other
+	// invalid value.
+	err := applyGrants(map[string]any{
+		"canPublishSources": []any{"unknown"},
+	}, vg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canPublishSources[0]")
+	assert.Contains(t, err.Error(), `"unknown"`)
+	assert.Contains(t, err.Error(), "SCREEN_SHARE_AUDIO") // error must list valid values
+	assert.Empty(t, vg.GetCanPublishSources())
 }
 
 func TestApplyGrants_EmptyMap(t *testing.T) {
 	vg := &auth.VideoGrant{}
-	applyGrants(map[string]any{}, vg)
+	require.NoError(t, applyGrants(map[string]any{}, vg))
 
 	// Nothing should be set
 	assert.False(t, vg.RoomJoin)
@@ -85,12 +102,58 @@ func TestApplyGrants_WrongTypes(t *testing.T) {
 		"roomJoin":          "not a bool",
 		"canPublishSources": "not an array",
 	}
-	applyGrants(grants, vg)
+	err := applyGrants(grants, vg)
+	// canPublishSources unset means UNRESTRICTED publishing, so a present but
+	// non-array value (e.g. a config typo) must be a hard error, not silently
+	// ignored.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canPublishSources: expected array of strings, got string")
 
-	// roomJoin should not be set since type doesn't match
+	// roomJoin should not be set since type doesn't match (non-bool fields
+	// are still silently skipped; only canPublishSources needs strictness)
 	assert.False(t, vg.RoomJoin)
-	// canPublishSources should not be set since type doesn't match
 	assert.Empty(t, vg.GetCanPublishSources())
+}
+
+func TestApplyGrants_CanPublishSourcesCaseInsensitive(t *testing.T) {
+	vg := &auth.VideoGrant{}
+	err := applyGrants(map[string]any{
+		"canPublishSources": []any{"screen_share", "CAMERA", "Microphone"},
+	}, vg)
+	require.NoError(t, err)
+
+	sources := vg.GetCanPublishSources()
+	assert.ElementsMatch(t, []lkproto.TrackSource{
+		lkproto.TrackSource_SCREEN_SHARE,
+		lkproto.TrackSource_CAMERA,
+		lkproto.TrackSource_MICROPHONE,
+	}, sources)
+}
+
+func TestApplyGrants_UnknownSourceErrors(t *testing.T) {
+	vg := &auth.VideoGrant{}
+	err := applyGrants(map[string]any{
+		"canPublishSources": []any{"screenshare"}, // no underscore — not an enum name
+	}, vg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `"screenshare"`)
+	assert.Contains(t, err.Error(), "SCREEN_SHARE") // error must list valid values
+}
+
+func TestApplyGrants_NonStringSourceErrors(t *testing.T) {
+	vg := &auth.VideoGrant{}
+	err := applyGrants(map[string]any{
+		"canPublishSources": []any{float64(3)},
+	}, vg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canPublishSources[0]")
+}
+
+func TestApplyGrants_ValidGrantsStillReturnNil(t *testing.T) {
+	vg := &auth.VideoGrant{}
+	err := applyGrants(map[string]any{"roomJoin": true, "canPublish": false}, vg)
+	require.NoError(t, err)
+	assert.True(t, vg.RoomJoin)
 }
 
 // --- roomToMap tests ---
