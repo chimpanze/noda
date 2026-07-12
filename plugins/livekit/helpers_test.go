@@ -68,6 +68,23 @@ func TestApplyGrants_CanPublishSources_InvalidSource(t *testing.T) {
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "canPublishSources[1]")
 	assert.Contains(t, err.Error(), `"INVALID_SOURCE"`)
+	// Atomic: nothing is applied on error, not even the valid CAMERA entry.
+	assert.Empty(t, vg.GetCanPublishSources())
+}
+
+func TestApplyGrants_UnknownEnumNameRejected(t *testing.T) {
+	vg := &auth.VideoGrant{}
+	// "unknown" maps to TrackSource_UNKNOWN (0) in TrackSource_value, but it
+	// is not a real publishable source and must be rejected like any other
+	// invalid value.
+	err := applyGrants(map[string]any{
+		"canPublishSources": []any{"unknown"},
+	}, vg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canPublishSources[0]")
+	assert.Contains(t, err.Error(), `"unknown"`)
+	assert.Contains(t, err.Error(), "SCREEN_SHARE_AUDIO") // error must list valid values
+	assert.Empty(t, vg.GetCanPublishSources())
 }
 
 func TestApplyGrants_EmptyMap(t *testing.T) {

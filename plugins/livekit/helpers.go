@@ -50,7 +50,7 @@ func applyGrants(grants map[string]any, vg *auth.VideoGrant) error {
 				return fmt.Errorf("canPublishSources[%d]: expected string, got %T", i, src)
 			}
 			val, exists := lkproto.TrackSource_value[strings.ToUpper(s)]
-			if !exists {
+			if !exists || val == int32(lkproto.TrackSource_UNKNOWN) {
 				return fmt.Errorf("canPublishSources[%d]: unknown track source %q (valid, case-insensitive: CAMERA, MICROPHONE, SCREEN_SHARE, SCREEN_SHARE_AUDIO)", i, s)
 			}
 			sources = append(sources, lkproto.TrackSource(val))
