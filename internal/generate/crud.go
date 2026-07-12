@@ -124,7 +124,7 @@ func GenerateCRUD(model map[string]any, opts CRUDOptions) CRUDResult {
 				}
 			}
 			if artifactSet["workflows"] {
-				result.Files["workflows/"+wfName+".json"] = generateListWorkflow(table, columns, opts)
+				result.Files["workflows/"+wfName+".json"] = generateListWorkflow(table, opts)
 			}
 
 		case "get":
@@ -410,7 +410,7 @@ func generateCreateWorkflow(table, singular string, columns []colInfo, opts CRUD
 	}
 }
 
-func generateListWorkflow(table string, columns []colInfo, opts CRUDOptions) map[string]any {
+func generateListWorkflow(table string, opts CRUDOptions) map[string]any {
 	nodes := map[string]any{}
 	edges := []any{}
 

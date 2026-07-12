@@ -20,7 +20,9 @@ Files in `routes/*.json`. Each file defines one route.
 | `trigger.workflow` | string | yes | Workflow ID |
 | `trigger.input` | object | no | Input mapping (expressions) |
 
-**Trigger input sources:** `body.*`, `params.*`, `query.*`, `headers.*`, `auth.*`.
+**Trigger input sources:** `body.*`, `params.*`, `query.*`, `headers.*`, `auth.*`, `raw_body` (when `trigger.raw_body: true`).
+
+The `request.*` namespace provides aliases to these same fields: `request.body`, `request.params`, `request.query`, `request.headers`, `request.auth`, and `request.raw_body` (when enabled).
 
 When `body.schema` is present, request bodies are validated automatically before the workflow runs. Invalid requests receive a `422` response with `VALIDATION_ERROR` code and field-level error details. Set `body.validate: false` to use the schema only for OpenAPI documentation without runtime enforcement.
 

@@ -45,6 +45,11 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 	// Handle raw_body preservation
 	if rawBody, ok := triggerConfig["raw_body"].(bool); ok && rawBody {
 		rawCtx["raw_body"] = string(c.Body())
+		// Mirror onto the request.* alias so {{ request.raw_body }} and
+		// {{ raw_body }} agree (#275).
+		if req, ok := rawCtx["request"].(map[string]any); ok {
+			req["raw_body"] = rawCtx["raw_body"]
+		}
 	}
 
 	// Evaluate input expressions
