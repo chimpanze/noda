@@ -372,3 +372,63 @@ func TestCrossrefs_ServerScalarValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestCrossrefs_RouteTriggerFilesInputMapping(t *testing.T) {
+	mkrc := func(trigger map[string]any) *RawConfig {
+		return &RawConfig{Routes: map[string]map[string]any{
+			"routes/upload.json": {"id": "upload", "trigger": trigger},
+		}}
+	}
+	filesErrs := func(errs []ValidationError) []ValidationError {
+		var out []ValidationError
+		for _, e := range errs {
+			if e.JSONPath == "/trigger/files" {
+				out = append(out, e)
+			}
+		}
+		return out
+	}
+
+	t.Run("files entry with mapping passes", func(t *testing.T) {
+		errs := ValidateCrossRefs(mkrc(map[string]any{
+			"workflow": "w",
+			"files":    []any{"file"},
+			"input":    map[string]any{"file": "file"},
+		}))
+		assert.Empty(t, filesErrs(errs))
+	})
+	t.Run("files entry without input key errors", func(t *testing.T) {
+		errs := filesErrs(ValidateCrossRefs(mkrc(map[string]any{
+			"workflow": "w",
+			"files":    []any{"file"},
+			"input":    map[string]any{"user": "{{ auth.sub }}"},
+		})))
+		require.Len(t, errs, 1)
+		assert.Equal(t, "routes/upload.json", errs[0].FilePath)
+		assert.Contains(t, errs[0].Message, `"file"`)
+		assert.Contains(t, errs[0].Message, "trigger.input")
+	})
+	t.Run("files present but input absent entirely errors", func(t *testing.T) {
+		errs := filesErrs(ValidateCrossRefs(mkrc(map[string]any{
+			"workflow": "w",
+			"files":    []any{"file"},
+		})))
+		require.Len(t, errs, 1)
+	})
+	t.Run("two files entries one missing errors once", func(t *testing.T) {
+		errs := filesErrs(ValidateCrossRefs(mkrc(map[string]any{
+			"workflow": "w",
+			"files":    []any{"avatar", "doc"},
+			"input":    map[string]any{"avatar": "avatar"},
+		})))
+		require.Len(t, errs, 1)
+		assert.Contains(t, errs[0].Message, `"doc"`)
+	})
+	t.Run("route without files untouched", func(t *testing.T) {
+		errs := ValidateCrossRefs(mkrc(map[string]any{
+			"workflow": "w",
+			"input":    map[string]any{"x": "y"},
+		}))
+		assert.Empty(t, filesErrs(errs))
+	})
+}

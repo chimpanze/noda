@@ -8,6 +8,7 @@
     "workflow": "upload-attachment",
     "files": ["file"],
     "input": {
+      "file": "file",
       "workspace_id": "{{ params.workspace_id }}",
       "project_id": "{{ params.project_id }}",
       "uploaded_by": "{{ auth.sub }}"

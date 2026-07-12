@@ -218,6 +218,38 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 		}
 	}
 
+	// Validate route trigger file mappings. A "files" entry marks which
+	// trigger.input keys carry multipart file streams — it does not create
+	// them (internal/server/trigger.go getFileFields). A files entry with no
+	// matching input key means the stream never reaches the workflow and
+	// every real upload fails.
+	for filePath, route := range rc.Routes {
+		trigger, ok := route["trigger"].(map[string]any)
+		if !ok {
+			continue
+		}
+		files, ok := trigger["files"].([]any)
+		if !ok {
+			continue
+		}
+		input, _ := trigger["input"].(map[string]any)
+		for _, f := range files {
+			name, ok := f.(string)
+			if !ok {
+				continue
+			}
+			if _, present := input[name]; !present {
+				errs = append(errs, ValidationError{
+					FilePath: filePath,
+					JSONPath: "/trigger/files",
+					Message: fmt.Sprintf(
+						`files entry %q has no matching trigger.input key — add "%s": "%s" to trigger.input, otherwise the multipart stream never reaches the workflow`,
+						name, name, name),
+				})
+			}
+		}
+	}
+
 	// Validate server scalar settings. These may be strings after $env()
 	// resolution, so the schema admits both forms and the semantic check
 	// happens here.
