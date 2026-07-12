@@ -1,6 +1,7 @@
 package devmode
 
 import (
+	"context"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -56,18 +57,33 @@ func (r *Reloader) Config() *config.ResolvedConfig {
 // watcher's debounce) are serialized via reloadMu, so the last reload to run
 // always wins.
 //
-// Shutdown marks the reloader as shutting down and blocks until any in-flight
-// reload has finished, so no onReload callback fires into a closing system.
+// Shutdown marks the reloader as shutting down and awaits the in-flight-reload
+// barrier, bounded by ctx, so no onReload callback fires into a closing system.
 //
 // The flag is set before the barrier is taken: any HandleChange that acquires
 // reloadMu after this point observes shuttingDown at the post-lock re-check and
 // bails without firing onReload. Draining reloadMu (a reload holds it across the
 // swap and onReload) guarantees any truly in-flight reload has fully completed
-// before Shutdown returns.
-func (r *Reloader) Shutdown() {
+// before Shutdown returns the barrier.
+//
+// If ctx expires first (e.g. a reload is stuck in config.ValidateAll),
+// Shutdown returns early without waiting for the barrier. This is still safe:
+// the shuttingDown flag already made the in-flight reload's post-lock
+// re-check bail before firing onReload, so nothing fires into the closing
+// system — the in-flight reload just keeps running in the background (#287).
+func (r *Reloader) Shutdown(ctx context.Context) {
 	r.shuttingDown.Store(true)
-	r.reloadMu.Lock()
-	r.reloadMu.Unlock() //nolint:staticcheck // intentional barrier: drain to await in-flight reload
+	acquired := make(chan struct{})
+	go func() {
+		r.reloadMu.Lock()
+		r.reloadMu.Unlock() //nolint:staticcheck // intentional barrier: drain to await in-flight reload
+		close(acquired)
+	}()
+	select {
+	case <-acquired:
+	case <-ctx.Done():
+		r.logger.Warn("devmode: shutdown proceeding without reload barrier (in-flight reload still running)")
+	}
 }
 
 func (r *Reloader) HandleChange(path string) {

@@ -53,7 +53,10 @@ func TestUnregister_NoDelivery(t *testing.T) {
 	assert.False(t, called)
 }
 
-func TestWildcard_StarDot(t *testing.T) {
+// #279: wildcard channels used to broadcast to matching connections; the
+// wildcard-send guard now lives at the Manager.Send/SendSSE chokepoint, so
+// any channel containing "*" is rejected before any delivery lookup runs.
+func TestWildcard_StarDot_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var received1, received2 []byte
 
@@ -69,12 +72,13 @@ func TestWildcard_StarDot(t *testing.T) {
 	}))
 
 	err := mgr.Send(context.Background(), "user.*", "broadcast")
-	require.NoError(t, err)
-	assert.Equal(t, []byte("broadcast"), received1)
-	assert.Equal(t, []byte("broadcast"), received2)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "literal name")
+	assert.Nil(t, received1)
+	assert.Nil(t, received2)
 }
 
-func TestWildcard_Star_MatchesAll(t *testing.T) {
+func TestWildcard_Star_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var count atomic.Int32
 
@@ -88,8 +92,9 @@ func TestWildcard_Star_MatchesAll(t *testing.T) {
 	}
 
 	err := mgr.Send(context.Background(), "*", "all")
-	require.NoError(t, err)
-	assert.Equal(t, int32(5), count.Load())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "literal name")
+	assert.Equal(t, int32(0), count.Load())
 }
 
 func TestWildcard_NoMatch(t *testing.T) {
@@ -102,8 +107,23 @@ func TestWildcard_NoMatch(t *testing.T) {
 		SendFn:  func(data []byte) error { called = true; return nil },
 	}))
 
-	_ = mgr.Send(context.Background(), "admin.*", "msg")
+	err := mgr.Send(context.Background(), "admin.*", "msg")
+	require.Error(t, err)
 	assert.False(t, called)
+}
+
+// #279: the wildcard guard lives at the chokepoint, not the callers — a
+// future caller of Send/SendSSE cannot reopen the wildcard-send hole.
+func TestManager_SendRejectsWildcardChannels(t *testing.T) {
+	mgr := NewManager()
+	for _, ch := range []string{"*", "user.*", "*.events"} {
+		err := mgr.Send(context.Background(), ch, "x")
+		require.Error(t, err, "Send(%q)", ch)
+		assert.Contains(t, err.Error(), "literal name")
+		err = mgr.SendSSE(context.Background(), ch, "ev", "x", "")
+		require.Error(t, err, "SendSSE(%q)", ch)
+		assert.Contains(t, err.Error(), "literal name")
+	}
 }
 
 func TestConcurrentRegisterUnregister(t *testing.T) {
@@ -183,33 +203,6 @@ func TestMultipleConnectionsSameChannel(t *testing.T) {
 	// Unregister one
 	mgr.Unregister("a")
 	assert.Equal(t, 2, mgr.ChannelCount("shared"))
-}
-
-func TestMatchWildcard(t *testing.T) {
-	tests := []struct {
-		pattern string
-		channel string
-		match   bool
-	}{
-		{"*", "anything", true},
-		{"*", "a.b", true}, // * matches everything (global wildcard)
-		{"user.*", "user.123", true},
-		{"user.*", "user.abc", true},
-		{"user.*", "admin.123", false},
-		{"user.*", "user.a.b", false},
-		{"*.updates", "user.updates", true},
-		{"*.updates", "admin.updates", true},
-		{"a.b.c", "a.b.c", true},
-		{"a.b.c", "a.b.d", false},
-		{"a.*.c", "a.b.c", true},
-		{"a.*.c", "a.x.c", true},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.pattern+"_"+tt.channel, func(t *testing.T) {
-			assert.Equal(t, tt.match, matchWildcard(tt.pattern, tt.channel))
-		})
-	}
 }
 
 func TestChannelPattern(t *testing.T) {

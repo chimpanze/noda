@@ -111,7 +111,7 @@ func registerTools(s *server.MCPServer, nodeReg *registry.NodeRegistry) {
 
 	s.AddTool(
 		mcp.NewTool("noda_scaffold_project",
-			mcp.WithDescription("Create a new Noda project with standard directory structure and sample files."),
+			mcp.WithDescription("Create a new Noda project with standard directory structure and sample files. Fails if the target path already contains files (no overwrite)."),
 			mcp.WithString("path",
 				mcp.Required(),
 				mcp.Description("Absolute path for the new project directory"),

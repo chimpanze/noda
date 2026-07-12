@@ -386,7 +386,7 @@ For SSE endpoints, additional fields are available:
 {}
 ```
 
-Channel patterns support wildcards: `user.*`, `game.*`, `*`.
+Channel names must be literal — wildcard patterns (e.g. `user.*`, `game.*`, `*`) are rejected with a VALIDATION_ERROR.
 
 Connection sends are buffered by Noda and delivered asynchronously — they do not block the tick. Always call synchronously.
 

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/fasthttp/websocket"
@@ -1131,10 +1132,22 @@ func TestHostDispatcher_ConnectionService(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown connection operation")
 }
 
+// #279: the wildcard guard lives at the connmgr.Manager chokepoint, so this
+// test wires the REAL Manager + EndpointService into the dispatcher (like the
+// ws/sse plugin tests do) instead of a mock: the wildcard channel reaches
+// ConnectionService.Send and is rejected there, and hostapi re-wraps the
+// rejection as VALIDATION_ERROR for the guest.
 func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
+	mgr := connmgr.NewManager()
+	var delivered [][]byte
+	require.NoError(t, mgr.Register(&connmgr.Conn{
+		ID:      "c1",
+		Channel: "game.1",
+		SendFn:  func(data []byte) error { delivered = append(delivered, data); return nil },
+	}))
+
 	svcReg := registry.NewServiceRegistry()
-	connSvc := &mockConnectionService{}
-	require.NoError(t, svcReg.Register("ws-conn", connSvc, nil))
+	require.NoError(t, svcReg.Register("ws-conn", connmgr.NewEndpointService(mgr, "ws-conn"), nil))
 
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
 	plugin := newMockPlugin()
@@ -1153,6 +1166,7 @@ func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "VALIDATION_ERROR")
+		assert.Contains(t, err.Error(), "literal name")
 
 		// send_sse
 		_, err = dispatcher.Call(context.Background(), HostCallRequest{
@@ -1162,10 +1176,10 @@ func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
 		})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "VALIDATION_ERROR")
+		assert.Contains(t, err.Error(), "literal name")
 	}
 
-	assert.Empty(t, connSvc.sent, "wildcard channel must not reach ConnectionService.Send")
-	assert.Empty(t, connSvc.sentSSE, "wildcard channel must not reach ConnectionService.SendSSE")
+	assert.Empty(t, delivered, "wildcard sends must not deliver to any connection")
 
 	// Literal channel still works.
 	_, err := dispatcher.Call(context.Background(), HostCallRequest{
@@ -1174,7 +1188,8 @@ func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
 		Payload:   map[string]any{"channel": "game.1", "data": "hello"},
 	})
 	require.NoError(t, err)
-	assert.Len(t, connSvc.sent, 1)
+	require.Len(t, delivered, 1)
+	assert.Equal(t, []byte("hello"), delivered[0])
 }
 
 // --- Host Dispatcher: Stream dispatch ---

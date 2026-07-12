@@ -344,23 +344,26 @@ func (d *HostDispatcher) dispatchConnection(ctx context.Context, svc api.Connect
 		if err != nil {
 			return nil, err
 		}
-		if strings.Contains(channel, "*") {
-			return nil, fmt.Errorf("VALIDATION_ERROR: channel must be a literal name, not a pattern")
-		}
 		data := payload["data"]
-		return nil, svc.Send(ctx, channel, data)
+		if err := svc.Send(ctx, channel, data); err != nil {
+			// The chokepoint (connmgr.Manager.Send) rejects wildcard channels;
+			// preserve the VALIDATION_ERROR classification guests saw before
+			// the guard moved there, without duplicating the guard here.
+			return nil, fmt.Errorf("VALIDATION_ERROR: %w", err)
+		}
+		return nil, nil
 	case "send_sse":
 		channel, err := requireString(payload, "channel")
 		if err != nil {
 			return nil, err
 		}
-		if strings.Contains(channel, "*") {
-			return nil, fmt.Errorf("VALIDATION_ERROR: channel must be a literal name, not a pattern")
-		}
 		event := optionalString(payload, "event")
 		data := payload["data"]
 		id := optionalString(payload, "id")
-		return nil, svc.SendSSE(ctx, channel, event, data, id)
+		if err := svc.SendSSE(ctx, channel, event, data, id); err != nil {
+			return nil, fmt.Errorf("VALIDATION_ERROR: %w", err)
+		}
+		return nil, nil
 	default:
 		return nil, fmt.Errorf("VALIDATION_ERROR: unknown connection operation %q", op)
 	}

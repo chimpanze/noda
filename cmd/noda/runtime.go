@@ -220,7 +220,7 @@ func createWorkers(rtCtx *runtimeContext) (*worker.Runtime, error) {
 	}
 
 	workerConfigs := worker.ParseWorkerConfigs(rtCtx.RC.Workers)
-	mw := resolveWorkerMiddleware(workerConfigs, 5*time.Minute)
+	mw := resolveWorkerMiddleware(workerConfigs)
 	var tracer oteltrace.Tracer
 	if rtCtx.TraceProvider != nil {
 		tracer = rtCtx.TraceProvider.Tracer()

@@ -46,7 +46,8 @@ type JobRun struct {
 	Duration   time.Duration
 	Success    bool
 	Error      string
-	Skipped    bool // true if lock was not acquired
+	Skipped    bool   // true if the run was skipped (see SkipReason)
+	SkipReason string // "lock" (distributed lock not acquired) or "overlap" (previous same-instance run still active)
 }
 
 // Runtime manages cron-based scheduled workflow execution.
@@ -223,16 +224,23 @@ func (r *Runtime) scheduledFireTime(id cron.EntryID) time.Time {
 // wall-clock second boundary while handling the same tick still agree on
 // the key. Durations and history use the actual wall clock.
 func (r *Runtime) runJob(sc ScheduleConfig, fireTime time.Time) {
+	start := time.Now()
+	traceID := uuid.New().String()
+
 	if guard := r.running[sc.ID]; guard != nil {
 		if !guard.CompareAndSwap(false, true) {
-			r.logger.Warn("scheduler: skipping overlapping run", "schedule_id", sc.ID, "cron", sc.Cron)
+			r.logger.Warn("scheduler: skipping overlapping run", "schedule_id", sc.ID, "cron", sc.Cron, "trace_id", traceID)
+			r.recordRun(JobRun{
+				ScheduleID: sc.ID,
+				TraceID:    traceID,
+				StartedAt:  start,
+				Skipped:    true,
+				SkipReason: "overlap",
+			})
 			return
 		}
 		defer guard.Store(false)
 	}
-
-	start := time.Now()
-	traceID := uuid.New().String()
 
 	defer func() {
 		if rv := recover(); rv != nil {
@@ -318,6 +326,7 @@ func (r *Runtime) runJob(sc ScheduleConfig, fireTime time.Time) {
 				StartedAt:  start,
 				Duration:   time.Since(start),
 				Skipped:    true,
+				SkipReason: "lock",
 			})
 			return
 		}

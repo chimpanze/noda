@@ -14,7 +14,6 @@ type MessageContext struct {
 	TraceID   string
 	Topic     string
 	Group     string
-	Timeout   time.Duration // per-worker processing timeout; 0 = use middleware default
 	Logger    *slog.Logger
 }
 
@@ -65,26 +64,16 @@ func (m *LogMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
 	}
 }
 
-// TimeoutMiddleware enforces a deadline on message processing.
-type TimeoutMiddleware struct {
-	Timeout time.Duration
-}
+// PanicShieldMiddleware runs the handler in a child goroutine and converts
+// panics to errors (recover() cannot cross goroutines, so the outer
+// RecoverMiddleware can't catch them). It no longer applies its own
+// timeout: processMessage's context owns the per-message deadline (#285).
+type PanicShieldMiddleware struct{}
 
-func (m *TimeoutMiddleware) Name() string { return "worker.timeout" }
+func (m *PanicShieldMiddleware) Name() string { return "worker.timeout" } // config-name compat
 
-func (m *TimeoutMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
+func (m *PanicShieldMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
 	return func(ctx context.Context) error {
-		timeout := msgCtx.Timeout
-		if timeout == 0 {
-			timeout = m.Timeout
-		}
-		if timeout == 0 {
-			timeout = 30 * time.Second
-		}
-
-		ctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
 		done := make(chan error, 1)
 		go func() {
 			// recover() only catches panics on its own goroutine, so the outer
@@ -106,9 +95,8 @@ func (m *TimeoutMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
 				"worker_id", msgCtx.WorkerID,
 				"message_id", msgCtx.MessageID,
 				"trace_id", msgCtx.TraceID,
-				"timeout", timeout.String(),
 			)
-			return fmt.Errorf("worker.timeout: processing exceeded %s", timeout)
+			return fmt.Errorf("worker.timeout: processing exceeded deadline: %w", ctx.Err())
 		}
 	}
 }
@@ -136,23 +124,23 @@ func (m *RecoverMiddleware) Wrap(next Handler, msgCtx *MessageContext) Handler {
 }
 
 // DefaultMiddleware returns the standard set of worker middleware.
-func DefaultMiddleware(timeout time.Duration) []Middleware {
+func DefaultMiddleware() []Middleware {
 	return []Middleware{
 		&RecoverMiddleware{},
 		&LogMiddleware{},
-		&TimeoutMiddleware{Timeout: timeout},
+		&PanicShieldMiddleware{},
 	}
 }
 
 // ResolveMiddleware resolves middleware names to implementations.
-func ResolveMiddleware(names []string, timeout time.Duration) []Middleware {
+func ResolveMiddleware(names []string) []Middleware {
 	var result []Middleware
 	for _, name := range names {
 		switch name {
 		case "worker.log":
 			result = append(result, &LogMiddleware{})
 		case "worker.timeout":
-			result = append(result, &TimeoutMiddleware{Timeout: timeout})
+			result = append(result, &PanicShieldMiddleware{})
 		case "worker.recover":
 			result = append(result, &RecoverMiddleware{})
 		default:

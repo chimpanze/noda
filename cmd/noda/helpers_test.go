@@ -154,7 +154,7 @@ func TestRegisterCorePlugins_Succeeds(t *testing.T) {
 // --- resolveWorkerMiddleware ---
 
 func TestResolveWorkerMiddleware_DefaultWhenEmpty(t *testing.T) {
-	mw := resolveWorkerMiddleware(nil, 30*time.Second)
+	mw := resolveWorkerMiddleware(nil)
 	assert.NotEmpty(t, mw)
 }
 
@@ -162,6 +162,6 @@ func TestResolveWorkerMiddleware_DefaultWhenNoMiddleware(t *testing.T) {
 	configs := []worker.WorkerConfig{
 		{Middleware: nil},
 	}
-	mw := resolveWorkerMiddleware(configs, 30*time.Second)
+	mw := resolveWorkerMiddleware(configs)
 	assert.NotEmpty(t, mw)
 }

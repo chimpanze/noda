@@ -488,9 +488,9 @@ func TestSendSSE_MarshalError(t *testing.T) {
 	assert.Error(t, err)
 }
 
-// --- Send with wildcard to connections with nil SendFn ---
+// --- Send with wildcard channel: rejected at the chokepoint (#279) ---
 
-func TestSend_Wildcard_MixedSendFn(t *testing.T) {
+func TestSend_Wildcard_MixedSendFn_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var called bool
 
@@ -502,13 +502,14 @@ func TestSend_Wildcard_MixedSendFn(t *testing.T) {
 	}))
 
 	err := mgr.Send(context.Background(), "ns.*", "msg")
-	require.NoError(t, err)
-	assert.True(t, called)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "literal name")
+	assert.False(t, called)
 }
 
-// --- SendSSE with wildcard ---
+// --- SendSSE with wildcard channel: rejected at the chokepoint (#279) ---
 
-func TestSendSSE_Wildcard(t *testing.T) {
+func TestSendSSE_Wildcard_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var count int
 
@@ -524,8 +525,9 @@ func TestSendSSE_Wildcard(t *testing.T) {
 	}))
 
 	err := mgr.SendSSE(context.Background(), "feed.*", "update", "payload", "")
-	require.NoError(t, err)
-	assert.Equal(t, 2, count)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "literal name")
+	assert.Equal(t, 0, count)
 }
 
 // --- buildSSEInput test ---
@@ -1039,9 +1041,9 @@ func TestSSEHandler_Integration_SSEFnAfterClose(t *testing.T) {
 	}, 2*time.Second, 50*time.Millisecond, "connection count should reach 0 after close")
 }
 
-// --- SendSSE with wildcard and nil SSEFn ---
+// --- SendSSE with wildcard channel: rejected at the chokepoint (#279) ---
 
-func TestSendSSE_Wildcard_MixedSSEFn(t *testing.T) {
+func TestSendSSE_Wildcard_MixedSSEFn_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var called bool
 
@@ -1053,11 +1055,12 @@ func TestSendSSE_Wildcard_MixedSSEFn(t *testing.T) {
 	}))
 
 	err := mgr.SendSSE(context.Background(), "ns.*", "evt", "data", "")
-	require.NoError(t, err)
-	assert.True(t, called)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "literal name")
+	assert.False(t, called)
 }
 
-// --- matchConnections with exact match and missing connection ---
+// --- channelConnections with a channel that has no connections ---
 
 func TestSend_ExactMatch_NoConnections(t *testing.T) {
 	mgr := NewManager()

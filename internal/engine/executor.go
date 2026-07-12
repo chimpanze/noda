@@ -253,7 +253,16 @@ func ExecuteGraph(
 	resultErr := firstErr.get()
 	if resultErr == nil && execCtx2.Err() != nil {
 		if errors.Is(execCtx2.Err(), context.DeadlineExceeded) {
-			resultErr = &api.TimeoutError{Duration: graph.Timeout, Operation: "workflow " + graph.WorkflowID}
+			// graph.Timeout == 0 means the deadline was inherited from the
+			// parent (sub-workflow case): report the budget the child
+			// actually had instead of "after 0s" (#273).
+			budget := graph.Timeout
+			if budget == 0 {
+				if dl, ok := execCtx2.Deadline(); ok {
+					budget = dl.Sub(startTime)
+				}
+			}
+			resultErr = &api.TimeoutError{Duration: budget, Operation: "workflow " + graph.WorkflowID}
 		} else {
 			resultErr = fmt.Errorf("workflow %q aborted: %w", graph.WorkflowID, execCtx2.Err())
 		}

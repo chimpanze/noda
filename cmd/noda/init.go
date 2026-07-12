@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -65,6 +66,7 @@ func scaffoldProject(name string, force bool) error {
 			return fmt.Errorf("scaffold project: %w", err)
 		}
 		if len(conflicts) > 0 {
+			sort.Strings(conflicts)
 			return fmt.Errorf("refusing to overwrite existing files (use --force): %s", strings.Join(conflicts, ", "))
 		}
 	}

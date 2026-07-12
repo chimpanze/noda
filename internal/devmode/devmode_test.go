@@ -372,7 +372,7 @@ func TestReloader_ShutdownAwaitsInFlightReload(t *testing.T) {
 	<-inReload
 
 	shutdownReturned := make(chan struct{})
-	go func() { r.Shutdown(); close(shutdownReturned) }()
+	go func() { r.Shutdown(context.Background()); close(shutdownReturned) }()
 	select {
 	case <-shutdownReturned:
 		t.Fatal("Shutdown returned before the in-flight reload finished")
@@ -385,6 +385,41 @@ func TestReloader_ShutdownAwaitsInFlightReload(t *testing.T) {
 	reloadRan.Store(false)
 	r.HandleChange(filepath.Join(dir, "noda.json"))
 	require.False(t, reloadRan.Load(), "onReload must not fire after Shutdown")
+}
+
+// #287: Shutdown must respect the ctx budget instead of draining reloadMu
+// unboundedly when a reload is stuck.
+func TestReloaderShutdown_BoundedByContext(t *testing.T) {
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+	r := NewReloader(t.TempDir(), "", initial, nil, slog.Default())
+
+	release := make(chan struct{})
+	r.reloadMu.Lock()
+	go func() { <-release; r.reloadMu.Unlock() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	r.Shutdown(ctx)
+	assert.Less(t, time.Since(start), time.Second, "Shutdown must return on ctx expiry")
+	close(release)
+}
+
+func TestReloaderShutdown_WaitsForBarrierWhenUnpressured(t *testing.T) {
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+	r := NewReloader(t.TempDir(), "", initial, nil, slog.Default())
+
+	r.reloadMu.Lock()
+	go func() { time.Sleep(30 * time.Millisecond); r.reloadMu.Unlock() }()
+	start := time.Now()
+	r.Shutdown(context.Background()) // no deadline: waits for the barrier
+	assert.GreaterOrEqual(t, time.Since(start), 25*time.Millisecond)
 }
 
 // --- helpers ---

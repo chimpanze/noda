@@ -204,6 +204,76 @@ func TestMapTrigger_RawBody(t *testing.T) {
 	assert.NotNil(t, result.Input["event"])
 }
 
+func TestMapTrigger_RawBodyMirrorToRequest(t *testing.T) {
+	// Test that raw_body is mirrored to request.raw_body when flag is enabled
+	app := fiber.New()
+	compiler := expr.NewCompilerWithFunctions()
+
+	var result *TriggerResult
+
+	app.Post("/test", func(c fiber.Ctx) error {
+		var err error
+		result, err = MapTrigger(c, map[string]any{
+			"raw_body": true,
+			"input": map[string]any{
+				"raw":     "{{ raw_body }}",
+				"req_raw": "{{ request.raw_body }}",
+			},
+		}, compiler)
+		if err != nil {
+			return err
+		}
+		return c.SendString("ok")
+	})
+
+	bodyBytes, _ := json.Marshal(map[string]any{"type": "webhook"})
+	req := httptest.NewRequest("POST", "/test", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	// Both raw_body and request.raw_body should resolve to the same value
+	assert.Equal(t, result.Input["raw"], result.Input["req_raw"])
+	assert.NotEmpty(t, result.Input["req_raw"])
+}
+
+func TestMapTrigger_RawBodyAbsentWhenDisabled(t *testing.T) {
+	// Test that request.raw_body is absent when raw_body flag is not set
+	app := fiber.New()
+	compiler := expr.NewCompilerWithFunctions()
+
+	var result *TriggerResult
+	var resolveErr error
+
+	app.Post("/test", func(c fiber.Ctx) error {
+		var err error
+		result, err = MapTrigger(c, map[string]any{
+			// raw_body: false (or not set)
+			"input": map[string]any{
+				"has_raw": "{{ request.raw_body ?? 'absent' }}",
+			},
+		}, compiler)
+		if err != nil {
+			resolveErr = err
+			return err
+		}
+		return c.SendString("ok")
+	})
+
+	bodyBytes, _ := json.Marshal(map[string]any{"type": "webhook"})
+	req := httptest.NewRequest("POST", "/test", bytes.NewReader(bodyBytes))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+
+	// When raw_body flag is not set, request.raw_body should be absent,
+	// so the ?? operator should use the default value 'absent'
+	assert.Equal(t, "absent", result.Input["has_raw"])
+	assert.Nil(t, resolveErr)
+}
+
 func TestBuildRawRequestContext_HasRequestAlias(t *testing.T) {
 	app := fiber.New()
 	var got map[string]any
