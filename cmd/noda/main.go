@@ -857,12 +857,8 @@ func newScheduleCmd() *cobra.Command {
 
 // parseShutdownDeadline reads the shutdown_deadline from server config, falling back to defaultVal.
 func parseShutdownDeadline(rc *config.ResolvedConfig, defaultVal time.Duration) time.Duration {
-	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-		if d, ok := serverCfg["shutdown_deadline"].(string); ok {
-			if parsed, err := time.ParseDuration(d); err == nil {
-				return parsed
-			}
-		}
+	if d, ok, err := config.ServerDuration(rc.Root, "shutdown_deadline"); err == nil && ok {
+		return d
 	}
 	return defaultVal
 }

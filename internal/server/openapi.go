@@ -21,12 +21,10 @@ func GenerateOpenAPI(rc *config.ResolvedConfig) (*openapi3.T, error) {
 		Paths: openapi3.NewPaths(),
 	}
 
-	// Add server if configured
-	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-		if port, ok := serverCfg["port"].(float64); ok {
-			doc.Servers = openapi3.Servers{
-				{URL: fmt.Sprintf("http://localhost:%d", int(port))},
-			}
+	// Add server if configured (errors already surfaced by config validation)
+	if port, ok, err := config.ServerInt(rc.Root, "port"); err == nil && ok {
+		doc.Servers = openapi3.Servers{
+			{URL: fmt.Sprintf("http://localhost:%d", port)},
 		}
 	}
 
