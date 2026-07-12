@@ -19,12 +19,23 @@ import (
 // silently overwriting the existing gatewayConn, which would orphan its
 // readLoop (it keeps running under the same id and can never be closed).
 func TestGatewayConnect_RejectsDuplicateID(t *testing.T) {
-	g := NewGateway(&Module{Name: "m", Codec: &jsonCodec{}}, testLogger())
+	g := NewGateway(&Module{Name: "m", Codec: &jsonCodec{}, Config: ModuleConfig{AllowWS: []string{"example"}}}, testLogger())
 	g.conns["c1"] = &gatewayConn{id: "c1", stopCh: make(chan struct{})} // simulate a live conn
 	_, err := g.Connect(context.Background(), map[string]any{"id": "c1", "url": "ws://example/x"})
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "already in use")
 	require.NotNil(t, g.conns["c1"], "existing connection must be left intact")
+}
+
+// #265: permission is checked before connection-id state — a guest probing
+// with a non-whitelisted URL learns nothing about existing connection ids.
+func TestGatewayConnect_WhitelistCheckedBeforeDupID(t *testing.T) {
+	g := NewGateway(&Module{Name: "m", Codec: &jsonCodec{}}, testLogger()) // empty AllowWS: nothing whitelisted
+	g.conns["c1"] = &gatewayConn{id: "c1", stopCh: make(chan struct{})}
+	_, err := g.Connect(context.Background(), map[string]any{"id": "c1", "url": "ws://evil/x"})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "PERMISSION_DENIED")
+	require.NotContains(t, err.Error(), "already in use")
 }
 
 // wasm-3 (sibling): heartbeatLoop must not race reconnectLoop's reassignment of

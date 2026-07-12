@@ -3549,8 +3549,9 @@ func TestToFloat_Coercion(t *testing.T) {
 }
 
 // TestHostCall_Msgpack verifies that a payload decoded from msgpack (where
-// numbers arrive as int64 rather than JSON's float64) still works for
-// operations that assert on numeric fields, such as cache.set's ttl.
+// numbers arrive as narrow integer types (int8..uint64) rather than JSON's
+// float64) still works for operations that assert on numeric fields, such
+// as cache.set's ttl.
 func TestHostCall_Msgpack(t *testing.T) {
 	svcReg := registry.NewServiceRegistry()
 	cache := &mockCacheService{store: make(map[string]any)}

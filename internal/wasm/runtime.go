@@ -159,8 +159,14 @@ func buildHostFunctions(dispatcher *HostDispatcher, logger *slog.Logger) []extis
 				off, wErr := p.WriteBytes(out)
 				if wErr != nil {
 					// WriteBytes failing leaves no way to signal an error to the
-					// guest (offset 0 means void success) — log loudly so this is
-					// visible in ops rather than silently swallowed as a success.
+					// guest: extism go-sdk (v1.7.1, latest release as of this
+					// writing — checked `go list -m -versions` and the
+					// CurrentPlugin method set in host.go) exposes no
+					// host-side SetError, and offset 0 is the only void
+					// sentinel — so a real PERMISSION_DENIED/NOT_FOUND
+					// collapses into apparent void success here. Known-wrong
+					// failure direction, accepted until upstream grows an
+					// error mechanism. See #267.
 					logger.Error("noda_call: write envelope failed", "error", wErr)
 					stack[0] = 0
 					return
