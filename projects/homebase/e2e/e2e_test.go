@@ -113,6 +113,38 @@ func login(t *testing.T) *client {
 	return &client{t: t, token: token}
 }
 
+// loginOrSetup logs in as the admin, bootstrapping the account via /setup
+// first when the stack is fresh — lets any test run standalone against a
+// fresh stack instead of depending on TestHomebaseLifecycle's setup (#310).
+func loginOrSetup(t *testing.T) *client {
+	t.Helper()
+	anon := &client{t: t}
+	resp := anon.doJSON("POST", "/auth/login", map[string]string{
+		"email": adminEmail, "password": adminPassword,
+	})
+	if resp.StatusCode == 401 {
+		drainAndClose(resp)
+		setupResp := anon.doJSON("POST", "/setup", map[string]string{
+			"setup_token": setupToken, "email": adminEmail, "password": adminPassword,
+		})
+		// 201 on a fresh stack; 403 if something else completed setup first.
+		if setupResp.StatusCode != 201 && setupResp.StatusCode != 403 {
+			t.Fatalf("setup: status %d", setupResp.StatusCode)
+		}
+		drainAndClose(setupResp)
+		resp = anon.doJSON("POST", "/auth/login", map[string]string{
+			"email": adminEmail, "password": adminPassword,
+		})
+	}
+	wantStatus(t, resp, 200)
+	body := decode(t, resp)
+	token, _ := body["token"].(string)
+	if token == "" {
+		t.Fatal("login returned no token")
+	}
+	return &client{t: t, token: token}
+}
+
 // TestHomebaseLifecycle is one ordered walk through the whole API. Subtests
 // share state (the drops/shares created earlier) and must run in order.
 func TestHomebaseLifecycle(t *testing.T) {
@@ -307,6 +339,8 @@ func TestHomebaseLifecycle(t *testing.T) {
 		wantStatus(t, resp, 201)
 		body := decode(t, resp)
 		tok, _ := body["token"].(string)
+		// #310: deliberate fixed sleep for a 1s TTL. If this ever flakes,
+		// replace with a short poll-until-404 loop — never a bigger sleep.
 		time.Sleep(1500 * time.Millisecond)
 		resp = anon.do("GET", "/s/"+tok, nil, "")
 		wantStatus(t, resp, 404)
@@ -412,7 +446,7 @@ func videoGrant(t *testing.T, jwt string) map[string]any {
 // dev-mode LiveKit container.
 func TestRoomsLifecycle(t *testing.T) {
 	anon := &client{t: t}
-	owner := login(t)
+	owner := loginOrSetup(t)
 
 	t.Run("unauthenticated room create is 401", func(t *testing.T) {
 		resp := anon.doJSON("POST", "/rooms", map[string]string{"type": "meeting"})
@@ -550,6 +584,8 @@ func TestRoomsLifecycle(t *testing.T) {
 		wantStatus(t, resp, 201)
 		body := decode(t, resp)
 		tok, _ := body["guest_token"].(string)
+		// #310: deliberate fixed sleep for a 1s TTL. If this ever flakes,
+		// replace with a short poll-until-404 loop — never a bigger sleep.
 		time.Sleep(1500 * time.Millisecond)
 		resp = anon.do("GET", "/j/"+tok, nil, "")
 		wantStatus(t, resp, 404)
