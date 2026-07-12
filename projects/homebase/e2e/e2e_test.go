@@ -13,7 +13,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -626,6 +628,93 @@ func TestRoomsLifecycle(t *testing.T) {
 			if m["name"] == streamRoom {
 				t.Fatalf("deleted room %s still listed", streamRoom)
 			}
+		}
+	})
+}
+
+// execPsql runs a statement in the e2e Postgres container (project name from
+// e2e/run.sh). Returns combined output; fails the test on error when
+// mustSucceed is true.
+func execPsql(t *testing.T, sql string, mustSucceed bool) (string, error) {
+	t.Helper()
+	cmd := exec.Command("docker", "exec", "-i", "homebase-e2e-postgres-1",
+		"psql", "-U", "noda", "-d", "noda", "-tAc", sql)
+	out, err := cmd.CombinedOutput()
+	if mustSucceed && err != nil {
+		t.Fatalf("psql %q: %v\n%s", sql, err, out)
+	}
+	return string(out), err
+}
+
+func TestDropsCursorPagination(t *testing.T) {
+	owner := loginOrSetup(t)
+
+	t.Run("malformed before is 400", func(t *testing.T) {
+		resp := owner.do("GET", "/drops?before=garbage", nil, "")
+		wantStatus(t, resp, 400)
+		drainAndClose(resp)
+	})
+
+	t.Run("same-timestamp rows page without skips", func(t *testing.T) {
+		// 60 drops, then force one shared timestamp (only reachable via SQL —
+		// the API always stamps now()).
+		for i := 0; i < 60; i++ {
+			resp := owner.doJSON("POST", "/drops", map[string]string{
+				"text": fmt.Sprintf("cursor-probe-%02d", i),
+			})
+			wantStatus(t, resp, 201)
+			drainAndClose(resp)
+		}
+		execPsql(t, `UPDATE drops SET created_at = now() WHERE text LIKE 'cursor-probe-%'`, true)
+
+		respBody := func(before, beforeID string) map[string]any {
+			u := "/drops?q=cursor-probe"
+			if before != "" {
+				u += "&before=" + url.QueryEscape(before) + "&before_id=" + url.QueryEscape(beforeID)
+			}
+			resp := owner.do("GET", u, nil, "")
+			wantStatus(t, resp, 200)
+			return decode(t, resp)
+		}
+
+		first := respBody("", "")
+		p1, _ := first["drops"].([]any)
+		if len(p1) != 50 {
+			t.Fatalf("page 1 = %d rows, want 50", len(p1))
+		}
+		nb, _ := first["next_before"].(string)
+		nbID, _ := first["next_before_id"].(string)
+		if nb == "" || nbID == "" {
+			t.Fatalf("missing cursor: next_before=%q next_before_id=%q", nb, nbID)
+		}
+
+		page := func(before, beforeID string) []any {
+			drops, _ := respBody(before, beforeID)["drops"].([]any)
+			return drops
+		}
+
+		// Timestamp-only cursor documents the OLD bug: all 60 share one
+		// timestamp, so strict created_at < ts returns nothing.
+		if rest := page(nb, ""); len(rest) != 0 {
+			t.Fatalf("timestamp-only page 2 = %d rows, want 0 (strict-< semantics)", len(rest))
+		}
+
+		// Tuple cursor gets the remaining 10, no dups.
+		p2 := page(nb, nbID)
+		if len(p2) != 10 {
+			t.Fatalf("tuple page 2 = %d rows, want 10", len(p2))
+		}
+		seen := map[string]bool{}
+		for _, raw := range append(append([]any{}, p1...), p2...) {
+			row, _ := raw.(map[string]any)
+			id, _ := row["id"].(string)
+			if seen[id] {
+				t.Fatalf("duplicate id across pages: %s", id)
+			}
+			seen[id] = true
+		}
+		if len(seen) != 60 {
+			t.Fatalf("union = %d unique rows, want 60", len(seen))
 		}
 	})
 }

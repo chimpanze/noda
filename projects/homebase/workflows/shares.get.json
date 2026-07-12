@@ -24,7 +24,7 @@
       "services": { "database": "main-db" },
       "config": {
         "table": "drops",
-        "select": ["text", "file_name", "file_size", "file_mime", "created_at"],
+        "select": ["text", "file_name", "file_size", "file_mime", "file_key", "created_at"],
         "where": { "id": "{{ nodes.find.drop_id }}" },
         "required": true
       }
@@ -39,7 +39,7 @@
           "file_size": "{{ nodes.get_drop.file_size }}",
           "file_mime": "{{ nodes.get_drop.file_mime }}",
           "created_at": "{{ nodes.get_drop.created_at }}",
-          "has_file": "{{ nodes.get_drop.file_name != nil }}"
+          "has_file": "{{ nodes.get_drop.file_key != nil }}"
         }
       }
     },

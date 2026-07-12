@@ -19,6 +19,33 @@
         "respond": { "output": { "status": 200 } }
       },
       "expect": { "status": "success", "output": { "respond.status": 200 } }
+    },
+    {
+      "name": "malformed before cursor gets 400",
+      "input": { "q": "", "before": "garbage", "before_id": "" },
+      "mocks": {
+        "find": { "output": [] },
+        "respond_bad_cursor": { "output": { "status": 400 } }
+      },
+      "expect": { "status": "success", "output": { "respond_bad_cursor.status": 400 } }
+    },
+    {
+      "name": "RFC3339Nano cursor is accepted",
+      "input": { "q": "", "before": "2026-07-12T10:00:00.123456Z", "before_id": "abc" },
+      "mocks": {
+        "find": { "output": [] },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
+    },
+    {
+      "name": "Postgres text-form cursor is accepted",
+      "input": { "q": "", "before": "2026-07-12 10:00:00.123456+00", "before_id": "" },
+      "mocks": {
+        "find": { "output": [] },
+        "respond": { "output": { "status": 200 } }
+      },
+      "expect": { "status": "success", "output": { "respond.status": 200 } }
     }
   ]
 }
