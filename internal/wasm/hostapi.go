@@ -114,7 +114,11 @@ func (d *HostDispatcher) CallAsync(ctx context.Context, req HostCallRequest) err
 	// Launch async operation. Track the goroutine in outstandingCalls so
 	// Stop() can wait for it before tearing down the result maps.
 	label := req.Label
-	d.module.outstandingCalls.Add(1)
+	if !d.module.tryAddOutstanding() {
+		// Module is stopping; the async result would be dropped anyway.
+		d.module.Logger.Debug("skipping async call on stopping module", "module", d.module.Name)
+		return nil
+	}
 	go func() {
 		defer d.module.outstandingCalls.Done()
 		result, err := d.Call(d.module.shutdownCtx, HostCallRequest{
@@ -182,7 +186,9 @@ func (d *HostDispatcher) handleSystemOp(ctx context.Context, req HostCallRequest
 		}
 		input, _ := payload["input"].(map[string]any)
 		if d.runner != nil {
-			d.module.outstandingCalls.Add(1)
+			if !d.module.tryAddOutstanding() {
+				return nil, fmt.Errorf("module %q stopping", d.module.Name)
+			}
 			go func() {
 				defer d.module.outstandingCalls.Done()
 				_ = d.runner(d.module.shutdownCtx, workflowID, input)

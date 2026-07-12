@@ -3792,3 +3792,41 @@ func TestModule_SendCommand_ConcurrentWithStop(t *testing.T) {
 	require.NoError(t, m.Stop(context.Background()))
 	wg.Wait()
 }
+
+// #295: tryAddOutstanding is the only Add path; Stop's stopping store under
+// the same addMu guarantees no Add races Wait-at-zero. Run under -race —
+// with the guard removed (raw Add), this hits WaitGroup Add-vs-Wait misuse.
+func TestModule_TryAddOutstanding_NoAddAfterStop(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for {
+				select {
+				case <-stop:
+					return
+				default:
+				}
+				if m.tryAddOutstanding() {
+					time.Sleep(50 * time.Microsecond) // hold the counter briefly
+					m.outstandingCalls.Done()
+				}
+			}
+		}()
+	}
+	time.Sleep(10 * time.Millisecond) // let the hammer run
+	require.NoError(t, m.Stop(context.Background()))
+	assert.False(t, m.tryAddOutstanding(), "no Add may succeed after Stop")
+	close(stop)
+	wg.Wait()
+}
