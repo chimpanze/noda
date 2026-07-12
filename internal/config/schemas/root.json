@@ -89,14 +89,41 @@
     "server": {
       "type": "object",
       "properties": {
-        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "port": {
+          "oneOf": [
+            { "type": "integer", "minimum": 1, "maximum": 65535 },
+            { "type": "string" }
+          ]
+        },
         "read_timeout": { "type": "string" },
         "write_timeout": { "type": "string" },
-        "body_limit": { "type": "integer", "minimum": 0 },
+        "body_limit": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string" }
+          ]
+        },
         "response_timeout": { "type": "string" },
         "shutdown_deadline": { "type": "string" },
-        "expression_memory_budget": { "type": "integer", "minimum": 0 },
-        "expression_strict_mode": { "type": "boolean" }
+        "health_timeout": { "type": "string" },
+        "expression_memory_budget": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string" }
+          ]
+        },
+        "expression_strict_mode": { "type": "boolean" },
+        "trust_proxy": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "proxies": { "type": "array", "items": { "type": "string" } },
+            "loopback": { "type": "boolean" },
+            "link_local": { "type": "boolean" },
+            "private": { "type": "boolean" },
+            "header": { "type": "string" }
+          }
+        }
       }
     },
     "global_middleware": {
