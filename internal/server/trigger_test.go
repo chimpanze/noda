@@ -216,7 +216,7 @@ func TestMapTrigger_RawBodyMirrorToRequest(t *testing.T) {
 		result, err = MapTrigger(c, map[string]any{
 			"raw_body": true,
 			"input": map[string]any{
-				"raw": "{{ raw_body }}",
+				"raw":     "{{ raw_body }}",
 				"req_raw": "{{ request.raw_body }}",
 			},
 		}, compiler)
