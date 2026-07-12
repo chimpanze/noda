@@ -146,6 +146,11 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 	}
 	if tp != nil {
 		fiberCfg.TrustProxy = true
+		// Without this, c.IP() returns the raw ProxyHeader value verbatim
+		// (comma-joined lists, garbage, or empty string) instead of the
+		// first valid IP with a socket-IP fallback — the limiter/session
+		// key would be an unparsed string, not an actual client identity.
+		fiberCfg.EnableIPValidation = true
 		fiberCfg.TrustProxyConfig = fiber.TrustProxyConfig{
 			Proxies:   tp.Proxies,
 			Loopback:  tp.Loopback,

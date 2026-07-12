@@ -24,7 +24,7 @@ The root config file. All fields are optional except where noted.
 | `expression_memory_budget` | integer or string | `1000000` | Memory budget for expression evaluation (in allocation units). Limits array, map, and range allocations. Expressions exceeding this budget return an error. `0` uses the default. May be an integer or a string containing `{{ $env('NAME') }}` to read from an environment variable. |
 | `expression_strict_mode` | boolean | `false` | When `true`, undefined variables in expressions produce compile errors instead of silently returning nil. Catches typos like `{{ auth.is_admim }}` at load time |
 | `health_timeout` | string | `"5s"` | Timeout for health check calls to services (duration). Prevents hung service checks from blocking the health endpoint. |
-| `trust_proxy` | object | `{}` | Trusted proxy configuration (see subsection below). Off by default. |
+| `trust_proxy` | object | disabled | Trusted proxy configuration (see subsection below). Off by default. |
 
 ```json
 {
@@ -58,7 +58,7 @@ unless you tell noda which peers to trust:
 ```
 
 | Field | Type | Default | Description |
-|---|---|---|---|
+|-------|------|---------|-------------|
 | `enabled` | boolean | `false` | Master switch. Off = header never trusted. |
 | `proxies` | string[] | `[]` | Trusted proxy IPs or CIDR ranges. |
 | `loopback` | boolean | `false` | Trust all loopback addresses (127.0.0.0/8, ::1). |
@@ -67,10 +67,14 @@ unless you tell noda which peers to trust:
 | `header` | string | `"X-Forwarded-For"` | Header the proxy writes the client IP to. |
 
 Only requests arriving **from** a trusted address have the header honored;
-direct clients spoofing `X-Forwarded-For` keep their socket IP. Enabling
-`trust_proxy` without any trusted set (no `proxies`, no class flag) is a
-config error. Only enable this when every hop that can reach noda's port is
-your own proxy.
+direct clients spoofing `X-Forwarded-For` keep their socket IP. Fiber takes
+the **first** (leftmost) valid value of the header, so the reverse proxy must
+overwrite or strip the client-supplied header rather than append to it —
+Caddy does this by default; nginx's common `$proxy_add_x_forwarded_for` idiom
+appends, letting spoofed values through in first position (use
+`$remote_addr` there instead). Enabling `trust_proxy` without any trusted set
+(no `proxies`, no class flag) is a config error. Only enable this when every
+hop that can reach noda's port is your own proxy.
 
 > **Memory note:** the server buffers each request body in memory up to
 > `body_limit` *before* auth runs, so a large limit is an unauthenticated

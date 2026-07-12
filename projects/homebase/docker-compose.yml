@@ -50,6 +50,7 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}
       BODY_LIMIT: ${BODY_LIMIT:-1073741824}
+      NODA_ENV: ${NODA_ENV:-development}
     volumes:
       - .:/app/config
     command: ["migrate", "up", "--config", "/app/config", "--service", "main-db"]

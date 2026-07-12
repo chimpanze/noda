@@ -165,10 +165,31 @@ func TestServer_UntrustedProxy_ForwardedHeaderIgnored(t *testing.T) {
 	assert.Equal(t, "0.0.0.0", string(body)) // socket remote IP, not the spoofed header
 }
 
+func TestServer_TrustedProxy_MultiValueForwardedHeader(t *testing.T) {
+	srv := trustProxyTestServer(t, []any{"0.0.0.0/0"})
+	req := httptest.NewRequest("GET", "/ip", nil)
+	req.Header.Set("X-Forwarded-For", "203.0.113.7, 10.0.0.2")
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	body, _ := io.ReadAll(resp.Body)
+	// EnableIPValidation makes fiber return the first *valid* IP, not the
+	// raw comma-joined header string.
+	assert.Equal(t, "203.0.113.7", string(body))
+}
+
+func TestServer_TrustedProxy_AbsentForwardedHeaderFallsBackToSocketIP(t *testing.T) {
+	srv := trustProxyTestServer(t, []any{"0.0.0.0/0"})
+	req := httptest.NewRequest("GET", "/ip", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	body, _ := io.ReadAll(resp.Body)
+	// EnableIPValidation falls back to the socket remote IP when the header
+	// is absent/invalid, rather than returning an empty string.
+	assert.Equal(t, "0.0.0.0", string(body))
+}
+
 func TestServer_LimiterKeysOnForwardedIP(t *testing.T) {
 	srv := trustProxyTestServer(t, []any{"0.0.0.0/0"})
-	// Check parseLimiterConfig (middleware.go:245) for the exact config keys
-	// if this construction fails; "max" is read as float64 at :250.
 	h, err := newLimiterMiddleware(map[string]any{"max": float64(1), "expiration": "1m"}, nil)
 	require.NoError(t, err)
 	srv.App().Use(h)
