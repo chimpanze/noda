@@ -12,7 +12,7 @@ services:
   noda:
     # Slim (distroless, nonroot uid 65532) image published by the Docker
     # pipeline to GHCR on every v* tag. Override the release with NODA_VERSION.
-    image: ghcr.io/chimpanze/noda:${NODA_VERSION:-0.0.4}
+    image: ghcr.io/chimpanze/noda:${NODA_VERSION:-0.0.5}
     restart: unless-stopped
     ports:
       - "127.0.0.1:3000:3000"
@@ -39,7 +39,7 @@ services:
     command: ["start", "--config", "/app/config", "--server"]
 
   migrate:
-    image: ghcr.io/chimpanze/noda:${NODA_VERSION:-0.0.4}
+    image: ghcr.io/chimpanze/noda:${NODA_VERSION:-0.0.5}
     depends_on:
       postgres:
         condition: service_healthy

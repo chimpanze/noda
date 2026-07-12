@@ -7,43 +7,30 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    # Native runner per arch: the old aarch64 cross-compile installed
+    # libvips-dev:arm64 from ports.ubuntu.com, which regularly skews against
+    # the amd64 archive's point releases and breaks apt resolution (bit the
+    # v0.0.5 release). ubuntu-24.04-arm builds arm64 natively — no foreign
+    # architecture, no cross toolchain, no PKG_CONFIG_PATH override.
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
     strategy:
       matrix:
         include:
           - goarch: amd64
-            cc: gcc
+            runner: ubuntu-latest
           - goarch: arm64
-            cc: aarch64-linux-gnu-gcc
+            runner: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Install libvips and cross-compile tools
+      - name: Install libvips
         run: |
-          if [ "${{ matrix.goarch }}" = "arm64" ]; then
-            sudo dpkg --add-architecture arm64
-            # Restrict existing sources to amd64 only (security.ubuntu.com has no arm64)
-            for f in /etc/apt/sources.list.d/*.sources; do
-              [ -f "$f" ] && sudo sed -i '/^Architectures:/d; /^Types:/a Architectures: amd64' "$f"
-            done
-            # Add arm64 sources from ports.ubuntu.com (the only mirror serving arm64)
-            sudo tee /etc/apt/sources.list.d/arm64-ports.sources <<SOURCES
-          Types: deb
-          URIs: http://ports.ubuntu.com/ubuntu-ports
-          Suites: $(lsb_release -cs) $(lsb_release -cs)-updates $(lsb_release -cs)-security
-          Components: main restricted universe multiverse
-          Architectures: arm64
-          SOURCES
-            sudo apt-get update
-            sudo apt-get install -y libvips-dev:arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-          else
-            sudo apt-get update
-            sudo apt-get install -y libvips-dev
-          fi
+          sudo apt-get update
+          sudo apt-get install -y libvips-dev
 
       - uses: actions/setup-go@v6
         with:
@@ -64,13 +51,8 @@ jobs:
           CGO_ENABLED: "1"
           GOOS: linux
           GOARCH: ${{ matrix.goarch }}
-          CC: ${{ matrix.cc }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          PKG_CONFIG_PATH_OVERRIDE=""
-          if [ "${{ matrix.goarch }}" = "arm64" ]; then
-            export PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig
-          fi
           go build -tags embed_editor -ldflags "\
             -X main.Version=${VERSION} \
             -X main.Commit=$(git rev-parse --short HEAD) \
