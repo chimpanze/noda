@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"sync/atomic"
-	"time"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/connmgr"
@@ -119,24 +118,41 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 		JSONDecoder:  gojson.Unmarshal,
 	}
 
-	// Read server settings from root config
-	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-		if p, ok := serverCfg["port"].(float64); ok {
-			s.port = int(p)
+	// Read server settings from root config. Values may be numeric strings
+	// after $env() resolution; invalid values fail startup loudly.
+	if p, ok, err := config.ServerInt(rc.Root, "port"); err != nil {
+		return nil, err
+	} else if ok {
+		s.port = p
+	}
+	if d, ok, err := config.ServerDuration(rc.Root, "read_timeout"); err != nil {
+		return nil, err
+	} else if ok {
+		fiberCfg.ReadTimeout = d
+	}
+	if d, ok, err := config.ServerDuration(rc.Root, "write_timeout"); err != nil {
+		return nil, err
+	} else if ok {
+		fiberCfg.WriteTimeout = d
+	}
+	if v, ok, err := config.ServerInt(rc.Root, "body_limit"); err != nil {
+		return nil, err
+	} else if ok {
+		fiberCfg.BodyLimit = v
+	}
+	tp, err := config.ServerTrustProxy(rc.Root)
+	if err != nil {
+		return nil, err
+	}
+	if tp != nil {
+		fiberCfg.TrustProxy = true
+		fiberCfg.TrustProxyConfig = fiber.TrustProxyConfig{
+			Proxies:   tp.Proxies,
+			Loopback:  tp.Loopback,
+			LinkLocal: tp.LinkLocal,
+			Private:   tp.Private,
 		}
-		if v, ok := serverCfg["read_timeout"].(string); ok {
-			if d, err := time.ParseDuration(v); err == nil {
-				fiberCfg.ReadTimeout = d
-			}
-		}
-		if v, ok := serverCfg["write_timeout"].(string); ok {
-			if d, err := time.ParseDuration(v); err == nil {
-				fiberCfg.WriteTimeout = d
-			}
-		}
-		if v, ok := serverCfg["body_limit"].(float64); ok {
-			fiberCfg.BodyLimit = int(v)
-		}
+		fiberCfg.ProxyHeader = tp.Header
 	}
 
 	s.app = fiber.New(fiberCfg)
