@@ -353,6 +353,10 @@ func (m *Module) SendCommand(data any) {
 			return
 		}
 		// Queue as a query-like request to serialize with ticks (with timeout)
+		// The false branch is unreachable under the current lock regime
+		// (Stop's stopping store is under m.mu, held here since the fast-path
+		// check above) — belt-and-suspenders so the invariant survives a
+		// future locking change.
 		if !m.tryAddOutstanding() {
 			m.Logger.Warn("dropping command on stopped module", "module", m.Name)
 			return

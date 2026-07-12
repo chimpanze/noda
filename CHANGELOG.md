@@ -30,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - invalid `server.*` scalar values (bad numbers, malformed durations, invalid trust_proxy entries) now fail config validation/startup instead of silently falling back to defaults
 - `lk.token` now errors on invalid `canPublishSources` (unknown names, non-string entries, non-array values) instead of silently minting a token with wrong publish permissions (#309)
 - the wasm module's outstandingCalls invariant is now structural (`tryAddOutstanding`), not comment-enforced (#295)
-- wasm: a guest shutdown export calling trigger_workflow now gets a "module stopping" error instead of silently spawning an untracked workflow run (#295)
+- wasm: a guest shutdown export calling trigger_workflow now gets a "module stopping" error instead of silently spawning a doomed workflow run against an already-cancelled context (#295)
 - config validation now rejects route triggers whose `files` entries lack a matching `trigger.input` key — configs that previously booted with silently-broken uploads fail `noda validate` (#302)
 - `lk.participantUpdate` with empty `permissions: {}` no longer performs a GetParticipant + Permission full-replace round-trip (#292)
 - Wasm runtime hardening (tranche A) — **BREAKING (guest ABI):** host calls now return a `{ok,data,error}` envelope decoded by the PDK into `HostError`; rebuild guest modules against the updated PDK. Guest execution is now interruptible; default 16 MiB memory cap.
