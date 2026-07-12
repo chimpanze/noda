@@ -371,7 +371,7 @@ a `ws.send` node binds the slot to the endpoint name `"board"`:
 }
 ```
 
-**How `channel` relates to `channels.pattern`.** When a client connects, the endpoint's `channels.pattern` is resolved against that connection's context (e.g. `board.{{ request.params.room_id }}` → `board.42`) and the client is subscribed to the resulting channel. The `channel` value on `ws.send` selects which subscribers receive the message: a message is delivered to every connection whose subscribed channel matches. Exact strings match one channel (`board.42`); a `*` segment is a wildcard (`board.*` reaches every room, `*` reaches all). So `ws.send`'s `channel` must line up with the channels produced by the endpoint's `pattern` for clients to receive it.
+**How `channel` relates to `channels.pattern`.** When a client connects, the endpoint's `channels.pattern` is resolved against that connection's context (e.g. `board.{{ request.params.room_id }}` → `board.42`) and the client is subscribed to the resulting channel. The `channel` value on `ws.send` selects which subscribers receive the message: it must be a literal channel name (e.g. `board.42`) — wildcard patterns (e.g. `board.*` or `*`) are rejected with a validation error. So `ws.send`'s `channel` must exactly match one of the channels produced by the endpoint's `pattern` for clients to receive it.
 
 `noda_validate_config` cross-checks the `connections` slot: a `ws.send`/`sse.send` binding that names an endpoint no `connections/*.json` defines is reported as an error. See [`noda://docs/realtime`](realtime.md) for the full subscription and lifecycle model.
 

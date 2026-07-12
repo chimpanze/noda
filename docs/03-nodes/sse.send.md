@@ -6,7 +6,7 @@ Sends a Server-Sent Event to a channel.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `channel` | string (expr) | yes | Channel name (supports wildcards) |
+| `channel` | string (expr) | yes | Channel name (literal only — wildcard patterns are rejected) |
 | `data` | any (expr) | yes | Event data |
 | `event` | string (expr) | no | Event type name |
 | `id` | string (expr) | no | Event ID |

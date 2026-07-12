@@ -172,6 +172,11 @@ func TestErrors(t *testing.T) {
 			"timeout after 5s: db query",
 		},
 		{
+			"TimeoutError zero duration",
+			&api.TimeoutError{Operation: "x"},
+			"timeout: x",
+		},
+		{
 			"NotFoundError",
 			&api.NotFoundError{Resource: "user", ID: "123"},
 			"user not found: 123",
