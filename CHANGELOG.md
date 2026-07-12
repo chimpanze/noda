@@ -23,9 +23,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CHANGELOG.md
 - `server.trust_proxy` — trusted-proxy support so `c.IP()` (rate limiting, session IPs) sees the real client behind a reverse proxy (#300)
 - numeric `server.*` settings (`port`, `body_limit`, `expression_memory_budget`) accept `{{ $env('NAME') }}` strings (#301)
+- config validation rejects route triggers whose `files` entries have no matching `trigger.input` key — the silent-upload-failure class behind #302
 
 ### Changed
 - invalid `server.*` scalar values (bad numbers, malformed durations, invalid trust_proxy entries) now fail config validation/startup instead of silently falling back to defaults
+- `lk.participantUpdate` with empty `permissions: {}` no longer performs a GetParticipant + Permission full-replace round-trip (#292)
 - Wasm runtime hardening (tranche A) — **BREAKING (guest ABI):** host calls now return a `{ok,data,error}` envelope decoded by the PDK into `HostError`; rebuild guest modules against the updated PDK. Guest execution is now interruptible; default 16 MiB memory cap.
 - Route-group middleware now resolves **deterministically**: overlapping group prefixes (e.g. `/api` and `/api/admin`) **merge** their middleware (outermost-first, deduped) instead of one winning at random, and prefix matching is path-segment aware (`/api` no longer matches `/api-docs`). **Upgrade note:** a config that nested groups with a cross-group ordering conflict (e.g. a parent group placing `casbin.enforce` before a child group's `auth.jwt`) previously booted non-deterministically but now fails fast at route registration with a clear ordering error — reorder the affected groups to fix.
 - Dockerfile: non-root user, HEALTHCHECK directive, embedded editor build, version metadata via ldflags
@@ -34,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Worker reaper polls at `retry.min_idle / 2` (30s floor) instead of a fixed 30s, and fetches delivery counts for each reclaimed page in one `XPENDING` call instead of one per failed message — fewer idle Redis scans, same redelivery semantics
 
 ### Fixed
+- `examples/saas-backend` upload-attachment route never delivered the multipart file (missing `"file"` input mapping) (#302)
+- `lk.token` `canPublishSources` values are now case-insensitive; unknown values (including `UNKNOWN`) error instead of silently minting a token that cannot publish (#309)
 - Worker process no longer crashes when a message handler panics inside the timeout middleware's goroutine; the panic is recovered and surfaced as an error
 - Worker consumers survive a panic in pre-handler setup (deserialization, input mapping, middleware construction) instead of permanently losing a consumer goroutine
 - Wasm gateway reconnect no longer resurrects a torn-down outbound WebSocket when a close races with an in-flight reconnect; also fixed a data race between the heartbeat loop and reconnect's reassignment of the connection stop channel
