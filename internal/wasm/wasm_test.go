@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -962,7 +963,13 @@ type mockSentSSE struct {
 	id      string
 }
 
+// Send mirrors the connmgr.Manager wildcard-send chokepoint (#279): the real
+// EndpointService this mock stands in for is a pure passthrough to Manager,
+// which rejects any channel containing "*" before delivery.
 func (c *mockConnectionService) Send(_ context.Context, channel string, data any) error {
+	if strings.Contains(channel, "*") {
+		return fmt.Errorf("channel must be a literal name, not a pattern")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sent = append(c.sent, mockSentMsg{channel: channel, data: data})
@@ -970,6 +977,9 @@ func (c *mockConnectionService) Send(_ context.Context, channel string, data any
 }
 
 func (c *mockConnectionService) SendSSE(_ context.Context, channel, event string, data any, id string) error {
+	if strings.Contains(channel, "*") {
+		return fmt.Errorf("channel must be a literal name, not a pattern")
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.sentSSE = append(c.sentSSE, mockSentSSE{channel: channel, event: event, data: data, id: id})

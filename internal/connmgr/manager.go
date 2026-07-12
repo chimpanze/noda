@@ -142,9 +142,13 @@ func (m *Manager) ChannelCount(channel string) int {
 	return len(m.channels[channel])
 }
 
-// Send delivers data to all connections matching the channel pattern.
-// Supports wildcards: "user.*" matches "user.123", "*" matches all.
+// Send delivers data to all connections on the given literal channel.
+// Wildcard patterns are rejected: callers must send to a specific channel.
 func (m *Manager) Send(_ context.Context, channel string, data any) error {
+	if strings.Contains(channel, "*") {
+		return fmt.Errorf("channel must be a literal name, not a pattern")
+	}
+
 	payload, err := marshalData(data)
 	if err != nil {
 		return err
@@ -164,8 +168,13 @@ func (m *Manager) Send(_ context.Context, channel string, data any) error {
 	return nil
 }
 
-// SendSSE delivers an SSE event to all connections matching the channel pattern.
+// SendSSE delivers an SSE event to all connections on the given literal channel.
+// Wildcard patterns are rejected: callers must send to a specific channel.
 func (m *Manager) SendSSE(_ context.Context, channel string, event string, data any, id string) error {
+	if strings.Contains(channel, "*") {
+		return fmt.Errorf("channel must be a literal name, not a pattern")
+	}
+
 	dataStr, err := marshalDataString(data)
 	if err != nil {
 		return err
