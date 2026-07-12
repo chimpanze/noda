@@ -42,7 +42,11 @@ func applyGrants(grants map[string]any, vg *auth.VideoGrant) error {
 	if v, ok := grants["recorder"].(bool); ok {
 		vg.Recorder = v
 	}
-	if v, ok := grants["canPublishSources"].([]any); ok {
+	if raw, ok := grants["canPublishSources"]; ok {
+		v, ok := raw.([]any)
+		if !ok {
+			return fmt.Errorf("canPublishSources: expected array of strings, got %T", raw)
+		}
 		sources := make([]lkproto.TrackSource, 0, len(v))
 		for i, src := range v {
 			s, ok := src.(string)

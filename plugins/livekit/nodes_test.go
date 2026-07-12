@@ -273,6 +273,25 @@ func TestTokenNode_InvalidTTL(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid ttl")
 }
 
+func TestTokenNode_InvalidGrantsError(t *testing.T) {
+	svc := testService()
+	exec := &tokenExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"identity": "user1",
+			"room":     "room1",
+			"grants": map[string]any{
+				"canPublishSources": []any{"bogus"},
+			},
+		},
+		testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "lk.token:")
+	assert.Contains(t, err.Error(), "canPublishSources[0]")
+}
+
 // --- Room Create tests ---
 
 func TestRoomCreateNode_Success(t *testing.T) {
@@ -558,6 +577,69 @@ func TestParticipantUpdateNode_PermissionsNilCurrentUsesZeroBase(t *testing.T) {
 	require.NotNil(t, sentReq.Permission)
 	assert.True(t, sentReq.Permission.CanSubscribe)
 	assert.False(t, sentReq.Permission.CanPublish)
+}
+
+func TestParticipantUpdateNode_PermissionOverlayTargetsCorrectField(t *testing.T) {
+	// Guards against a wrong-field copy/paste inside a permissionSetters
+	// closure: for each of the five permission keys, setting only that key
+	// to true must flip only the corresponding field on the sent Permission,
+	// leaving the other four false.
+	keys := []string{"canPublish", "canSubscribe", "canPublishData", "hidden", "recorder"}
+
+	for _, key := range keys {
+		t.Run(key, func(t *testing.T) {
+			svc := testService()
+			var sentReq *lkproto.UpdateParticipantRequest
+			svc.Room = &mockRoomClient{
+				getParticipantFn: func(_ context.Context, req *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error) {
+					return &lkproto.ParticipantInfo{
+						Sid:      "PA_1",
+						Identity: req.Identity,
+						Permission: &lkproto.ParticipantPermission{
+							CanPublish:     false,
+							CanSubscribe:   false,
+							CanPublishData: false,
+							Hidden:         false,
+							Recorder:       false,
+						},
+					}, nil
+				},
+				updateParticipantFn: func(_ context.Context, req *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error) {
+					sentReq = req
+					return &lkproto.ParticipantInfo{Sid: "PA_1", Identity: req.Identity}, nil
+				},
+			}
+			exec := &participantUpdateExecutor{}
+			nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+			output, _, err := exec.Execute(context.Background(), nCtx,
+				map[string]any{
+					"room":        "r",
+					"identity":    "u",
+					"permissions": map[string]any{key: true},
+				},
+				testServices(svc))
+			require.NoError(t, err)
+			assert.Equal(t, "success", output)
+			require.NotNil(t, sentReq)
+			require.NotNil(t, sentReq.Permission)
+
+			got := map[string]bool{
+				"canPublish":     sentReq.Permission.CanPublish,
+				"canSubscribe":   sentReq.Permission.CanSubscribe,
+				"canPublishData": sentReq.Permission.CanPublishData,
+				"hidden":         sentReq.Permission.Hidden,
+				"recorder":       sentReq.Permission.Recorder, //nolint:staticcheck // asserting the field this test targets
+			}
+			for k, v := range got {
+				if k == key {
+					assert.True(t, v, "expected %s to be true", k)
+				} else {
+					assert.False(t, v, "expected %s to remain false", k)
+				}
+			}
+		})
+	}
 }
 
 func TestParticipantUpdateNode_UnknownPermissionKeyErrors(t *testing.T) {

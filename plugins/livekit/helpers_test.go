@@ -102,11 +102,16 @@ func TestApplyGrants_WrongTypes(t *testing.T) {
 		"roomJoin":          "not a bool",
 		"canPublishSources": "not an array",
 	}
-	require.NoError(t, applyGrants(grants, vg))
+	err := applyGrants(grants, vg)
+	// canPublishSources unset means UNRESTRICTED publishing, so a present but
+	// non-array value (e.g. a config typo) must be a hard error, not silently
+	// ignored.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "canPublishSources: expected array of strings, got string")
 
-	// roomJoin should not be set since type doesn't match
+	// roomJoin should not be set since type doesn't match (non-bool fields
+	// are still silently skipped; only canPublishSources needs strictness)
 	assert.False(t, vg.RoomJoin)
-	// canPublishSources should not be set since type doesn't match (not a []any)
 	assert.Empty(t, vg.GetCanPublishSources())
 }
 
