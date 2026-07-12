@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/metrics"
 	"github.com/chimpanze/noda/internal/trace"
@@ -415,12 +416,8 @@ func (s *Server) buildRouteHandler(routeID, workflowID string, triggerConfig map
 		responseTimeout := defaultResponseTimeout
 		if routeTimeout > 0 {
 			responseTimeout = routeTimeout
-		} else if serverCfg, ok := s.config.Root["server"].(map[string]any); ok {
-			if v, ok := serverCfg["response_timeout"].(string); ok {
-				if d, err := time.ParseDuration(v); err == nil {
-					responseTimeout = d
-				}
-			}
+		} else if d, ok, err := config.ServerDuration(s.config.Root, "response_timeout"); err == nil && ok {
+			responseTimeout = d
 		}
 
 		return s.awaitWorkflowResponse(c, responseCh, workflowDone, responseTimeout, routeID, traceID, respValidator)

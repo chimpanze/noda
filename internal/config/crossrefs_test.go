@@ -335,3 +335,40 @@ func TestValidateCrossRefs_ConnectionEndpointDuration(t *testing.T) {
 	}
 	assert.True(t, found, "expected invalid duration error for ping_interval")
 }
+
+func TestCrossrefs_ServerScalarValidation(t *testing.T) {
+	cases := []struct {
+		name    string
+		server  map[string]any
+		wantErr string // substring of the reported message; "" = no error expected
+	}{
+		{"env-resolved numeric string ok", map[string]any{"body_limit": "1073741824"}, ""},
+		{"garbage body_limit", map[string]any{"body_limit": "10GB"}, "body_limit"},
+		{"port out of range", map[string]any{"port": "70000"}, "out of range"},
+		{"negative body_limit string", map[string]any{"body_limit": "-1"}, "out of range"},
+		{"bad shutdown_deadline", map[string]any{"shutdown_deadline": "soon"}, "invalid duration"},
+		{"bad health_timeout", map[string]any{"health_timeout": "later"}, "invalid duration"},
+		{"trust_proxy trusts nothing", map[string]any{"trust_proxy": map[string]any{"enabled": true}}, "trusts nothing"},
+		{"trust_proxy bad cidr", map[string]any{"trust_proxy": map[string]any{"enabled": true, "proxies": []any{"nope"}}}, "invalid IP"},
+		{"trust_proxy valid", map[string]any{"trust_proxy": map[string]any{"enabled": true, "private": true}}, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rc := &RawConfig{Root: map[string]any{"server": tc.server}}
+			errs := ValidateCrossRefs(rc)
+			var hit bool
+			for _, e := range errs {
+				if tc.wantErr != "" && strings.Contains(e.Message, tc.wantErr) {
+					hit = true
+				}
+			}
+			if tc.wantErr == "" {
+				for _, e := range errs {
+					assert.NotContains(t, e.JSONPath, "/server/", "unexpected server error: %s", e.Message)
+				}
+			} else {
+				assert.True(t, hit, "expected error containing %q, got %v", tc.wantErr, errs)
+			}
+		})
+	}
+}

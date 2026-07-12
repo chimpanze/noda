@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/config"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -12,12 +13,8 @@ const defaultHealthTimeout = 5 * time.Second
 
 // healthTimeout returns the configured health check timeout or the default.
 func (s *Server) healthTimeout() time.Duration {
-	if serverCfg, ok := s.config.Root["server"].(map[string]any); ok {
-		if v, ok := serverCfg["health_timeout"].(string); ok {
-			if d, err := time.ParseDuration(v); err == nil {
-				return d
-			}
-		}
+	if d, ok, err := config.ServerDuration(s.config.Root, "health_timeout"); err == nil && ok {
+		return d
 	}
 	return defaultHealthTimeout
 }

@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"math"
 	"strings"
 	"time"
 )
@@ -217,19 +218,50 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 		}
 	}
 
-	// Validate duration fields in server config
+	// Validate server scalar settings. These may be strings after $env()
+	// resolution, so the schema admits both forms and the semantic check
+	// happens here.
 	if rc.Root != nil {
-		if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-			for _, field := range []string{"read_timeout", "write_timeout", "response_timeout"} {
-				if v, ok := serverCfg[field].(string); ok {
-					if _, err := time.ParseDuration(v); err != nil {
-						errs = append(errs, ValidationError{
-							FilePath: "noda.json",
-							JSONPath: fmt.Sprintf("/server/%s", field),
-							Message:  fmt.Sprintf("invalid duration %q: %v", v, err),
-						})
-					}
+		if _, ok := rc.Root["server"].(map[string]any); ok {
+			for _, field := range []string{"read_timeout", "write_timeout", "response_timeout", "shutdown_deadline", "health_timeout"} {
+				if _, _, err := ServerDuration(rc.Root, field); err != nil {
+					errs = append(errs, ValidationError{
+						FilePath: "noda.json",
+						JSONPath: "/server/" + field,
+						Message:  err.Error(),
+					})
 				}
+			}
+			for _, f := range []struct {
+				key      string
+				min, max int
+			}{
+				{"port", 1, 65535},
+				{"body_limit", 0, math.MaxInt},
+				{"expression_memory_budget", 0, math.MaxInt},
+			} {
+				v, ok, err := ServerInt(rc.Root, f.key)
+				switch {
+				case err != nil:
+					errs = append(errs, ValidationError{
+						FilePath: "noda.json",
+						JSONPath: "/server/" + f.key,
+						Message:  err.Error(),
+					})
+				case ok && (v < f.min || v > f.max):
+					errs = append(errs, ValidationError{
+						FilePath: "noda.json",
+						JSONPath: "/server/" + f.key,
+						Message:  fmt.Sprintf("value %d out of range [%d, %d]", v, f.min, f.max),
+					})
+				}
+			}
+			if _, err := ServerTrustProxy(rc.Root); err != nil {
+				errs = append(errs, ValidationError{
+					FilePath: "noda.json",
+					JSONPath: "/server/trust_proxy",
+					Message:  err.Error(),
+				})
 			}
 		}
 	}

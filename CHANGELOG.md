@@ -21,8 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health check timeout (default 5s) to prevent hung service checks
 - `gosec` security linter with tuned exclusion rules
 - CHANGELOG.md
+- `server.trust_proxy` — trusted-proxy support so `c.IP()` (rate limiting, session IPs) sees the real client behind a reverse proxy (#300)
+- numeric `server.*` settings (`port`, `body_limit`, `expression_memory_budget`) accept `{{ $env('NAME') }}` strings (#301)
 
 ### Changed
+- invalid `server.*` scalar values (bad numbers, malformed durations, invalid trust_proxy entries) now fail config validation/startup instead of silently falling back to defaults
 - Wasm runtime hardening (tranche A) — **BREAKING (guest ABI):** host calls now return a `{ok,data,error}` envelope decoded by the PDK into `HostError`; rebuild guest modules against the updated PDK. Guest execution is now interruptible; default 16 MiB memory cap.
 - Route-group middleware now resolves **deterministically**: overlapping group prefixes (e.g. `/api` and `/api/admin`) **merge** their middleware (outermost-first, deduped) instead of one winning at random, and prefix matching is path-segment aware (`/api` no longer matches `/api-docs`). **Upgrade note:** a config that nested groups with a cross-group ordering conflict (e.g. a parent group placing `casbin.enforce` before a child group's `auth.jwt`) previously booted non-deterministically but now fails fast at route registration with a clear ordering error — reorder the affected groups to fix.
 - Dockerfile: non-root user, HEALTHCHECK directive, embedded editor build, version metadata via ldflags

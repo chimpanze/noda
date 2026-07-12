@@ -2,7 +2,6 @@ package registry
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,26 +9,6 @@ import (
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/expr"
 )
-
-// toUint converts a JSON number value to uint. Handles float64 (default JSON
-// unmarshalling), json.Number, and int.
-func toUint(v any) (uint, bool) {
-	switch n := v.(type) {
-	case float64:
-		if n >= 0 {
-			return uint(n), true
-		}
-	case json.Number:
-		if i, err := n.Int64(); err == nil && i >= 0 {
-			return uint(i), true
-		}
-	case int:
-		if n >= 0 {
-			return uint(n), true
-		}
-	}
-	return 0, false
-}
 
 // BootstrapResult holds all registries after startup initialization.
 type BootstrapResult struct {
@@ -91,12 +70,12 @@ func Bootstrap(ctx context.Context, rc *config.ResolvedConfig, plugins *PluginRe
 
 	// 4. Create shared expression compiler
 	var compilerOpts []expr.CompilerOption
+	if v, ok, err := config.ServerInt(rc.Root, "expression_memory_budget"); err != nil {
+		allErrors = append(allErrors, err)
+	} else if ok && v >= 0 {
+		compilerOpts = append(compilerOpts, expr.WithMemoryBudget(uint(v)))
+	}
 	if serverCfg, ok := rc.Root["server"].(map[string]any); ok {
-		if budget, ok := serverCfg["expression_memory_budget"]; ok {
-			if n, ok := toUint(budget); ok {
-				compilerOpts = append(compilerOpts, expr.WithMemoryBudget(n))
-			}
-		}
 		if strict, ok := serverCfg["expression_strict_mode"].(bool); ok {
 			compilerOpts = append(compilerOpts, expr.WithStrictMode(strict))
 		}

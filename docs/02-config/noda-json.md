@@ -17,12 +17,14 @@ The root config file. All fields are optional except where noted.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `port` | integer | `3000` | HTTP listen port |
+| `port` | integer or string | `3000` | HTTP listen port. May be an integer or a string containing `{{ $env('NAME') }}` to read from an environment variable. |
 | `read_timeout` | string | `"30s"` | Read timeout (duration) |
 | `write_timeout` | string | `"30s"` | Write timeout (duration) |
-| `body_limit` | integer | `5242880` | Max request body size in bytes (5 MB) |
-| `expression_memory_budget` | integer | `1000000` | Memory budget for expression evaluation (in allocation units). Limits array, map, and range allocations. Expressions exceeding this budget return an error. `0` uses the default |
+| `body_limit` | integer or string | `5242880` | Max request body size in bytes (5 MB). May be an integer or a string containing `{{ $env('NAME') }}` to read from an environment variable. |
+| `expression_memory_budget` | integer or string | `1000000` | Memory budget for expression evaluation (in allocation units). Limits array, map, and range allocations. Expressions exceeding this budget return an error. `0` uses the default. May be an integer or a string containing `{{ $env('NAME') }}` to read from an environment variable. |
 | `expression_strict_mode` | boolean | `false` | When `true`, undefined variables in expressions produce compile errors instead of silently returning nil. Catches typos like `{{ auth.is_admim }}` at load time |
+| `health_timeout` | string | `"5s"` | Timeout for health check calls to services (duration). Prevents hung service checks from blocking the health endpoint. |
+| `trust_proxy` | object | disabled | Trusted proxy configuration (see subsection below). Off by default. |
 
 ```json
 {
@@ -35,6 +37,49 @@ The root config file. All fields are optional except where noted.
   }
 }
 ```
+
+### Trusted proxies (`server.trust_proxy`)
+
+When noda runs behind a reverse proxy (Caddy, nginx, a cloud load balancer),
+the client IP seen by rate limiting and session tracking is the proxy's IP
+unless you tell noda which peers to trust:
+
+```json
+{
+  "server": {
+    "trust_proxy": {
+      "enabled": true,
+      "proxies": ["10.0.0.0/8"],
+      "private": true,
+      "header": "X-Forwarded-For"
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Master switch. Off = header never trusted. |
+| `proxies` | string[] | `[]` | Trusted proxy IPs or CIDR ranges. |
+| `loopback` | boolean | `false` | Trust all loopback addresses (127.0.0.0/8, ::1). |
+| `link_local` | boolean | `false` | Trust link-local ranges (169.254.0.0/16, fe80::/10). |
+| `private` | boolean | `false` | Trust private ranges (10/8, 172.16/12, 192.168/16, fc00::/7) — handy for Docker networks where the proxy IP is dynamic. |
+| `header` | string | `"X-Forwarded-For"` | Header the proxy writes the client IP to. |
+
+Only requests arriving **from** a trusted address have the header honored;
+direct clients spoofing `X-Forwarded-For` keep their socket IP. Fiber takes
+the **first** (leftmost) valid value of the header, so the reverse proxy must
+overwrite or strip the client-supplied header rather than append to it —
+Caddy does this by default; nginx's common `$proxy_add_x_forwarded_for` idiom
+appends, letting spoofed values through in first position (use
+`$remote_addr` there instead). Enabling `trust_proxy` without any trusted set
+(no `proxies`, no class flag) is a config error. Only enable this when every
+hop that can reach noda's port is your own proxy.
+
+> **Memory note:** the server buffers each request body in memory up to
+> `body_limit` *before* auth runs, so a large limit is an unauthenticated
+> memory-pressure vector. Keep the edge proxy's own body limit at or below
+> noda's, and don't raise `body_limit` beyond what uploads actually need.
 
 **Prometheus metrics** are served on the same port at `/metrics` when enabled via `observability.metrics.enabled`. See [Observability](../04-guides/observability.md) for the metric list and scrape config.
 
