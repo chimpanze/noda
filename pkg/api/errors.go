@@ -37,6 +37,9 @@ type TimeoutError struct {
 }
 
 func (e *TimeoutError) Error() string {
+	if e.Duration <= 0 {
+		return fmt.Sprintf("timeout: %s", e.Operation)
+	}
 	return fmt.Sprintf("timeout after %s: %s", e.Duration, e.Operation)
 }
 

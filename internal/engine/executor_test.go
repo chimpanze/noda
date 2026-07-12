@@ -518,6 +518,60 @@ func TestExecuteGraph_Timeout_ReturnsTimeoutError(t *testing.T) {
 	require.False(t, ran, "downstream node must not be reported as run after timeout")
 }
 
+// #272: a non-deadline cancellation must surface as the wrapped "aborted"
+// error, not a TimeoutError and not success.
+func TestExecuteGraph_ParentCancel_ReturnsAbortedError(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"slow": &ctxIgnoringExecutor{delay: 150 * time.Millisecond},
+		"next": &mockPassExecutor{},
+	})
+	wf := WorkflowConfig{
+		ID:    "cancel",
+		Nodes: map[string]NodeConfig{"slow": {Type: "test.slow"}, "next": {Type: "test.next"}},
+		Edges: []EdgeConfig{{From: "slow", To: "next"}},
+	}
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+	execCtx := NewExecutionContext(WithWorkflowID("cancel"))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+	gerr := ExecuteGraph(ctx, graph, execCtx, svcReg, nodeReg)
+
+	require.Error(t, gerr)
+	var toErr *api.TimeoutError
+	require.False(t, errors.As(gerr, &toErr), "plain cancel must not map to TimeoutError")
+	assert.Contains(t, gerr.Error(), "aborted")
+	assert.ErrorIs(t, gerr, context.Canceled)
+}
+
+// #273: a parent deadline propagating into a graph with no own timeout must
+// report the budget the child actually had, not "after 0s".
+func TestExecuteGraph_InheritedDeadline_ReportsBudget(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"slow": &ctxIgnoringExecutor{delay: 300 * time.Millisecond},
+		"next": &mockPassExecutor{},
+	})
+	wf := WorkflowConfig{
+		ID:    "inherit",
+		Nodes: map[string]NodeConfig{"slow": {Type: "test.slow"}, "next": {Type: "test.next"}},
+		Edges: []EdgeConfig{{From: "slow", To: "next"}},
+	}
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+	execCtx := NewExecutionContext(WithWorkflowID("inherit"))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+	gerr := ExecuteGraph(ctx, graph, execCtx, svcReg, nodeReg)
+
+	var toErr *api.TimeoutError
+	require.ErrorAs(t, gerr, &toErr)
+	assert.Greater(t, toErr.Duration, time.Duration(0), "must carry the inherited budget")
+	assert.LessOrEqual(t, toErr.Duration, 150*time.Millisecond, "budget ≈ the parent's 100ms deadline")
+	assert.NotContains(t, gerr.Error(), "after 0s")
+}
+
 // condExecutor emits a chosen output so one downstream leg is never reached.
 type condExecutor struct{ out string }
 
