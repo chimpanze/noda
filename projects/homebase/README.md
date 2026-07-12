@@ -12,7 +12,7 @@ Spec: `docs/superpowers/specs/2026-07-07-homebase-foundation-design.md`
 ```bash
 cp .env.example .env       # set SETUP_TOKEN, PUBLIC_BASE_URL (and DOMAIN for the edge)
 docker compose up -d                    # pulls ghcr.io/chimpanze/noda; api on :3000 (migrations run automatically)
-docker compose --profile edge up -d     # additionally: Caddy with TLS on :443
+docker compose -f docker-compose.yml -f docker-compose.edge.yml up -d   # additionally: Caddy with TLS on :443 (requires DOMAIN)
 ```
 
 One-time bootstrap (creates the only account):
@@ -24,7 +24,7 @@ curl -X POST "$PUBLIC_BASE_URL/setup" -H 'Content-Type: application/json' \
 
 ## Deployment notes
 
-- The API container binds to `127.0.0.1:3000` on the host — external traffic must come through the Caddy edge profile (TLS) or an SSH tunnel.
+- The API container binds to `127.0.0.1:3000` on the host — external traffic must come through the Caddy edge override (TLS) or an SSH tunnel.
 - With `NODA_ENV=production` set (see `.env.example`), the `noda.production.json` overlay enables `server.trust_proxy` so per-IP rate limiting and the session device-IP list see real client IPs behind Caddy. Requires a noda image newer than 0.0.4 — bump `NODA_VERSION` when the next release is published.
 - `e2e/run.sh` runs in its own isolated compose project (`homebase-e2e`) and tears down only that project's volumes — it cannot touch a production stack running from this directory under the default project name. Still, prefer not to run it on a production host.
 
