@@ -2131,6 +2131,25 @@ func TestModule_Query_ContextCancelled(t *testing.T) {
 	require.Error(t, err)
 }
 
+// #293: a Query racing or arriving after Stop must fail fast with a
+// stopping error, not burn its full timeout against a drained queryCh.
+func TestModule_Query_FailsFastAfterStop(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
+	require.NoError(t, err)
+	require.NoError(t, m.Initialize(context.Background()))
+	m.Start()
+	require.NoError(t, m.Stop(context.Background()))
+
+	start := time.Now()
+	_, err = m.Query(context.Background(), map[string]any{"probe": true}, 30*time.Second)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "stopping")
+	assert.Less(t, time.Since(start), time.Second, "must fail fast, not burn the 30s timeout")
+}
+
 // --- Gateway: Send to nonexistent connection ---
 
 func TestGateway_Send_NotFound(t *testing.T) {
@@ -3251,6 +3270,10 @@ func TestModule_Tick_HangingTickKilledByTimeout(t *testing.T) {
 	// and tick calls should have been attempted
 	calls := plugin.getCalls("tick")
 	assert.NotEmpty(t, calls, "tick should have been called at least once")
+
+	// #268: a tick killed by timeout/interrupt is fatal — the narrowed
+	// markFailed behavior must leave the module marked failed.
+	assert.True(t, m.failed.Load(), "hung-tick interrupt must mark the module failed")
 }
 
 func TestModule_Tick_DefaultTickTimeout(t *testing.T) {

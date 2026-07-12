@@ -266,6 +266,10 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 		return nil, fmt.Errorf("module %q has failed", m.Name)
 	}
 
+	if m.stopping.Load() {
+		return nil, fmt.Errorf("module %q stopping", m.Name)
+	}
+
 	data, err := m.Codec.Marshal(queryData)
 	if err != nil {
 		return nil, fmt.Errorf("marshal query: %w", err)
@@ -279,6 +283,8 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 
 	select {
 	case m.queryCh <- req:
+	case <-m.stopCh:
+		return nil, fmt.Errorf("module %q stopping", m.Name)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
@@ -298,6 +304,8 @@ func (m *Module) Query(ctx context.Context, queryData any, timeout time.Duration
 		return result, nil
 	case <-timer.C:
 		return nil, fmt.Errorf("query timeout after %s", timeout)
+	case <-m.stopCh:
+		return nil, fmt.Errorf("module %q stopping", m.Name)
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
