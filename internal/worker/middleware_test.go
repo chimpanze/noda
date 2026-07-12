@@ -49,8 +49,8 @@ func TestLogMiddleware_Error(t *testing.T) {
 	assert.Contains(t, err.Error(), "workflow failed")
 }
 
-func TestTimeoutMiddleware_Success(t *testing.T) {
-	mw := &TimeoutMiddleware{Timeout: 5 * time.Second}
+func TestPanicShieldMiddleware_Success(t *testing.T) {
+	mw := &PanicShieldMiddleware{}
 	assert.Equal(t, "worker.timeout", mw.Name())
 
 	handler := mw.Wrap(func(ctx context.Context) error {
@@ -61,8 +61,11 @@ func TestTimeoutMiddleware_Success(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestTimeoutMiddleware_Timeout(t *testing.T) {
-	mw := &TimeoutMiddleware{Timeout: 50 * time.Millisecond}
+// #285: the middleware no longer owns a timeout — processMessage's outer
+// context is the single deadline owner. The shield's select still honors
+// ctx.Done(), so a deadline set by the caller still surfaces as an error.
+func TestPanicShieldMiddleware_HonorsCallerDeadline(t *testing.T) {
+	mw := &PanicShieldMiddleware{}
 
 	handler := mw.Wrap(func(ctx context.Context) error {
 		select {
@@ -73,57 +76,32 @@ func TestTimeoutMiddleware_Timeout(t *testing.T) {
 		}
 	}, testMsgCtx())
 
-	err := handler(context.Background())
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	err := handler(ctx)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "timeout")
 }
 
-func TestTimeoutMiddleware_DefaultTimeout(t *testing.T) {
-	mw := &TimeoutMiddleware{} // 0 = 30s default
+func TestPanicShieldMiddleware_NoDeadlineRunsToCompletion(t *testing.T) {
+	mw := &PanicShieldMiddleware{}
 
+	called := false
 	handler := mw.Wrap(func(ctx context.Context) error {
-		deadline, ok := ctx.Deadline()
-		assert.True(t, ok)
-		assert.WithinDuration(t, time.Now().Add(30*time.Second), deadline, 2*time.Second)
+		called = true
 		return nil
 	}, testMsgCtx())
 
 	err := handler(context.Background())
 	assert.NoError(t, err)
+	assert.True(t, called)
 }
 
-// worker-sched-1: the middleware chain is built once and shared across all
-// workers, so m.Timeout is a single construction-time value. A per-message
-// Timeout on MessageContext must govern instead, so each worker's configured
-// timeout is honored rather than silently overridden by the shared default.
-func TestTimeoutMiddleware_UsesPerMessageTimeout(t *testing.T) {
-	m := &TimeoutMiddleware{Timeout: 20 * time.Millisecond} // shared/default (small)
-	msgCtx := &MessageContext{WorkerID: "w", Logger: slog.Default(), Timeout: 200 * time.Millisecond}
-	handler := m.Wrap(func(ctx context.Context) error {
-		select {
-		case <-time.After(80 * time.Millisecond): // > 20ms, < 200ms
-			return nil
-		case <-ctx.Done():
-			return ctx.Err()
-		}
-	}, msgCtx)
-	require.NoError(t, handler(context.Background()), "per-message timeout (200ms) must govern, not the 20ms default")
-}
-
-func TestTimeoutMiddleware_FallsBackWhenNoPerMessageTimeout(t *testing.T) {
-	m := &TimeoutMiddleware{Timeout: 20 * time.Millisecond}
-	msgCtx := &MessageContext{WorkerID: "w", Logger: slog.Default()} // Timeout == 0
-	handler := m.Wrap(func(ctx context.Context) error {
-		<-ctx.Done()
-		return ctx.Err()
-	}, msgCtx)
-	require.Error(t, handler(context.Background()), "with no per-message timeout, the 20ms default still applies")
-}
-
-// execution-1: a panic in the handler must be recovered inside the timeout
-// goroutine and surfaced as an error, not crash the worker process.
-func TestTimeoutMiddleware_RecoversPanicInChildGoroutine(t *testing.T) {
-	mw := &TimeoutMiddleware{Timeout: 5 * time.Second}
+// execution-1: a panic in the handler must be recovered inside the shield's
+// child goroutine and surfaced as an error, not crash the worker process.
+func TestPanicShieldMiddleware_RecoversPanicInChildGoroutine(t *testing.T) {
+	mw := &PanicShieldMiddleware{}
 
 	handler := mw.Wrap(func(ctx context.Context) error {
 		panic("boom")
@@ -160,7 +138,7 @@ func TestRecoverMiddleware_CatchesPanic(t *testing.T) {
 }
 
 func TestDefaultMiddleware(t *testing.T) {
-	mws := DefaultMiddleware(10 * time.Second)
+	mws := DefaultMiddleware()
 	require.Len(t, mws, 3)
 	assert.Equal(t, "worker.recover", mws[0].Name())
 	assert.Equal(t, "worker.log", mws[1].Name())
@@ -168,14 +146,14 @@ func TestDefaultMiddleware(t *testing.T) {
 }
 
 func TestResolveMiddleware(t *testing.T) {
-	mws := ResolveMiddleware([]string{"worker.log", "worker.recover"}, 5*time.Second)
+	mws := ResolveMiddleware([]string{"worker.log", "worker.recover"})
 	require.Len(t, mws, 2)
 	assert.Equal(t, "worker.log", mws[0].Name())
 	assert.Equal(t, "worker.recover", mws[1].Name())
 }
 
 func TestResolveMiddleware_UnknownIgnored(t *testing.T) {
-	mws := ResolveMiddleware([]string{"worker.unknown"}, 0)
+	mws := ResolveMiddleware([]string{"worker.unknown"})
 	assert.Empty(t, mws)
 }
 

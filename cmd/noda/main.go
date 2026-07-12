@@ -970,11 +970,15 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 // It uses the first worker config that specifies custom middleware; if none do,
 // it falls back to DefaultMiddleware. All workers share a single middleware chain —
 // per-worker middleware is not currently supported.
-func resolveWorkerMiddleware(configs []worker.WorkerConfig, timeout time.Duration) []worker.Middleware {
+//
+// There is no shared timeout parameter: each worker's per-message deadline is
+// owned by processMessage (w.Timeout / defaultMessageTimeout), not by the
+// middleware chain (#285).
+func resolveWorkerMiddleware(configs []worker.WorkerConfig) []worker.Middleware {
 	for _, wc := range configs {
 		if len(wc.Middleware) > 0 {
-			return worker.ResolveMiddleware(wc.Middleware, timeout)
+			return worker.ResolveMiddleware(wc.Middleware)
 		}
 	}
-	return worker.DefaultMiddleware(timeout)
+	return worker.DefaultMiddleware()
 }

@@ -523,8 +523,13 @@ func TestRunJob_SkipsOverlappingRun(t *testing.T) {
 	rt.running["s1"].Store(true)
 
 	before := len(rt.jobHistory())
-	rt.runJob(sc, time.Now()) // must skip immediately: no lock, no workflow, no history entry
-	require.Equal(t, before, len(rt.jobHistory()), "overlapping run must be skipped (no new history)")
+	rt.runJob(sc, time.Now()) // must skip immediately: no lock, no workflow, but records a skip (#284)
+	history := rt.jobHistory()
+	require.Len(t, history, before+1, "overlap skip must be recorded in history")
+	skip := history[len(history)-1]
+	assert.True(t, skip.Skipped)
+	assert.Equal(t, "overlap", skip.SkipReason)
+	assert.NotEmpty(t, skip.TraceID, "overlap skip should carry a trace ID like the lock skip does")
 	require.True(t, rt.running["s1"].Load(), "the guard owned by the in-progress run stays set")
 }
 
