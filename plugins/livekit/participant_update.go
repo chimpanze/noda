@@ -75,7 +75,9 @@ func (e *participantUpdateExecutor) Execute(ctx context.Context, nCtx api.Execut
 
 	if perms, err := plugin.ResolveOptionalMap(nCtx, config, "permissions"); err != nil {
 		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
-	} else if perms != nil {
+	} else if len(perms) > 0 {
+		// empty {} would otherwise cost a GetParticipant + full-replace
+		// Permission send of unchanged values
 		perm, err := mergedPermissions(ctx, svc, room, identity, perms)
 		if err != nil {
 			return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
@@ -91,6 +93,19 @@ func (e *participantUpdateExecutor) Execute(ctx context.Context, nCtx api.Execut
 	return api.OutputSuccess, participantToMap(p), nil
 }
 
+// permissionSetters is the single source of truth for the boolean permission
+// keys lk.participantUpdate accepts — validation and overlay both iterate it,
+// so a new key cannot be added to one and forgotten in the other.
+var permissionSetters = map[string]func(*lkproto.ParticipantPermission, bool){
+	"canPublish":     func(p *lkproto.ParticipantPermission, v bool) { p.CanPublish = v },
+	"canSubscribe":   func(p *lkproto.ParticipantPermission, v bool) { p.CanSubscribe = v },
+	"canPublishData": func(p *lkproto.ParticipantPermission, v bool) { p.CanPublishData = v },
+	"hidden":         func(p *lkproto.ParticipantPermission, v bool) { p.Hidden = v },
+	"recorder": func(p *lkproto.ParticipantPermission, v bool) {
+		p.Recorder = v //nolint:staticcheck // no replacement available in ParticipantPermission; ParticipantInfo.kind is not settable here
+	},
+}
+
 // mergedPermissions fetches the participant's current permission set and
 // overlays the boolean keys present in perms. LiveKit's
 // UpdateParticipantRequest.Permission is a full replace: sending only the
@@ -99,13 +114,11 @@ func (e *participantUpdateExecutor) Execute(ctx context.Context, nCtx api.Execut
 // them can be lost.
 func mergedPermissions(ctx context.Context, svc *Service, room, identity string, perms map[string]any) (*lkproto.ParticipantPermission, error) {
 	for key, val := range perms {
-		switch key {
-		case "canPublish", "canSubscribe", "canPublishData", "hidden", "recorder":
-			if _, ok := val.(bool); !ok {
-				return nil, fmt.Errorf("permission key %q must be a boolean, got %T", key, val)
-			}
-		default:
+		if _, known := permissionSetters[key]; !known {
 			return nil, fmt.Errorf("unknown permission key %q", key)
+		}
+		if _, ok := val.(bool); !ok {
+			return nil, fmt.Errorf("permission key %q must be a boolean, got %T", key, val)
 		}
 	}
 
@@ -117,20 +130,8 @@ func mergedPermissions(ctx context.Context, svc *Service, room, identity string,
 	if p := current.GetPermission(); p != nil {
 		perm = proto.Clone(p).(*lkproto.ParticipantPermission)
 	}
-	if v, ok := perms["canPublish"].(bool); ok {
-		perm.CanPublish = v
-	}
-	if v, ok := perms["canSubscribe"].(bool); ok {
-		perm.CanSubscribe = v
-	}
-	if v, ok := perms["canPublishData"].(bool); ok {
-		perm.CanPublishData = v
-	}
-	if v, ok := perms["hidden"].(bool); ok {
-		perm.Hidden = v
-	}
-	if v, ok := perms["recorder"].(bool); ok {
-		perm.Recorder = v //nolint:staticcheck // no replacement available in ParticipantPermission; ParticipantInfo.kind is not settable here
+	for key, val := range perms {
+		permissionSetters[key](perm, val.(bool))
 	}
 	return perm, nil
 }

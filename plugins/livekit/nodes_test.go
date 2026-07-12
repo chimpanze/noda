@@ -602,6 +602,21 @@ func TestParticipantUpdateNode_NonBoolPermissionValueErrors(t *testing.T) {
 		testServices(svc))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), `permission key "canPublish" must be a boolean`)
+
+	// Note: in production, string map values resolve as expressions before
+	// reaching the node, so "true" would arrive as boolean true and be
+	// accepted. identityResolve passes the raw string through, standing in
+	// for any non-bool resolved value; the numeric case below is a value
+	// type that genuinely survives resolution.
+	_, _, err = exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{"canPublish": 42},
+		},
+		testServices(svc))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `permission key "canPublish" must be a boolean`)
 }
 
 func TestParticipantUpdateNode_GetParticipantErrorSurfaces(t *testing.T) {
@@ -649,6 +664,36 @@ func TestParticipantUpdateNode_MetadataOnlySkipsGetParticipant(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "success", output)
 	assert.False(t, getCalled, "metadata-only update must not fetch permissions")
+}
+
+func TestParticipantUpdateNode_EmptyPermissionsSkipsPermissionMerge(t *testing.T) {
+	svc := testService()
+	getCalled := false
+	var gotReq *lkproto.UpdateParticipantRequest
+	svc.Room = &mockRoomClient{
+		getParticipantFn: func(_ context.Context, _ *lkproto.RoomParticipantIdentity) (*lkproto.ParticipantInfo, error) {
+			getCalled = true
+			return &lkproto.ParticipantInfo{}, nil
+		},
+		updateParticipantFn: func(_ context.Context, req *lkproto.UpdateParticipantRequest) (*lkproto.ParticipantInfo, error) {
+			gotReq = req
+			return &lkproto.ParticipantInfo{Identity: "u"}, nil
+		},
+	}
+	exec := &participantUpdateExecutor{}
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+
+	_, _, err := exec.Execute(context.Background(), nCtx,
+		map[string]any{
+			"room":        "r",
+			"identity":    "u",
+			"permissions": map[string]any{},
+		},
+		testServices(svc))
+	require.NoError(t, err)
+	assert.False(t, getCalled, "empty permissions must not trigger the GetParticipant merge read")
+	require.NotNil(t, gotReq)
+	assert.Nil(t, gotReq.Permission, "empty permissions must not send a Permission full-replace")
 }
 
 // --- Mute Track tests ---
