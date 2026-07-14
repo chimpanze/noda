@@ -1,4 +1,15 @@
 {$DOMAIN} {
+    # Self-hosted meet page (LiveKit client, Krisp NC on by default) —
+    # static bundle built by homebase-web (`npm run build:meet`; see its
+    # docs/deploy/meet-edge.md). /meet falls through to meet.html; hashed
+    # assets under /meet/assets/* are served directly.
+    @meet path /meet /meet/*
+    handle @meet {
+        root * /srv
+        try_files {path} /meet/meet.html
+        file_server
+    }
+
     # Guest join landing page — static, served by the edge; noda stays
     # API-only. Token format mirrors the API's ^[a-f0-9]{64}$ gate.
     @join path_regexp ^/j/[a-f0-9]{64}/join$
