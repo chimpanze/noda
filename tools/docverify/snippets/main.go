@@ -17,12 +17,12 @@ import (
 
 type block struct {
 	File    string
-	Line    int // 1-based line of the block's opening ```json fence
+	Line    int // 1-based line of the block's first content line
 	Content string
 }
 
 type result struct {
-	Verdict string // PARSE-OK (parse + any exprs ok), PARSE-FAIL, EXPR-FAIL
+	Verdict string // PARSE-OK, PARSE-FAIL, EXPR-OK (parse+expr ok), EXPR-FAIL
 	Detail  string
 }
 
@@ -37,7 +37,7 @@ func extractJSONBlocks(file, content string) []block {
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if !inBlock && strings.HasPrefix(trimmed, "```json") {
-			inBlock, start, buf = true, i+1, nil
+			inBlock, start, buf = true, i+2, nil
 			continue
 		}
 		if inBlock && trimmed == "```" {
@@ -65,17 +65,25 @@ func stripComments(s string) string {
 	return strings.Join(out, "\n")
 }
 
+// oneLine flattens a detail string so the report stays one line per snippet.
+func oneLine(s string) string {
+	return strings.ReplaceAll(s, "\n", " ")
+}
+
 func checkBlock(content string) result {
 	clean := stripComments(content)
 	var v any
 	if err := json.Unmarshal([]byte(clean), &v); err != nil {
-		return result{"PARSE-FAIL", err.Error()}
+		return result{"PARSE-FAIL", oneLine(err.Error())}
 	}
 	compiler := expr.NewCompilerWithFunctions()
 	for _, m := range exprRe.FindAllStringSubmatch(content, -1) {
 		if _, err := compiler.Compile("{{" + m[1] + "}}"); err != nil {
-			return result{"EXPR-FAIL", fmt.Sprintf("expr %q: %v", strings.TrimSpace(m[1]), err)}
+			return result{"EXPR-FAIL", oneLine(fmt.Sprintf("expr %q: %v", strings.TrimSpace(m[1]), err))}
 		}
+	}
+	if len(exprRe.FindAllString(content, -1)) > 0 {
+		return result{"EXPR-OK", ""}
 	}
 	return result{"PARSE-OK", ""}
 }
