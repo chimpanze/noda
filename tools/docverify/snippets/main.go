@@ -102,7 +102,7 @@ func main() {
 		}
 		sort.Strings(matches)
 		for _, f := range matches {
-			data, err := os.ReadFile(f)
+			data, err := os.ReadFile(f) //nolint:gosec // G304: f comes from a fixed glob under docs/
 			if err != nil {
 				fmt.Fprintln(os.Stderr, err)
 				os.Exit(1)
@@ -114,11 +114,11 @@ func main() {
 			}
 		}
 	}
-	if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(out), 0o750); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o644); err != nil {
+	if err := os.WriteFile(out, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

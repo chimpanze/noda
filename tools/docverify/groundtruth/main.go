@@ -94,7 +94,7 @@ func writeJSON(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return os.WriteFile(path, append(data, '\n'), 0o600) //nolint:gosec // G703: path is the operator-chosen output dir of this CLI tool
 }
 
 func main() {
@@ -102,7 +102,7 @@ func main() {
 	if len(os.Args) > 1 {
 		outDir = os.Args[1]
 	}
-	if err := os.MkdirAll(outDir, 0o755); err != nil {
+	if err := os.MkdirAll(outDir, 0o750); err != nil { //nolint:gosec // G703: outDir is the operator-chosen output dir of this CLI tool
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
