@@ -10,13 +10,13 @@ Put the host in the service config, use relative paths in workflows. This is the
 // noda.json
 {
   "services": {
-    "trashboard": {
+    "inventory": {
       "plugin": "http",
       "config": {
-        "base_url": "{{ $env('TRASHBOARD_URL') }}",
+        "base_url": "{{ $env('INVENTORY_URL') }}",
         "timeout": "10s",
         "headers": {
-          "Authorization": "Bearer {{ secrets.TRASHBOARD_TOKEN }}"
+          "Authorization": "Bearer {{ secrets.INVENTORY_TOKEN }}"
         }
       }
     }
@@ -25,15 +25,15 @@ Put the host in the service config, use relative paths in workflows. This is the
 ```
 
 ```json
-// workflows/get-box.json
+// workflows/get-item.json
 {
-  "id": "get-box",
+  "id": "get-item",
   "nodes": {
     "fetch": {
       "type": "http.get",
-      "services": { "client": "trashboard" },
+      "services": { "client": "inventory" },
       "config": {
-        "url": "/boxes/{{ input.id }}"
+        "url": "/items/{{ input.id }}"
       }
     },
     "respond": {
@@ -45,7 +45,7 @@ Put the host in the service config, use relative paths in workflows. This is the
 }
 ```
 
-**Anti-pattern.** Avoid `{{ $env('TRASHBOARD_URL') }}/boxes/...` inside per-workflow URLs. `$env()` doesn't resolve in workflow expressions anyway (it only runs on `noda.json` at load time), and even if it worked, you'd scatter the host across the codebase.
+**Anti-pattern.** Avoid `{{ $env('INVENTORY_URL') }}/items/...` inside per-workflow URLs. `$env()` doesn't resolve in workflow expressions anyway (it only runs on `noda.json` at load time), and even if it worked, you'd scatter the host across the codebase.
 
 ## 2. Forwarding query parameters
 
@@ -54,9 +54,9 @@ The HTTP request context exposes `query` as a map. Forward it wholesale to the b
 ```json
 {
   "type": "http.get",
-  "services": { "client": "trashboard" },
+  "services": { "client": "inventory" },
   "config": {
-    "url": "/boxes",
+    "url": "/items",
     "query": "{{ query }}"
   }
 }
@@ -67,7 +67,7 @@ Or forward specific keys:
 ```json
 {
   "config": {
-    "url": "/boxes",
+    "url": "/items",
     "query": {
       "page": "{{ query.page ?? 1 }}",
       "per_page": "{{ query.per_page ?? 20 }}",
@@ -79,7 +79,7 @@ Or forward specific keys:
 
 ## 3. Binary passthrough (PDFs, images)
 
-For endpoints that return raw bytes — invoice PDFs, box screenshots — pipe `http.get` into `response.file`. Body is returned verbatim; content-type flows through.
+For endpoints that return raw bytes — invoice PDFs, product images — pipe `http.get` into `response.file`. Body is returned verbatim; content-type flows through.
 
 ```json
 {
@@ -87,7 +87,7 @@ For endpoints that return raw bytes — invoice PDFs, box screenshots — pipe `
   "nodes": {
     "fetch": {
       "type": "http.get",
-      "services": { "client": "trashboard" },
+      "services": { "client": "inventory" },
       "config": { "url": "/invoices/{{ input.id }}/pdf" }
     },
     "send": {
@@ -131,12 +131,12 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
 
 ```json
 {
-  "id": "list-boxes",
+  "id": "list-items",
   "nodes": {
     "fetch": {
       "type": "http.get",
-      "services": { "client": "trashboard" },
-      "config": { "url": "/boxes", "query": "{{ query }}" }
+      "services": { "client": "inventory" },
+      "config": { "url": "/items", "query": "{{ query }}" }
     },
     "remap": {
       "type": "control.if",
