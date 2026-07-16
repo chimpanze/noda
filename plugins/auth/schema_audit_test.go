@@ -48,7 +48,7 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 
 		{"auth.set_password", (&setPasswordDescriptor{}).ConfigSchema(),
 			map[string]any{"user_id": "{{ auth.sub }}", "password": "{{ input.password }}", "revoke_sessions": false}, false,
-			map[string]any{"user_id": "u1"}},
+			map[string]any{"password": "x"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.nodeType, func(t *testing.T) {
