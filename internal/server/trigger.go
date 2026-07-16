@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,14 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 		// Get file fields (to skip expression resolution)
 		fileFields := getFileFields(triggerConfig)
 
+		// Coercion policy (#331): only bare references into string-typed
+		// transports are numerically coerced. "coerce": false disables it.
+		coerceEnabled := true
+		if v, ok := triggerConfig["coerce"].(bool); ok {
+			coerceEnabled = v
+		}
+		bodyStringTyped := strings.Contains(c.Get("Content-Type"), "form")
+
 		resolver := expr.NewResolver(compiler, rawCtx)
 		for key, exprVal := range inputMap {
 			// Skip file fields — pass raw streams
@@ -80,7 +89,10 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 			if err != nil {
 				return nil, fmt.Errorf("trigger mapping: field %q: %w", key, err)
 			}
-			result.Input[key] = coerceNumeric(resolved)
+			if coerceEnabled && shouldCoerce(exprStr, bodyStringTyped) {
+				resolved = coerceNumeric(resolved)
+			}
+			result.Input[key] = resolved
 		}
 	}
 
@@ -240,9 +252,30 @@ func getFileFields(triggerConfig map[string]any) map[string]bool {
 	return fields
 }
 
+// transportRef matches input expressions that are a single bare member-access
+// reference into a transport namespace: {{ params.x }}, {{ query.x }},
+// {{ headers["X-Y"] }}, {{ body.x }}, and their request.* aliases. Computed
+// expressions and literals never match — their result type is authoritative.
+var transportRef = regexp.MustCompile(`^\{\{\s*(?:request\.)?(params|query|headers|body)(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[^\]{}]+\])+\s*\}\}$`)
+
+// shouldCoerce reports whether a trigger-input expression's resolved value
+// should go through coerceNumeric. params/query/headers always arrive as
+// strings; body values are string-typed only for form-encoded requests (#331).
+func shouldCoerce(exprStr string, bodyStringTyped bool) bool {
+	m := transportRef.FindStringSubmatch(strings.TrimSpace(exprStr))
+	if m == nil {
+		return false
+	}
+	if m[1] == "body" {
+		return bodyStringTyped
+	}
+	return true
+}
+
 // coerceNumeric attempts to convert string values to numeric types.
 // HTTP query parameters and route params are always strings, but downstream
-// expressions often need numeric types for arithmetic.
+// expressions often need numeric types for arithmetic. Applied only to bare
+// transport references — see shouldCoerce.
 func coerceNumeric(v any) any {
 	s, ok := v.(string)
 	if !ok {

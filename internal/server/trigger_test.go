@@ -294,6 +294,102 @@ func TestBuildRawRequestContext_HasRequestAlias(t *testing.T) {
 	require.Equal(t, got["query"], reqMap["query"])
 }
 
+// triggerTestRaw is like triggerTest but sends a raw body with an explicit content type.
+func triggerTestRaw(t *testing.T, method, path, rawBody, contentType string, triggerCfg map[string]any) *TriggerResult {
+	t.Helper()
+
+	app := fiber.New()
+	compiler := expr.NewCompilerWithFunctions()
+
+	var result *TriggerResult
+	var triggerErr error
+
+	app.All("/test/:id?", func(c fiber.Ctx) error {
+		result, triggerErr = MapTrigger(c, triggerCfg, compiler)
+		if triggerErr != nil {
+			return c.Status(500).SendString(triggerErr.Error())
+		}
+		return c.SendString("ok")
+	})
+
+	req := httptest.NewRequest(method, path, strings.NewReader(rawBody))
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	require.NoError(t, triggerErr)
+
+	return result
+}
+
+func TestMapTrigger_JSONBodyStringsNotCoerced(t *testing.T) {
+	// #331: JSON preserves types — numeric-looking strings must stay strings.
+	result := triggerTest(t, "POST", "/test", map[string]any{"zip": "0042", "count": 7}, nil, map[string]any{
+		"input": map[string]any{
+			"zip":   "{{ body.zip }}",
+			"count": "{{ body.count }}",
+		},
+	})
+	assert.Equal(t, "0042", result.Input["zip"])
+	assert.Equal(t, float64(7), result.Input["count"]) // JSON number passes through untouched
+}
+
+func TestMapTrigger_FormBodyStringsCoerced(t *testing.T) {
+	// Form bodies are string-typed transport — coercion keeps working there.
+	result := triggerTestRaw(t, "POST", "/test", "amount=42&note=0042x",
+		"application/x-www-form-urlencoded", map[string]any{
+			"input": map[string]any{
+				"amount": "{{ body.amount }}",
+				"note":   "{{ body.note }}",
+			},
+		})
+	assert.Equal(t, 42, result.Input["amount"])
+	assert.Equal(t, "0042x", result.Input["note"])
+}
+
+func TestMapTrigger_TransportRefsStillCoerced(t *testing.T) {
+	result := triggerTest(t, "GET", "/test/0042?page=2", nil, map[string]string{
+		"X-Page-Size": "50",
+	}, map[string]any{
+		"input": map[string]any{
+			"id":    "{{ params.id }}",
+			"page":  "{{ query.page }}",
+			"size":  "{{ headers[\"X-Page-Size\"] }}",
+			"page2": "{{ request.query.page }}",
+		},
+	})
+	assert.Equal(t, 42, result.Input["id"])
+	assert.Equal(t, 2, result.Input["page"])
+	assert.Equal(t, 50, result.Input["size"])
+	assert.Equal(t, 2, result.Input["page2"])
+}
+
+func TestMapTrigger_ComputedAndLiteralNotCoerced(t *testing.T) {
+	result := triggerTest(t, "GET", "/test?a=4", nil, nil, map[string]any{
+		"input": map[string]any{
+			"lit":  "9",                     // literal string: author's type wins
+			"comp": "{{ query.a + \"1\" }}", // computed: expression's result type wins
+		},
+	})
+	assert.Equal(t, "9", result.Input["lit"])
+	assert.Equal(t, "41", result.Input["comp"])
+}
+
+func TestMapTrigger_CoerceOptOut(t *testing.T) {
+	result := triggerTest(t, "GET", "/test/0042?page=2", nil, nil, map[string]any{
+		"coerce": false,
+		"input": map[string]any{
+			"id":   "{{ params.id }}",
+			"page": "{{ query.page }}",
+		},
+	})
+	assert.Equal(t, "0042", result.Input["id"])
+	assert.Equal(t, "2", result.Input["page"])
+}
+
 func TestMapTrigger_StaticValues(t *testing.T) {
 	result := triggerTest(t, "GET", "/test", nil, nil, map[string]any{
 		"input": map[string]any{
