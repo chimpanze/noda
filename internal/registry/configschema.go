@@ -26,8 +26,12 @@ var constraintKeywords = map[string]bool{
 }
 
 // CheckSchemaVocabulary returns an error for every keyword in the schema tree
-// that ValidateNodeConfig does not implement. Keys of "properties" maps are
-// field names, not keywords.
+// that ValidateNodeConfig does not implement, AND for every constraint
+// keyword whose value has the wrong Go shape for validateValue's type
+// assertions to see it (e.g. "required": []string{"x"} instead of
+// []any{"x"} — a natural mistake when authoring ConfigSchemas as Go literals,
+// and one that validateValue would otherwise silently ignore instead of
+// enforcing). Keys of "properties" maps are field names, not keywords.
 func CheckSchemaVocabulary(schema map[string]any) []error {
 	var errs []error
 	checkVocab(schema, "", &errs)
@@ -40,29 +44,87 @@ func checkVocab(schema map[string]any, path string, errs *[]error) {
 		case annotationKeywords[k]:
 			// ignore
 		case k == "properties":
-			if props, ok := v.(map[string]any); ok {
-				for name, sub := range props {
-					if subMap, ok := sub.(map[string]any); ok {
-						checkVocab(subMap, joinPath(path, name), errs)
-					}
+			props, ok := v.(map[string]any)
+			if !ok {
+				*errs = append(*errs, fmt.Errorf("schema keyword \"properties\" at %q must be map[string]any, got %T", path, v))
+				continue
+			}
+			for name, sub := range props {
+				subMap, ok := sub.(map[string]any)
+				if !ok {
+					*errs = append(*errs, fmt.Errorf("schema keyword \"properties\" at %q: field %q must be map[string]any, got %T", path, name, sub))
+					continue
 				}
+				checkVocab(subMap, joinPath(path, name), errs)
 			}
 		case k == "items":
-			if subMap, ok := v.(map[string]any); ok {
-				checkVocab(subMap, path+"[]", errs)
+			subMap, ok := v.(map[string]any)
+			if !ok {
+				*errs = append(*errs, fmt.Errorf("schema keyword \"items\" at %q must be map[string]any, got %T", path, v))
+				continue
 			}
+			checkVocab(subMap, path+"[]", errs)
 		case k == "oneOf":
-			if branches, ok := v.([]any); ok {
-				for i, b := range branches {
-					if subMap, ok := b.(map[string]any); ok {
-						checkVocab(subMap, fmt.Sprintf("%s(oneOf %d)", path, i), errs)
-					}
+			branches, ok := v.([]any)
+			if !ok {
+				*errs = append(*errs, fmt.Errorf("schema keyword \"oneOf\" at %q must be []any, got %T", path, v))
+				continue
+			}
+			for i, b := range branches {
+				subMap, ok := b.(map[string]any)
+				if !ok {
+					*errs = append(*errs, fmt.Errorf("schema keyword \"oneOf\" at %q: branch %d must be map[string]any, got %T", path, i, b))
+					continue
+				}
+				checkVocab(subMap, fmt.Sprintf("%s(oneOf %d)", path, i), errs)
+			}
+		case k == "required":
+			arr, ok := v.([]any)
+			if !ok {
+				*errs = append(*errs, fmt.Errorf("schema keyword \"required\" at %q must be []any, got %T", path, v))
+				continue
+			}
+			for i, r := range arr {
+				if _, ok := r.(string); !ok {
+					*errs = append(*errs, fmt.Errorf("schema keyword \"required\" at %q: element %d must be a string, got %T", path, i, r))
 				}
 			}
-		case constraintKeywords[k]:
-			// implemented, nothing nested to walk
+		case k == "enum":
+			if _, ok := v.([]any); !ok {
+				*errs = append(*errs, fmt.Errorf("schema keyword \"enum\" at %q must be []any, got %T", path, v))
+			}
+		case k == "type":
+			switch t := v.(type) {
+			case string:
+				// ok
+			case []any:
+				for i, one := range t {
+					if _, ok := one.(string); !ok {
+						*errs = append(*errs, fmt.Errorf("schema keyword \"type\" at %q: element %d must be a string, got %T", path, i, one))
+					}
+				}
+			default:
+				*errs = append(*errs, fmt.Errorf("schema keyword \"type\" at %q must be string or []any, got %T", path, v))
+			}
+		case k == "additionalProperties":
+			if _, ok := v.(bool); !ok {
+				*errs = append(*errs, fmt.Errorf("schema keyword \"additionalProperties\" at %q must be bool, got %T", path, v))
+			}
 		default:
 			*errs = append(*errs, fmt.Errorf("schema keyword %q at %q is not supported by node config validation", k, path))
+		}
+	}
+
+	// validateValue's oneOf branch returns before looking at any sibling
+	// constraint keyword, so a sibling like "required" next to "oneOf" in
+	// the same schema map would be silently dropped rather than enforced.
+	// Annotations are metadata, not constraints, so they're fine as siblings.
+	if _, hasOneOf := schema["oneOf"]; hasOneOf {
+		for k := range schema {
+			if k == "oneOf" || annotationKeywords[k] {
+				continue
+			}
+			*errs = append(*errs, fmt.Errorf("schema keyword %q at %q is a sibling of \"oneOf\" and would be silently dropped by validateValue; move it inside each oneOf branch instead", k, path))
 		}
 	}
 }
@@ -72,6 +134,11 @@ func checkVocab(schema map[string]any, path string, errs *[]error) {
 // of the config are errors unless the schema sets "additionalProperties": true;
 // nested objects reject unknown keys only with an explicit
 // "additionalProperties": false.
+//
+// Audit convention: a node that takes no config should still declare
+// "properties": map[string]any{} explicitly — a schema without "properties"
+// is fully permissive at the root, which is indistinguishable from an
+// unaudited/forgotten schema.
 func ValidateNodeConfig(schema map[string]any, config map[string]any) []error {
 	var errs []error
 	validateValue(schema, config, "", true, &errs)
@@ -84,6 +151,7 @@ func validateValue(schema map[string]any, value any, path string, rootStrict boo
 	}
 
 	if branches, ok := schema["oneOf"].([]any); ok {
+		var bestErrs []error
 		for _, b := range branches {
 			bm, ok := b.(map[string]any)
 			if !ok {
@@ -94,8 +162,15 @@ func validateValue(schema map[string]any, value any, path string, rootStrict boo
 			if len(branchErrs) == 0 {
 				return
 			}
+			if bestErrs == nil || len(branchErrs) < len(bestErrs) {
+				bestErrs = branchErrs
+			}
 		}
-		*errs = append(*errs, fmt.Errorf("config%s does not match any allowed variant", atPath(path)))
+		if len(bestErrs) > 0 {
+			*errs = append(*errs, fmt.Errorf("config%s does not match any allowed variant; closest variant: %s", atPath(path), bestErrs[0]))
+		} else {
+			*errs = append(*errs, fmt.Errorf("config%s does not match any allowed variant", atPath(path)))
+		}
 		return
 	}
 
