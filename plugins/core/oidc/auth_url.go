@@ -43,8 +43,9 @@ func (d *authURLDescriptor) ConfigSchema() map[string]any {
 				"description": "State parameter for CSRF protection (expression)",
 			},
 			"extra_params": map[string]any{
-				"type":        "object",
-				"description": "Additional query parameters to include in the authorization URL",
+				"type":                 "object",
+				"additionalProperties": true,
+				"description":          "Additional query parameters to include in the authorization URL",
 			},
 		},
 		"required": []any{"issuer_url", "client_id", "redirect_uri", "state"},
