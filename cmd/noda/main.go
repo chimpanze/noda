@@ -769,6 +769,7 @@ func corePlugins() []api.Plugin {
 		&corewasm.Plugin{},
 		&coreoidc.Plugin{},
 		&livekitplugin.Plugin{},
+		&authplugin.Plugin{},
 	}
 	return append(plugins, optionalPlugins...)
 }
@@ -778,7 +779,6 @@ func corePlugins() []api.Plugin {
 // full runtime but not needed for the test runner's node registry.
 func serviceOnlyPlugins() []api.Plugin {
 	return []api.Plugin{
-		&authplugin.Plugin{},
 		&streamplugin.Plugin{},
 		&pubsubplugin.Plugin{},
 		&storageplugin.Plugin{},

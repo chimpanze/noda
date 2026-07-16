@@ -32,6 +32,16 @@ func TestBuildNodeRegistry(t *testing.T) {
 		"util.log",
 		"cache.get",
 		"cache.set",
+		// auth registers real nodes even though the runtime files it under
+		// service-backed plugins — MCP discovery must see them (issue #327).
+		"auth.create_user",
+		"auth.get_user",
+		"auth.verify_credentials",
+		"auth.create_session",
+		"auth.revoke_session",
+		"auth.create_token",
+		"auth.consume_token",
+		"auth.set_password",
 	}
 	for _, expected := range expectedTypes {
 		desc, ok := nodeReg.GetDescriptor(expected)
