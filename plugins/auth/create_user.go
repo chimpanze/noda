@@ -31,7 +31,7 @@ func (d *createUserDescriptor) ConfigSchema() map[string]any {
 			"email":    map[string]any{"type": "string", "description": "Email address (expression)"},
 			"password": map[string]any{"type": "string", "description": "Plaintext password (expression); never stored"},
 			"roles":    map[string]any{"type": "array", "description": "Role names; defaults to [\"user\"]"},
-			"metadata": map[string]any{"type": "object", "description": "Arbitrary user metadata"},
+			"metadata": map[string]any{"type": "object", "description": "Arbitrary user metadata", "additionalProperties": true},
 		},
 		"required": []any{"email", "password"},
 	}

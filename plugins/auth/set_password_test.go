@@ -82,8 +82,14 @@ func TestSetPasswordDescriptor(t *testing.T) {
 	if len(d.ServiceDeps()) != 2 {
 		t.Fatal("unexpected service deps")
 	}
-	if len(d.ConfigSchema()["properties"].(map[string]any)) != 4 {
+	branches := d.ConfigSchema()["oneOf"].([]any)
+	if len(branches) != 2 {
 		t.Fatal("unexpected config schema")
+	}
+	for _, b := range branches {
+		if len(b.(map[string]any)["properties"].(map[string]any)) != 4 {
+			t.Fatal("unexpected config schema")
+		}
 	}
 	if len(d.OutputDescriptions()) != 3 {
 		t.Fatal("unexpected outputs")

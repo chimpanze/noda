@@ -42,12 +42,35 @@ func TestNodeDescriptorContract(t *testing.T) {
 			}
 
 			schema := d.ConfigSchema()
-			if schema["type"] != "object" {
-				t.Fatalf("ConfigSchema() type must be %q, got %v", "object", schema["type"])
-			}
-			props, ok := schema["properties"].(map[string]any)
-			if !ok || props == nil {
-				t.Fatalf("ConfigSchema() must have a non-nil properties map, got %T", schema["properties"])
+			// A mutually-exclusive-fields node (e.g. "exactly one of user_id
+			// or email") expresses that as a root "oneOf" of object
+			// branches instead of a flat object schema; validate each
+			// branch's shape instead of the root's.
+			if branches, ok := schema["oneOf"].([]any); ok {
+				if len(branches) == 0 {
+					t.Fatal("ConfigSchema() oneOf must have at least one branch")
+				}
+				for i, b := range branches {
+					bm, ok := b.(map[string]any)
+					if !ok {
+						t.Fatalf("ConfigSchema() oneOf branch %d must be map[string]any, got %T", i, b)
+					}
+					if bm["type"] != "object" {
+						t.Fatalf("ConfigSchema() oneOf branch %d type must be %q, got %v", i, "object", bm["type"])
+					}
+					props, ok := bm["properties"].(map[string]any)
+					if !ok || props == nil {
+						t.Fatalf("ConfigSchema() oneOf branch %d must have a non-nil properties map, got %T", i, bm["properties"])
+					}
+				}
+			} else {
+				if schema["type"] != "object" {
+					t.Fatalf("ConfigSchema() type must be %q, got %v", "object", schema["type"])
+				}
+				props, ok := schema["properties"].(map[string]any)
+				if !ok || props == nil {
+					t.Fatalf("ConfigSchema() must have a non-nil properties map, got %T", schema["properties"])
+				}
 			}
 
 			exec := reg.Factory(nil)

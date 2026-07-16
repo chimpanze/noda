@@ -23,15 +23,17 @@ func (d *setPasswordDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	}
 }
 func (d *setPasswordDescriptor) ConfigSchema() map[string]any {
+	fields := map[string]any{
+		"user_id":         map[string]any{"type": "string", "description": "User id (expression); exactly one of user_id/token"},
+		"token":           map[string]any{"type": "string", "description": "Password-reset token to consume atomically in the same transaction (expression); exactly one of user_id/token"},
+		"password":        map[string]any{"type": "string", "description": "New plaintext password (expression)"},
+		"revoke_sessions": map[string]any{"type": "boolean", "description": "Revoke all existing sessions (default true)"},
+	}
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"user_id":         map[string]any{"type": "string", "description": "User id (expression)"},
-			"token":           map[string]any{"type": "string", "description": "Password-reset token to consume atomically in the same transaction (expression); mutually exclusive with user_id"},
-			"password":        map[string]any{"type": "string", "description": "New plaintext password (expression)"},
-			"revoke_sessions": map[string]any{"type": "boolean", "description": "Revoke all existing sessions (default true)"},
+		"oneOf": []any{
+			map[string]any{"type": "object", "properties": fields, "required": []any{"user_id", "password"}},
+			map[string]any{"type": "object", "properties": fields, "required": []any{"token", "password"}},
 		},
-		"required": []any{"password"},
 	}
 }
 func (d *setPasswordDescriptor) OutputDescriptions() map[string]string {
