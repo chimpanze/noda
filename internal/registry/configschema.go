@@ -150,6 +150,17 @@ func validateValue(schema map[string]any, value any, path string, rootStrict boo
 		return // expression: runtime type unknowable, satisfies anything
 	}
 
+	// "oneOf" here is deliberately implemented with anyOf semantics: the
+	// value passes as soon as ANY branch validates cleanly, without checking
+	// that it doesn't also match a second branch. True JSON Schema oneOf
+	// ("exactly one") would require validating every branch and rejecting
+	// values that satisfy more than one — e.g. a config that sets both an
+	// API-key selector and an OAuth selector in an auth "oneOf" pair. This
+	// walker leaves that ambiguity to the executor at runtime rather than
+	// rejecting it at validation time, which keeps schema validation
+	// false-positive-free (it never rejects a config the executor would
+	// have accepted). The editor's ajv-based validation applies true oneOf
+	// and is stricter than this walker.
 	if branches, ok := schema["oneOf"].([]any); ok {
 		var bestErrs []error
 		for _, b := range branches {

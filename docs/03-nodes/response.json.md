@@ -6,7 +6,7 @@ Builds an HTTP JSON response.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `status` | integer/expr | yes | HTTP status code (default: 200) |
+| `status` | integer/expr | no | HTTP status code (default: 200) |
 | `body` | any | yes | Response body |
 | `headers` | object | no | Response headers |
 | `cookies` | array | no | Response cookies |

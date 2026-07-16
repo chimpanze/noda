@@ -32,14 +32,7 @@ func TestShippedProjectsValidate(t *testing.T) {
 	require.NoError(t, err)
 	dirs := append(exampleDirs,
 		"../../testdata/auth",
-		// NOTE: testdata/valid-project is intentionally excluded. Its
-		// create-task.json workflow references node type "db.insert",
-		// which has never existed (the db plugin registers "db.create",
-		// not "db.insert") — confirmed identical on origin/main HEAD
-		// (2acaf06), i.e. this fixture predates Node-ConfigSchema
-		// enforcement and was never validate-clean. That's unrelated
-		// node-type drift, not a schema-enforcement finding, so it's out
-		// of scope for #332 and left for a separate fix.
+		"../../testdata/valid-project",
 		"../../testdata/node-e2e",
 		"../../testdata/livekit-example",
 		"../../testdata/minimal-project",
