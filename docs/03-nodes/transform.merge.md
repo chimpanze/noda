@@ -18,9 +18,9 @@ Merges multiple arrays using different strategies.
 
 ## Behavior
 
-- **append** -- concatenates all input arrays into a single array. Works with any number of inputs.
+- **append** -- concatenates all input arrays into a single array. Works with any number of inputs. Errors if the combined result exceeds 100,000 items.
 - **match** -- joins two inputs by matching field values. Requires exactly two inputs. `inner` keeps only matching rows. `outer` keeps all rows from both. `enrich` keeps all rows from the first input and adds matching data from the second.
-- **position** -- combines inputs by index. Row 0 from input A merges with row 0 from input B. Requires inputs of equal length.
+- **position** -- combines inputs by index. Row 0 from input A merges with row 0 from input B. Requires inputs of equal length, capped at 100,000 items.
 
 ## Example
 

@@ -16,7 +16,7 @@ Logs a structured message.
 
 ## Behavior
 
-Resolves `message` and `fields`. Writes a structured log entry through Noda's logging pipeline. In dev mode, appears in the live trace. In production, routed via slog to OpenTelemetry. Fires `success` with no data.
+Resolves `message` and `fields`. Writes a structured log entry through Noda's logging pipeline. In dev mode, appears in the live trace. In production, routed via slog to OpenTelemetry. Field keys that look sensitive (containing `password`, `token`, `secret`, and similar patterns) have their values replaced with `[REDACTED]` in the log output. Fires `success` with no data.
 
 ## Example
 
