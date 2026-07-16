@@ -25,7 +25,7 @@ func (d *createDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"table": map[string]any{"type": "string", "description": "Table name"},
-			"data":  map[string]any{"type": "object", "description": "Column values as key-value pairs"},
+			"data":  map[string]any{"type": "object", "description": "Column values as key-value pairs", "additionalProperties": true},
 		},
 		"required": []any{"table", "data"},
 	}

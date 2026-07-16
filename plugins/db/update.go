@@ -23,8 +23,8 @@ func (d *updateDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"table": map[string]any{"type": "string", "description": "Table name"},
-			"data":  map[string]any{"type": "object", "description": "Fields to update"},
-			"where": map[string]any{"type": "object", "description": "Equality conditions for row matching"},
+			"data":  map[string]any{"type": "object", "description": "Fields to update", "additionalProperties": true},
+			"where": map[string]any{"type": "object", "description": "Equality conditions for row matching", "additionalProperties": true},
 		},
 		"required": []any{"table", "data", "where"},
 	}
