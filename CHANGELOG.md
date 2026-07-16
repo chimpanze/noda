@@ -27,6 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - CI now compiles every example wasm guest module with tinygo, so PDK/ABI changes can't silently break them (#296)
 
 ### Changed
+- `noda validate` and server startup now validate every workflow node's `config` against the node's ConfigSchema: missing required fields, wrong types, and unknown top-level fields are errors. Expression values (`{{ … }}`) satisfy any declared type (#332).
+- Node ConfigSchemas audited against executor behavior across all plugins; `required` lists and types now reflect what executors actually accept (improves editor forms and MCP guidance).
 - invalid `server.*` scalar values (bad numbers, malformed durations, invalid trust_proxy entries) now fail config validation/startup instead of silently falling back to defaults
 - `lk.token` now errors on invalid `canPublishSources` (unknown names, non-string entries, non-array values) instead of silently minting a token with wrong publish permissions (#309)
 - the wasm module's outstandingCalls invariant is now structural (`tryAddOutstanding`), not comment-enforced (#295)
