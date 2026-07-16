@@ -129,6 +129,8 @@ A REST route persists a message, then broadcasts it to everyone subscribed to th
 }
 ```
 
+> **Numeric-string coercion pitfall:** every resolved trigger-input string that parses as a number is silently retyped to a number — `/api/board/42/messages` delivers `input.room_id` as the number `42`, not the string `"42"`. If a downstream `db.create` writes it to a TEXT column, the insert fails. Until this is fixed ([#331](https://github.com/chimpanze/noda/issues/331)), make numeric-looking path segments land in numeric columns (e.g. `room_id BIGINT`), or convert explicitly with `{{ string(input.room_id) }}` where you need the string.
+
 `workflows/post-message.json`:
 
 ```json
