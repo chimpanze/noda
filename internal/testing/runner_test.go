@@ -8,6 +8,7 @@ import (
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/secrets"
 	"github.com/chimpanze/noda/plugins/core/control"
+	"github.com/chimpanze/noda/plugins/core/response"
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/util"
 	"github.com/chimpanze/noda/plugins/core/workflow"
@@ -396,6 +397,65 @@ func TestRunner_ThreeNodeChain(t *testing.T) {
 	}
 
 	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	require.Len(t, results, 1)
+	assert.True(t, results[0].Passed, results[0].Error)
+}
+
+// Unmocked response.json emits *api.HTTPResponse. Its output must be
+// navigable by dot-path assertions with lowercase keys, like every other
+// node output (issue #330).
+func TestRunner_UnmockedResponseJSONDotPaths(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"workflows/wf.json": {
+				"id": "resp-wf",
+				"nodes": map[string]any{
+					"fetch": map[string]any{"type": "db.query"},
+					"resp": map[string]any{
+						"type": "response.json",
+						"config": map[string]any{
+							"status": 201,
+							"body": map[string]any{
+								"email": "{{ nodes.fetch.email }}",
+							},
+						},
+					},
+				},
+				"edges": []any{
+					map[string]any{"from": "fetch", "to": "resp"},
+				},
+			},
+		},
+	}
+
+	suite := TestSuite{
+		Workflow: "resp-wf",
+		Cases: []TestCase{
+			{
+				Name: "dot paths into the response",
+				Mocks: map[string]MockConfig{
+					"fetch": {Output: map[string]any{"email": "a@b.c"}},
+				},
+				Expect: TestExpectation{
+					Status: "success",
+					Output: map[string]any{
+						"resp.status":     float64(201),
+						"resp.body.email": "a@b.c",
+					},
+					Outputs: map[string]any{
+						"resp": map[string]any{
+							"status": float64(201),
+							"body":   map[string]any{"email": "a@b.c"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	coreNodeReg := buildCoreNodeReg(t)
+	require.NoError(t, coreNodeReg.RegisterFromPlugin(&response.Plugin{}))
+	results := RunTestSuite(suite, rc, coreNodeReg)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
