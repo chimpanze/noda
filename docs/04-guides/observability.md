@@ -36,6 +36,7 @@ The endpoint is served on the same port as your API (`server.port`, default `300
 | `node_errors_total` | counter | Node execution errors |
 | `connections_active` | gauge | Active WebSocket / SSE connections |
 | `panics_recovered_total` | counter | Recovered panics |
+| `http_status_remaps_total` | counter | Responses rewritten by the status-remap middleware |
 
 All metrics follow OpenTelemetry naming; the Prometheus exporter translates `.` to `_`.
 
@@ -52,7 +53,7 @@ scrape_configs:
 
 ## Tracing
 
-OpenTelemetry tracing is also enabled. Spans are emitted for HTTP requests, workflow executions, and each node execution. Configure an OTLP exporter via standard `OTEL_EXPORTER_*` environment variables.
+OpenTelemetry tracing is **off by default** — enable it with `"observability": { "tracing": { "enabled": true, "exporter": "otlp", "endpoint": "..." } }` in `noda.json`. Once enabled, spans are emitted for HTTP requests, workflow executions, and each node execution.
 
 ## Stream consumers
 

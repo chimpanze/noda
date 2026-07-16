@@ -370,7 +370,7 @@ noda dev --config ./my-project
 
 Dev mode starts all configured runtimes (server, workers, scheduler, wasm) and enables:
 
-- **Hot reload:** Config files are watched for changes. When a JSON file is modified, created, or renamed, Noda re-validates the full config and swaps it in without restarting. If validation fails, the previous config is kept and errors are logged.
+- **Hot reload:** Config files are watched for changes. When a JSON file is modified, created, renamed, or removed, Noda re-validates the full config and swaps it in without restarting. If validation fails, the previous config is kept and errors are logged.
 - **Trace WebSocket:** A WebSocket endpoint at `/ws/trace` streams execution events in real time.
 - **Visual editor:** The built-in editor is served at `/editor/` for visual workflow editing.
 

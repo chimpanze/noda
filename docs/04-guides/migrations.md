@@ -18,7 +18,7 @@ The filename is `<version>_<name>.<direction>.sql`:
 - **`name`** — a human-readable label (everything after the first underscore). It may contain underscores.
 - **`direction`** — `up` (apply) or `down` (roll back).
 
-A file that does not match `<14-digit-version>_<name>.(up|down).sql` is skipped with a warning. Discovery scans for `*.up.sql` files; each must have a matching `.down.sql`.
+Discovery scans for `*.up.sql` files; a file without an `_` separator between version and name is skipped with a warning (the version prefix itself is not format-checked — `noda migrate create` always stamps a valid timestamp). A matching `.down.sql` is **not** checked at discovery: an up-only migration applies fine with `noda migrate up`, and the missing down file only surfaces as a hard error when you run `noda migrate down`.
 
 > Generate the pair with `noda migrate create <name>` rather than hand-naming files — it stamps the current UTC timestamp for you (see below).
 

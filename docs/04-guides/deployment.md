@@ -67,23 +67,19 @@ volumes:
 
 ### Dockerfile
 
-Noda's multi-stage Dockerfile compiles the Go binary and produces a minimal runtime image with libvips for image processing. The visual editor is only available in dev mode (`noda dev`) and is not included in production builds:
+Use the repository's `Dockerfile` — it is a four-stage build:
 
-```dockerfile
-# Stage 1: Build binary
-FROM golang:1.25-alpine AS builder
-RUN apk add --no-cache vips-dev gcc musl-dev
-WORKDIR /app
-COPY . .
-RUN go build -o noda ./cmd/noda
+1. A Node stage builds the embedded editor assets.
+2. A `golang:1.25-bookworm` builder compiles the binary, controlled by a `VARIANT` build-arg: `full` (cgo, libvips → `image.*` nodes work) or `slim` (static, no image processing).
+3. The `full` runtime is `debian:bookworm-slim` with libvips; the `slim` runtime is `gcr.io/distroless/static-debian12`.
+4. Both run as a non-root user and declare a `HEALTHCHECK` against `/health/live`.
 
-# Stage 2: Runtime
-FROM alpine:3.19
-RUN apk add --no-cache vips ca-certificates
-COPY --from=builder /app/noda /usr/local/bin/noda
-ENTRYPOINT ["noda"]
-CMD ["start"]
+```bash
+docker build --build-arg VARIANT=slim -t my-noda-app .
+# or VARIANT=full if you use image.* nodes
 ```
+
+Prebuilt images are published to GHCR by the tag-triggered `docker.yml` workflow. Release binaries (Linux amd64/arm64, macOS, Windows) come from the `release.yml` matrix on `v*` tags — the `.goreleaser.yaml` in the repo is **not** the active release path.
 
 ## Environment Variables
 
@@ -97,9 +93,9 @@ All environment variables can be referenced in config via `$env()`:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `NODA_ENV` | Environment name (loads overlay config) | — |
-| `NODA_CONFIG` | Config directory path | `./config` |
-| `NODA_PORT` | Server port override | `3000` |
+| `NODA_ENV` | Environment name (loads overlay config; the `--env` flag wins when set) | `development` |
+
+There is no env-var override for the config directory or the port: the config directory comes from the `--config` flag (default `.`), and the port from `server.port` in `noda.json` (which may itself read an env var via `"port": "{{ $env('PORT') }}"`).
 
 ### Service Variables (typical)
 
@@ -209,33 +205,28 @@ readinessProbe:
 
 ### OpenTelemetry
 
-Noda has built-in OpenTelemetry support for traces. Configure the OTLP exporter:
+Noda has built-in OpenTelemetry support for traces. Tracing is **off** until `enabled: true` is set:
 
 ```json
 {
   "observability": {
     "tracing": {
+      "enabled": true,
       "exporter": "otlp",
       "endpoint": "http://jaeger:4318",
-      "service_name": "noda",
       "sampling_rate": 1.0
     }
   }
 }
 ```
 
-Or via environment variables:
-
-| Variable | Description |
-|----------|-------------|
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint |
-| `OTEL_SERVICE_NAME` | Service name in traces |
+Recognized fields are `enabled`, `exporter`, `endpoint`, `insecure`, and `sampling_rate`. The service name in traces is always `noda` — there is no `service_name` config field, and `OTEL_SERVICE_NAME` is not read.
 
 ### What Gets Traced
 
 - Every HTTP request gets a trace with the request's trace ID
 - Each workflow execution is a span
-- Each node execution is a child span with config, input, output, and duration
+- Each node execution is a child span carrying `node.id`, `node.type`, the fired output name, and duration (node config and input values appear only in dev-mode trace events, not on OTel spans)
 - Worker message processing is traced end-to-end
 - Scheduled job executions are traced
 
@@ -273,15 +264,15 @@ Available metrics:
 
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `http_request_duration` | Histogram | method, route, status | HTTP request latency (seconds) |
+| `http_request_duration_seconds` | Histogram | method, route, status | HTTP request latency (seconds) |
 | `http_requests_total` | Counter | method, route, status | Total HTTP requests |
 | `http_errors_total` | Counter | method, route, status, error_type | Total HTTP errors |
-| `workflow_duration` | Histogram | workflow_id, status | Workflow execution latency (seconds) |
+| `workflow_duration_seconds` | Histogram | workflow_id, status | Workflow execution latency (seconds) |
 | `workflow_executions_total` | Counter | workflow_id, status | Total workflow executions |
 | `workflow_errors_total` | Counter | workflow_id, error_type | Total failed workflows |
-| `node_duration` | Histogram | node_type, status | Node execution latency (seconds) |
+| `node_duration_seconds` | Histogram | node_type, status | Node execution latency (seconds) |
 | `node_errors_total` | Counter | node_type, error_type | Total node errors |
-| `active_connections` | UpDownCounter | type (ws/sse) | Current WebSocket/SSE connections |
+| `connections_active` | UpDownCounter | type (ws/sse) | Current WebSocket/SSE connections |
 | `panics_recovered_total` | Counter | source | Recovered panics |
 
 ## Database Migrations

@@ -93,7 +93,7 @@ For endpoints that return raw bytes — invoice PDFs, product images — pipe `h
     "send": {
       "type": "response.file",
       "config": {
-        "body": "{{ nodes.fetch.body }}",
+        "data": "{{ nodes.fetch.body }}",
         "content_type": "{{ nodes.fetch.headers['content-type'] ?? 'application/pdf' }}",
         "filename": "invoice-{{ input.id }}.pdf"
       }
@@ -144,7 +144,7 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
     },
     "unauthorized": {
       "type": "response.error",
-      "config": { "status": 401, "message": "Unauthorized" }
+      "config": { "status": 401, "code": "UNAUTHORIZED", "message": "Unauthorized" }
     },
     "pass_through": {
       "type": "response.json",

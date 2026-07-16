@@ -136,7 +136,7 @@ Use the `util.jwt_sign` node to create JWT tokens in workflows:
         "roles": "{{ input.roles }}",
         "email": "{{ input.email }}"
       },
-      "secret": "{{ $env('JWT_SECRET') }}",
+      "secret": "{{ secrets.JWT_SECRET }}",
       "algorithm": "HS256",
       "expiry": "24h"
     }
@@ -207,7 +207,7 @@ A login workflow that validates credentials against the database and returns a J
           "roles": "{{ nodes.find_user.roles }}",
           "email": "{{ nodes.find_user.email }}"
         },
-        "secret": "{{ $env('JWT_SECRET') }}",
+        "secret": "{{ secrets.JWT_SECRET }}",
         "expiry": "24h"
       }
     },
@@ -317,7 +317,7 @@ A registration workflow that hashes the password and creates a user:
           "roles": "{{ nodes.create_user.roles }}",
           "email": "{{ nodes.create_user.email }}"
         },
-        "secret": "{{ $env('JWT_SECRET') }}",
+        "secret": "{{ secrets.JWT_SECRET }}",
         "expiry": "24h"
       }
     },
@@ -468,9 +468,9 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
     "build_url": {
       "type": "oidc.auth_url",
       "config": {
-        "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-        "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-        "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
+        "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+        "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+        "redirect_uri": "{{ secrets.APP_URL + '/auth/callback' }}",
         "state": "{{ nodes.gen_state.state }}",
         "scopes": ["openid", "profile", "email"]
       }
@@ -512,10 +512,10 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
     "exchange_code": {
       "type": "oidc.exchange",
       "config": {
-        "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-        "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-        "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
-        "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
+        "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+        "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+        "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
+        "redirect_uri": "{{ secrets.APP_URL + '/auth/callback' }}",
         "code": "{{ input.code }}"
       }
     },
@@ -541,14 +541,14 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
           "email": "{{ nodes.upsert_user.email }}",
           "roles": ["user"]
         },
-        "secret": "{{ $env('JWT_SECRET') }}",
+        "secret": "{{ secrets.JWT_SECRET }}",
         "expiry": "24h"
       }
     },
     "redirect_to_app": {
       "type": "response.redirect",
       "config": {
-        "url": "{{ $env('APP_URL') + '/?token=' + nodes.sign_session_token.token }}"
+        "url": "{{ secrets.APP_URL + '/?token=' + nodes.sign_session_token.token }}"
       }
     },
     "invalid_state": {
@@ -590,9 +590,9 @@ Use `oidc.refresh` to obtain new tokens when the access token expires:
   "refresh_token": {
     "type": "oidc.refresh",
     "config": {
-      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-      "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+      "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+      "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+      "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
       "refresh_token": "{{ input.refresh_token }}"
     }
   }
@@ -859,7 +859,7 @@ Preconditions: the project's `noda.json` must already have a database service (`
 What it writes:
 
 1. **Migrations** — a driver-specific (`postgres` or `sqlite`, detected from the db service's `driver` config) up/down pair creating `auth_users`, `auth_sessions`, `auth_tokens`, timestamped like any other migration.
-2. **Seven workflows** (in `workflows/`, one file each): `auth-register`, `auth-login`, `auth-logout`, `auth-me`, `auth-request-password-reset`, `auth-reset-password`, `auth-verify-email`.
+2. **Eight workflows** (in `workflows/`, one file each, named with a dot separator on disk — `workflows/auth.register.json` etc., while the workflow `id` fields inside are hyphenated): `auth-register`, `auth-login`, `auth-logout`, `auth-me`, `auth-request-password-reset`, `auth-reset-password`, `auth-verify-email`, `auth-resend-verification`.
 3. **Routes** wiring each workflow to an HTTP endpoint (`POST /auth/register`, `POST /auth/login`, etc.), using a `limiter` middleware on the credential-guessing-sensitive ones.
 4. **`noda.json` patches** — applied in place, not appended:
    - Adds `services.auth` (`{"plugin": "auth", "config": {"database": "<detected db service>"}}`).
@@ -880,7 +880,7 @@ After scaffolding: run your migration tool, then open the generated workflows in
 | `auth-logout` | `POST /auth/logout` | `auth.revoke_session` → `204` with a cookie that clears the session |
 | `auth-me` | `GET /auth/me` | `auth.get_user` (by the session's `user_id`) → `200`; `not_found` → `401` |
 | `auth-request-password-reset` | `POST /auth/request-password-reset` | `auth.get_user` (by email) → `auth.create_token` (`reset_password`) → `email.send` → `200` (same body whether or not the account exists — see below) |
-| `auth-reset-password` | `POST /auth/reset-password` | `auth.consume_token` (`reset_password`) → `auth.set_password` (revokes sessions) → `200`; `invalid` → `400` |
+| `auth-reset-password` | `POST /auth/reset-password` | a single `auth.set_password` node that takes the `token` directly and consumes it atomically in the same transaction (revokes sessions) → `200`; `invalid` → `400` |
 | `auth-verify-email` | `POST /auth/verify-email` | `auth.consume_token` (`verify_email`) → `200`; `invalid` → `400` |
 | `auth-resend-verification` | `POST /auth/resend-verification` | `auth.get_user` (by email) → `control.if` (skip if already verified) → `auth.create_token` (`verify_email`) → `email.send` → `200` (same body for unknown, already-verified, and unverified accounts) |
 
