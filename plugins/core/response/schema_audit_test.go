@@ -27,8 +27,8 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 		},
 		{
 			"response.file", (&fileDescriptor{}).ConfigSchema(),
-			map[string]any{"data": "{{ nodes.read_report.data }}", "content_type": "application/pdf"}, false,
-			map[string]any{"data": "x", "content_type": true},
+			map[string]any{"data": "{{ nodes.read_report.data }}", "content_type": "application/pdf", "status": "200"}, false,
+			map[string]any{"data": "x", "content_type": true, "status": true},
 		},
 		{
 			"response.redirect", (&redirectDescriptor{}).ConfigSchema(),
