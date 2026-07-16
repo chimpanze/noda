@@ -14,12 +14,13 @@ project/
 ├── schedules/*.json       # Cron job definitions
 ├── connections/*.json     # WebSocket and SSE endpoints
 ├── schemas/*.json         # JSON Schema definitions
+├── models/*.json          # Database model definitions (migration/CRUD generation)
 ├── tests/*.json           # Workflow test suites
 ├── migrations/*.sql       # SQL migration files
 └── wasm/*.wasm            # Wasm modules
 ```
 
-Noda discovers config files automatically from the config directory. Environment-specific overlays can be applied via `.env.json` or `--env` flag.
+Noda discovers config files automatically from the config directory. Environment-specific overlays live in `noda.<env>.json` (e.g. `noda.production.json`) and are applied with the `--env` flag.
 
 ## Config Conventions
 

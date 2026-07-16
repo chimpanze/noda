@@ -5,7 +5,8 @@ Files in `workers/*.json`. Each file defines one event-driven worker.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `id` | string | yes | Unique worker identifier |
-| `services` | object | yes | Stream or PubSub service binding |
+| `services` | object | yes | Stream service binding (`services.stream`) — workers consume from Redis Streams only |
+| `middleware` | array of strings | no | Worker-level middleware applied to message processing |
 | `subscribe` | object | yes | Subscription configuration |
 | `subscribe.topic` | string | yes | Topic or stream name |
 | `subscribe.group` | string | yes | Consumer group name |

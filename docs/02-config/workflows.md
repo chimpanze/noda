@@ -6,6 +6,8 @@ Files in `workflows/*.json`. Each file defines one workflow.
 |-------|------|----------|-------------|
 | `id` | string | yes | Unique workflow identifier |
 | `name` | string | no | Display name |
+| `description` | string | no | Human-readable description |
+| `version` | string | no | Free-form version string |
 | `timeout` | string | no | Maximum execution time (e.g., `"30s"`, `"5m"`). Workflow is cancelled if exceeded. |
 | `nodes` | object | yes | Map of node ID to node definition |
 | `edges` | array | yes | Execution flow edges |
@@ -17,6 +19,8 @@ Files in `workflows/*.json`. Each file defines one workflow.
 | `type` | string | yes | Node type (e.g., `"db.query"`, `"control.if"`) |
 | `services` | object | no | Service slot mappings |
 | `config` | object | yes | Node-specific configuration |
+| `as` | string | no | Output alias: the node's output is stored (and referenced in expressions) under this name instead of the node ID. Must not collide with another node ID. |
+| `position` | object | no | Visual-editor coordinates (`{"x": ..., "y": ...}`); ignored by the runtime |
 
 ## Edge Definition
 

@@ -21,7 +21,7 @@ Files in `schedules/*.json`.
 ```json
 {
   "id": "daily-cleanup",
-  "cron": "0 2 * * *",
+  "cron": "0 0 2 * * *",
   "trigger": {
     "workflow": "cleanup-expired",
     "input": {}
