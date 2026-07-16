@@ -3,6 +3,7 @@ package email
 import (
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 	"net/smtp"
 	"strconv"
@@ -68,6 +69,9 @@ func parsePort(raw any) (int, error) {
 	switch v := raw.(type) {
 	case nil:
 	case float64:
+		if v != math.Trunc(v) {
+			return 0, fmt.Errorf("email: invalid port %v: must be an integer", v)
+		}
 		port = int(v)
 	case int:
 		port = v

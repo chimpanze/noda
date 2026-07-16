@@ -441,7 +441,7 @@ func TestCreateService_PortAsStringWithWhitespace(t *testing.T) {
 
 func TestCreateService_PortInvalid(t *testing.T) {
 	p := &Plugin{}
-	for _, bad := range []any{"abc", "", "587abc", "0", "65536", "-1", float64(0), float64(70000), true} {
+	for _, bad := range []any{"abc", "", "587abc", "0", "65536", "-1", float64(0), float64(70000), float64(465.7), true} {
 		_, err := p.CreateService(map[string]any{
 			"host": "smtp.example.com",
 			"port": bad,
