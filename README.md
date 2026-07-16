@@ -32,6 +32,7 @@ noda init my-api
 cd my-api
 
 # Start with Docker Compose (PostgreSQL + Redis included)
+cp .env.example .env   # required — compose reads env_file: .env
 docker compose up --build
 
 # Or run locally

@@ -9,6 +9,7 @@ Iterates a sub-workflow over each item in a collection.
 | `collection` | string (expr) | yes | Expression resolving to an array |
 | `workflow` | string | yes | Sub-workflow ID to execute per item (static) |
 | `input` | object | no | Input template -- `$item` and `$index` available |
+| `max_items` | integer | no | Maximum collection size (default: 100000). The node errors if the collection is larger. |
 
 ## Outputs
 

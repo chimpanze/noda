@@ -196,6 +196,10 @@ Outbound HTTP client with optional circuit breaker. Used by all `http.*` nodes.
 | `base_url` | string | no | -- | Base URL prepended to all requests (must use `http://` or `https://`) |
 | `headers` | object | no | -- | Default headers sent with every request |
 | `circuit_breaker` | object | no | -- | Circuit breaker configuration (see below) |
+| `allow_private_networks` | boolean | no | `false` | Allow requests to private/loopback IP ranges (SSRF protection is on by default) |
+| `allowed_hosts` | array of strings | no | -- | Allowlist of bare hostnames (no scheme/port/path, no IP literals) the client may reach |
+| `redirects` | string | no | `"strip_auth"` | Redirect policy: `"none"`, `"same_origin"`, or `"strip_auth"` (follow but drop auth headers cross-origin) |
+| `max_redirects` | integer | no | `10` | Maximum redirects to follow (0–50) |
 
 Circuit breaker fields (inside `circuit_breaker`):
 
@@ -242,7 +246,7 @@ SMTP email sender. Used by the `email.send` node.
 | `username` | string | no | -- | SMTP username |
 | `password` | string | no | -- | SMTP password |
 | `from` | string | no | -- | Default sender address |
-| `tls` | boolean | no | `true` | Use TLS |
+| `tls` | boolean | no | port-dependent | Use implicit TLS (SMTPS). Defaults to `true` only for port 465; `false` for every other port, including 587. When `false`, the connection is still upgraded via STARTTLS if the server offers it. Set explicitly to override. |
 
 ```json
 {
@@ -253,8 +257,7 @@ SMTP email sender. Used by the `email.send` node.
       "port": 587,
       "username": "{{ $env('SMTP_USER') }}",
       "password": "{{ $env('SMTP_PASS') }}",
-      "from": "noreply@example.com",
-      "tls": true
+      "from": "noreply@example.com"
     }
   }
 }
@@ -491,6 +494,7 @@ A complete setup with a database, cache, and HTTP client -- a route that fetches
 
 ```json
 {
+  "id": "get-user",
   "method": "GET",
   "path": "/users/:id",
   "trigger": {
@@ -507,67 +511,73 @@ A complete setup with a database, cache, and HTTP client -- a route that fetches
 ```json
 {
   "id": "get-user",
-  "nodes": [
-    {
-      "id": "check-cache",
+  "nodes": {
+    "check_cache": {
       "type": "cache.get",
       "services": { "cache": "redis" },
       "config": {
         "key": "{{ 'user:' + input.user_id }}"
       }
     },
-    {
-      "id": "fetch-user",
-      "type": "db.findOne",
-      "services": { "database": "postgres" },
-      "config": {
-        "table": "users",
-        "where": { "id": "{{ input.user_id }}" }
-      },
-      "condition": "{{ nodes.check_cache == nil }}",
-      "depends_on": ["check-cache"]
-    },
-    {
-      "id": "get-billing",
-      "type": "http.get",
-      "services": { "client": "billing-api" },
-      "config": {
-        "path": "{{ '/customers/' + input.user_id + '/balance' }}"
-      },
-      "depends_on": ["fetch-user"]
-    },
-    {
-      "id": "cache-user",
-      "type": "cache.set",
-      "services": { "cache": "redis" },
-      "config": {
-        "key": "{{ 'user:' + input.user_id }}",
-        "value": "{{ nodes.fetch_user }}",
-        "ttl": 300
-      },
-      "condition": "{{ nodes.fetch_user != nil }}",
-      "depends_on": ["fetch-user"]
-    },
-    {
-      "id": "respond",
+    "respond_cached": {
       "type": "response.json",
       "config": {
         "status": 200,
         "body": {
-          "user": "{{ nodes.check_cache ?? nodes.fetch_user }}",
-          "balance": "{{ nodes.get_billing.balance }}"
+          "user": "{{ nodes.check_cache.value }}",
+          "cached": true
         }
-      },
-      "depends_on": ["get-billing", "cache-user"]
+      }
+    },
+    "fetch_user": {
+      "type": "db.find",
+      "services": { "database": "postgres" },
+      "config": {
+        "table": "users",
+        "where": { "id": "{{ input.user_id }}" }
+      }
+    },
+    "get_billing": {
+      "type": "http.get",
+      "services": { "client": "billing-api" },
+      "config": {
+        "path": "{{ '/customers/' + input.user_id + '/balance' }}"
+      }
+    },
+    "cache_user": {
+      "type": "cache.set",
+      "services": { "cache": "redis" },
+      "config": {
+        "key": "{{ 'user:' + input.user_id }}",
+        "value": "{{ nodes.fetch_user[0] }}",
+        "ttl": 300
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "user": "{{ nodes.fetch_user[0] }}",
+          "balance": "{{ nodes.get_billing.body.balance }}"
+        }
+      }
     }
+  },
+  "edges": [
+    { "from": "check_cache", "output": "success", "to": "respond_cached" },
+    { "from": "check_cache", "output": "error", "to": "fetch_user" },
+    { "from": "fetch_user", "to": "get_billing" },
+    { "from": "fetch_user", "to": "cache_user" },
+    { "from": "get_billing", "to": "respond" },
+    { "from": "cache_user", "to": "respond" }
   ]
 }
 ```
 
 This workflow:
 
-1. Checks the Redis cache for the user.
-2. If not cached, queries PostgreSQL.
-3. Calls the billing API for the user's balance.
-4. Caches the database result for 5 minutes.
-5. Returns the combined response.
+1. Checks the Redis cache for the user. `cache.get` fires its `success` output on a hit and its `error` output on a miss (or connection error).
+2. On a cache hit, responds immediately with the cached user.
+3. On a miss, queries PostgreSQL (`db.find` returns an array of rows), then in parallel calls the billing API and caches the database result for 5 minutes.
+4. Once both branches finish, returns the combined response.

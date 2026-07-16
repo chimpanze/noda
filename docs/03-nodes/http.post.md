@@ -60,7 +60,7 @@ The `error` port fires on connection errors, DNS failures, or timeouts. It does 
 }
 ```
 
-For timeouts, the error message is: `"timeout after 10s: HTTP POST https://api.example.com/orders"`.
+For timeouts, the error message is: `"timeout: HTTP POST https://api.example.com/orders"`.
 
 ## Example
 

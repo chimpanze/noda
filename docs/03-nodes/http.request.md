@@ -40,7 +40,7 @@ Response bodies are limited to 100 MB. Responses exceeding this limit produce an
     "method": "POST",
     "url": "/webhooks/notify",
     "headers": {
-      "X-Webhook-Secret": "{{ $env('WEBHOOK_SECRET') }}"
+      "X-Webhook-Secret": "{{ secrets.WEBHOOK_SECRET }}"
     },
     "body": {
       "event": "order.created",

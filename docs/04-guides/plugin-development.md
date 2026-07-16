@@ -28,7 +28,7 @@ type Plugin interface {
     HasServices() bool
 
     // CreateService initializes a service instance from config.
-    CreateService(name string, config map[string]any) (any, error)
+    CreateService(config map[string]any) (any, error)
 
     // HealthCheck verifies a service instance is healthy.
     HealthCheck(service any) error
@@ -56,10 +56,10 @@ type Plugin struct{}
 func (p *Plugin) Name() string   { return "My Plugin" }
 func (p *Plugin) Prefix() string { return "my" }
 
-func (p *Plugin) HasServices() bool                                { return false }
-func (p *Plugin) CreateService(name string, config map[string]any) (any, error) { return nil, nil }
-func (p *Plugin) HealthCheck(service any) error                    { return nil }
-func (p *Plugin) Shutdown(service any) error                       { return nil }
+func (p *Plugin) HasServices() bool                          { return false }
+func (p *Plugin) CreateService(config map[string]any) (any, error) { return nil, nil }
+func (p *Plugin) HealthCheck(service any) error              { return nil }
+func (p *Plugin) Shutdown(service any) error                 { return nil }
 
 func (p *Plugin) Nodes() []api.NodeRegistration {
     return []api.NodeRegistration{
@@ -78,11 +78,17 @@ type NodeDescriptor interface {
     // Combined with plugin prefix: "my.greet"
     Name() string
 
-    // ServiceDeps declares required/optional service slots.
-    ServiceDeps() []ServiceDep
+    // Description returns a one-line human-readable description.
+    Description() string
+
+    // ServiceDeps declares service slots, keyed by slot name.
+    ServiceDeps() map[string]ServiceDep
 
     // ConfigSchema returns a JSON Schema for the node's config.
     ConfigSchema() map[string]any
+
+    // OutputDescriptions describes the data shape per output port.
+    OutputDescriptions() map[string]string
 }
 ```
 
@@ -91,10 +97,18 @@ type NodeDescriptor interface {
 ```go
 type GreetDescriptor struct{}
 
-func (d *GreetDescriptor) Name() string { return "greet" }
+func (d *GreetDescriptor) Name() string        { return "greet" }
+func (d *GreetDescriptor) Description() string { return "Greets someone by name" }
 
-func (d *GreetDescriptor) ServiceDeps() []ServiceDep {
+func (d *GreetDescriptor) ServiceDeps() map[string]api.ServiceDep {
     return nil // No services needed
+}
+
+func (d *GreetDescriptor) OutputDescriptions() map[string]string {
+    return map[string]string{
+        "success": "Object with the greeting string",
+        "error":   "Expression evaluation error",
+    }
 }
 
 func (d *GreetDescriptor) ConfigSchema() map[string]any {
@@ -113,7 +127,7 @@ func (d *GreetDescriptor) ConfigSchema() map[string]any {
 
 ## Node Factory and Executor
 
-The **factory** creates a node executor from the resolved config. It runs once at workflow load time — use it for validation and pre-computation.
+The **factory** creates a node executor from the node's config. Its signature is `func(config map[string]any) api.NodeExecutor` — it cannot return an error, so config validation belongs in `Execute` (return an error there), not the factory.
 
 The **executor** runs each time the node is invoked in a workflow.
 
@@ -132,18 +146,11 @@ type NodeExecutor interface {
 ### Example Factory and Executor
 
 ```go
-func greetFactory(config map[string]any) (api.NodeExecutor, error) {
-    // Validate config at load time
-    nameExpr, ok := config["name"].(string)
-    if !ok {
-        return nil, fmt.Errorf("name is required")
-    }
-    return &GreetExecutor{nameExpr: nameExpr}, nil
+func greetFactory(config map[string]any) api.NodeExecutor {
+    return &GreetExecutor{}
 }
 
-type GreetExecutor struct {
-    nameExpr string
-}
+type GreetExecutor struct{}
 
 func (e *GreetExecutor) Outputs() []string {
     return api.DefaultOutputs() // ["success", "error"]
@@ -152,10 +159,15 @@ func (e *GreetExecutor) Outputs() []string {
 func (e *GreetExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
     config map[string]any, services map[string]any) (string, any, error) {
 
+    nameExpr, ok := config["name"].(string)
+    if !ok {
+        return "", nil, fmt.Errorf("my.greet: name is required")
+    }
+
     // Resolve expression
-    name, err := nCtx.Resolve(e.nameExpr)
+    name, err := nCtx.Resolve(nameExpr)
     if err != nil {
-        return api.OutputError, nil, err
+        return "", nil, err
     }
 
     greeting := fmt.Sprintf("Hello, %s!", name)
@@ -170,13 +182,13 @@ The `ExecutionContext` provides access to workflow data and expression resolutio
 ```go
 type ExecutionContext interface {
     // Input returns the workflow input data.
-    Input() map[string]any
+    Input() any
 
-    // Auth returns authentication data.
+    // Auth returns authentication data (nil if no auth).
     Auth() *AuthData
 
     // Trigger returns trigger metadata.
-    Trigger() *TriggerData
+    Trigger() TriggerData
 
     // Resolve evaluates an expression string.
     Resolve(expr string) (any, error)
@@ -203,9 +215,12 @@ type AuthData struct {
 
 ```go
 type TriggerData struct {
-    Type      string    // "http", "event", "schedule", "websocket", "wasm"
+    Type      string // "http", "event", "schedule", "websocket", "wasm"
     Timestamp time.Time
     TraceID   string
+    RequestID string // X-Request-ID from HTTP request (if present)
+    ClientIP  string // client IP for HTTP-triggered workflows ("" otherwise)
+    UserAgent string // User-Agent header for HTTP-triggered workflows ("" otherwise)
 }
 ```
 
@@ -227,9 +242,10 @@ type QueryDescriptor struct{}
 
 func (d *QueryDescriptor) Name() string { return "query" }
 
-func (d *QueryDescriptor) ServiceDeps() []ServiceDep {
-    return []ServiceDep{
-        {Prefix: "db", Required: true},
+func (d *QueryDescriptor) ServiceDeps() map[string]api.ServiceDep {
+    // Key = slot name used in the workflow's "services" block.
+    return map[string]api.ServiceDep{
+        "database": {Prefix: "db", Required: true},
     }
 }
 
@@ -272,7 +288,7 @@ Plugins that manage services implement the full lifecycle:
 ```go
 func (p *MyPlugin) HasServices() bool { return true }
 
-func (p *MyPlugin) CreateService(name string, config map[string]any) (any, error) {
+func (p *MyPlugin) CreateService(config map[string]any) (any, error) {
     // Initialize connection, validate config
     addr := config["addr"].(string)
     client, err := connectToService(addr)
@@ -371,15 +387,15 @@ Plugins can implement standard service interfaces so other nodes can interact wi
 // StorageService allows file operations
 type StorageService interface {
     Read(ctx context.Context, path string) ([]byte, error)
-    Write(ctx context.Context, path string, data []byte, contentType string) error
+    Write(ctx context.Context, path string, data []byte) error
     Delete(ctx context.Context, path string) error
     List(ctx context.Context, prefix string) ([]string, error)
 }
 
-// CacheService allows key-value operations
+// CacheService allows key-value operations (ttl in seconds)
 type CacheService interface {
     Get(ctx context.Context, key string) (any, error)
-    Set(ctx context.Context, key string, value any, ttl time.Duration) error
+    Set(ctx context.Context, key string, value any, ttl int) error
     Del(ctx context.Context, key string) error
     Exists(ctx context.Context, key string) (bool, error)
 }
@@ -391,13 +407,13 @@ type StreamService interface {
 
 // PubSubService allows pub/sub messaging
 type PubSubService interface {
-    Publish(ctx context.Context, topic string, payload map[string]any) error
+    Publish(ctx context.Context, channel string, payload any) error
 }
 
 // ConnectionService allows real-time communication
 type ConnectionService interface {
     Send(ctx context.Context, channel string, data any) error
-    SendSSE(ctx context.Context, channel string, event, id string, data any) error
+    SendSSE(ctx context.Context, channel string, event string, data any, id string) error
 }
 ```
 
@@ -435,24 +451,17 @@ func (d *MyDescriptor) ConfigSchema() map[string]any {
 
 ## Loading Custom Plugins
 
-Register plugins before starting the server:
+There is no external plugin-loading mechanism: plugins are compiled into the `noda` binary, and `internal/` packages cannot be imported from outside the module. To ship a custom Go plugin you build your own binary from a fork (or a module that vendors Noda):
 
-```go
-package main
+1. Put your plugin package under `plugins/` (it only needs to import `pkg/api`, which is the stable contract).
+2. Register it in `cmd/noda/main.go` — either add it to `corePlugins()`, or follow the build-tag pattern used by the image plugin (`cmd/noda/plugins_image.go`): a `//go:build`-tagged file whose `init()` appends to `optionalPlugins`.
+3. `go build ./cmd/noda` — `noda plugin list` should now show it.
 
-import (
-    "github.com/your-org/noda/internal/registry"
-    myplugin "github.com/example/noda-myplugin"
-)
-
-func init() {
-    registry.RegisterPlugin(&myplugin.Plugin{})
-}
-```
+For custom logic that shouldn't require a fork, use a **Wasm module** instead (see the [Wasm development guide](wasm-development.md)) — that's the supported out-of-tree extension point.
 
 ## Best Practices
 
-1. **Validate early** — check config in the factory, not the executor
+1. **Validate in Execute** — factories can't return errors; fail with a clear message on first execution
 2. **Use expressions** — let users pass expressions for dynamic values; resolve them with `nCtx.Resolve()`
 3. **Return structured data** — return `map[string]any` so downstream nodes can access fields
 4. **Use appropriate error types** — pick the right `api.*Error` for correct HTTP status mapping

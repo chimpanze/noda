@@ -59,7 +59,7 @@ The `error` port fires on connection errors, DNS failures, or timeouts. It does 
 }
 ```
 
-For timeouts, the error message is: `"timeout after 5s: HTTP GET https://api.example.com/users/1"`.
+For timeouts, the error message is: `"timeout: HTTP GET https://api.example.com/users/1"`.
 
 ## Example
 

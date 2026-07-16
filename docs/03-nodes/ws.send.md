@@ -15,7 +15,7 @@ Sends data to WebSocket connections on a channel.
 
 ## Behavior
 
-Resolves `channel` and `data`. Calls `services["connections"].Send(channel, data)` on the connection manager. The send is buffered -- it does not block. Fires `success` with no data.
+Resolves `channel` and `data`. Calls `services["connections"].Send(channel, data)` on the connection manager. The send is buffered -- it does not block. Fires `success` with `{"channel": "<resolved channel>"}`.
 
 ## Service Dependencies
 
@@ -65,5 +65,5 @@ After saving a message to the database, broadcast it to all WebSocket clients in
 
 When `nodes.save_message` produced `{"id": 9001, "room_id": "general", "author": "alice", "text": "Hello!", "created_at": "2024-01-15T10:30:00Z"}`, the data is sent to channel `chat.general`. Output stored as `nodes.broadcast_message`:
 ```json
-null
+{ "channel": "chat.general" }
 ```

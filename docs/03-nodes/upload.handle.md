@@ -20,7 +20,7 @@ Single file output: `{path, size, content_type, filename}`. Multiple files outpu
 
 ## Behavior
 
-Reads the file stream from the trigger input (marked via the `files` array on the trigger config). Validates file size and MIME type before fully consuming the stream. Streams the file directly to the destination storage service -- no full in-memory buffering. Fires `success` with file metadata. Fires `error` with a `ValidationError` if size or type constraints are violated.
+Reads the file stream from the trigger input (marked via the `files` array on the trigger config). The file is read fully into memory (bounded by the size limit), then the MIME type is detected from the content and validated, then the buffer is written to the destination storage service. Size your `max_size` (and the server `body_limit`) with this in-memory buffering in mind. Fires `success` with file metadata. Fires `error` with a `ValidationError` if size or type constraints are violated.
 
 ## Service Dependencies
 

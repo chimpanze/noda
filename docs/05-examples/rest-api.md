@@ -89,12 +89,11 @@ Both queries run in parallel (no dependency between them). The response node wai
 
 **Nodes:**
 
-1. `db.query` — `SELECT * FROM tasks WHERE id = $1 AND user_id = $2`
-2. `control.if` — condition: `{{ len(db-query) == 0 }}`
-   - `then` → `response.error` (404, NOT_FOUND)
-   - `else` → `response.json` (200, task data)
+1. `fetch` (`db.findOne`) — looks up the task by `id` and `user_id`
+   - `success` → `response.json` (200, task data)
+   - `error` (no matching row → `NotFoundError`) → `response.error` (404, NOT_FOUND)
 
-**Features exercised:** Conditional branching, `control.if` with `then`/`else`, different response nodes per branch.
+**Features exercised:** `db.findOne`'s required-row semantics, routing a node's `error` output to a different response node.
 
 ---
 

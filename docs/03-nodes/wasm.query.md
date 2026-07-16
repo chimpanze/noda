@@ -15,7 +15,7 @@ Sends a synchronous query to a Wasm module and awaits the response.
 
 ## Behavior
 
-Resolves `data`. Calls the module's `query` export synchronously (serialized with respect to ticks). Waits for the response up to `timeout`. Fires `success` with the module's response data. Fires `error` with `TimeoutError` if the module doesn't respond in time.
+Resolves `data`. Calls the module's `query` export synchronously (serialized with respect to ticks). Waits for the response up to `timeout`. Fires `success` with the module's response data. Fires `error` with a `query timeout after <duration>` error if the module doesn't respond in time (a plain error — an unhandled timeout surfaces as HTTP 500, not 504).
 
 ## Service Dependencies
 

@@ -102,9 +102,9 @@ The `workspace_auth` preset includes JWT + Casbin. Every route under `/api/works
     "workflow": "handle-github-webhook",
     "raw_body": true,
     "input": {
-      "event_type": "{{ request.headers['X-GitHub-Event'] }}",
-      "signature": "{{ request.headers['X-Hub-Signature-256'] }}",
-      "payload": "{{ request.body }}"
+      "event_type": "{{ headers['X-GitHub-Event'] }}",
+      "signature": "{{ headers['X-Hub-Signature-256'] }}",
+      "payload": "{{ body }}"
     }
   }
 }
@@ -112,12 +112,13 @@ The `workspace_auth` preset includes JWT + Casbin. Every route under `/api/works
 
 **Nodes:**
 
-1. `transform.validate` — verify HMAC signature using `{{ trigger.raw_body }}` against `{{ input.signature }}`
-2. `control.switch` — branch on `{{ input.event_type }}`
+> **Note:** the example does **not** verify the webhook signature — any request with the right shape is processed. Before exposing this route publicly, add verification, e.g. a `control.if` with condition `{{ ('sha256=' + hmac(raw_body, secrets.GITHUB_WEBHOOK_SECRET, 'sha256')) == input.signature }}` routing failures to a 401 `response.error`.
+
+1. `control.switch` — branch on `{{ input.event_type }}`
    - `"issues"` → `event.emit` to stream (topic: `github.issue`)
    - `"pull_request"` → `event.emit` to stream (topic: `github.pr`)
    - `default` → `util.log` (ignore unknown events)
-3. `response.json` — return 200 immediately
+2. `response.json` — return 200 immediately
 
 The response fires after emitting the event — the HTTP response goes back to GitHub fast. The actual processing happens in workers.
 

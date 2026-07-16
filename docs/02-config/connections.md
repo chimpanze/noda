@@ -6,7 +6,7 @@ Files in `connections/*.json`. Defines WebSocket and SSE endpoints.
 |-------|------|----------|-------------|
 | `sync` | object | yes | Cross-instance sync service |
 | `sync.pubsub` | string | yes | PubSub service name from `noda.json` |
-| `endpoints` | object | yes | Map of endpoint ID to endpoint definition |
+| `endpoints` | object | no | Map of endpoint ID to endpoint definition. **Caution:** a file without `endpoints` validates cleanly and registers nothing — don't forget it. |
 
 ## Endpoint Definition
 

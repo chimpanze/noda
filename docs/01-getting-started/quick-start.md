@@ -12,11 +12,12 @@ This creates a project with the following structure:
 ```
 my-api/
 ├── noda.json              # Root config: services, security, middleware
-├── vars.json              # Shared variables (optional)
 ├── routes/                # HTTP route definitions
 ├── workflows/             # Workflow DAGs
 ├── schemas/               # JSON Schema definitions
-└── tests/                 # Workflow test suites
+├── tests/                 # Workflow test suites
+├── migrations/            # SQL migration files
+└── .claude/               # AI-assistant project instructions
 ```
 
 ## 2. Define a Route
@@ -63,7 +64,10 @@ Create `workflows/hello.json`:
 
 ## 4. Start the Server
 
+First create your `.env` — the scaffolded `noda.json` reads `DATABASE_URL` and `REDIS_URL` via `$env()`, and `noda start`/`noda validate`/`noda test` all fail with a `missing environment variable` error until they're set:
+
 ```bash
+cp .env.example .env   # the example values work with the scaffolded docker compose stack
 noda start
 ```
 
@@ -300,7 +304,7 @@ Create `schemas/Task.json`:
   "path": "/api/tasks",
   "summary": "Create a task",
   "body": {
-    "schema": { "$ref": "schemas/Task#CreateTask" }
+    "schema": { "$ref": "schemas/CreateTask" }
   },
   "trigger": {
     "workflow": "create-task",
@@ -386,7 +390,7 @@ Create a `docker-compose.yml`:
 ```yaml
 services:
   noda:
-    image: ghcr.io/your-org/noda:latest
+    image: ghcr.io/chimpanze/noda:latest   # or your own image built from the repo Dockerfile
     ports:
       - "3000:3000"
     volumes:

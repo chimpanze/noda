@@ -4,6 +4,8 @@
 
 A real-time multiplayer game with a tick-based game loop, player input processing, physics simulation, state broadcasting, matchmaking, leaderboards, and a spectator mode. This is the most demanding use case — it validates the full Wasm tick model under real-time pressure.
 
+> **Conceptual walkthrough.** Unlike the other use-case pages, there is no `examples/` project for this one — the configs and module sketches below illustrate the architecture rather than describe a runnable repository project.
+
 ---
 
 ## What We're Building

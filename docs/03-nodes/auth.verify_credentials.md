@@ -26,7 +26,7 @@ If the user exists, the stored hash is checked with `VerifyPassword`, which acce
 - **argon2id** (`$argon2id$...`) — verified directly with constant-time comparison.
 - **bcrypt** (`$2a$`/`$2b$`/`$2y$`) — verified via `bcrypt.CompareHashAndPassword`. This lets you migrate an existing user table (e.g. from a bcrypt-based system) into `auth_users` without a bulk rehash: existing hashes verify as-is.
 
-When a bcrypt hash verifies successfully, the node opportunistically re-hashes the password with argon2id and updates `password_hash` in place (best-effort — a failure here does not fail the login). Every subsequent login for that user verifies against argon2id directly. A non-`active` `status` (e.g. suspended) also yields `invalid`, after the password check runs, so status alone is never a distinguishing timing signal for an attacker who doesn't already know the password.
+When a bcrypt hash verifies successfully, the node opportunistically re-hashes the password with argon2id and updates `password_hash` in place (best-effort — a failure here does not fail the login). Every subsequent login for that user verifies against argon2id directly. The same rehash-on-login also applies to argon2id hashes whose embedded parameters differ from the service's currently configured `argon2` settings — raising `memory_kib`/`iterations` in the auth service config automatically upgrades existing users' hashes as they log in. A non-`active` `status` (e.g. suspended) also yields `invalid`, after the password check runs, so status alone is never a distinguishing timing signal for an attacker who doesn't already know the password.
 
 ## Service Dependencies
 

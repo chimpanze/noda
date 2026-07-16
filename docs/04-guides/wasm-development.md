@@ -58,9 +58,17 @@ A Wasm module must export these functions:
 Called once at startup. Receives a JSON/MessagePack payload with the module's config and manifest.
 
 ```
-Input:  { "config": { ... }, "services": [...], "connections": [...] }
+Input:  {
+  "encoding": "json",              // or "msgpack" — how all subsequent payloads are encoded
+  "config":   { ... },             // opaque config from wasm_runtimes.<name>.config
+  "services": {                    // map keyed by service name
+    "redis": { "type": "cache", "operations": ["get", "set", "del", "exists"] }
+  }
+}
 Output: { "ok": true } or { "error": "reason" }
 ```
+
+(There is no `connections` field — connection endpoints are granted via `wasm_runtimes.<name>.connections` in `noda.json` and used through host calls, not announced in the initialize payload.)
 
 ### `tick` (required)
 
@@ -247,68 +255,45 @@ Wasm runtimes are configured in `noda.json`:
 
 ## Example: Echo Module
 
-A minimal module that echoes WebSocket messages back to the sender.
+A minimal module that echoes WebSocket messages back to their channel, written against the Noda PDK (never hand-roll the JSON envelopes — `noda.DecodeInto`/`noda.Call` stay correct when the runtime is configured for MessagePack):
 
 ```go
 package main
 
 import (
-    "encoding/json"
-    "github.com/extism/go-pdk"
+    "github.com/nodafw/noda-pdk-go/noda"
 )
 
-//export initialize
+//go:wasmexport initialize
 func initialize() int32 {
-    // Read input
-    input := pdk.Input()
-    var config map[string]any
-    json.Unmarshal(input, &config)
-
-    output, _ := json.Marshal(map[string]any{"ok": true})
-    pdk.Output(output)
+    if _, err := noda.GetInitInput(); err != nil {
+        return noda.Fail(err)
+    }
     return 0
 }
 
-//export tick
+//go:wasmexport tick
 func tick() int32 {
-    input := pdk.Input()
-    var tickData map[string]any
-    json.Unmarshal(input, &tickData)
-
-    // Echo back any client messages
-    if messages, ok := tickData["client_messages"].([]any); ok {
-        for _, msg := range messages {
-            m := msg.(map[string]any)
-            channel := m["channel"].(string)
-            data := m["data"]
-
-            // Send back via host function
-            payload, _ := json.Marshal(map[string]any{
-                "channel": channel,
-                "data":    data,
-            })
-            pdk.Call("noda_call", []byte(`{"service":"ws","operation":"send","payload":`+string(payload)+`}`))
-        }
+    input, err := noda.GetTickInput()
+    if err != nil {
+        return 0
     }
 
-    output, _ := json.Marshal(map[string]any{"ok": true})
-    pdk.Output(output)
+    // Echo every client message back to its channel.
+    // "game-ws" is the connection endpoint name granted via
+    // wasm_runtimes.<name>.connections in noda.json.
+    for _, msg := range input.ClientMessages {
+        _, _ = noda.Call("game-ws", "send", map[string]any{
+            "channel": msg.Channel,
+            "data":    msg.Data,
+        })
+    }
     return 0
 }
 
-//export query
+//go:wasmexport query
 func query() int32 {
-    input := pdk.Input()
-    var queryData map[string]any
-    json.Unmarshal(input, &queryData)
-
-    // Return current state
-    response, _ := json.Marshal(map[string]any{
-        "status": "running",
-        "connections": 0,
-    })
-    pdk.Output(response)
-    return 0
+    return noda.Output(map[string]any{"status": "running"})
 }
 
 func main() {}
@@ -316,78 +301,66 @@ func main() {}
 
 ## Example: Stateful Counter
 
-A module that maintains an in-memory counter, persisted to cache.
+A module that maintains an in-memory counter, persisted to cache. (This is a condensed version of [`examples/wasm-counter/`](../../examples/wasm-counter) — see that directory for the full runnable module.)
 
 ```go
 package main
 
 import (
-    "encoding/json"
-    "github.com/extism/go-pdk"
+    "github.com/nodafw/noda-pdk-go/noda"
 )
 
 var counter int64
 
-//export initialize
+//go:wasmexport initialize
 func initialize() int32 {
-    // Load counter from cache
-    payload, _ := json.Marshal(map[string]any{
-        "service":   "cache",
-        "operation": "get",
-        "payload":   map[string]any{"key": "counter"},
-    })
-    result := pdk.Call("noda_call", payload)
-
-    var res map[string]any
-    json.Unmarshal(result, &res)
-    if val, ok := res["value"].(float64); ok {
-        counter = int64(val)
+    if _, err := noda.GetInitInput(); err != nil {
+        return noda.Fail(err)
     }
 
-    output, _ := json.Marshal(map[string]any{"ok": true})
-    pdk.Output(output)
+    // Load the persisted counter from cache ("redis" = granted service name).
+    var res struct {
+        Value float64 `json:"value"`
+    }
+    if err := noda.CallInto("redis", "get", map[string]any{"key": "counter"}, &res); err == nil {
+        counter = int64(res.Value)
+    }
     return 0
 }
 
-//export tick
+//go:wasmexport tick
 func tick() int32 {
-    input := pdk.Input()
-    var tickData map[string]any
-    json.Unmarshal(input, &tickData)
-
-    // Process commands
-    if commands, ok := tickData["commands"].([]any); ok {
-        for _, cmd := range commands {
-            c := cmd.(map[string]any)
-            switch c["action"] {
-            case "increment":
-                counter++
-            case "decrement":
-                counter--
-            case "reset":
-                counter = 0
-            }
-        }
-
-        // Persist to cache
-        payload, _ := json.Marshal(map[string]any{
-            "service":   "cache",
-            "operation": "set",
-            "payload":   map[string]any{"key": "counter", "value": counter, "ttl": 0},
-        })
-        pdk.Call("noda_call_async", payload)
+    input, err := noda.GetTickInput()
+    if err != nil {
+        return 0
     }
 
-    output, _ := json.Marshal(map[string]any{"ok": true})
-    pdk.Output(output)
+    for _, cmd := range input.Commands {
+        var op struct {
+            Action string `json:"action"`
+        }
+        if err := noda.DecodeInto(cmd.Data, &op); err != nil {
+            continue
+        }
+        switch op.Action {
+        case "increment":
+            counter++
+        case "decrement":
+            counter--
+        case "reset":
+            counter = 0
+        }
+    }
+
+    // Persist asynchronously; the result arrives in a later tick's Responses.
+    noda.CallAsync("redis", "set", "persist-counter",
+        map[string]any{"key": "counter", "value": counter, "ttl": 0})
     return 0
 }
 
-//export query
+//go:wasmexport query
 func query() int32 {
-    response, _ := json.Marshal(map[string]any{"value": counter})
-    pdk.Output(response)
-    return 0
+    return noda.Output(map[string]any{"value": counter})
 }
 
 func main() {}
@@ -398,14 +371,10 @@ func main() {}
 ### Go
 
 ```bash
-tinygo build -o module.wasm -target wasi ./main.go
+tinygo build -o module.wasm -target wasi -buildmode=c-shared .
 ```
 
-Or with the Noda PDK:
-
-```bash
-cd pdk && make build
-```
+`-buildmode=c-shared` is required on tinygo ≥ 0.40 so exports are callable directly by Extism without running `_start` first — without it, `initialize` panics with `wasmExportCheckRun`. See `pdk/README.md` and [`examples/wasm-helpers/`](../../examples/wasm-helpers) for complete build recipes.
 
 ### Rust
 

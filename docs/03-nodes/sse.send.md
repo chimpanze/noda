@@ -17,7 +17,7 @@ Sends a Server-Sent Event to a channel.
 
 ## Behavior
 
-Resolves all fields. Calls `services["connections"].SendSSE(channel, event, data, id)`. Buffered, non-blocking. Fires `success` with no data.
+Resolves all fields. Calls `services["connections"].SendSSE(channel, event, data, id)`. Buffered, non-blocking. Fires `success` with `{"channel": "<resolved channel>"}`.
 
 ## Service Dependencies
 
@@ -66,5 +66,5 @@ After a new comment is inserted, notify the post author via SSE using data from 
 
 When `nodes.get_post` produced `{"author_id": "user-77", "title": "My Post"}` and `nodes.insert_comment` produced `{"id": 302, "post_id": 15, "author_name": "Bob"}`, the SSE event is sent to channel `user.user-77`. Output stored as `nodes.notify_author`:
 ```json
-null
+{ "channel": "user.user-77" }
 ```

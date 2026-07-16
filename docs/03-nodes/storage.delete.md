@@ -37,7 +37,7 @@ The `error` port fires if the file does not exist or the delete operation fails 
 
 ```json
 {
-  "error": "file not found",
+  "error": "storage not found: avatars/user-42.png",
   "node_id": "delete_avatar",
   "node_type": "storage.delete"
 }

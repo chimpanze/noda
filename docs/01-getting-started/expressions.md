@@ -9,8 +9,8 @@ All nodes have access to these variables in expressions:
 | Variable | Description |
 |----------|-------------|
 | `input` | Data passed to the workflow from the trigger |
-| `auth` | Auth data: `user_id`, `roles`, `claims` |
-| `trigger` | Trigger metadata: `type`, `timestamp`, `trace_id` |
+| `auth` | Auth data: `sub` (the authenticated user id), `roles`, `claims` |
+| `trigger` | Trigger metadata: `type`, `timestamp`, `trace_id`, `request_id`, `client_ip`, `user_agent` |
 | `nodes.<id>` | Output data from a previously executed node |
 | `secrets.<NAME>` | Secret value from configured providers (`.env` files by default) |
 | `$item`, `$index` | Loop iteration variables (inside `control.loop`) |

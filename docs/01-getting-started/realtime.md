@@ -91,9 +91,7 @@ Example `on_message` workflow that echoes the message to everyone on the channel
 `ws.send` (and `sse.send`) deliver a message to subscribers of a channel. Two things wire it up:
 
 1. **The `connections` service slot** binds to the **endpoint name**, not a `noda.json` service: `"services": { "connections": "board" }`. (At startup each endpoint is registered as a service under its own name.) `noda_validate_config` flags a slot that names an undefined endpoint.
-2. **The `channel` field** selects recipients. It is matched against the channels clients are subscribed to (the ones produced by `channels.pattern`):
-   - Exact: `"channel": "board.42"` → only clients on `board.42`.
-   - Wildcard `*` per segment: `"board.*"` → every room; `"*"` → all channels.
+2. **The `channel` field** selects recipients. It must be a **literal channel name** matching a channel clients are subscribed to (one produced by `channels.pattern`): `"channel": "board.42"` → only clients on `board.42`. Wildcard patterns (e.g. `"board.*"` or `"*"`) are **rejected with a validation error** — to reach several rooms, send once per room (e.g. with `control.loop`).
 
 So `ws.send`'s `channel` must line up with what `channels.pattern` produces, or no one receives the message.
 
@@ -130,6 +128,8 @@ A REST route persists a message, then broadcasts it to everyone subscribed to th
   }
 }
 ```
+
+> **Numeric-string coercion pitfall:** every resolved trigger-input string that parses as a number is silently retyped to a number — `/api/board/42/messages` delivers `input.room_id` as the number `42`, not the string `"42"`. If a downstream `db.create` writes it to a TEXT column, the insert fails. Until this is fixed ([#331](https://github.com/chimpanze/noda/issues/331)), make numeric-looking path segments land in numeric columns (e.g. `room_id BIGINT`), or convert explicitly with `{{ string(input.room_id) }}` where you need the string.
 
 `workflows/post-message.json`:
 

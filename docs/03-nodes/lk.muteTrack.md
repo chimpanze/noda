@@ -15,7 +15,7 @@ Mutes or unmutes a published track.
 
 `success`, `error`
 
-Output: `{muted: <bool>, track_sid: "...", track_name: "...", track_type: "..."}`
+Output: `{muted: <bool>}` — plus `track_sid`, `track_name`, `track_type` when the LiveKit response includes track info (they are absent otherwise, so guard downstream references).
 
 ## Behavior
 
@@ -74,4 +74,4 @@ Output stored as `nodes.mute_audio`:
 { "muted": true, "track_sid": "TR_xyz", "track_name": "microphone", "track_type": "AUDIO" }
 ```
 
-Downstream nodes can check `nodes.mute_audio.muted` or `nodes.mute_audio.track_type`.
+(The three `track_*` fields appear only when LiveKit returns track info.) Downstream nodes can check `nodes.mute_audio.muted`, and `nodes.mute_audio.track_type` when present.

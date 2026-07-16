@@ -13,7 +13,7 @@ Structured SELECT returning an array of row objects.
 | `joins` | array | no | JOIN clauses |
 | `order` | string | no | ORDER BY clause |
 | `group` | string | no | GROUP BY clause |
-| `having` | string | no | HAVING clause |
+| `having` | string or object | no | HAVING clause. Prefer the parameterized object form `{"query": "count(*) > ?", "params": [5]}`; a bare string still works but is deprecated (logs a warning) |
 | `limit` | integer | no | Max rows to return |
 | `offset` | integer | no | Rows to skip |
 
@@ -27,7 +27,7 @@ Output: `[]map[string]any` (empty array if no rows).
 
 Builds and executes a SELECT query from the structured config fields. Returns all matching rows as an array of objects.
 
-SQL injection prevention: All database nodes validate SQL fragments to prevent injection attacks. Table names, column names, and identifiers must match `^[a-zA-Z_][a-zA-Z0-9_.]*$`. ORDER BY clauses are validated per-item. JOIN types must be one of `INNER`, `LEFT`, `RIGHT`, `FULL`, or `CROSS`. SQL fragments (`where_clause.query`, `joins[].on`, `group`, `having`) reject semicolons (`;`), line comments (`--`), and block comments (`/*`). Always pass dynamic values through `params` rather than interpolating them into SQL strings.
+SQL injection prevention: All database nodes validate SQL fragments to prevent injection attacks. Table names, column names, and identifiers must match `^[a-zA-Z_][a-zA-Z0-9_.]*$`. ORDER BY clauses are validated per-item. JOIN types must be one of `INNER`, `LEFT`, `RIGHT`, `FULL`, or `CROSS`. SQL fragments (`where_clause.query`, `joins[].on`, `group`, `having`) reject semicolons (`;`), line comments (`--`), block comments (`/*`), and any fragment containing one of these keywords as a whole word: `DROP`, `DELETE`, `INSERT`, `UPDATE`, `ALTER`, `CREATE`, `EXEC`, `UNION`, `SELECT`, `GRANT`, `REVOKE`, `TRUNCATE` — this can also reject legitimate column or alias names that happen to contain a keyword as a separate word. Always pass dynamic values through `params` rather than interpolating them into SQL strings.
 
 ## Service Dependencies
 

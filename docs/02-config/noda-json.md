@@ -9,9 +9,12 @@ The root config file. All fields are optional except where noted.
   "security": { ... },
   "middleware_presets": { ... },
   "route_groups": { ... },
-  "wasm_runtimes": { ... }
+  "wasm_runtimes": { ... },
+  "secrets": { ... }
 }
 ```
+
+> **Note:** the root schema also accepts a top-level `connections` key, but it has no effect — connection endpoints are only read from `connections/*.json` files (see [connections.md](connections.md)). Don't put connection config in `noda.json`.
 
 ## server
 
@@ -25,6 +28,8 @@ The root config file. All fields are optional except where noted.
 | `expression_strict_mode` | boolean | `false` | When `true`, undefined variables in expressions produce compile errors instead of silently returning nil. Catches typos like `{{ auth.is_admim }}` at load time |
 | `health_timeout` | string | `"5s"` | Timeout for health check calls to services (duration). Prevents hung service checks from blocking the health endpoint. |
 | `trust_proxy` | object | disabled | Trusted proxy configuration (see subsection below). Off by default. |
+| `response_timeout` | string | -- | Default per-request timeout for route handlers (duration). Individual routes can override it with their own `response_timeout`. |
+| `shutdown_deadline` | string | -- | How long graceful shutdown waits for in-flight work before forcing exit (duration). |
 
 ```json
 {
@@ -317,6 +322,10 @@ All fields are optional except `database`; defaults are as shown above and follo
 |-------|------|----------|-------------|
 | `model` | string | yes | Casbin model definition |
 | `policies` | array | yes | Policy rule tuples |
+| `role_links` | array | no | Grouping-policy tuples (role inheritance links) |
+| `tenant_param` | string | no | Route param name used as the tenant/domain in multi-tenant RBAC |
+
+See [middleware.md](middleware.md#casbinenforce) for how `role_links` and `tenant_param` are used by `casbin.enforce`.
 
 ```json
 {
@@ -393,6 +402,7 @@ Apply middleware presets to URL path prefixes.
 | `allow_outbound` | object | no | Allowed outbound hosts |
 | `config` | object | no | Opaque config passed to module's `initialize` |
 | `tick_timeout` | string | no | Max duration for a single tick call (e.g. `"5s"`, `"500ms"`). Default: 10x tick budget |
+| `allowed_workflows` | array of strings | no | Workflow IDs this module is allowed to trigger. An empty list denies all workflow triggering. |
 
 ```json
 {
@@ -412,6 +422,27 @@ Apply middleware presets to URL path prefixes.
         "max_players": 100
       }
     }
+  }
+}
+```
+
+## secrets
+
+Configures which providers back `secrets.*` (workflow expressions) and `$env()` (root-config substitution). When omitted, the defaults apply: a `dotenv` provider reading `.env` in the config directory, then the process environment.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `providers` | array | no | Ordered list of secret providers; earlier providers win |
+| `providers[].type` | string | yes | `"dotenv"` (read `.env` — and the environment-specific variant — from the config directory) or `"env"` (process environment) |
+| `providers[].config` | object | no | Reserved for provider-specific options; currently unused |
+
+```json
+{
+  "secrets": {
+    "providers": [
+      { "type": "dotenv" },
+      { "type": "env" }
+    ]
   }
 }
 ```

@@ -243,7 +243,7 @@ Nodes with no edge connecting them execute in parallel automatically. The engine
       "as": "total",
       "services": { "database": "postgres" },
       "config": {
-        "sql": "SELECT COUNT(*) as count FROM tasks WHERE user_id = $1",
+        "query": "SELECT COUNT(*) as count FROM tasks WHERE user_id = $1",
         "params": ["{{ auth.sub }}"]
       }
     },
@@ -252,7 +252,7 @@ Nodes with no edge connecting them execute in parallel automatically. The engine
       "as": "rows",
       "services": { "database": "postgres" },
       "config": {
-        "sql": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
+        "query": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
         "params": ["{{ auth.sub }}", "{{ input.limit }}", "{{ (input.page - 1) * input.limit }}"]
       }
     },
@@ -494,7 +494,7 @@ Run parallel queries, then combine the results with `transform.merge`. The merge
       "as": "order_counts",
       "services": { "database": "postgres" },
       "config": {
-        "sql": "SELECT user_id, COUNT(*) as total_orders FROM orders GROUP BY user_id"
+        "query": "SELECT user_id, COUNT(*) as total_orders FROM orders GROUP BY user_id"
       }
     },
     "merge": {
@@ -889,7 +889,7 @@ Check the cache before hitting the database. On a miss, query the database and p
       "as": "orders",
       "services": { "database": "postgres" },
       "config": {
-        "sql": "SELECT o.*, c.name as customer_name, c.email as customer_email FROM orders o JOIN customers c ON o.customer_id = c.id WHERE o.user_id = $1 ORDER BY o.created_at DESC",
+        "query": "SELECT o.*, c.name as customer_name, c.email as customer_email FROM orders o JOIN customers c ON o.customer_id = c.id WHERE o.user_id = $1 ORDER BY o.created_at DESC",
         "params": ["{{ input.user_id }}"]
       }
     },

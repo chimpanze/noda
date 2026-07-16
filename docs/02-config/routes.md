@@ -10,15 +10,21 @@ Files in `routes/*.json`. Each file defines one route.
 | `summary` | string | no | OpenAPI summary |
 | `tags` | array | no | OpenAPI tags |
 | `middleware` | array | no | Route-specific middleware |
+| `middleware_preset` | string | no | Named middleware preset from `noda.json`'s `middleware_presets` |
+| `params.schema` | object | no | JSON Schema for path parameters, validated before the workflow runs |
+| `query.schema` | object | no | JSON Schema for query parameters, validated before the workflow runs |
 | `body` | object | no | Request body definition |
 | `body.schema` | object | no | JSON Schema or `$ref`. Validated automatically before the workflow runs |
 | `body.validate` | boolean | no | Enable/disable automatic validation (default: `true`) |
+| `body.content_type` | string | no | Request content type advertised in OpenAPI (e.g. `multipart/form-data`) |
 | `response` | object | no | Response schemas keyed by status code |
 | `response.validate` | string/boolean | no | Response validation mode (see below) |
 | `response.<status>.schema` | object | no | JSON Schema for responses with this status code |
+| `response_timeout` | string | no | Per-route request timeout (duration); overrides `server.response_timeout` |
 | `trigger` | object | yes | Workflow to execute |
 | `trigger.workflow` | string | yes | Workflow ID |
 | `trigger.input` | object | no | Input mapping (expressions) |
+| `trigger.files` | array of strings | no | Input keys to treat as uploaded file streams (multipart fields); each entry must have a matching `trigger.input` key |
 
 **Trigger input sources:** `body.*`, `params.*`, `query.*`, `headers.*`, `auth.*`, `raw_body` (when `trigger.raw_body: true`).
 

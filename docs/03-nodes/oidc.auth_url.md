@@ -29,8 +29,8 @@ On success, outputs `{ url, state }`. Use `response.redirect` to send the user t
 {
   "type": "oidc.auth_url",
   "config": {
-    "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-    "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
+    "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+    "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
     "redirect_uri": "http://localhost:3000/auth/callback",
     "state": "{{ $uuid() }}",
     "scopes": ["openid", "profile", "email"],
@@ -65,9 +65,9 @@ A login flow generates a state token, caches it for CSRF verification, then buil
   "build_url": {
     "type": "oidc.auth_url",
     "config": {
-      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-      "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
+      "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+      "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+      "redirect_uri": "{{ secrets.APP_URL + '/auth/callback' }}",
       "state": "{{ nodes.gen_state.state }}"
     }
   }
