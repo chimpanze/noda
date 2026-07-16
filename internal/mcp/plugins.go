@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"github.com/chimpanze/noda/pkg/api"
+	authplugin "github.com/chimpanze/noda/plugins/auth"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
@@ -46,6 +47,7 @@ func corePlugins() []api.Plugin {
 		&corewasm.Plugin{},
 		&coreoidc.Plugin{},
 		&livekitplugin.Plugin{},
+		&authplugin.Plugin{},
 	}
 	return append(plugins, optionalPlugins...)
 }

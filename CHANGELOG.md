@@ -44,6 +44,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the worker's per-message timeout is applied once (runtime-owned); the `worker.timeout` middleware keeps its config name but is now the panic-to-error shield only (#285)
 
 ### Fixed
+- `storage.write` returns `{"path": ...}` in its success output as its descriptor and docs promise, instead of an empty map (#333)
+- email plugin parses string `port` values (the shape `$env()` substitution produces) instead of silently dialing 587; unparseable or out-of-range ports now fail service creation loudly (#334)
+- the MCP server and the workflow test runner's node registry now include the auth plugin's 8 node types (`auth.*`), previously invisible to `noda_list_nodes`/`noda_get_node_schema` and `noda test` (#327)
+- workflow test assertions can target intermediate (non-terminal) node outputs — the test runner now retains all outputs instead of reading already-evicted ones (#329)
+- unmocked `response.json` output is navigable in workflow tests: `api.HTTPResponse`/`api.Cookie` carry lowercase snake_case json tags and the test runner normalizes struct outputs to maps, so dot paths like `resp.body.email` and lowercase partial-match keys work (#330). Tests that matched the old capitalized field names (`Body`, `Status`) must switch to lowercase.
 - homebase: `GET /drops` returns 400 (not a Postgres-cast 500) on a malformed `before` cursor; pagination gains a `(created_at, id)` tuple cursor (`before_id`/`next_before_id`) so same-timestamp rows can't be skipped (#303)
 - homebase: concurrent `/setup` can no longer create two accounts — single-row unique index on `auth_users` (#304)
 - homebase: Caddy moved to a `docker-compose.edge.yml` override; an unset `DOMAIN` fails at parse time again instead of an opaque ACME error (#305)

@@ -80,5 +80,5 @@ func (e *writeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 		return "", nil, err
 	}
 
-	return api.OutputSuccess, map[string]any{}, nil
+	return api.OutputSuccess, map[string]any{"path": path}, nil
 }

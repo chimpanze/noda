@@ -3,8 +3,11 @@ package email
 import (
 	"crypto/tls"
 	"fmt"
+	"math"
 	"net"
 	"net/smtp"
+	"strconv"
+	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -29,11 +32,9 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		return nil, fmt.Errorf("email: missing 'host'")
 	}
 
-	port := 587
-	if v, ok := config["port"].(float64); ok {
-		port = int(v)
-	} else if v, ok := config["port"].(int); ok {
-		port = v
+	port, err := parsePort(config["port"])
+	if err != nil {
+		return nil, err
 	}
 
 	username, _ := config["username"].(string)
@@ -57,6 +58,38 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		from:     from,
 		useTLS:   useTLS,
 	}, nil
+}
+
+// parsePort parses the "port" config value. $env() substitution always
+// produces strings, so string values must be parsed — silently falling back
+// to the default would ignore the operator's SMTP_PORT (issue #334).
+// A nil value (key absent) returns the default 587.
+func parsePort(raw any) (int, error) {
+	port := 587
+	switch v := raw.(type) {
+	case nil:
+	case float64:
+		if v != math.Trunc(v) {
+			return 0, fmt.Errorf("email: invalid port %v: must be an integer", v)
+		}
+		port = int(v)
+	case int:
+		port = v
+	case int64:
+		port = int(v)
+	case string:
+		n, err := strconv.Atoi(strings.TrimSpace(v))
+		if err != nil {
+			return 0, fmt.Errorf("email: invalid port %q: not a number (is the environment variable set?)", v)
+		}
+		port = n
+	default:
+		return 0, fmt.Errorf("email: invalid port: expected number or numeric string, got %T", raw)
+	}
+	if port < 1 || port > 65535 {
+		return 0, fmt.Errorf("email: invalid port %d: must be in [1, 65535]", port)
+	}
+	return port, nil
 }
 
 func (p *Plugin) HealthCheck(service any) error {

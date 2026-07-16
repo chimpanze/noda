@@ -84,9 +84,11 @@ func runTestCase(
 	var traceMu sync.Mutex
 	startTimes := map[string]time.Time{}
 
-	// Build execution context
+	// Build execution context. Outputs are retained (eviction disabled) so
+	// assertions can target intermediate node outputs after the run.
 	opts := []engine.ExecutionContextOption{
 		engine.WithWorkflowID(workflowID),
+		engine.WithRetainOutputs(),
 		engine.WithTraceCallback(func(eventType, nodeID, nodeType, output, errMsg string, data any) {
 			traceMu.Lock()
 			defer traceMu.Unlock()
@@ -301,10 +303,27 @@ func collectOutputs(graph *engine.CompiledGraph, execCtx *engine.ExecutionContex
 	outputs := make(map[string]any)
 	for nodeID := range graph.Nodes {
 		if data, ok := execCtx.GetOutput(nodeID); ok {
-			outputs[nodeID] = data
+			outputs[nodeID] = normalizeOutput(data)
 		}
 	}
 	return outputs
+}
+
+// normalizeOutput converts struct outputs (e.g. *api.HTTPResponse from an
+// unmocked response.json node) into map[string]any via a JSON round-trip so
+// dot-path assertions can navigate them like every other node output.
+// Values that already are maps — or that don't round-trip to a JSON object —
+// are returned unchanged.
+func normalizeOutput(data any) any {
+	switch data.(type) {
+	case nil, map[string]any, string, bool, float64, int, int64, []any:
+		return data
+	}
+	m, err := normalizeToMap(data)
+	if err != nil {
+		return data
+	}
+	return m
 }
 
 func extractErrorNode(errMsg string) string {

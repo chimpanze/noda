@@ -36,7 +36,9 @@ func TestStorageWrite_Read_RoundTrip(t *testing.T) {
 	}, services)
 	require.NoError(t, err)
 	assert.Equal(t, "success", output)
-	_ = result
+	wm, ok := result.(map[string]any)
+	require.True(t, ok, "write output must be a map, got %T", result)
+	assert.Equal(t, "greet.txt", wm["path"])
 
 	// Read it back
 	re := newReadExecutor(nil)

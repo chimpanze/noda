@@ -3,6 +3,6 @@
   "workflow": "response-redirect",
   "tests": [
     { "name": "builds 302 redirect", "input": {},
-      "expect": { "status": "success", "outputs": { "rd": { "Status": 302, "Headers": { "Location": "/login" } } } } }
+      "expect": { "status": "success", "outputs": { "rd": { "status": 302, "headers": { "Location": "/login" } } } } }
   ]
 }

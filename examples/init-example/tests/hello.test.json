@@ -5,7 +5,7 @@
       "expect": {
         "outputs": {
           "respond": {
-            "Body": {
+            "body": {
               "greeting": "Hello, World!"
             }
           }
