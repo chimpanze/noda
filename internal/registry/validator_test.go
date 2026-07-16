@@ -348,3 +348,35 @@ func TestValidateStartupDryRun_MissingConfigTreatedAsEmpty(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "write-wf")
 	assert.Contains(t, errs[0].Error(), "write")
 }
+
+func TestValidateStartup_NodeConfigSchemaEnforced(t *testing.T) {
+	kvPlugin := &testKVPlugin{}
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(kvPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(kvPlugin))
+
+	services := NewServiceRegistry()
+	require.NoError(t, services.Register("my-store", "kv", kvPlugin))
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"write-wf": {
+				"nodes": map[string]any{
+					"write": map[string]any{
+						"type":     "kv.set",
+						"services": map[string]any{"store": "my-store"},
+						"config":   map[string]any{"value": "hello"}, // missing required "key"
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "missing required config field")
+	assert.Contains(t, errs[0].Error(), "write-wf")
+	assert.Contains(t, errs[0].Error(), "write")
+}
