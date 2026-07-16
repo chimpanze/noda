@@ -178,7 +178,12 @@ func parseBody(c fiber.Ctx) any {
 				}
 				return form
 			}
-		} else if values, err := url.ParseQuery(string(body)); err == nil {
+		} else if values, err := url.ParseQuery(string(body)); err == nil || len(values) > 0 {
+			// url.ParseQuery returns the pairs it did manage to parse alongside
+			// an error for bad percent-escapes; use them rather than discarding
+			// to the raw-string fallback below -- lenient like the previous
+			// fasthttp parser. Note: unlike fasthttp, Go's ParseQuery (since
+			// 1.17) rejects semicolon-separated pairs as a deliberate delta.
 			for k, v := range values {
 				if len(v) == 1 {
 					form[k] = v[0]

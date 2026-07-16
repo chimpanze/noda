@@ -17,7 +17,7 @@
         "table": "tasks",
         "where": { "user_id": "{{ input.user_id }}" },
         "order": "created_at DESC",
-        "limit": "{{ input.limit }}",
+        "limit": "{{ toInt(input.limit) }}",
         "offset": "{{ (toInt(input.page) - 1) * toInt(input.limit) }}"
       }
     },

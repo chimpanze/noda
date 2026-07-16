@@ -76,14 +76,14 @@ Request body validation happens automatically at the route level via `body.schem
 **Nodes:**
 
 1. `db.query` (as `count`) — `SELECT COUNT(*) FROM tasks WHERE user_id = $1`
-2. `db.query` (as `rows`) — `SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, with offset computed as `{{ (toInt(input.page) - 1) * toInt(input.limit) }}`
+2. `db.query` (as `rows`) — `SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, with `limit` wrapped as `{{ toInt(input.limit) }}` and offset computed as `{{ (toInt(input.page) - 1) * toInt(input.limit) }}`
 3. `response.json` — return 200 with `{ "data": "{{ rows }}", "pagination": { "page": "{{ input.page }}", "limit": "{{ input.limit }}", "total": "{{ count[0].count }}" } }`
 
 Both queries run in parallel (no dependency between them). The response node waits for both (AND-join).
 
 **Features exercised:** Implicit parallelism, expression defaults (`??` operator), parameterized queries, response composition from multiple upstream nodes.
 
-Note: a computed default like `{{ query.page ?? '1' }}` is not a bare transport reference, so it arrives as-typed (a string here) rather than being numerically coerced. Numeric consumers of such inputs — like the offset arithmetic above — need `toInt(...)`, or the route should map a bare reference (`{{ query.page }}`) instead.
+Note: a computed default like `{{ query.page ?? '1' }}` is not a bare transport reference, so it arrives as-typed (a string here) rather than being numerically coerced. Numeric consumers of such inputs — like `db.find`'s `limit` config field (a hard-typed int) and the offset arithmetic above — need `toInt(...)`, or the route should map a bare reference (`{{ query.page }}`) instead.
 
 ### Get Single Task
 
