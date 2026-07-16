@@ -22,7 +22,7 @@ func (d *errorDescriptor) ConfigSchema() map[string]any {
 			"message": map[string]any{"type": "string", "description": "Human-readable error message"},
 			"details": map[string]any{"type": "string", "description": "Additional error details"},
 		},
-		"required": []any{"status", "code", "message"},
+		"required": []any{"code", "message"},
 	}
 }
 func (d *errorDescriptor) OutputDescriptions() map[string]string {
