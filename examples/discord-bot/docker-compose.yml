@@ -4,4 +4,4 @@ services:
     volumes:
       - .:/app/config
     environment:
-      DISCORD_TOKEN: ${DISCORD_TOKEN}
+      DISCORD_BOT_TOKEN: ${DISCORD_BOT_TOKEN}

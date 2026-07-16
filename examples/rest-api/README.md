@@ -17,6 +17,9 @@ All endpoints require JWT authentication (`auth.jwt` middleware).
 ## Running
 
 ```bash
+# Environment (required — noda validate/test/start all fail without it)
+cp .env.example .env
+
 # Start PostgreSQL
 docker compose up -d postgres
 

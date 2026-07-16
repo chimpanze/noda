@@ -2,51 +2,33 @@
 
 **Version**: 0.4.0
 
-A Discord moderation bot with slash commands, reaction roles, automated moderation, and a web dashboard. This validates the Wasm runtime end to end — outbound WebSocket connections, tick-based processing, async HTTP, and workflow integration.
+A Discord gateway bot that answers chat commands (`!ping`, `!roll`), implemented entirely as a Wasm module. This validates the Wasm runtime end to end — an outbound WebSocket connection with automatic heartbeats and resume state, tick-based event processing, and async host calls.
+
+The runnable project lives in [`examples/discord-bot/`](../../examples/discord-bot).
 
 ---
 
 ## What We're Building
 
-A Discord bot that:
+A bot that:
 
-- **Connects to Discord** via the gateway WebSocket
-- **Responds to commands** — `/ban`, `/warn`, `/stats` via Discord's REST API
-- **Reaction roles** — users react to a message to get a role assigned
-- **Auto-moderation** — detects spam patterns, triggers warning/ban workflows
-- **Web dashboard** — HTTP API for moderators to view logs, configure rules
-- **Audit logging** — all moderation actions logged to database via workflows
+- **Connects to Discord** via the gateway WebSocket (`wss://gateway.discord.gg`), identifying with a bot token
+- **Keeps the session alive** — heartbeats are configured once and then sent automatically by Noda's WS gateway; the module tracks the sequence number and session ID for resume
+- **Responds to commands** — `!ping` replies "Pong!"; `!roll` rolls a die and posts the result via Discord's REST API
+- **Demonstrates async host calls** — `!roll` fires an async call and sends the reply only when the response arrives in a later tick
 
----
-
-## Services Required
-
-| Instance | Plugin | Purpose |
-|---|---|---|
-| `main-db` | `postgres` | Audit logs, server config, user warnings |
-| `app-cache` | `cache` | Rate limiting state, spam detection counters |
-| `main-stream` | `stream` | Durable events for audit log processing |
-| `realtime` | `pubsub` | Cross-instance WebSocket sync for dashboard |
+There is no HTTP API, no database, and no dashboard in this example — it is deliberately Wasm-only, so the entire project is one `noda.json` plus the module source.
 
 ---
 
 ## Config Structure
 
 ```
-noda.json                   — services, JWT, Wasm runtime config
-routes/
-  dashboard.json            — moderator dashboard API
-connections/
-  dashboard-ws.json         — live dashboard updates
-workflows/
-  ban-user.json
-  warn-user.json
-  get-mod-stats.json
-  log-action.json
-workers/
-  process-audit-log.json
+noda.json                   — the wasm_runtimes block (nothing else)
+docker-compose.yml          — runs Noda with DISCORD_BOT_TOKEN passed through
 wasm/
-  discord_bot.wasm          — the bot module
+  bot/                      — Go module source (tinygo)
+  bot.wasm                  — compiled module
 ```
 
 ---
@@ -57,25 +39,22 @@ wasm/
 {
   "wasm_runtimes": {
     "discord-bot": {
-      "module": "wasm/discord_bot.wasm",
-      "tick_rate": 10,
+      "module": "wasm/bot.wasm",
+      "tick_rate": 2,
       "encoding": "json",
-      "services": ["app-cache", "main-stream"],
-      "connections": ["dashboard-updates"],
-      "allow_outbound": {
-        "http": ["discord.com", "cdn.discordapp.com"],
-        "ws": ["gateway.discord.gg"]
-      },
       "config": {
-        "token": "{{ $env('DISCORD_BOT_TOKEN') }}",
-        "guild_id": "{{ $env('DISCORD_GUILD_ID') }}"
+        "token": "{{ $env('DISCORD_BOT_TOKEN') }}"
+      },
+      "allow_outbound": {
+        "ws": ["gateway.discord.gg"],
+        "http": ["discord.com"]
       }
     }
   }
 }
 ```
 
-The module has access to cache (for spam counters), stream (for emitting audit events), and the dashboard WebSocket endpoint. It can reach Discord's API and gateway.
+A 2 Hz tick is plenty for a chat bot. `allow_outbound` whitelists exactly two hosts: the gateway WebSocket and Discord's REST API. The module has no `services` or `connections` grants — it needs neither.
 
 ---
 
@@ -83,109 +62,28 @@ The module has access to cache (for spam counters), stream (for emitting audit e
 
 ### Initialize
 
-1. Read token from config (already resolved by Noda from `$env()`)
-2. `noda_call("", "ws_connect", ...)` — connect to `gateway.discord.gg`
-3. Receive HELLO from Discord, configure heartbeat via `noda_call("", "ws_configure", ...)`
-4. Send IDENTIFY to authenticate
-5. `noda_call("", "set_timer", { "name": "cleanup-spam-counters", "interval": 60000 })`
+1. `noda.GetInitInput()` — read the bot token from config (already resolved by Noda from `$env()`)
+2. `noda.WSConnect("discord", "wss://gateway.discord.gg/?v=10&encoding=json", nil)` — open the outbound gateway connection
+
+### Gateway Handshake (in tick)
+
+1. Discord sends HELLO with a `heartbeat_interval`
+2. The module calls `noda.WSConfigure("discord", heartbeatInterval, {"op": 1, "d": lastSequence})` — from then on, **Noda's gateway sends the heartbeat frames automatically** at that interval
+3. The module sends IDENTIFY with the token via `noda.WSSend`
 
 ### Tick Processing
 
-Each tick at 10Hz, the module processes:
+Each tick the module processes:
 
-**`incoming_ws`** — Discord gateway events:
-
-- `MESSAGE_CREATE` — check for commands (`/ban`, `/warn`, `/stats`) and spam patterns
-  - Commands: parse arguments, validate permissions in-memory, then either handle directly or trigger a workflow
-  - Spam detection: increment counters in cache via `noda_call("app-cache", "set", ...)`, check thresholds
-- `MESSAGE_REACTION_ADD` — check if reaction is on a role-assignment message, trigger workflow to assign role
-- `GUILD_MEMBER_JOIN` — send welcome message via async HTTP
-
-**`connection_events`** — handle reconnection:
-
-- On `"reconnected"`: send RESUME with session_id and last sequence number
-
-**`responses`** — results from previous async HTTP calls:
-
-- Check if Discord API calls succeeded, log failures
-
-**`timers`** — periodic cleanup:
-
-- `cleanup-spam-counters`: clear stale spam detection state from cache
+- **`incoming_ws`** — gateway frames: dispatch events (tracking the sequence number and session ID), including `MESSAGE_CREATE`, where it matches `!ping` and `!roll` (ignoring messages from bots)
+- **`responses`** — results of previous `noda.CallAsync` calls: for `!roll`, the pending reply is looked up by its label and only then sent to the channel via Discord's REST API
+- **`connection_events`** — reconnects, where the tracked resume state matters
 
 ### Key Module Decisions
 
-**What the module handles directly (in-memory):**
-- Spam detection logic (pattern matching, counter thresholds)
-- Command parsing and permission checking
-- Session state (sequence numbers, session ID for resume)
-- Rate limiting for Discord API calls
-
-**What the module delegates to workflows (via `noda_call("", "trigger_workflow", ...)`):**
-- `ban-user` — database write (audit log), Discord API call (might need retry logic), notification to dashboard
-- `warn-user` — database write, increment warning count, check if auto-ban threshold reached
-- `log-action` — write to audit log database, emit event for dashboard
-
-**Why this split:** The module is fast and ephemeral — it processes events and makes decisions. Workflows are durable and composable — they handle database transactions, retries, and multi-step operations.
-
----
-
-## Workflow Integration
-
-### ban-user Workflow
-
-**Triggered by:** Wasm module via `noda_call("", "trigger_workflow", { "workflow": "ban-user", "input": {...} })`
-
-**Input:** `{ "guild_id", "user_id", "moderator_id", "reason" }`
-
-**Nodes:**
-
-1. `workflow.run` (transaction: true) — sub-workflow `log-and-ban`:
-   - `db.create` — insert audit log entry
-   - `db.update` — update user record with ban status
-   - `workflow.output` (name: "done")
-2. `event.emit` — emit `moderation.action` to stream for dashboard workers
-3. `ws.send` — push `{ "type": "ban", ... }` to dashboard WebSocket for live updates
-
-**Features exercised:** Wasm triggering workflows, database transactions via sub-workflow, event emission, WebSocket push to dashboard.
-
-### get-mod-stats Workflow
-
-**Triggered by:** `GET /api/dashboard/stats` (HTTP) AND `wasm.query` from the bot module
-
-The same workflow serves both the dashboard API and the bot's `/stats` command. It queries the database for moderation statistics and returns them.
-
-When triggered via HTTP: `response.json` sends the data to the client.
-When triggered via `wasm.query`: the workflow returns data to the bot module, which formats it as a Discord embed and sends it via async HTTP.
-
-**Features exercised:** Same workflow reused across different trigger types, `wasm.query` for synchronous data access.
-
----
-
-## Dashboard
-
-The web dashboard is a standard HTTP + WebSocket setup:
-
-- REST API routes for viewing audit logs, configuring rules, managing warnings
-- WebSocket endpoint (`dashboard-updates`) pushes live moderation events
-- The Wasm module pushes to this endpoint whenever a moderation action occurs via `noda_call("dashboard-updates", "send", ...)`
-- Workers processing audit log events also push updates
-
----
-
-## Data Flow: Spam Detection → Auto-Ban
-
-1. User sends a message in Discord
-2. Discord gateway delivers `MESSAGE_CREATE` to Noda
-3. Noda buffers it, delivers in next tick's `incoming_ws`
-4. Bot module processes the message:
-   - Checks content against spam patterns (in-memory regex/rules)
-   - Increments spam counter: `noda_call("app-cache", "set", { "key": "spam:user-123", "value": 5, "ttl": 60 })`
-   - Counter exceeds threshold (5 messages in 60s)
-5. Bot triggers auto-ban: `noda_call("", "trigger_workflow", { "workflow": "ban-user", "input": { "reason": "auto-spam" } })`
-6. Ban workflow runs asynchronously — writes audit log, bans user via Discord API
-7. Bot sends warning to channel: `noda_call_async("", "http_request", { POST discord channel message })`
-8. Dashboard receives live update via WebSocket push
+- **State lives in Wasm linear memory** — the sequence number, session ID, and pending async replies are plain Go globals; they persist across ticks because the module instance is long-lived.
+- **Async labels are correlated manually** — each `!roll` gets a unique label (`roll-<n>`); the response for that label arrives in a later tick's `responses` map.
+- **Heartbeats are Noda's job** — `WSConfigure` hands the keepalive to the host, so a slow tick can't kill the gateway session.
 
 ---
 
@@ -193,23 +91,32 @@ The web dashboard is a standard HTTP + WebSocket setup:
 
 | Feature | How it's used |
 |---|---|
-| Wasm tick-based execution | Bot processes Discord events at 10Hz |
+| Wasm tick-based execution | Bot processes Discord events at 2 Hz |
 | Outbound WebSocket (managed) | Discord gateway connection with auto-heartbeat |
-| `noda_call_async` HTTP | Discord REST API calls (send messages, ban users) |
-| `noda_call` cache | Spam detection counters with TTL |
-| `noda_call` stream emit | Audit events for dashboard workers |
-| `noda_call` trigger_workflow | Complex operations delegated to durable workflows |
-| Connection events | Handle Discord gateway reconnection (RESUME) |
-| Timers | Periodic spam counter cleanup |
-| `wasm.query` | Dashboard queries bot for live stats |
-| `wasm.send` | Dashboard sends config updates to bot |
-| `$env()` resolution | Bot token injected from environment |
-| Workflow reuse | Stats workflow used by both HTTP and wasm.query |
-| Workers | Audit log processing |
-| WebSocket push from Wasm | Bot pushes moderation events to dashboard |
+| `allow_outbound` whitelisting | Only `gateway.discord.gg` (WS) and `discord.com` (HTTP) are reachable |
+| Async host calls + `responses` | `!roll` reply sent only after its async call completes |
+| Connection events | Discord gateway reconnect handling (RESUME state) |
+| `$env()` resolution | Bot token injected from the environment at config load |
 
 ---
 
-## What's NOT Needed
+## Running It
 
-No SSE, no scheduler, no storage, no image processing, no file uploads. The bot is cache + stream + HTTP + WebSocket.
+```bash
+cd examples/discord-bot
+DISCORD_BOT_TOKEN=<your bot token> docker compose up --build
+```
+
+Invite the bot to a server (with the Message Content intent enabled), then type `!ping` or `!roll` in any channel it can read.
+
+---
+
+## Extending It
+
+The natural next steps all use pieces this example deliberately leaves out:
+
+- **Moderation workflows** — have the module call `noda.TriggerWorkflow("ban-user", {...})` and implement audit-logged moderation as normal Noda workflows backed by a `db` service
+- **A moderator dashboard** — add `routes/` for a REST API and a `connections/` WebSocket endpoint, and grant the module `connections: ["dashboard"]` so it can push live events
+- **Spam detection** — grant the module a `cache` service and keep sliding-window counters per user
+
+See the [Wasm development guide](../04-guides/wasm-development.md) for the full host API.

@@ -16,9 +16,18 @@
         "status": 200,
         "body": "{{ nodes.fetch }}"
       }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "NOT_FOUND",
+        "message": "Task not found"
+      }
     }
   },
   "edges": [
-    { "from": "fetch", "to": "respond" }
+    { "from": "fetch", "to": "respond" },
+    { "from": "fetch", "output": "error", "to": "not_found" }
   ]
 }

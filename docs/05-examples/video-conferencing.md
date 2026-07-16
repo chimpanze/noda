@@ -8,14 +8,13 @@ A video conferencing backend with room management, token generation, recording, 
 
 ## What We're Building
 
-A backend for a video conferencing app (think Google Meet-like):
+A backend for a video conferencing app (think Google Meet-like). The runnable example ([`examples/video-rooms/`](../../examples/video-rooms)) covers:
 
-- **Room management** — create, list, and delete rooms via REST API
-- **Token generation** — authenticated users request a token to join a room
-- **Participant control** — mute, remove, and update participants
-- **Recording** — start/stop room recording to S3
-- **Webhook handling** — react to LiveKit events (participant joined, room ended, etc.)
-- **Ingress** — allow RTMP streaming into a room
+- **Room management** — create and list rooms via REST API
+- **Token generation** — clients request a token to join a room
+- **Participant listing** — see who is in a room
+
+The second half of this page adds **recipes** (not in the example project) for recording to S3, LiveKit webhook handling, and RTMP ingress.
 
 ---
 
@@ -37,33 +36,29 @@ You need three values from LiveKit:
 
 | Instance | Plugin | Purpose |
 |---|---|---|
-| `lk` | `lk` | LiveKit room management, tokens, recording |
-| `main-db` | `db` | User accounts, room metadata, recording history |
+| `lk` | `livekit` | LiveKit room management, tokens |
+
+The example intentionally has no database — room state lives in LiveKit itself.
 
 ---
 
 ## Config Structure
 
+The runnable project is [`examples/video-rooms/`](../../examples/video-rooms):
+
 ```
-noda.json                         — services, JWT, LiveKit credentials
+noda.json                         — LiveKit service, CORS, route group
 .env                              — LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET
 routes/
-  rooms.json                      — room CRUD endpoints
-  tokens.json                     — token generation endpoint
-  participants.json               — participant management endpoints
-  recording.json                  — recording start/stop endpoints
-  livekit-webhook.json            — webhook receiver
+  create-room.json                — POST /api/rooms
+  join-room.json                  — POST /api/rooms/:room/join (mints the client token)
+  list-rooms.json                 — GET /api/rooms
+  list-participants.json          — GET /api/rooms/:room/participants
 workflows/
   create-room.json
+  join-room.json
   list-rooms.json
-  delete-room.json
-  generate-token.json
   list-participants.json
-  remove-participant.json
-  mute-participant.json
-  start-recording.json
-  stop-recording.json
-  on-livekit-event.json
 ```
 
 ---
@@ -76,9 +71,9 @@ Create a `.env` file:
 LIVEKIT_URL=wss://myapp.livekit.cloud
 LIVEKIT_API_KEY=APIxxxxxxxx
 LIVEKIT_API_SECRET=xxxxxxxxxxxxxxxxxxxxx
-DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable
-JWT_SECRET=your-jwt-secret-at-least-32-bytes-long
 ```
+
+(The recipes further down additionally assume `DATABASE_URL` and `JWT_SECRET` once you add a database and auth.)
 
 ---
 
@@ -89,113 +84,101 @@ JWT_SECRET=your-jwt-secret-at-least-32-bytes-long
 ```json
 {
   "server": {
-    "port": 3000
+    "port": 8080
   },
   "services": {
     "lk": {
-      "plugin": "lk",
+      "plugin": "livekit",
       "config": {
         "url": "{{ $env('LIVEKIT_URL') }}",
         "api_key": "{{ $env('LIVEKIT_API_KEY') }}",
         "api_secret": "{{ $env('LIVEKIT_API_SECRET') }}"
       }
-    },
-    "main-db": {
-      "plugin": "db",
-      "config": {
-        "url": "{{ $env('DATABASE_URL') }}"
-      }
     }
   },
   "security": {
-    "jwt": {
-      "secret": "{{ $env('JWT_SECRET') }}"
+    "cors": {
+      "allow_origins": "*",
+      "allow_methods": "GET, POST, OPTIONS, HEAD, PUT, DELETE"
     }
   },
   "middleware_presets": {
-    "authenticated": ["auth.jwt"],
-    "webhook": ["livekit.webhook"]
+    "public": ["security.cors"]
   },
   "route_groups": {
     "/api": {
-      "middleware_preset": "authenticated"
+      "middleware_preset": "public"
     }
   }
 }
 ```
 
-The LiveKit service creates SDK clients for room management, egress, and ingress. The `livekit.webhook` middleware automatically picks up credentials from the `lk` service config — no separate configuration needed.
+The LiveKit service creates SDK clients for room management, egress, and ingress.
+
+> **The example's `/api` routes are unauthenticated** (CORS-only, for easy local testing). Before deploying anything like this, add JWT auth: a `security.jwt` block, an `"authenticated": ["auth.jwt"]` preset on `/api`, and take the participant identity from `{{ auth.sub }}` instead of the request body.
 
 ---
 
 ## Key Workflows
 
-### Generate Token
+### Join Room (token generation)
 
-The most common operation. A logged-in user requests a token to join a specific room.
+The most common operation. A client asks to join a room and receives a LiveKit access token.
 
-**Trigger:** `POST /api/tokens` → workflow `generate-token`
+**Trigger:** `POST /api/rooms/:room/join` → workflow `join-room`
 
-**Route:**
+**Route input:** `{ "name": "{{ body.name }}", "room": "{{ params.room }}" }`
 
-```json
-{
-  "path": "/api/tokens",
-  "method": "POST",
-  "middleware": ["auth.jwt"],
-  "trigger": {
-    "workflow": "generate-token",
-    "input": {
-      "room_name": "{{ body.room_name }}",
-      "user_id": "{{ auth.sub }}",
-      "user_name": "{{ auth.claims.name }}"
-    }
-  }
-}
-```
-
-**Workflow:**
+**Workflow** (`workflows/join-room.json`):
 
 ```json
 {
-  "id": "generate-token",
-  "trigger": "http",
-  "nodes": [
-    {
-      "id": "token",
+  "id": "join-room",
+  "nodes": {
+    "gen_identity": {
+      "type": "transform.set",
+      "config": {
+        "fields": { "identity": "{{ $uuid() }}" }
+      }
+    },
+    "create_token": {
       "type": "lk.token",
       "services": { "livekit": "lk" },
       "config": {
-        "identity": "{{ input.user_id }}",
-        "room": "{{ input.room_name }}",
-        "name": "{{ input.user_name }}",
-        "ttl": "2h",
+        "identity": "{{ nodes.gen_identity.identity }}",
+        "name": "{{ input.name }}",
+        "room": "{{ input.room }}",
         "grants": {
+          "roomJoin": true,
           "canPublish": true,
           "canSubscribe": true,
-          "canPublishData": true
+          "canPublishData": true,
+          "canUpdateOwnMetadata": true
         }
-      },
-      "outputs": {
-        "success": "respond"
       }
     },
-    {
-      "id": "respond",
+    "respond": {
       "type": "response.json",
       "config": {
         "status": 200,
         "body": {
-          "token": "{{ nodes.token.token }}",
-          "url": "{{ $env('LIVEKIT_URL') }}"
+          "identity": "{{ nodes.gen_identity.identity }}",
+          "name": "{{ input.name }}",
+          "room": "{{ input.room }}",
+          "token": "{{ nodes.create_token.token }}",
+          "url": "{{ secrets.LIVEKIT_URL }}"
         }
       }
     }
+  },
+  "edges": [
+    { "from": "gen_identity", "to": "create_token" },
+    { "from": "create_token", "to": "respond" }
   ]
 }
 ```
 
-The client receives a JWT token and the LiveKit URL, then connects directly to LiveKit using their client SDK (e.g., `livekit-client` for JavaScript).
+The client receives the token and the LiveKit URL, then connects directly to LiveKit using their client SDK (e.g., `livekit-client` for JavaScript). Note the LiveKit URL is read via `secrets.LIVEKIT_URL` — `$env()` doesn't resolve inside workflow configs.
 
 ### Create Room
 
@@ -204,51 +187,36 @@ The client receives a JWT token and the LiveKit URL, then connects directly to L
 ```json
 {
   "id": "create-room",
-  "trigger": "http",
-  "nodes": [
-    {
-      "id": "create",
+  "nodes": {
+    "create": {
       "type": "lk.roomCreate",
       "services": { "livekit": "lk" },
       "config": {
-        "name": "{{ input.room_name }}",
-        "empty_timeout": 300,
-        "max_participants": "{{ input.max_participants ?? 20 }}",
-        "metadata": "{{ toJSON({ 'created_by': input.user_id }) }}"
-      },
-      "outputs": {
-        "success": "save-to-db"
+        "name": "{{ input.name }}",
+        "empty_timeout": 600
       }
     },
-    {
-      "id": "save-to-db",
-      "type": "db.create",
-      "services": { "database": "main-db" },
-      "config": {
-        "table": "rooms",
-        "data": {
-          "livekit_sid": "{{ nodes.create.sid }}",
-          "name": "{{ nodes.create.name }}",
-          "created_by": "{{ input.user_id }}"
-        }
-      },
-      "outputs": {
-        "success": "respond"
-      }
-    },
-    {
-      "id": "respond",
+    "respond": {
       "type": "response.json",
       "config": {
         "status": 201,
-        "body": "{{ nodes.create }}"
+        "body": { "room": "{{ nodes.create }}" }
       }
     }
+  },
+  "edges": [
+    { "from": "create", "to": "respond" }
   ]
 }
 ```
 
-The room is created on LiveKit first, then recorded in the local database for tracking.
+`list-rooms` (`lk.roomList` → `response.json`) and `list-participants` (`lk.participantList` → `response.json`) follow the same two-node shape.
+
+---
+
+## Beyond the Example: Recipes
+
+> **Everything from here to "Architecture Features Validated" is a recipe, not part of `examples/video-rooms`** — the example has no database, recording, webhook receiver, or ingress. The node types (`lk.egress*`, `lk.ingress*`, the `livekit.webhook` middleware) are real; the workflows below sketch how you'd wire them.
 
 ### Start Recording
 
@@ -257,10 +225,8 @@ The room is created on LiveKit first, then recorded in the local database for tr
 ```json
 {
   "id": "start-recording",
-  "trigger": "http",
-  "nodes": [
-    {
-      "id": "record",
+  "nodes": {
+    "record": {
       "type": "lk.egressStartRoomComposite",
       "services": { "livekit": "lk" },
       "config": {
@@ -272,13 +238,9 @@ The room is created on LiveKit first, then recorded in the local database for tr
           "region": "us-east-1",
           "filepath": "recordings/{{ input.room_name }}/{{ $timestamp() }}.mp4"
         }
-      },
-      "outputs": {
-        "success": "save-egress"
       }
     },
-    {
-      "id": "save-egress",
+    "save_egress": {
       "type": "db.create",
       "services": { "database": "main-db" },
       "config": {
@@ -289,13 +251,9 @@ The room is created on LiveKit first, then recorded in the local database for tr
           "started_by": "{{ input.user_id }}",
           "status": "recording"
         }
-      },
-      "outputs": {
-        "success": "respond"
       }
     },
-    {
-      "id": "respond",
+    "respond": {
       "type": "response.json",
       "config": {
         "status": 200,
@@ -305,6 +263,10 @@ The room is created on LiveKit first, then recorded in the local database for tr
         }
       }
     }
+  },
+  "edges": [
+    { "from": "record", "to": "save_egress" },
+    { "from": "save_egress", "to": "respond" }
   ]
 }
 ```
@@ -342,22 +304,15 @@ LiveKit sends events when rooms start, participants join/leave, recordings finis
 {
   "id": "on-livekit-event",
   "trigger": "http",
-  "nodes": [
-    {
-      "id": "route",
+  "nodes": {
+    "route": {
       "type": "control.switch",
       "config": {
-        "value": "{{ input.event }}"
-      },
-      "outputs": {
-        "participant_joined": "log-join",
-        "participant_left": "log-leave",
-        "egress_ended": "update-recording",
-        "default": "log-other"
+        "expression": "{{ input.event }}",
+        "cases": ["participant_joined", "participant_left", "egress_ended"]
       }
     },
-    {
-      "id": "log-join",
+    "log_join": {
       "type": "util.log",
       "config": {
         "level": "info",
@@ -366,11 +321,9 @@ LiveKit sends events when rooms start, participants join/leave, recordings finis
           "room": "{{ input.room.name }}",
           "identity": "{{ input.participant.identity }}"
         }
-      },
-      "outputs": { "success": "respond-ok" }
+      }
     },
-    {
-      "id": "log-leave",
+    "log_leave": {
       "type": "util.log",
       "config": {
         "level": "info",
@@ -379,43 +332,42 @@ LiveKit sends events when rooms start, participants join/leave, recordings finis
           "room": "{{ input.room.name }}",
           "identity": "{{ input.participant.identity }}"
         }
-      },
-      "outputs": { "success": "respond-ok" }
+      }
     },
-    {
-      "id": "update-recording",
+    "update_recording": {
       "type": "db.update",
       "services": { "database": "main-db" },
       "config": {
         "table": "recordings",
-        "where": {
-          "egress_id": "{{ input.egress_info.egressId }}"
-        },
-        "data": {
-          "status": "completed",
-          "ended_at": "{{ now() }}"
-        }
-      },
-      "outputs": { "success": "respond-ok" }
+        "where": { "egress_id": "{{ input.egress_info.egressId }}" },
+        "data": { "status": "completed", "ended_at": "{{ now() }}" }
+      }
     },
-    {
-      "id": "log-other",
+    "log_other": {
       "type": "util.log",
       "config": {
         "level": "debug",
         "message": "LiveKit event",
         "fields": { "event": "{{ input.event }}" }
-      },
-      "outputs": { "success": "respond-ok" }
+      }
     },
-    {
-      "id": "respond-ok",
+    "respond_ok": {
       "type": "response.json",
       "config": {
         "status": 200,
         "body": { "received": true }
       }
     }
+  },
+  "edges": [
+    { "from": "route", "output": "participant_joined", "to": "log_join" },
+    { "from": "route", "output": "participant_left", "to": "log_leave" },
+    { "from": "route", "output": "egress_ended", "to": "update_recording" },
+    { "from": "route", "output": "default", "to": "log_other" },
+    { "from": "log_join", "to": "respond_ok" },
+    { "from": "log_leave", "to": "respond_ok" },
+    { "from": "update_recording", "to": "respond_ok" },
+    { "from": "log_other", "to": "respond_ok" }
   ]
 }
 ```
@@ -532,17 +484,16 @@ Or recorder tokens for server-side recording bots:
 
 ## Architecture Features Validated
 
+Validated by the `examples/video-rooms` project itself:
+
 | Feature | How it's used |
 |---|---|
-| LiveKit service | Room management, token generation, egress/ingress |
-| Webhook middleware | Signature verification for LiveKit events |
-| `control.switch` | Route different webhook event types |
-| JWT authentication | Protect API endpoints, identity flows to token |
-| Database persistence | Track rooms, recordings, and events |
-| Expression engine | Dynamic token grants, room metadata, S3 file paths |
-| Environment variables | All secrets in `.env`, referenced via `$env()` |
-| Middleware presets | Reusable `authenticated` and `webhook` presets |
-| Route groups | All `/api` routes require JWT |
+| LiveKit service | Room management and token generation (`lk.roomCreate`, `lk.roomList`, `lk.participantList`, `lk.token`) |
+| Expression engine | `$uuid()` identities, dynamic token grants |
+| Secrets | `LIVEKIT_URL` read via `secrets.*` in a workflow; credentials via `$env()` in `noda.json` |
+| Middleware presets + route groups | CORS applied to all `/api` routes via the `public` preset |
+
+Exercised only by the recipes above (not in the example): the `livekit.webhook` middleware, `lk.egress*`/`lk.ingress*` nodes, database persistence, and JWT-protected token flows.
 
 ---
 

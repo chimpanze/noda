@@ -112,6 +112,7 @@ CREATE TABLE attachments (
 Use the SaaS backend override to switch from the default REST API example:
 
 ```bash
+cp .env.example .env   # required — validate/test/start fail without it
 docker compose -f docker-compose.yml -f docker-compose.saas.yml up --build -d
 ```
 

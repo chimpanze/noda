@@ -64,9 +64,9 @@ workflows/
         "path": "/ws/documents/:doc_id",
         "middleware": ["auth.jwt"],
         "channels": {
-          "pattern": "doc.{{ request.params.doc_id }}"
+          "pattern": "doc.{{ request.params.doc_id }}",
+          "max_per_channel": 50
         },
-        "max_per_channel": 50,
         "ping_interval": "30s",
         "on_connect": "ws-on-connect",
         "on_message": "ws-on-message",
@@ -91,13 +91,12 @@ Each document gets its own channel: `doc.abc-123`. All clients viewing that docu
 
 **Nodes:**
 
-1. `db.query` — verify document exists and user has access
+1. `db.findOne` — verify the document exists
 2. `control.if` — does the document exist?
    - `else` (not found) → workflow ends (connection will be closed)
    - `then` →
 3. `cache.set` — add user to presence set: key `presence:{{ input.doc_id }}`, value includes user ID and timestamp
-4. `cache.get` — read current presence set for this document
-5. `ws.send` — broadcast `{ "type": "user_joined", "user_id": "...", "presence": [...] }` to channel `doc.{{ input.doc_id }}`
+4. `ws.send` — broadcast `{ "type": "user_joined", "user_id": "..." }` to channel `doc.{{ input.doc_id }}` (clients that need the full presence list read it via the REST API — the broadcast itself carries only the joining user)
 
 **Features exercised:** WebSocket lifecycle events triggering workflows, auth context in WebSocket connections, cache for presence tracking, broadcasting to a channel.
 
@@ -130,8 +129,7 @@ Cursor updates skip the database entirely — they're ephemeral, broadcast only.
 **Nodes:**
 
 1. `cache.del` — remove user from presence set
-2. `cache.get` — read updated presence
-3. `ws.send` — broadcast `{ "type": "user_left", "user_id": "...", "presence": [...] }` to the channel
+2. `ws.send` — broadcast `{ "type": "user_left", "user_id": "..." }` to the channel
 
 **Features exercised:** Cleanup on disconnect, presence update broadcast.
 
