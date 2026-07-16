@@ -20,8 +20,10 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 				"to":      []any{"a@example.com", "b@example.com"},
 				"subject": "{{ input.subject }}",
 				"body":    "{{ input.body }}",
+				"cc":      []any{"a@b.c"},
+				"bcc":     "d@e.f",
 			}, false,
-			map[string]any{"to": "a@example.com", "subject": "hi", "body": true}},
+			map[string]any{"to": "a@example.com", "subject": "hi", "body": true, "cc": true}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.nodeType, func(t *testing.T) {

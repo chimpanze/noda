@@ -36,7 +36,7 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 			map[string]any{"table": "tasks", "limit": "not-an-int"}},
 
 		{"db.findOne", (&findOneDescriptor{}).ConfigSchema(),
-			map[string]any{"table": "tasks", "where": map[string]any{"id": "{{ input.task_id }}"}, "group": "id", "limit": 10, "offset": 0}, false,
+			map[string]any{"table": "tasks", "where": map[string]any{"id": "{{ input.task_id }}"}, "group": "id", "limit": 10, "offset": 0, "having": map[string]any{"query": "count(*) > ?", "params": []any{5}}}, false,
 			map[string]any{"table": "tasks", "required": "yes"}},
 
 		{"db.query", (&queryDescriptor{}).ConfigSchema(),
