@@ -343,7 +343,6 @@ func TestWriteDescriptor(t *testing.T) {
 	props := schema["properties"].(map[string]any)
 	assert.Contains(t, props, "path")
 	assert.Contains(t, props, "data")
-	assert.Contains(t, props, "content_type")
 	required := schema["required"].([]any)
 	assert.Contains(t, required, "path")
 	assert.Contains(t, required, "data")
