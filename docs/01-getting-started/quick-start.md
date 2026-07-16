@@ -12,11 +12,12 @@ This creates a project with the following structure:
 ```
 my-api/
 ├── noda.json              # Root config: services, security, middleware
-├── vars.json              # Shared variables (optional)
 ├── routes/                # HTTP route definitions
 ├── workflows/             # Workflow DAGs
 ├── schemas/               # JSON Schema definitions
-└── tests/                 # Workflow test suites
+├── tests/                 # Workflow test suites
+├── migrations/            # SQL migration files
+└── .claude/               # AI-assistant project instructions
 ```
 
 ## 2. Define a Route

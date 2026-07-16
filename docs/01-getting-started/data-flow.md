@@ -103,8 +103,8 @@ Only the node connected to the triggered output port executes next.
 | Node Type | Outputs | Description |
 |-----------|---------|-------------|
 | Most nodes | `success`, `error` | Standard success/failure branching |
-| `control.if` | `then`, `else` | Branches based on condition evaluation |
-| `control.switch` | Case names, `default` | Branches to the matching case or default |
+| `control.if` | `then`, `else`, `error` | Branches based on condition evaluation |
+| `control.switch` | Case names, `default`, `error` | Branches to the matching case or default |
 
 ## Common Output Shapes
 
@@ -172,7 +172,7 @@ A 3-node workflow that creates a user and returns the result:
 
 ## Environment Variables
 
-Access environment variables (including `.env` file values) via `env.*`:
+Environment variables are **not** directly accessible in workflow expressions — there is no `env.*` context variable, and `$env()` only works inside the root `noda.json` (it is substituted once at config load, before any workflow runs). To use environment values (including `.env` file values) in a workflow, expose them as secrets and read them via `secrets.*`:
 
 ```json
 {

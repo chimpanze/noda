@@ -91,9 +91,7 @@ Example `on_message` workflow that echoes the message to everyone on the channel
 `ws.send` (and `sse.send`) deliver a message to subscribers of a channel. Two things wire it up:
 
 1. **The `connections` service slot** binds to the **endpoint name**, not a `noda.json` service: `"services": { "connections": "board" }`. (At startup each endpoint is registered as a service under its own name.) `noda_validate_config` flags a slot that names an undefined endpoint.
-2. **The `channel` field** selects recipients. It is matched against the channels clients are subscribed to (the ones produced by `channels.pattern`):
-   - Exact: `"channel": "board.42"` → only clients on `board.42`.
-   - Wildcard `*` per segment: `"board.*"` → every room; `"*"` → all channels.
+2. **The `channel` field** selects recipients. It must be a **literal channel name** matching a channel clients are subscribed to (one produced by `channels.pattern`): `"channel": "board.42"` → only clients on `board.42`. Wildcard patterns (e.g. `"board.*"` or `"*"`) are **rejected with a validation error** — to reach several rooms, send once per room (e.g. with `control.loop`).
 
 So `ws.send`'s `channel` must line up with what `channels.pattern` produces, or no one receives the message.
 

@@ -43,7 +43,7 @@ docker pull ghcr.io/chimpanze/noda:latest
 
 - **PostgreSQL** (optional) — for database operations
 - **Redis** (optional) — for caching, events, pub/sub, distributed locking
-- **libvips** (optional) — for image processing (`image.*` nodes). The prebuilt binary includes libvips, but if building from source you need it installed.
+- **libvips** (optional) — for image processing (`image.*` nodes). Noda links against the system libvips dynamically — it is **not** bundled with the prebuilt binary. Install it on any machine that runs `image.*` nodes (e.g. `brew install vips`, `apt install libvips-dev`), whether you use the prebuilt binary or build from source.
 
 ## CLI Reference
 

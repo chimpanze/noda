@@ -55,7 +55,7 @@ These come from the [expr-lang](https://expr-lang.org/) engine and are always av
 | `findIndex(arr, {pred})` | Index of first match (-1 if none) | `{{ findIndex(nodes.items, {.id == input.id}) }}` |
 | `groupBy(arr, {key})` | Group array elements by key | `{{ groupBy(nodes.orders, {.status}) }}` |
 | `sortBy(arr, field)` | Sort array by field | `{{ sortBy(nodes.items, 'name') }}` |
-| `reduce(arr, {acc + #}, init)` | Reduce array to single value | `{{ reduce(nodes.items, {#acc + #item.qty}, 0) }}` |
+| `reduce(arr, {#acc + #}, init)` | Reduce array to single value (`#acc` = accumulator, `#` = current element) | `{{ reduce(nodes.items, {#acc + #.qty}, 0) }}` |
 | `keys(m)` | Keys of a map | `{{ keys(input.metadata) }}` |
 | `values(m)` | Values of a map | `{{ values(input.metadata) }}` |
 | `not` / `!` | Logical NOT | `{{ not input.disabled }}` |
@@ -234,7 +234,7 @@ The expr-lang `filter()`, `map()`, and `reduce()` builtins work inline. Use the 
       "active_users": "{{ filter(nodes.fetch, {.status == 'active'}) }}",
       "names": "{{ map(nodes.fetch, {.name}) }}",
       "emails_upper": "{{ map(nodes.fetch, {upper(.email)}) }}",
-      "total_qty": "{{ reduce(nodes.items, {#acc + #item.quantity}, 0) }}",
+      "total_qty": "{{ reduce(nodes.items, {#acc + #.quantity}, 0) }}",
       "has_errors": "{{ any(nodes.results, {.error != nil}) }}",
       "admin_count": "{{ count(nodes.users, {.role == 'admin'}) }}"
     }
