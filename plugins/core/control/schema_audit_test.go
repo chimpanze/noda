@@ -22,8 +22,8 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 		},
 		{
 			"control.loop", (&loopDescriptor{}).ConfigSchema(),
-			map[string]any{"collection": "{{ nodes.fetch }}", "workflow": "process-item"}, false,
-			map[string]any{"collection": 5, "workflow": "process-item"},
+			map[string]any{"collection": "{{ nodes.fetch }}", "workflow": "process-item", "max_items": float64(500)}, false,
+			map[string]any{"collection": 5, "workflow": "process-item", "max_items": "not-a-number"},
 		},
 		{
 			"control.switch", (&switchDescriptor{}).ConfigSchema(),
