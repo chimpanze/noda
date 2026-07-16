@@ -3,6 +3,6 @@
   "workflow": "response-error",
   "tests": [
     { "name": "builds 404 error response", "input": {},
-      "expect": { "status": "success", "outputs": { "er": { "Status": 404, "Body": { "error": { "code": "NOT_FOUND", "message": "Missing" } } } } } }
+      "expect": { "status": "success", "outputs": { "er": { "status": 404, "body": { "error": { "code": "NOT_FOUND", "message": "Missing" } } } } } }
   ]
 }
