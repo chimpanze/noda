@@ -28,7 +28,7 @@ On success, outputs:
 | `access_token` | OAuth2 access token |
 | `refresh_token` | Refresh token (if provided by the IdP) |
 | `claims` | Decoded ID token claims as an object |
-| `expires_at` | Token expiry as Unix timestamp |
+| `expires_at` | Token expiry as Unix timestamp (absent if the IdP's token response carries no expiry) |
 
 ## Example
 
@@ -36,9 +36,9 @@ On success, outputs:
 {
   "type": "oidc.exchange",
   "config": {
-    "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-    "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-    "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+    "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+    "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+    "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
     "redirect_uri": "http://localhost:3000/auth/callback",
     "code": "{{ input.code }}"
   }
@@ -54,10 +54,10 @@ An OAuth callback endpoint exchanges the authorization code, then uses the retur
   "exchange": {
     "type": "oidc.exchange",
     "config": {
-      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-      "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
-      "redirect_uri": "{{ $env('APP_URL') + '/auth/callback' }}",
+      "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+      "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+      "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
+      "redirect_uri": "{{ secrets.APP_URL + '/auth/callback' }}",
       "code": "{{ query.code }}"
     }
   },

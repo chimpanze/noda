@@ -27,7 +27,7 @@ On success, outputs:
 | `refresh_token` | New refresh token (if rotated by the IdP) |
 | `id_token` | New ID token string (if returned) |
 | `claims` | Decoded ID token claims (if ID token returned) |
-| `expires_at` | Token expiry as Unix timestamp |
+| `expires_at` | Token expiry as Unix timestamp (absent if the refreshed token carries no expiry) |
 
 ## Example
 
@@ -35,9 +35,9 @@ On success, outputs:
 {
   "type": "oidc.refresh",
   "config": {
-    "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-    "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-    "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+    "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+    "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+    "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
     "refresh_token": "{{ input.refresh_token }}"
   }
 }
@@ -61,9 +61,9 @@ A token refresh endpoint reads the stored refresh token from the database, refre
   "refresh": {
     "type": "oidc.refresh",
     "config": {
-      "issuer_url": "{{ $env('OIDC_ISSUER_URL') }}",
-      "client_id": "{{ $env('OIDC_CLIENT_ID') }}",
-      "client_secret": "{{ $env('OIDC_CLIENT_SECRET') }}",
+      "issuer_url": "{{ secrets.OIDC_ISSUER_URL }}",
+      "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
+      "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
       "refresh_token": "{{ nodes.get_session.refresh_token }}"
     }
   },
