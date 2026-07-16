@@ -161,6 +161,17 @@ func TestExecutionContext_EvictOutput(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestExecutionContext_EvictOutputNoopWithRetainOutputs(t *testing.T) {
+	ctx := NewExecutionContext(WithRetainOutputs())
+	ctx.SetOutput("temp", "data")
+
+	ctx.EvictOutput("temp")
+
+	data, ok := ctx.GetOutput("temp")
+	assert.True(t, ok, "output must survive eviction under WithRetainOutputs")
+	assert.Equal(t, "data", data)
+}
+
 func TestResolve_EnvCaptureNotCorruptedByConcurrentResolves(t *testing.T) {
 	c := NewExecutionContext(WithInput(map[string]any{"marker": "orig"}))
 	// Capture the whole environment map via $env (expr-lang exposes it by reference).

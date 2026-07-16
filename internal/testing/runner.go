@@ -84,9 +84,11 @@ func runTestCase(
 	var traceMu sync.Mutex
 	startTimes := map[string]time.Time{}
 
-	// Build execution context
+	// Build execution context. Outputs are retained (eviction disabled) so
+	// assertions can target intermediate node outputs after the run.
 	opts := []engine.ExecutionContextOption{
 		engine.WithWorkflowID(workflowID),
+		engine.WithRetainOutputs(),
 		engine.WithTraceCallback(func(eventType, nodeID, nodeType, output, errMsg string, data any) {
 			traceMu.Lock()
 			defer traceMu.Unlock()

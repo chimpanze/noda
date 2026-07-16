@@ -29,6 +29,10 @@ type ExecutionContextImpl struct {
 	outputs map[string]any    // nodeID (or alias) → output data
 	aliases map[string]string // nodeID → alias (from "as" field)
 
+	// retainOutputs disables eviction so all node outputs survive the run
+	// (set by the test runner, which asserts on intermediate outputs).
+	retainOutputs bool
+
 	compiler *expr.Compiler
 	logger   *slog.Logger
 
@@ -129,6 +133,14 @@ func WithMetricsInst(m *metrics.Metrics) ExecutionContextOption {
 // WithSubWorkflowRunner sets the sub-workflow runner for control.loop and workflow.run nodes.
 func WithSubWorkflowRunner(runner api.SubWorkflowRunner) ExecutionContextOption {
 	return func(c *ExecutionContextImpl) { c.subWorkflowRunner = runner }
+}
+
+// WithRetainOutputs keeps every node output for the lifetime of the context,
+// disabling the engine's memory-saving eviction of non-terminal outputs.
+// The workflow test runner needs this so assertions can target intermediate
+// node outputs after the run completes.
+func WithRetainOutputs() ExecutionContextOption {
+	return func(c *ExecutionContextImpl) { c.retainOutputs = true }
 }
 
 // SubWorkflowRunner returns the sub-workflow runner, or nil if not configured.
@@ -317,7 +329,11 @@ func (c *ExecutionContextImpl) OutputKeys() []string {
 }
 
 // EvictOutput removes an output from the context.
+// It is a no-op when the context was created with WithRetainOutputs.
 func (c *ExecutionContextImpl) EvictOutput(key string) {
+	if c.retainOutputs {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.outputs, key)

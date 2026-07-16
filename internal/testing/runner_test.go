@@ -306,6 +306,57 @@ func TestRunner_WorkflowWithEdges(t *testing.T) {
 	assert.True(t, results[0].Passed, results[0].Error)
 }
 
+// Assertions must be able to target intermediate (non-terminal) node outputs.
+// The engine's eviction tracker frees them as soon as their consumers finish,
+// so the test runner must retain all outputs for the duration of the run
+// (issue #329).
+func TestRunner_AssertsOnIntermediateNodeOutput(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"workflows/wf.json": {
+				"id": "intermediate-wf",
+				"nodes": map[string]any{
+					"fetch": map[string]any{"type": "db.query"},
+					"format": map[string]any{
+						"type": "transform.set",
+						"config": map[string]any{
+							"fields": map[string]any{
+								"result": "{{ nodes.fetch.name }}",
+							},
+						},
+					},
+				},
+				"edges": []any{
+					map[string]any{"from": "fetch", "to": "format"},
+				},
+			},
+		},
+	}
+
+	suite := TestSuite{
+		Workflow: "intermediate-wf",
+		Cases: []TestCase{
+			{
+				Name: "asserts on the evicted intermediate node",
+				Mocks: map[string]MockConfig{
+					"fetch": {Output: map[string]any{"name": "Alice"}},
+				},
+				Expect: TestExpectation{
+					Status: "success",
+					Output: map[string]any{
+						"fetch.name":    "Alice",
+						"format.result": "Alice",
+					},
+				},
+			},
+		},
+	}
+
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	require.Len(t, results, 1)
+	assert.True(t, results[0].Passed, results[0].Error)
+}
+
 func TestRunner_ThreeNodeChain(t *testing.T) {
 	rc := &config.ResolvedConfig{
 		Workflows: map[string]map[string]any{
