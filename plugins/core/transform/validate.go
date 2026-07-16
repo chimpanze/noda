@@ -22,7 +22,7 @@ func (d *validateDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"data":   map[string]any{"type": "string", "description": "Data to validate (default: input)"},
-			"schema": map[string]any{"type": "object", "description": "JSON Schema definition to validate against"},
+			"schema": map[string]any{"type": "object", "additionalProperties": true, "description": "JSON Schema definition to validate against"},
 		},
 		"required": []any{"schema"},
 	}

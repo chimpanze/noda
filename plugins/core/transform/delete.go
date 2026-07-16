@@ -17,9 +17,9 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"data":   map[string]any{"type": "string", "description": "Expression resolving to an object"},
-			"fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Field names to remove"},
+			"fields": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Field names to remove (default: none removed)"},
 		},
-		"required": []any{"data", "fields"},
+		"required": []any{"data"},
 	}
 }
 func (d *deleteDescriptor) OutputDescriptions() map[string]string {
