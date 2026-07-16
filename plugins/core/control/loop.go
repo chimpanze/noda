@@ -26,7 +26,8 @@ func (d *loopDescriptor) ConfigSchema() map[string]any {
 		"properties": map[string]any{
 			"collection": map[string]any{"type": "string", "description": "Expression resolving to an array"},
 			"workflow":   map[string]any{"type": "string", "description": "Sub-workflow ID to execute per item"},
-			"input":      map[string]any{"type": "object", "description": "Input template — $item and $index available"},
+			"input":      map[string]any{"type": "object", "additionalProperties": true, "description": "Input template — $item and $index available"},
+			"max_items":  map[string]any{"type": "integer", "description": "Maximum collection size (default: 100000); the node errors if the collection is larger"},
 		},
 		"required": []any{"collection", "workflow"},
 	}

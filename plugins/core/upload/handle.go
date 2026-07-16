@@ -30,13 +30,13 @@ func (d *handleDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"max_size":      map[string]any{"type": "number", "description": "Maximum file size in bytes"},
-			"allowed_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Allowed MIME type patterns (supports wildcards)"},
-			"max_files":     map[string]any{"type": "number", "description": "Maximum number of files to accept"},
+			"max_size":      map[string]any{"type": "integer", "description": "Maximum file size in bytes (default: 10485760)"},
+			"allowed_types": map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Allowed MIME type patterns (supports wildcards); unset allows any type"},
+			"max_files":     map[string]any{"type": "integer", "description": "Maximum number of files to accept (default: 1)"},
 			"path":          map[string]any{"type": "string", "description": "Storage destination path"},
 			"field":         map[string]any{"type": "string", "description": "Form field name (default: file)"},
 		},
-		"required": []any{"max_size", "allowed_types", "path"},
+		"required": []any{"path"},
 	}
 }
 func (d *handleDescriptor) OutputDescriptions() map[string]string {
