@@ -22,7 +22,7 @@ func (d *postDescriptor) ConfigSchema() map[string]any {
 			"body":    map[string]any{"description": "Request body"},
 			"timeout": map[string]any{"type": "string", "description": "Request timeout"},
 		},
-		"required": []any{"url", "body"},
+		"required": []any{"url"},
 	}
 }
 func (d *postDescriptor) OutputDescriptions() map[string]string {

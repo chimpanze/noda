@@ -18,12 +18,15 @@ func (d *resizeDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"input":   map[string]any{"type": "string", "description": "Source image path"},
-			"output":  map[string]any{"type": "string", "description": "Output image path"},
-			"width":   map[string]any{"type": "number", "description": "Target width in pixels"},
-			"height":  map[string]any{"type": "number", "description": "Target height in pixels"},
-			"quality": map[string]any{"type": "number", "description": "JPEG quality (1-100)"},
-			"format":  map[string]any{"type": "string", "description": "Output format: jpeg, png, webp"},
+			"input":      map[string]any{"type": "string", "description": "Source image path"},
+			"output":     map[string]any{"type": "string", "description": "Output image path"},
+			"width":      map[string]any{"type": "number", "description": "Target width in pixels"},
+			"height":     map[string]any{"type": "number", "description": "Target height in pixels"},
+			"quality":    map[string]any{"type": "number", "description": "JPEG quality (1-100)"},
+			"format":     map[string]any{"type": "string", "description": "Output format: jpeg, png, webp"},
+			"max_width":  map[string]any{"type": "integer", "description": "Override the default 10000px per-side output limit"},
+			"max_height": map[string]any{"type": "integer", "description": "Override the default 10000px per-side output limit"},
+			"max_pixels": map[string]any{"type": "integer", "description": "Override the default 40,000,000px (width x height) output limit"},
 		},
 		"required": []any{"input", "output", "width", "height"},
 	}
