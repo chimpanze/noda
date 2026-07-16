@@ -1,4 +1,5 @@
 {
+  "id": "livekit-webhook",
   "path": "/webhooks/livekit",
   "method": "POST",
   "middleware": ["livekit.webhook"],

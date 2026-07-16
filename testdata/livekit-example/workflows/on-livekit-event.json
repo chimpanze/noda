@@ -1,9 +1,8 @@
 {
   "id": "on-livekit-event",
-  "trigger": "http",
-  "nodes": [
-    {
-      "id": "log-event",
+  "name": "On LiveKit Event",
+  "nodes": {
+    "log-event": {
       "type": "util.log",
       "config": {
         "level": "info",
@@ -11,13 +10,9 @@
         "fields": {
           "event": "{{ input.event }}"
         }
-      },
-      "outputs": {
-        "success": "respond"
       }
     },
-    {
-      "id": "respond",
+    "respond": {
       "type": "response.json",
       "config": {
         "status": 200,
@@ -26,5 +21,8 @@
         }
       }
     }
+  },
+  "edges": [
+    { "from": "log-event", "to": "respond" }
   ]
 }
