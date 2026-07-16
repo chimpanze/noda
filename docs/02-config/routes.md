@@ -25,8 +25,11 @@ Files in `routes/*.json`. Each file defines one route.
 | `trigger.workflow` | string | yes | Workflow ID |
 | `trigger.input` | object | no | Input mapping (expressions) |
 | `trigger.files` | array of strings | no | Input keys to treat as uploaded file streams (multipart fields); each entry must have a matching `trigger.input` key |
+| `trigger.coerce` | boolean | no | Numeric coercion of string-typed trigger inputs (default `true`). Set `false` to keep numeric-looking path/query/header/form values as strings. |
 
 **Trigger input sources:** `body.*`, `params.*`, `query.*`, `headers.*`, `auth.*`, `raw_body` (when `trigger.raw_body: true`).
+
+**Numeric coercion:** inputs that are a single bare reference to a string-typed transport — `params.*`, `query.*`, `headers.*`, or `body.*` for form-encoded requests (plus `request.*` aliases) — are converted to numbers when they parse as one (`{{ query.limit }}` → `10`). JSON body values keep their JSON types, and computed expressions and literal values are never coerced. Set `"coerce": false` on the trigger when IDs like `"0042"` must stay strings.
 
 The `request.*` namespace provides aliases to these same fields: `request.body`, `request.params`, `request.query`, `request.headers`, `request.auth`, and `request.raw_body` (when enabled).
 
