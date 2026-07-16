@@ -10,7 +10,10 @@ Crop an image to specified dimensions.
 | `output` | string (expr) | yes | Output image path |
 | `width` | number (expr) | yes | Crop width |
 | `height` | number (expr) | yes | Crop height |
-| `gravity` | string | no | Position: `center` (default), `top-left`, `top-right`, `bottom-left`, `bottom-right` |
+| `gravity` | string | no | Position: `center` (default), `north`, `south`, `east`, `west`, `smart` |
+| `max_width` | integer | no | Override the default 10,000 px per-side output limit |
+| `max_height` | integer | no | Override the default 10,000 px per-side output limit |
+| `max_pixels` | integer | no | Override the default 40,000,000 px (width x height) output limit |
 
 ## Outputs
 
@@ -18,14 +21,14 @@ Crop an image to specified dimensions.
 
 ## Behavior
 
-Reads the image from `source` storage, crops it to the specified dimensions from the given gravity position, and writes to `destination` storage. Gravity defaults to `"center"`. Other options: `"north"`, `"south"`, `"east"`, `"west"`, `"smart"`.
+Reads the image from `source` storage, crops it to the specified dimensions from the given gravity position, and writes to the `target` storage. Gravity defaults to `"center"`; other recognized values are `"north"`, `"south"`, `"east"`, `"west"`, `"smart"`. Unrecognized gravity values silently fall back to center. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error. Requested output dimensions above 10,000 px per side or 40,000,000 px total are rejected (override with `max_width`/`max_height`/`max_pixels`).
 
 ## Service Dependencies
 
 | Slot | Prefix | Required |
 |------|--------|----------|
 | `source` | `storage` | Yes |
-| `destination` | `storage` | Yes |
+| `target` | `storage` | Yes |
 
 ## Example
 

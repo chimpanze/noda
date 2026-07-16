@@ -19,7 +19,7 @@ Output: The upserted row data.
 
 ## Behavior
 
-Inserts a new record into the specified table. If a conflict occurs on the specified column(s), updates the existing row instead. Returns the upserted record including any database-generated fields.
+Inserts a new record into the specified table. If a conflict occurs on the specified column(s), updates the existing row instead. Returns the `data` map as it was resolved and sent — unlike `db.create`, the output does **not** include database-generated fields (no RETURNING clause is used). If you need generated columns (e.g. an auto id), follow up with a `db.findOne` on the conflict key.
 
 ## Service Dependencies
 
@@ -71,10 +71,9 @@ A profile update workflow reads the authenticated user's ID and upserts their pr
 }
 ```
 
-Output stored as `nodes.save_preferences`:
+Output stored as `nodes.save_preferences` (the resolved input data — note there is no database-generated `id`):
 ```json
 {
-  "id": 8,
   "user_id": 15,
   "timezone": "Europe/Berlin",
   "notifications_enabled": true,
@@ -82,4 +81,4 @@ Output stored as `nodes.save_preferences`:
 }
 ```
 
-Downstream nodes access fields via `nodes.save_preferences.timezone` or `nodes.save_preferences.id`.
+Downstream nodes access fields via `nodes.save_preferences.timezone`.

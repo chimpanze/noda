@@ -13,7 +13,7 @@ Single row SELECT returning a single row object.
 | `joins` | array | no | JOIN clauses |
 | `order` | string | no | ORDER BY clause |
 | `group` | string | no | GROUP BY clause |
-| `having` | string | no | HAVING clause |
+| `having` | string or object | no | HAVING clause. Prefer the parameterized object form `{"query": "count(*) > ?", "params": [5]}`; a bare string still works but is deprecated (logs a warning) |
 | `required` | boolean | no | If `true` (default), returns `NotFoundError` when no row matches. If `false`, returns `nil`. |
 
 ## Outputs
@@ -25,6 +25,8 @@ Output: `map[string]any`. Forces `LIMIT 1`.
 ## Behavior
 
 Builds and executes a SELECT query with `LIMIT 1`. Returns a single row object. When `required` is `true` (the default), fires `error` with `NotFoundError` if no row matches. When `required` is `false`, returns `nil` instead.
+
+Note: `group` and `having` work at runtime but are not declared in this node's ConfigSchema, so the visual editor's form and schema-driven tooling won't offer or validate them.
 
 ## Service Dependencies
 

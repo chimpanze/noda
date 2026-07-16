@@ -18,14 +18,14 @@ Add a watermark to an image.
 
 ## Behavior
 
-Reads the source image and watermark image from `source` storage, composites the watermark onto the source at the specified position and opacity, and writes the result to `destination` storage.
+Reads the source image and watermark image from `source` storage, composites the watermark onto the source at the specified position and opacity, and writes the result to the `target` storage. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error.
 
 ## Service Dependencies
 
 | Slot | Prefix | Required |
 |------|--------|----------|
 | `source` | `storage` | Yes |
-| `destination` | `storage` | Yes |
+| `target` | `storage` | Yes |
 
 ## Example
 

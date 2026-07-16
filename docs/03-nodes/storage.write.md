@@ -67,7 +67,7 @@ A report generation workflow queries data, then writes the result as a JSON file
 
 Output stored as `nodes.save_report`:
 ```json
-{ "path": "reports/a1b2c3d4.json", "size": 10240 }
+{ "path": "reports/a1b2c3d4.json" }
 ```
 
 Downstream nodes access the written file path via `nodes.save_report.path`.

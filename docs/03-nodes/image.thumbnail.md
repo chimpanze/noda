@@ -10,6 +10,9 @@ Smart crop + resize to exact dimensions.
 | `output` | string (expr) | yes | Output image path |
 | `width` | number (expr) | yes | Thumbnail width |
 | `height` | number (expr) | yes | Thumbnail height |
+| `max_width` | integer | no | Override the default 10,000 px per-side output limit |
+| `max_height` | integer | no | Override the default 10,000 px per-side output limit |
+| `max_pixels` | integer | no | Override the default 40,000,000 px (width x height) output limit |
 
 ## Outputs
 
@@ -17,14 +20,14 @@ Smart crop + resize to exact dimensions.
 
 ## Behavior
 
-Always crops to exact dimensions using smart crop. Reads from `source` storage, generates the thumbnail, and writes to `destination` storage.
+Always crops to exact dimensions using smart crop. Reads from `source` storage, generates the thumbnail, and writes to the `target` storage. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error. Requested output dimensions above 10,000 px per side or 40,000,000 px total are rejected (override with `max_width`/`max_height`/`max_pixels`).
 
 ## Service Dependencies
 
 | Slot | Prefix | Required |
 |------|--------|----------|
 | `source` | `storage` | Yes |
-| `destination` | `storage` | Yes |
+| `target` | `storage` | Yes |
 
 ## Example
 

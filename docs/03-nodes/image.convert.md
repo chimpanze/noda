@@ -8,7 +8,7 @@ Convert an image between formats.
 |-------|------|----------|-------------|
 | `input` | string (expr) | yes | Source image path |
 | `output` | string (expr) | yes | Output image path |
-| `format` | string | yes | Target format: jpeg, png, webp, gif |
+| `format` | string | yes | Target format: `jpeg` (or `jpg`), `png`, `webp`, `avif`, `tiff`, `gif` |
 | `quality` | number | no | JPEG quality (1-100) |
 
 ## Outputs
@@ -17,14 +17,14 @@ Convert an image between formats.
 
 ## Behavior
 
-Reads the image from `source` storage, converts it to the specified format, and writes the result to `destination` storage. Supported formats: `"jpeg"`, `"png"`, `"webp"`, `"avif"`.
+Reads the image from `source` storage, converts it to the specified format, and writes the result to the `target` storage. Supported formats: `"jpeg"`/`"jpg"`, `"png"`, `"webp"`, `"avif"`, `"tiff"`, `"gif"` — anything else is a hard error. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error.
 
 ## Service Dependencies
 
 | Slot | Prefix | Required |
 |------|--------|----------|
 | `source` | `storage` | Yes |
-| `destination` | `storage` | Yes |
+| `target` | `storage` | Yes |
 
 ## Example
 

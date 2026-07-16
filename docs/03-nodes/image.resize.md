@@ -12,6 +12,9 @@ Resize an image to target dimensions.
 | `height` | number (expr) | yes | Target height |
 | `quality` | number | no | JPEG quality (1-100) |
 | `format` | string | no | Output format: jpeg, png, webp |
+| `max_width` | integer | no | Override the default 10,000 px per-side output limit |
+| `max_height` | integer | no | Override the default 10,000 px per-side output limit |
+| `max_pixels` | integer | no | Override the default 40,000,000 px (width x height) output limit |
 
 ## Outputs
 
@@ -21,14 +24,14 @@ Output: `{path, width, height, size}`
 
 ## Behavior
 
-Reads from `source` storage at `input` path, writes to `destination` storage at `output` path. Maintains aspect ratio by default.
+Reads from `source` storage at `input` path, writes to the `target` storage at `output` path. Maintains aspect ratio by default. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error. Requested output dimensions above 10,000 px per side or 40,000,000 px total are rejected (override with `max_width`/`max_height`/`max_pixels`).
 
 ## Service Dependencies
 
 | Slot | Prefix | Required |
 |------|--------|----------|
 | `source` | `storage` | Yes |
-| `destination` | `storage` | Yes |
+| `target` | `storage` | Yes |
 
 ## Example
 

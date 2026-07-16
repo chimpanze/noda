@@ -6,12 +6,12 @@ Sends an email via SMTP.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `to` | string (expr) | yes | Recipient(s) |
+| `to` | string or array (expr) | yes | Recipient address, or an array of addresses for multiple recipients. A single string is exactly one address — comma-separated lists are rejected. |
 | `subject` | string (expr) | yes | Subject line |
 | `body` | string (expr) | yes | Email body |
 | `from` | string (expr) | no | Sender (overrides service default) |
-| `cc` | string (expr) | no | CC recipients |
-| `bcc` | string (expr) | no | BCC recipients |
+| `cc` | string or array (expr) | no | CC recipient(s), same rules as `to` |
+| `bcc` | string or array (expr) | no | BCC recipient(s), same rules as `to` |
 | `reply_to` | string (expr) | no | Reply-To address |
 | `content_type` | string | no | `"html"` (default) or `"text"` |
 
@@ -23,7 +23,7 @@ Output: `{message_id}`
 
 ## Behavior
 
-Resolves all expression fields. Sends the email through the configured SMTP service. Default `content_type` is `"html"`. Fires `success` with the message ID on delivery.
+Resolves all expression fields. Sends the email through the configured SMTP service. Default `content_type` is `"html"`. At most 100 recipients are allowed across `to` + `cc` + `bcc` combined (validation error above that). Fires `success` with the message ID on delivery.
 
 ## Service Dependencies
 
