@@ -280,3 +280,71 @@ func TestValidateStartupDryRun_WrongPrefix(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "cache")
 	assert.Contains(t, errs[0].Error(), "db")
 }
+
+func TestValidateStartupDryRun_NodeConfigSchemaEnforced(t *testing.T) {
+	kvPlugin := &testKVPlugin{}
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(kvPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(kvPlugin))
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"my-store": map[string]any{"plugin": "kv"},
+			},
+		},
+		Workflows: map[string]map[string]any{
+			"write-wf": {
+				"nodes": map[string]any{
+					"write": map[string]any{
+						"type":     "kv.set",
+						"services": map[string]any{"store": "my-store"},
+						"config":   map[string]any{"value": "hello"}, // missing required "key"
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "missing required config field")
+	assert.Contains(t, errs[0].Error(), "write-wf")
+	assert.Contains(t, errs[0].Error(), "write")
+}
+
+func TestValidateStartupDryRun_MissingConfigTreatedAsEmpty(t *testing.T) {
+	kvPlugin := &testKVPlugin{}
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(kvPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(kvPlugin))
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"my-store": map[string]any{"plugin": "kv"},
+			},
+		},
+		Workflows: map[string]map[string]any{
+			"write-wf": {
+				"nodes": map[string]any{
+					"write": map[string]any{
+						"type":     "kv.set",
+						"services": map[string]any{"store": "my-store"},
+						// no "config" key at all
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "missing required config field")
+	assert.Contains(t, errs[0].Error(), "write-wf")
+	assert.Contains(t, errs[0].Error(), "write")
+}

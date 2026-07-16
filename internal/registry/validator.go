@@ -6,6 +6,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/pkg/api"
 )
 
 // staticFieldsByNodeType maps node types to config fields that must be static
@@ -57,6 +58,8 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 				errs = append(errs, fmt.Errorf("workflow %q, node %q: unknown node type %q", wfName, nodeID, nodeType))
 				continue
 			}
+
+			errs = append(errs, validateNodeConfigSchema(wfName, nodeID, nodeType, desc, node)...)
 
 			// 3. Validate service slots
 			serviceDeps := desc.ServiceDeps()
@@ -180,6 +183,8 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				continue
 			}
 
+			errs = append(errs, validateNodeConfigSchema(wfName, nodeID, nodeType, desc, node)...)
+
 			// 3. Validate service slot references exist in config (not live check)
 			serviceDeps := desc.ServiceDeps()
 			nodeServices, _ := node["services"].(map[string]any)
@@ -230,6 +235,25 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		}
 	}
 
+	return errs
+}
+
+// validateNodeConfigSchema checks the node's config payload against the
+// descriptor's ConfigSchema. A node without a config key validates as {}
+// so required-field violations surface.
+func validateNodeConfigSchema(wfName, nodeID, nodeType string, desc api.NodeDescriptor, node map[string]any) []error {
+	schema := desc.ConfigSchema()
+	if schema == nil {
+		return nil
+	}
+	cfg, _ := node["config"].(map[string]any)
+	if cfg == nil {
+		cfg = map[string]any{}
+	}
+	var errs []error
+	for _, scErr := range ValidateNodeConfig(schema, cfg) {
+		errs = append(errs, fmt.Errorf("workflow %q, node %q (%s): %w", wfName, nodeID, nodeType, scErr))
+	}
 	return errs
 }
 
