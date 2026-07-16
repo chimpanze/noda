@@ -414,6 +414,43 @@ func TestCreateService_PortAsInt(t *testing.T) {
 	assert.Equal(t, 25, s.port)
 }
 
+// $env() substitution always produces strings, so "port": "{{ $env('SMTP_PORT') }}"
+// arrives here as a string. It must be parsed, not silently defaulted to 587.
+func TestCreateService_PortAsString(t *testing.T) {
+	p := &Plugin{}
+	svc, err := p.CreateService(map[string]any{
+		"host": "smtp.example.com",
+		"port": "1025",
+	})
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, 1025, s.port)
+}
+
+func TestCreateService_PortAsStringWithWhitespace(t *testing.T) {
+	p := &Plugin{}
+	svc, err := p.CreateService(map[string]any{
+		"host": "smtp.example.com",
+		"port": " 465 ",
+	})
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, 465, s.port)
+	assert.True(t, s.useTLS, "implicit-TLS default must apply to string-sourced port 465")
+}
+
+func TestCreateService_PortInvalid(t *testing.T) {
+	p := &Plugin{}
+	for _, bad := range []any{"abc", "", "587abc", "0", "65536", "-1", float64(0), float64(70000), true} {
+		_, err := p.CreateService(map[string]any{
+			"host": "smtp.example.com",
+			"port": bad,
+		})
+		require.Error(t, err, "port %v (%T) must be rejected", bad, bad)
+		assert.Contains(t, err.Error(), "port", "error for %v must mention the port", bad)
+	}
+}
+
 // --- resolveRecipients tests ---
 
 func TestResolveRecipients_MissingKey(t *testing.T) {
