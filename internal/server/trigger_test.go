@@ -350,6 +350,20 @@ func TestMapTrigger_FormBodyStringsCoerced(t *testing.T) {
 	assert.Equal(t, "0042x", result.Input["note"])
 }
 
+func TestMapTrigger_FormBodyStringsCoerced_UppercaseContentType(t *testing.T) {
+	// Content-Type media types are case-insensitive per RFC 7231 — an
+	// uppercase form media type must still be treated as string-typed.
+	result := triggerTestRaw(t, "POST", "/test", "amount=42&note=0042x",
+		"APPLICATION/X-WWW-FORM-URLENCODED", map[string]any{
+			"input": map[string]any{
+				"amount": "{{ body.amount }}",
+				"note":   "{{ body.note }}",
+			},
+		})
+	assert.Equal(t, 42, result.Input["amount"])
+	assert.Equal(t, "0042x", result.Input["note"])
+}
+
 func TestMapTrigger_TransportRefsStillCoerced(t *testing.T) {
 	result := triggerTest(t, "GET", "/test/0042?page=2", nil, map[string]string{
 		"X-Page-Size": "50",
@@ -402,4 +416,27 @@ func TestMapTrigger_StaticValues(t *testing.T) {
 	assert.Equal(t, float64(42), result.Input["static_num"])
 	// String values are resolved but a literal string just returns itself
 	assert.Equal(t, "literal-value", result.Input["static_str"])
+}
+
+func TestShouldCoerce(t *testing.T) {
+	tests := []struct {
+		name            string
+		exprStr         string
+		bodyStringTyped bool
+		want            bool
+	}{
+		{"nested body ref, form body", "{{ body.user.zip }}", true, true},
+		{"nested body ref, json body", "{{ body.user.zip }}", false, false},
+		{"bare query namespace, not a member access", "{{ query }}", false, false},
+		{"computed default with ??", `{{ query.a ?? "x" }}`, false, false},
+		{"ref embedded in surrounding text", "a{{ query.b }}c", false, false},
+		{"request.* alias params ref", "{{ request.params.id }}", false, true},
+		{"bracket header ref", `{{ headers["X-Y"] }}`, false, true},
+		{"plain literal", `"9"`, false, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, shouldCoerce(tt.exprStr, tt.bodyStringTyped))
+		})
+	}
 }
