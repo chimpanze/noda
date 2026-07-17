@@ -23,9 +23,8 @@ cp .env.example .env
 # Start PostgreSQL
 docker compose up -d postgres
 
-# Create the example database and table
-docker compose exec postgres psql -U noda -d noda_dev -c "CREATE DATABASE noda_example;"
-docker compose exec postgres psql -U noda -d noda_example -c "
+# Create the tasks table (compose already created the `noda` database)
+docker compose exec postgres psql -U noda -d noda -c "
 CREATE TABLE IF NOT EXISTS tasks (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   title TEXT NOT NULL,
