@@ -34,6 +34,7 @@ All nodes have access to these variables in expressions:
 | `sha512(string)` | Returns hex-encoded SHA-512 hash |
 | `md5(string)` | Returns hex-encoded MD5 hash |
 | `hmac(data, key, algorithm)` | Returns hex-encoded HMAC. Algorithm: `"sha256"` or `"sha512"` |
+| `hmac_verify(data, key, algorithm, signature)` | Constant-time HMAC check. Algorithm: `"sha256"` or `"sha512"`; `signature` may be bare hex or GitHub-style `"sha256=<hex>"` |
 | `bcrypt_hash(password)` | Returns a bcrypt hash string (default cost) |
 | `bcrypt_verify(password, hash)` | Returns `true` if the password matches the hash, `false` otherwise |
 

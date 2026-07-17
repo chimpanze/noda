@@ -242,6 +242,7 @@ func TestFunctionRegistry_RegisteredFunctions(t *testing.T) {
 		{"sha512", "(string) string", "Returns hex-encoded SHA-512 hash"},
 		{"md5", "(string) string", "Returns hex-encoded MD5 hash"},
 		{"hmac", "(data, key, algorithm string) string", "Returns hex-encoded HMAC (sha256 or sha512)"},
+		{"hmac_verify", "(data, key, algorithm, signature string) bool", "Constant-time HMAC signature check; signature may be bare hex or '<algorithm>=<hex>'"},
 		{"bcrypt_hash", "(password string) string", "Returns a bcrypt hash of the password"},
 		{"bcrypt_verify", "(password, hash string) bool", "Returns true if password matches the bcrypt hash"},
 	}
@@ -265,10 +266,11 @@ func TestFunctionRegistry_RegisteredNames(t *testing.T) {
 	reg := NewFunctionRegistry()
 	names := reg.RegisteredNames()
 
-	assert.Len(t, names, 12)
+	assert.Len(t, names, 13)
 	assert.Contains(t, names, "$uuid")
 	assert.Contains(t, names, "lower")
 	assert.Contains(t, names, "bcrypt_verify")
+	assert.Contains(t, names, "hmac_verify")
 
 	// Verify sorted
 	for i := 1; i < len(names); i++ {
@@ -278,7 +280,7 @@ func TestFunctionRegistry_RegisteredNames(t *testing.T) {
 	// With vars adds $var
 	regWithVars := NewFunctionRegistryWithVars(map[string]string{"K": "V"})
 	namesWithVars := regWithVars.RegisteredNames()
-	assert.Len(t, namesWithVars, 13)
+	assert.Len(t, namesWithVars, 14)
 	assert.Contains(t, namesWithVars, "$var")
 }
 
@@ -361,4 +363,42 @@ func TestCoerceToFloat_UnsupportedType(t *testing.T) {
 	_, err := coerceToFloat([]int{1, 2})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unsupported type")
+}
+
+func TestHmacVerify(t *testing.T) {
+	// echo -n 'hello' | openssl dgst -sha256 -hmac 'key'
+	const sig = "9307b3b915efb5171ff14d8cb55fbcc798c6c0ef1456d66ded1a6aa723a58b7b"
+	ctx := map[string]any{"sig": sig}
+
+	result := compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, true, result)
+
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", "sha256=" + sig) }}`, ctx)
+	assert.Equal(t, true, result, "algorithm-prefixed signatures (GitHub style) must verify")
+
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "wrong-key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, false, result)
+
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("tampered", "key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, false, result)
+
+	upperSig := strings.ToUpper(sig)
+	upperCtx := map[string]any{"sig": upperSig}
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", sig) }}`, upperCtx)
+	assert.Equal(t, true, result, "uppercase-hex signatures must verify")
+}
+
+func TestHmacVerify_InvalidAlgorithm(t *testing.T) {
+	c := NewCompilerWithFunctions()
+	compiled, err := c.Compile(`{{ hmac_verify("hello", "key", "md5", "abc") }}`)
+	require.NoError(t, err)
+	_, err = c.Evaluate(compiled, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported algorithm")
+}
+
+func TestHmacVerify_WrongArity(t *testing.T) {
+	c := NewCompilerWithFunctions()
+	_, err := c.Compile(`{{ hmac_verify("hello", "key", "sha256") }}`)
+	require.Error(t, err)
 }

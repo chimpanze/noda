@@ -19,6 +19,15 @@ noda test
 noda validate --verbose
 ```
 
+## First request
+
+The scaffold registers `GET /api/hello/:name`:
+
+```bash
+curl http://localhost:3000/api/hello/world
+# → {"greeting":"Hello, world!"}
+```
+
 ## Project Structure
 
 ```

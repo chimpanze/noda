@@ -130,6 +130,9 @@ func (c *Compiler) Compile(input string) (*CompiledExpression, error) {
 		opts = append(opts, expr.AllowUndefinedVariables())
 	}
 	opts = append(opts, c.opts.exprOptions...)
+	// Normalize constant header-map keys to the lowercase storage convention
+	// (see headers.go).
+	opts = append(opts, expr.Patch(headerKeyPatcher{}))
 
 	for i, seg := range parsed.Segments {
 		if seg.Type != SegmentExpression {

@@ -253,14 +253,18 @@ func parseQuery(c fiber.Ctx) map[string]any {
 func parseHeaders(c fiber.Ctx) map[string]any {
 	headers := make(map[string]any)
 	for k, v := range c.GetReqHeaders() {
+		// Lowercase keys: single stable convention across inbound trigger
+		// headers and http.* response headers; constant-key lookups in any
+		// case are normalized at expression compile time (internal/expr).
+		lk := strings.ToLower(k)
 		if len(v) == 1 {
-			headers[k] = v[0]
+			headers[lk] = v[0]
 		} else if len(v) > 1 {
 			vals := make([]any, len(v))
 			for i, s := range v {
 				vals[i] = s
 			}
-			headers[k] = vals
+			headers[lk] = vals
 		}
 	}
 	return headers

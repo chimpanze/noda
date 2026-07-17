@@ -164,6 +164,47 @@ func NewFunctionRegistry() *FunctionRegistry {
 		return hex.EncodeToString(mac), nil
 	}, "Returns hex-encoded HMAC (sha256 or sha512)", "(data, key, algorithm string) string", new(func(string, string, string) string))
 
+	// hmac_verify(data, key, algorithm, signature) → constant-time signature check
+	r.RegisterWithInfo("hmac_verify", func(params ...any) (any, error) {
+		if len(params) != 4 {
+			return nil, fmt.Errorf("hmac_verify: expected 4 arguments, got %d", len(params))
+		}
+		data, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("hmac_verify: expected string for data argument, got %T", params[0])
+		}
+		key, ok := params[1].(string)
+		if !ok {
+			return nil, fmt.Errorf("hmac_verify: expected string for key argument, got %T", params[1])
+		}
+		algorithm, ok := params[2].(string)
+		if !ok {
+			return nil, fmt.Errorf("hmac_verify: expected string for algorithm argument, got %T", params[2])
+		}
+		signature, ok := params[3].(string)
+		if !ok {
+			return nil, fmt.Errorf("hmac_verify: expected string for signature argument, got %T", params[3])
+		}
+		var mac []byte
+		switch algorithm {
+		case "sha256":
+			h := hmac.New(sha256.New, []byte(key))
+			h.Write([]byte(data))
+			mac = h.Sum(nil)
+		case "sha512":
+			h := hmac.New(sha512.New, []byte(key))
+			h.Write([]byte(data))
+			mac = h.Sum(nil)
+		default:
+			return nil, fmt.Errorf("hmac_verify: unsupported algorithm %q (want sha256 or sha512)", algorithm)
+		}
+		// Accept GitHub-style "<algorithm>=<hex>" prefixes, and normalize case
+		// so uppercase-hex signatures verify too.
+		signature = strings.ToLower(strings.TrimPrefix(signature, algorithm+"="))
+		expected := hex.EncodeToString(mac)
+		return hmac.Equal([]byte(expected), []byte(signature)), nil
+	}, "Constant-time HMAC signature check; signature may be bare hex or '<algorithm>=<hex>'", "(data, key, algorithm, signature string) bool", new(func(string, string, string, string) bool))
+
 	// bcrypt_hash(password) → bcrypt hash string
 	r.RegisterWithInfo("bcrypt_hash", func(params ...any) (any, error) {
 		if len(params) != 1 {

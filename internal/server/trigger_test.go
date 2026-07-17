@@ -473,3 +473,23 @@ func TestShouldCoerce(t *testing.T) {
 		})
 	}
 }
+
+func TestParseHeadersLowercasesKeys(t *testing.T) {
+	app := fiber.New()
+	var got map[string]any
+	app.Post("/t", func(c fiber.Ctx) error {
+		got = parseHeaders(c)
+		return c.SendString("ok")
+	})
+
+	req := httptest.NewRequest("POST", "/t", nil)
+	req.Header.Set("X-GitHub-Event", "issues")
+	req.Header.Set("Content-Type", "application/json")
+	_, err := app.Test(req)
+	require.NoError(t, err)
+
+	assert.Equal(t, "issues", got["x-github-event"])
+	assert.Equal(t, "application/json", got["content-type"])
+	_, canonical := got["X-Github-Event"]
+	assert.False(t, canonical, "canonical-case key must not be present")
+}

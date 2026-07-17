@@ -10,6 +10,10 @@
         "payload": { "action": "opened", "issue": { "id": 42, "title": "Bug report" } }
       },
       "mocks": {
+        "verify_signature": {
+          "output_name": "then",
+          "output": {}
+        },
         "emit_issue": {
           "output": { "status": "emitted" }
         },
@@ -38,6 +42,10 @@
         "payload": { "action": "opened", "pull_request": { "id": 99 } }
       },
       "mocks": {
+        "verify_signature": {
+          "output_name": "then",
+          "output": {}
+        },
         "emit_issue": {
           "output": { "status": "emitted" }
         },
@@ -66,6 +74,10 @@
         "payload": { "action": "created" }
       },
       "mocks": {
+        "verify_signature": {
+          "output_name": "then",
+          "output": {}
+        },
         "emit_issue": {
           "output": { "status": "emitted" }
         },
@@ -83,6 +95,27 @@
         "status": "success",
         "output": {
           "respond.status": 200
+        }
+      }
+    },
+    {
+      "name": "rejects invalid signature",
+      "input": {
+        "event_type": "issues",
+        "signature": "sha256=bad",
+        "payload": { "action": "opened", "issue": { "id": 42, "title": "Bug report" } }
+      },
+      "mocks": {
+        "verify_signature": {
+          "output_name": "else",
+          "output": {}
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "reject.status": 401,
+          "reject.body.error.code": "INVALID_SIGNATURE"
         }
       }
     }
