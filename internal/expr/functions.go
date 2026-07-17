@@ -276,15 +276,6 @@ func (r *FunctionRegistry) RegisteredNames() []string {
 	return names
 }
 
-// Get returns the function with the given name, or nil if not found.
-func (r *FunctionRegistry) Get(name string) func(params ...any) (any, error) {
-	rf, ok := r.functions[name]
-	if !ok {
-		return nil
-	}
-	return rf.fn
-}
-
 // ExprOptions returns expr.Option values for use with the compiler.
 func (r *FunctionRegistry) ExprOptions() []expr.Option {
 	var opts []expr.Option

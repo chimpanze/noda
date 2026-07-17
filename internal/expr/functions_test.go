@@ -366,32 +366,34 @@ func TestCoerceToFloat_UnsupportedType(t *testing.T) {
 }
 
 func TestHmacVerify(t *testing.T) {
-	r := NewFunctionRegistry()
-	fn := r.Get("hmac_verify")
-	require.NotNil(t, fn)
-
 	// echo -n 'hello' | openssl dgst -sha256 -hmac 'key'
 	const sig = "9307b3b915efb5171ff14d8cb55fbcc798c6c0ef1456d66ded1a6aa723a58b7b"
+	ctx := map[string]any{"sig": sig}
 
-	ok, err := fn("hello", "key", "sha256", sig)
+	result := compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, true, result)
+
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", "sha256=" + sig) }}`, ctx)
+	assert.Equal(t, true, result, "algorithm-prefixed signatures (GitHub style) must verify")
+
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "wrong-key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, false, result)
+
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("tampered", "key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, false, result)
+}
+
+func TestHmacVerify_InvalidAlgorithm(t *testing.T) {
+	c := NewCompilerWithFunctions()
+	compiled, err := c.Compile(`{{ hmac_verify("hello", "key", "md5", "abc") }}`)
 	require.NoError(t, err)
-	assert.Equal(t, true, ok)
+	_, err = c.Evaluate(compiled, map[string]any{})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported algorithm")
+}
 
-	ok, err = fn("hello", "key", "sha256", "sha256="+sig)
-	require.NoError(t, err)
-	assert.Equal(t, true, ok, "algorithm-prefixed signatures (GitHub style) must verify")
-
-	ok, err = fn("hello", "wrong-key", "sha256", sig)
-	require.NoError(t, err)
-	assert.Equal(t, false, ok)
-
-	ok, err = fn("tampered", "key", "sha256", sig)
-	require.NoError(t, err)
-	assert.Equal(t, false, ok)
-
-	_, err = fn("hello", "key", "md5", sig)
-	assert.Error(t, err, "unsupported algorithm must error")
-
-	_, err = fn("hello", "key", "sha256")
-	assert.Error(t, err, "wrong arity must error")
+func TestHmacVerify_WrongArity(t *testing.T) {
+	c := NewCompilerWithFunctions()
+	_, err := c.Compile(`{{ hmac_verify("hello", "key", "sha256") }}`)
+	require.Error(t, err)
 }
