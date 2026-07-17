@@ -19,7 +19,8 @@ var staticFieldsByNodeType = map[string][]string{
 	"control.loop":    {"workflow"},
 	"workflow.output": {"name"},
 	"http.request":    {"method"},
-	"transform.merge": {"mode", "type"},
+	// match.type is nested; single-segment static lookup never matched it and strict root keys reject a top-level "type"
+	"transform.merge": {"mode"},
 }
 
 // ValidateStartup checks all plugin, service, and node references in the config.

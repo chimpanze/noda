@@ -31,8 +31,8 @@ func (d *setPasswordDescriptor) ConfigSchema() map[string]any {
 	}
 	return map[string]any{
 		"oneOf": []any{
-			map[string]any{"type": "object", "properties": fields, "required": []any{"user_id", "password"}},
-			map[string]any{"type": "object", "properties": fields, "required": []any{"token", "password"}},
+			map[string]any{"type": "object", "title": "By user_id", "properties": fields, "required": []any{"user_id", "password"}},
+			map[string]any{"type": "object", "title": "By reset token", "properties": fields, "required": []any{"token", "password"}},
 		},
 	}
 }

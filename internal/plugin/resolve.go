@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -121,6 +122,8 @@ func resolveDeep(nCtx api.ExecutionContext, raw any) (any, error) {
 
 // ResolveOptionalInt resolves an optional config key as an integer.
 // Returns (0, false, nil) if the key is absent.
+// Numeric strings (e.g. "20") are accepted, since computed defaults such as
+// `{{ query.limit ?? '20' }}` resolve to strings.
 func ResolveOptionalInt(nCtx api.ExecutionContext, config map[string]any, key string) (int, bool, error) {
 	raw, ok := config[key]
 	if !ok {
@@ -136,10 +139,7 @@ func ResolveOptionalInt(nCtx api.ExecutionContext, config map[string]any, key st
 		if err != nil {
 			return 0, false, fmt.Errorf("resolve %q: %w", key, err)
 		}
-		switch n := val.(type) {
-		case float64:
-			return int(n), true, nil
-		case int:
+		if n, ok := ToInt(val); ok {
 			return n, true, nil
 		}
 		return 0, false, fmt.Errorf("field %q resolved to %T, expected int", key, val)
@@ -158,16 +158,16 @@ func ToInt(v any) (int, bool) {
 	case int64:
 		return int(n), true
 	case string:
-		var i int
-		if _, err := fmt.Sscanf(n, "%d", &i); err == nil {
-			return i, true
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil {
+			return 0, false
 		}
-		return 0, false
+		return i, true
 	}
 	return 0, false
 }
 
-// ToInt64 converts a numeric value (float64, int, int64) to int64.
+// ToInt64 converts a numeric value (float64, int, int64, or numeric string) to int64.
 // Returns (0, false) if the value is not a recognized numeric type.
 func ToInt64(v any) (int64, bool) {
 	switch n := v.(type) {
@@ -177,11 +177,19 @@ func ToInt64(v any) (int64, bool) {
 		return int64(n), true
 	case int64:
 		return n, true
+	case string:
+		i, err := strconv.ParseInt(strings.TrimSpace(n), 10, 64)
+		if err != nil {
+			return 0, false
+		}
+		return i, true
 	}
 	return 0, false
 }
 
 // ResolveRawInt resolves a raw value (already extracted from config) as an integer.
+// Numeric strings (e.g. "20") are accepted, since computed defaults such as
+// `{{ query.limit ?? '20' }}` resolve to strings.
 func ResolveRawInt(nCtx api.ExecutionContext, raw any) (int, error) {
 	switch v := raw.(type) {
 	case float64:
@@ -193,10 +201,7 @@ func ResolveRawInt(nCtx api.ExecutionContext, raw any) (int, error) {
 		if err != nil {
 			return 0, err
 		}
-		switch n := val.(type) {
-		case float64:
-			return int(n), nil
-		case int:
+		if n, ok := ToInt(val); ok {
 			return n, nil
 		}
 		return 0, fmt.Errorf("resolved to %T, expected number", val)

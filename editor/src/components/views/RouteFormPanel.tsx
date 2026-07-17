@@ -34,6 +34,7 @@ export interface RouteConfig {
     input?: Record<string, string>;
     files?: string[];
     raw_body?: boolean;
+    coerce?: boolean;
   };
   [key: string]: unknown;
 }
@@ -358,6 +359,21 @@ export function RouteFormPanel({
               className="rounded border-gray-300"
             />
             Pass raw body
+          </label>
+        </div>
+
+        {/* Coerce */}
+        <div className="mt-2">
+          <label className="inline-flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={route.trigger?.coerce !== false}
+              onChange={(e) =>
+                updateTrigger({ coerce: e.target.checked ? undefined : false })
+              }
+              className="rounded border-gray-300"
+            />
+            Coerce numeric inputs
           </label>
         </div>
       </div>

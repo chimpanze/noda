@@ -75,13 +75,13 @@ Request body validation happens automatically at the route level via `body.schem
 
 **Nodes:**
 
-1. `db.query` (as `count`) — `SELECT COUNT(*) FROM tasks WHERE user_id = $1`
-2. `db.query` (as `rows`) — `SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, with `limit` wrapped as `{{ toInt(input.limit) }}` and offset computed as `{{ (toInt(input.page) - 1) * toInt(input.limit) }}`
-3. `response.json` — return 200 with `{ "data": "{{ rows }}", "pagination": { "page": "{{ input.page }}", "limit": "{{ input.limit }}", "total": "{{ count[0].count }}" } }`
+1. `db.count` (as `total`) — counts rows in `tasks` where `user_id` matches
+2. `db.find` (as `rows`) — selects rows from `tasks` where `user_id` matches, `order: "created_at DESC"`, with `limit` set to `{{ toInt(input.limit) }}` and `offset` computed as `{{ (toInt(input.page) - 1) * toInt(input.limit) }}`
+3. `response.json` — return 200 with `{ "data": "{{ nodes.rows }}", "pagination": { "page": "{{ input.page }}", "limit": "{{ input.limit }}", "total": "{{ nodes.total.count }}" } }`
 
 Both queries run in parallel (no dependency between them). The response node waits for both (AND-join).
 
-**Features exercised:** Implicit parallelism, expression defaults (`??` operator), parameterized queries, response composition from multiple upstream nodes.
+**Features exercised:** Implicit parallelism, expression defaults (`??` operator), config-level pagination (`limit`/`offset`), response composition from multiple upstream nodes.
 
 Note: a computed default like `{{ query.page ?? '1' }}` is not a bare transport reference, so it arrives as-typed (a string here) rather than being numerically coerced. Numeric consumers of such inputs — like `db.find`'s `limit` config field (a hard-typed int) and the offset arithmetic above — need `toInt(...)`, or the route should map a bare reference (`{{ query.page }}`) instead.
 

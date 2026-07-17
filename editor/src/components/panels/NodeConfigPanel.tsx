@@ -129,8 +129,18 @@ export function NodeConfigPanel() {
   const isDbNode = node.type.startsWith("db.");
   const isResponseNode = node.type.startsWith("response.");
   const uiSchema: UiSchema = {};
-  if (schema?.properties) {
-    for (const [key, prop] of Object.entries(schema.properties)) {
+  const schemaProps =
+    schema?.properties ??
+    (Array.isArray(schema?.oneOf)
+      ? Object.assign(
+          {},
+          ...schema.oneOf.map(
+            (b) => (b as { properties?: object }).properties ?? {},
+          ),
+        )
+      : undefined);
+  if (schemaProps) {
+    for (const [key, prop] of Object.entries(schemaProps)) {
       const p = prop as Record<string, unknown>;
       if (isDbNode && key === "table") {
         uiSchema[key] = { "ui:widget": "tableSelect" };

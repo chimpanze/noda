@@ -202,6 +202,7 @@ export function RoutesView() {
             delete clean.trigger.input;
           if (!clean.trigger.files?.length) delete clean.trigger.files;
           if (!clean.trigger.raw_body) delete clean.trigger.raw_body;
+          if (clean.trigger.coerce !== false) delete clean.trigger.coerce;
         }
       }
       // Clean response

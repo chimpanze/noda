@@ -718,6 +718,32 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		})
 	}
 
+	// File-level validation is clean — run the same startup dry-run
+	// `noda validate` performs (node/service/expression checks, no live
+	// connections) so the MCP tool catches what schema validation alone
+	// cannot (e.g. a node config missing a field its plugin requires).
+	plugins := registry.NewPluginRegistry()
+	for _, p := range corePlugins() {
+		if err := plugins.Register(p); err != nil {
+			return mcp.NewToolResultError("registering plugin " + p.Name() + ": " + err.Error()), nil
+		}
+	}
+	if _, bootErrs := registry.Bootstrap(ctx, rc, plugins, registry.BootstrapOptions{DryRun: true}); len(bootErrs) > 0 {
+		errList := make([]map[string]any, len(bootErrs))
+		for i, e := range bootErrs {
+			errList[i] = map[string]any{
+				"error":   e.Error(),
+				"file":    "",
+				"pointer": "",
+				"message": e.Error(),
+			}
+		}
+		return jsonResult(map[string]any{
+			"valid":  false,
+			"errors": errList,
+		})
+	}
+
 	return jsonResult(map[string]any{
 		"valid":      true,
 		"file_count": rc.FileCount,

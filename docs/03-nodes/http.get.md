@@ -8,6 +8,7 @@ Shorthand for GET requests. Same as `http.request` with `method: "GET"`.
 |-------|------|----------|-------------|
 | `url` | string (expr) | yes | Request URL |
 | `headers` | object | no | Request headers |
+| `body` | any (expr) | no | Request body (resolved even for GET, but normally unused) |
 | `timeout` | string | no | Request timeout |
 
 ## Outputs

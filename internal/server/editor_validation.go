@@ -3,8 +3,23 @@ package server
 import (
 	"github.com/chimpanze/noda/internal/config"
 	nodaexpr "github.com/chimpanze/noda/internal/expr"
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/gofiber/fiber/v3"
 )
+
+// startupDryRunErrors runs the same node/service/expression startup checks
+// `noda validate` performs, but without live service connections. It only
+// runs when file-level validation was clean and the registries needed for
+// it (plugins, nodes, compiler) are available — dev-mode EditorAPI always
+// has them, but tests may construct a bare instance.
+func (e *EditorAPI) startupDryRunErrors(rc *config.ResolvedConfig) []error {
+	if rc == nil || e.plugins == nil || e.nodes == nil || e.compiler == nil {
+		return nil
+	}
+	deferred, errs := registry.CollectDeferredServices(rc)
+	errs = append(errs, registry.ValidateStartupDryRun(rc, e.plugins, e.nodes, e.compiler, deferred)...)
+	return errs
+}
 
 // validateFile validates a single JSON config against its schema.
 func (e *EditorAPI) validateFile(c fiber.Ctx) error {
@@ -21,7 +36,7 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 	if smErr != nil {
 		return c.Status(500).JSON(map[string]any{"error": smErr.Error()})
 	}
-	_, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
+	rc, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
 
 	// Filter errors for the requested file
 	var filtered []map[string]any
@@ -39,6 +54,16 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 		}
 	}
 
+	if len(errs) == 0 {
+		for _, dErr := range e.startupDryRunErrors(rc) {
+			filtered = append(filtered, map[string]any{
+				"file":    "",
+				"path":    "",
+				"message": dErr.Error(),
+			})
+		}
+	}
+
 	return c.JSON(map[string]any{
 		"valid":  len(filtered) == 0,
 		"errors": filtered,
@@ -51,7 +76,7 @@ func (e *EditorAPI) validateAll(c fiber.Ctx) error {
 	if smErr != nil {
 		return c.Status(500).JSON(map[string]any{"error": smErr.Error()})
 	}
-	_, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
+	rc, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
 
 	var errors []map[string]any
 	for _, ve := range errs {
@@ -62,8 +87,18 @@ func (e *EditorAPI) validateAll(c fiber.Ctx) error {
 		})
 	}
 
+	if len(errs) == 0 {
+		for _, dErr := range e.startupDryRunErrors(rc) {
+			errors = append(errors, map[string]any{
+				"file":    "",
+				"path":    "",
+				"message": dErr.Error(),
+			})
+		}
+	}
+
 	return c.JSON(map[string]any{
-		"valid":  len(errs) == 0,
+		"valid":  len(errors) == 0,
 		"errors": errors,
 	})
 }
