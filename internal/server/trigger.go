@@ -190,6 +190,12 @@ func parseBody(c fiber.Ctx) any {
 				mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
 				mform, mErr := mr.ReadForm(int64(len(body)) + 1)
 				if mErr == nil && mform != nil {
+					// RemoveAll only deletes temp files written to disk when the
+					// part data exceeds maxMemory; it doesn't touch mform.Value
+					// strings, so it's safe to defer immediately. No-op today
+					// since maxMemory (len(body)+1) keeps everything in RAM, but
+					// guards against a future maxMemory change leaking temp files.
+					defer mform.RemoveAll()
 					for k, v := range mform.Value {
 						if len(v) == 1 {
 							form[k] = v[0]

@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -157,11 +158,11 @@ func ToInt(v any) (int, bool) {
 	case int64:
 		return int(n), true
 	case string:
-		var i int
-		if _, err := fmt.Sscanf(n, "%d", &i); err == nil {
-			return i, true
+		i, err := strconv.Atoi(strings.TrimSpace(n))
+		if err != nil {
+			return 0, false
 		}
-		return 0, false
+		return i, true
 	}
 	return 0, false
 }
@@ -177,11 +178,11 @@ func ToInt64(v any) (int64, bool) {
 	case int64:
 		return n, true
 	case string:
-		var i int64
-		if _, err := fmt.Sscanf(n, "%d", &i); err == nil {
-			return i, true
+		i, err := strconv.ParseInt(strings.TrimSpace(n), 10, 64)
+		if err != nil {
+			return 0, false
 		}
-		return 0, false
+		return i, true
 	}
 	return 0, false
 }

@@ -548,6 +548,15 @@ func TestResolveOptionalInt_InvalidType(t *testing.T) {
 	assert.Contains(t, err.Error(), "invalid type")
 }
 
+func TestResolveOptionalInt_RejectsPartialNumericStrings(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+	for _, s := range []string{"20abc", "20.5", "1e3", "0x10"} {
+		_, _, err := ResolveOptionalInt(nCtx, map[string]any{"limit": s}, "limit")
+		require.Error(t, err, "expected error for %q", s)
+		assert.Contains(t, err.Error(), "expected int")
+	}
+}
+
 // --- ToInt tests ---
 
 func TestToInt_Float64(t *testing.T) {
@@ -586,6 +595,42 @@ func TestToInt_UnsupportedType(t *testing.T) {
 	assert.Equal(t, 0, v)
 }
 
+func TestToInt_StringPartialTrailing(t *testing.T) {
+	v, ok := ToInt("20abc")
+	assert.False(t, ok)
+	assert.Equal(t, 0, v)
+}
+
+func TestToInt_StringDecimal(t *testing.T) {
+	v, ok := ToInt("20.5")
+	assert.False(t, ok)
+	assert.Equal(t, 0, v)
+}
+
+func TestToInt_StringExponent(t *testing.T) {
+	v, ok := ToInt("1e3")
+	assert.False(t, ok)
+	assert.Equal(t, 0, v)
+}
+
+func TestToInt_StringHex(t *testing.T) {
+	v, ok := ToInt("0x10")
+	assert.False(t, ok)
+	assert.Equal(t, 0, v)
+}
+
+func TestToInt_StringWhitespacePadded(t *testing.T) {
+	v, ok := ToInt(" 42 ")
+	assert.True(t, ok)
+	assert.Equal(t, 42, v)
+}
+
+func TestToInt_StringLeadingZero(t *testing.T) {
+	v, ok := ToInt("0042")
+	assert.True(t, ok)
+	assert.Equal(t, 42, v)
+}
+
 // --- ToInt64 tests ---
 
 func TestToInt64_Float64(t *testing.T) {
@@ -622,6 +667,36 @@ func TestToInt64_UnsupportedType(t *testing.T) {
 	v, ok := ToInt64(true)
 	assert.False(t, ok)
 	assert.Equal(t, int64(0), v)
+}
+
+func TestToInt64_StringPartialTrailing(t *testing.T) {
+	v, ok := ToInt64("20abc")
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), v)
+}
+
+func TestToInt64_StringDecimal(t *testing.T) {
+	v, ok := ToInt64("20.5")
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), v)
+}
+
+func TestToInt64_StringExponent(t *testing.T) {
+	v, ok := ToInt64("1e3")
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), v)
+}
+
+func TestToInt64_StringHex(t *testing.T) {
+	v, ok := ToInt64("0x10")
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), v)
+}
+
+func TestToInt64_StringWhitespacePadded(t *testing.T) {
+	v, ok := ToInt64(" 42 ")
+	assert.True(t, ok)
+	assert.Equal(t, int64(42), v)
 }
 
 // --- ResolveRawInt tests ---
@@ -705,6 +780,15 @@ func TestResolveRawInt_UnsupportedType(t *testing.T) {
 	_, err := ResolveRawInt(nCtx, true)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "expected number")
+}
+
+func TestResolveRawInt_RejectsPartialNumericStrings(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+	for _, s := range []string{"20abc", "20.5", "1e3", "0x10"} {
+		_, err := ResolveRawInt(nCtx, s)
+		require.Error(t, err, "expected error for %q", s)
+		assert.Contains(t, err.Error(), "expected number")
+	}
 }
 
 // --- ResolveHeaders tests ---
