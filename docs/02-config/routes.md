@@ -29,6 +29,8 @@ Files in `routes/*.json`. Each file defines one route.
 
 **Trigger input sources:** `body.*`, `params.*`, `query.*`, `headers.*`, `auth.*`, `raw_body` (when `trigger.raw_body: true`).
 
+Header keys are **lowercase** (`{{ headers['x-github-event'] }}`). Constant keys written in any case are normalized at compile time, so `{{ headers['X-GitHub-Event'] }}` also works — but dynamic keys (`{{ headers[input.name] }}`) must already be lowercase.
+
 **Numeric coercion:** inputs that are a single bare reference to a string-typed transport — `params.*`, `query.*`, `headers.*`, or `body.*` for form-encoded requests (plus `request.*` aliases) — are converted to numbers when they parse as one (`{{ query.limit }}` → `10`). JSON body values keep their JSON types, and computed expressions and literal values are never coerced. Set `"coerce": false` on the trigger when IDs like `"0042"` must stay strings.
 
 The `request.*` namespace provides aliases to these same fields: `request.body`, `request.params`, `request.query`, `request.headers`, `request.auth`, and `request.raw_body` (when enabled).

@@ -1921,7 +1921,7 @@ func TestParseHeaders(t *testing.T) {
 	resp, err := app.Test(req)
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
-	assert.Equal(t, "value1", result["X-Custom"])
+	assert.Equal(t, "value1", result["x-custom"])
 }
 
 func TestParseParams(t *testing.T) {
