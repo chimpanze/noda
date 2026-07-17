@@ -1,0 +1,18 @@
+{
+  "id": "json",
+  "nodes": {
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "message": "created",
+          "nested": {
+            "n": 1
+          }
+        }
+      }
+    }
+  },
+  "edges": []
+}

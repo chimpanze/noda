@@ -117,7 +117,11 @@ func resolveBytes(nCtx api.ExecutionContext, config map[string]any) ([]byte, err
 		if b, ok := resolved.([]byte); ok {
 			return b, nil
 		}
-		return nil, fmt.Errorf("data: expected bytes, got %T", resolved)
+		// Accept strings and convert to bytes
+		if s, ok := resolved.(string); ok {
+			return []byte(s), nil
+		}
+		return nil, fmt.Errorf("data: expected bytes or string, got %T", resolved)
 	default:
 		return nil, fmt.Errorf("data: expected bytes, got %T", raw)
 	}

@@ -1,0 +1,8 @@
+{
+  "id": "redirect",
+  "method": "GET",
+  "path": "/api/redirect",
+  "trigger": {
+    "workflow": "redirect"
+  }
+}
