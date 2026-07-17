@@ -6,9 +6,9 @@ Handles multipart file uploads with validation.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `max_size` | integer | yes | Max file size in bytes |
-| `allowed_types` | array | yes | MIME type patterns (supports wildcards) |
 | `path` | string (expr) | yes | Storage destination path |
+| `max_size` | integer | no | Max file size in bytes (default: 10485760) |
+| `allowed_types` | array | no | MIME type patterns (supports wildcards); unset allows any type |
 | `max_files` | integer | no | Max files (default: 1) |
 | `field` | string | no | Form field name (default: `"file"`) |
 
@@ -76,7 +76,7 @@ A downstream node can save this metadata:
 ```json
 {
   "save_file_record": {
-    "type": "db.insert",
+    "type": "db.create",
     "config": {
       "table": "files",
       "data": {

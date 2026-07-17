@@ -47,7 +47,7 @@ A downstream node can reference this value:
 ```json
 {
   "create_record": {
-    "type": "db.insert",
+    "type": "db.create",
     "config": {
       "table": "documents",
       "data": {

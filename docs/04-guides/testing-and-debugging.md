@@ -352,7 +352,7 @@ With `--verbose`, each test also shows the execution trace listing every node th
     ✓ creates user successfully (1.2ms)
       Trace:
         validate (transform.validate) → success [0.1ms]
-        insert (db.insert) → success [0.3ms]
+        insert (db.create) → success [0.3ms]
         respond (response.json) → success [0.2ms]
 ```
 

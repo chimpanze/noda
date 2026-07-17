@@ -8,7 +8,6 @@ Writes data to storage.
 |-------|------|----------|-------------|
 | `path` | string (expr) | yes | File path |
 | `data` | string/bytes (expr) | yes | Data to write |
-| `content_type` | string (expr) | no | MIME type |
 
 ## Outputs
 
@@ -32,8 +31,7 @@ Writes the resolved `data` to the configured storage service at the given `path`
   "services": { "storage": "files" },
   "config": {
     "path": "{{ 'exports/' + $uuid() + '.json' }}",
-    "data": "{{ nodes.generate }}",
-    "content_type": "application/json"
+    "data": "{{ nodes.generate }}"
   }
 }
 ```
@@ -58,8 +56,7 @@ A report generation workflow queries data, then writes the result as a JSON file
     "services": { "storage": "files" },
     "config": {
       "path": "{{ 'reports/' + $uuid() + '.json' }}",
-      "data": "{{ nodes.fetch_data }}",
-      "content_type": "application/json"
+      "data": "{{ nodes.fetch_data }}"
     }
   }
 }

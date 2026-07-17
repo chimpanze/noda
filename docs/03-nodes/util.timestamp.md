@@ -51,7 +51,7 @@ A downstream node uses the timestamp:
 ```json
 {
   "save_event": {
-    "type": "db.insert",
+    "type": "db.create",
     "config": {
       "table": "audit_log",
       "data": {

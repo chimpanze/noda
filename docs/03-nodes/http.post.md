@@ -8,7 +8,7 @@ Shorthand for POST requests. Same as `http.request` with `method: "POST"`.
 |-------|------|----------|-------------|
 | `url` | string (expr) | yes | Request URL |
 | `headers` | object | no | Request headers |
-| `body` | any (expr) | yes | Request body |
+| `body` | any (expr) | no | Request body |
 | `timeout` | string | no | Request timeout |
 
 ## Outputs

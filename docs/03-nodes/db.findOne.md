@@ -12,6 +12,8 @@ Single row SELECT returning a single row object.
 | `where_clause` | object | no | Raw WHERE with `query` (string) and `params` (array) |
 | `joins` | array | no | JOIN clauses |
 | `order` | string | no | ORDER BY clause |
+| `limit` | integer | no | Maximum rows to consider before `LIMIT 1` is applied |
+| `offset` | integer | no | Rows to skip |
 | `group` | string | no | GROUP BY clause |
 | `having` | string or object | no | HAVING clause. Prefer the parameterized object form `{"query": "count(*) > ?", "params": [5]}`; a bare string still works but is deprecated (logs a warning) |
 | `required` | boolean | no | If `true` (default), returns `NotFoundError` when no row matches. If `false`, returns `nil`. |
