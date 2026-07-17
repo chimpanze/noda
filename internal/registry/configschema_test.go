@@ -186,6 +186,57 @@ func TestCheckSchemaVocabularyShapes(t *testing.T) {
 			assert.Contains(t, errs[0].Error(), "oneOf")
 		}
 	})
+
+	t.Run("type as unknown string name is rejected", func(t *testing.T) {
+		schema := map[string]any{"type": "integr"}
+		errs := CheckSchemaVocabulary(schema)
+		if assert.NotEmpty(t, errs) {
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e.Error(), `unknown type "integr"`) {
+					found = true
+				}
+			}
+			assert.True(t, found, "want unknown type name error, got %v", errs)
+		}
+	})
+
+	t.Run("type as []any with an unknown name is rejected", func(t *testing.T) {
+		schema := map[string]any{"type": []any{"integer", "strng"}}
+		errs := CheckSchemaVocabulary(schema)
+		if assert.NotEmpty(t, errs) {
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e.Error(), `unknown type "strng"`) {
+					found = true
+				}
+			}
+			assert.True(t, found, "want unknown type name error, got %v", errs)
+		}
+	})
+
+	t.Run("all known type names are accepted", func(t *testing.T) {
+		for _, name := range []string{"object", "array", "string", "boolean", "null", "number", "integer"} {
+			schema := map[string]any{"type": name}
+			assert.Empty(t, CheckSchemaVocabulary(schema), "type name %q should be accepted", name)
+		}
+	})
+
+	t.Run("bad keyword inside a oneOf branch is caught by recursion", func(t *testing.T) {
+		schema := map[string]any{"oneOf": []any{
+			map[string]any{"type": "object", "properties": map[string]any{}, "minimum": float64(1)},
+		}}
+		errs := CheckSchemaVocabulary(schema)
+		if assert.NotEmpty(t, errs) {
+			found := false
+			for _, e := range errs {
+				if strings.Contains(e.Error(), "minimum") {
+					found = true
+				}
+			}
+			assert.True(t, found, "want minimum keyword error from oneOf branch recursion, got %v", errs)
+		}
+	})
 }
 
 func TestOneOfNoMatchErrorHasFieldLevelHint(t *testing.T) {

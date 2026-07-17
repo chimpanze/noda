@@ -90,11 +90,18 @@ func checkVocab(schema map[string]any, path string, errs *[]error) {
 		case k == "type":
 			switch t := v.(type) {
 			case string:
-				// ok
+				if !knownTypeNames[t] {
+					*errs = append(*errs, fmt.Errorf("schema keyword \"type\" at %q: unknown type %q", path, t))
+				}
 			case []any:
 				for i, one := range t {
-					if _, ok := one.(string); !ok {
+					name, ok := one.(string)
+					if !ok {
 						*errs = append(*errs, fmt.Errorf("schema keyword \"type\" at %q: element %d must be a string, got %T", path, i, one))
+						continue
+					}
+					if !knownTypeNames[name] {
+						*errs = append(*errs, fmt.Errorf("schema keyword \"type\" at %q: unknown type %q", path, name))
 					}
 				}
 			default:
@@ -260,6 +267,16 @@ func typeAllows(declared any, value any) bool {
 	default:
 		return true
 	}
+}
+
+// knownTypeNames are the "type" keyword values matchesType understands. Kept
+// in sync with matchesType's cases; CheckSchemaVocabulary uses this set to
+// catch typo'd type names (e.g. "integr") at vocabulary-check time instead of
+// letting them silently fail closed (matchesType's default case rejects
+// every value) at validation time.
+var knownTypeNames = map[string]bool{
+	"object": true, "array": true, "string": true, "boolean": true,
+	"null": true, "number": true, "integer": true,
 }
 
 func matchesType(v any, t string) bool {
