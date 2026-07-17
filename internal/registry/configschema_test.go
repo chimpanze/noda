@@ -34,7 +34,7 @@ func TestValidateNodeConfig(t *testing.T) {
 		{"union type", schemaFor(map[string]any{"v": map[string]any{"type": []any{"integer", "string"}}}),
 			map[string]any{"v": "abc"}, ""},
 		{"unknown top-level key", schemaFor(map[string]any{"name": strProp}),
-			map[string]any{"nmae": "x"}, `unknown config field "nmae"`},
+			map[string]any{"bogus": "x"}, `unknown config field "bogus"`},
 		{"unknown key allowed with additionalProperties", map[string]any{
 			"type": "object", "properties": map[string]any{}, "additionalProperties": true},
 			map[string]any{"anything": 1}, ""},

@@ -19,12 +19,6 @@ var annotationKeywords = map[string]bool{
 	"default": true, "examples": true, "deprecated": true,
 }
 
-// constraintKeywords are the schema keywords ValidateNodeConfig implements.
-var constraintKeywords = map[string]bool{
-	"type": true, "enum": true, "properties": true, "required": true,
-	"items": true, "oneOf": true, "additionalProperties": true,
-}
-
 // CheckSchemaVocabulary returns an error for every keyword in the schema tree
 // that ValidateNodeConfig does not implement, AND for every constraint
 // keyword whose value has the wrong Go shape for validateValue's type
