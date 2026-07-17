@@ -1,0 +1,36 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "if routes then-branch when condition true",
+      "request": { "method": "POST", "path": "/api/if", "body": { "value": 10 } },
+      "expect": { "status": 200, "body": [
+        { "path": "branch", "equals": "high" },
+        { "path": "value", "equals": 10 }
+      ] }
+    },
+    {
+      "name": "if routes else-branch when condition false",
+      "request": { "method": "POST", "path": "/api/if", "body": { "value": 3 } },
+      "expect": { "status": 200, "body": [ { "path": "branch", "equals": "low" } ] }
+    },
+    {
+      "name": "switch matches a case",
+      "request": { "method": "POST", "path": "/api/switch", "body": { "kind": "sms" } },
+      "expect": { "status": 200, "body": [ { "path": "channel", "equals": "sms" } ] }
+    },
+    {
+      "name": "switch falls through to default",
+      "request": { "method": "POST", "path": "/api/switch", "body": { "kind": "carrier-pigeon" } },
+      "expect": { "status": 200, "body": [ { "path": "channel", "equals": "unknown" } ] }
+    },
+    {
+      "name": "loop runs the item workflow per element",
+      "request": { "method": "POST", "path": "/api/loop", "body": { "nums": [1, 2, 3] } },
+      "expect": { "status": 200, "body": [
+        { "path": "count", "equals": 3 },
+        { "path": "first", "equals": 2 }
+      ] }
+    }
+  ]
+}

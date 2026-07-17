@@ -1,0 +1,10 @@
+{
+  "id": "loop",
+  "nodes": {
+    "each": { "type": "control.loop", "config": { "collection": "{{ input.nums }}", "workflow": "loop-item", "input": { "val": "{{ $item }}" } } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "count": "{{ len(nodes.each) }}", "first": "{{ nodes.each[0].doubled }}" } } }
+  },
+  "edges": [
+    { "from": "each", "output": "done", "to": "respond" }
+  ]
+}

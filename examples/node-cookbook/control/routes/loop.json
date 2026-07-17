@@ -1,0 +1,7 @@
+{
+  "id": "loop",
+  "method": "POST",
+  "path": "/api/loop",
+  "summary": "control.loop — run a workflow per collection item",
+  "trigger": { "workflow": "loop", "input": { "nums": "{{ body.nums }}" } }
+}

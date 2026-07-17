@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/server"
 	"github.com/chimpanze/noda/pkg/api"
@@ -73,7 +74,13 @@ func runProject(dir string, plugins []api.Plugin) error {
 		return fmt.Errorf("bootstrap: %v", berrs)
 	}
 
-	srv, err := server.NewServer(rc, boot.Services, boot.Nodes)
+	// Build workflow cache from the resolved config
+	wfCache, err := engine.NewWorkflowCache(rc.Workflows, boot.Nodes)
+	if err != nil {
+		return fmt.Errorf("workflow cache: %w", err)
+	}
+
+	srv, err := server.NewServer(rc, boot.Services, boot.Nodes, server.WithWorkflowCache(wfCache))
 	if err != nil {
 		return fmt.Errorf("server: %w", err)
 	}

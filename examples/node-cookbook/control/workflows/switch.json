@@ -1,0 +1,14 @@
+{
+  "id": "switch",
+  "nodes": {
+    "route": { "type": "control.switch", "config": { "expression": "{{ input.kind }}", "cases": ["email", "sms"] } },
+    "respond_email": { "type": "response.json", "config": { "status": 200, "body": { "channel": "email" } } },
+    "respond_sms": { "type": "response.json", "config": { "status": 200, "body": { "channel": "sms" } } },
+    "respond_other": { "type": "response.json", "config": { "status": 200, "body": { "channel": "unknown" } } }
+  },
+  "edges": [
+    { "from": "route", "output": "email", "to": "respond_email" },
+    { "from": "route", "output": "sms", "to": "respond_sms" },
+    { "from": "route", "output": "default", "to": "respond_other" }
+  ]
+}
