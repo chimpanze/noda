@@ -1,6 +1,7 @@
 package cookbook
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,30 @@ func testPlugins() []api.Plugin {
 
 func TestRunProject(t *testing.T) {
 	RunProject(t, writeProject(t), testPlugins())
+}
+
+func TestSubstituteBodyEscapesSpecialCharacters(t *testing.T) {
+	vars := map[string]string{"x": "he said \"hi\\\"\nnew line"}
+	body := map[string]any{
+		"msg":    "${x}",
+		"nested": map[string]any{"list": []any{"${x}", float64(3), true, nil}},
+	}
+
+	raw, err := json.Marshal(substituteBody(body, vars))
+	require.NoError(t, err, "substituted body must marshal to valid JSON")
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded), "marshaled body must round-trip")
+	require.Equal(t, vars["x"], decoded["msg"], "quote/backslash/newline must survive intact")
+	nested := decoded["nested"].(map[string]any)
+	list := nested["list"].([]any)
+	require.Equal(t, vars["x"], list[0])
+	require.Equal(t, float64(3), list[1])
+	require.Equal(t, true, list[2])
+	require.Nil(t, list[3])
+
+	// The original body must not be mutated.
+	require.Equal(t, "${x}", body["msg"])
 }
 
 func TestRunProjectRejectsDeps(t *testing.T) {

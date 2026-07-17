@@ -90,17 +90,41 @@ func runProject(dir string, plugins []api.Plugin) error {
 	return nil
 }
 
+// substituteBody replaces ${name} refs in every string leaf of a decoded
+// request body, so substituted values are JSON-escaped by the subsequent
+// marshal rather than spliced into serialized text.
+func substituteBody(v any, vars map[string]string) any {
+	switch t := v.(type) {
+	case string:
+		return Substitute(t, vars)
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, val := range t {
+			out[k] = substituteBody(val, vars)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, val := range t {
+			out[i] = substituteBody(val, vars)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
 func runStep(srv *server.Server, step Step, vars map[string]string) error {
 	path := Substitute(step.Request.Path, vars)
 
 	var bodyReader io.Reader
 	hasBody := step.Request.Body != nil
 	if hasBody {
-		raw, err := json.Marshal(step.Request.Body)
+		raw, err := json.Marshal(substituteBody(step.Request.Body, vars))
 		if err != nil {
 			return fmt.Errorf("marshal request body: %w", err)
 		}
-		bodyReader = bytes.NewReader([]byte(Substitute(string(raw), vars)))
+		bodyReader = bytes.NewReader(raw)
 	}
 
 	req := httptest.NewRequest(step.Request.Method, path, bodyReader)
