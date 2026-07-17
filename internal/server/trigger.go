@@ -195,7 +195,7 @@ func parseBody(c fiber.Ctx) any {
 					// strings, so it's safe to defer immediately. No-op today
 					// since maxMemory (len(body)+1) keeps everything in RAM, but
 					// guards against a future maxMemory change leaking temp files.
-					defer mform.RemoveAll()
+					defer func() { _ = mform.RemoveAll() }()
 					for k, v := range mform.Value {
 						if len(v) == 1 {
 							form[k] = v[0]
