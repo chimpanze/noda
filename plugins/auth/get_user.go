@@ -29,8 +29,8 @@ func (d *getUserDescriptor) ConfigSchema() map[string]any {
 	}
 	return map[string]any{
 		"oneOf": []any{
-			map[string]any{"type": "object", "properties": fields, "required": []any{"user_id"}},
-			map[string]any{"type": "object", "properties": fields, "required": []any{"email"}},
+			map[string]any{"type": "object", "title": "By user_id", "properties": fields, "required": []any{"user_id"}},
+			map[string]any{"type": "object", "title": "By email", "properties": fields, "required": []any{"email"}},
 		},
 	}
 }

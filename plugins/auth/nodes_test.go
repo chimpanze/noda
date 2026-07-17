@@ -62,6 +62,11 @@ func TestNodeDescriptorContract(t *testing.T) {
 					if !ok || props == nil {
 						t.Fatalf("ConfigSchema() oneOf branch %d must have a non-nil properties map, got %T", i, bm["properties"])
 					}
+					// The editor renders each branch as a selectable form
+					// variant, so every branch needs a human-readable title.
+					if title, ok := bm["title"].(string); !ok || title == "" {
+						t.Fatalf("ConfigSchema() oneOf branch %d must have a non-empty string title, got %T(%v)", i, bm["title"], bm["title"])
+					}
 				}
 			} else {
 				if schema["type"] != "object" {

@@ -30,9 +30,9 @@ func (d *revokeSessionDescriptor) ConfigSchema() map[string]any {
 	}
 	return map[string]any{
 		"oneOf": []any{
-			map[string]any{"type": "object", "properties": fields, "required": []any{"token"}},
-			map[string]any{"type": "object", "properties": fields, "required": []any{"session_id"}},
-			map[string]any{"type": "object", "properties": fields, "required": []any{"user_id"}},
+			map[string]any{"type": "object", "title": "By token", "properties": fields, "required": []any{"token"}},
+			map[string]any{"type": "object", "title": "By session_id", "properties": fields, "required": []any{"session_id"}},
+			map[string]any{"type": "object", "title": "By user_id", "properties": fields, "required": []any{"user_id"}},
 		},
 	}
 }
