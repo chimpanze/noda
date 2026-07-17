@@ -1,87 +1,53 @@
-# examples/node-cookbook/response
+# Cookbook: response nodes
 
-A [Noda](https://github.com/chimpanze/noda) cookbook project demonstrating the response node family: `response.json`, `response.error`, `response.redirect`, and `response.file`.
+Runnable examples for `response.json`, `response.error`, `response.redirect`, and `response.file`.
+Every request/response below is verified in CI by [`verify.json`](verify.json).
 
-## Getting Started
-
-```bash
-# Validate config
-noda validate --config .
-
-# Run cookbook tests
-go test -tags=integration ./internal/testing/cookbook/ -run 'TestCookbook/response' -v
-```
-
-## Endpoints
-
-### `GET /api/json` — JSON response with custom status
-
-Returns a 201 Created response with structured JSON data:
+## Run
 
 ```bash
-curl http://localhost:3000/api/json
-# → HTTP 201
-# → {"message":"created","nested":{"n":1}}
+noda start --config examples/node-cookbook/response
 ```
 
-The `response.json` node accepts a `status` code and a `body` object that can nest values. The body is evaluated as an expression, so you can use workflow node outputs: `"body": { "id": "{{ nodes.create_row.id }}" }`.
+## response.json — `GET /api/json`
 
-### `GET /api/error` — Standardized error response
-
-Returns a 404 with a structured error envelope:
+Builds a JSON response with a custom status code and an arbitrary (nestable) body.
 
 ```bash
-curl http://localhost:3000/api/error
-# → HTTP 404
-# → {"error":{"code":"NOT_FOUND","message":"Thing not found","trace_id":"..."}}
+curl -i localhost:3000/api/json
+# → 201 {"message":"created","nested":{"n":1}}
 ```
 
-The `response.error` node produces a standard error format with:
-- `error.code` — the error code (required)
-- `error.message` — the error message (required)
-- `error.trace_id` — automatically injected from the execution context
+## response.error — `GET /api/error`
 
-Optional `details` field adds context (e.g., validation errors).
-
-### `GET /api/redirect` — HTTP redirect
-
-Returns a 302 redirect to another URL:
+Builds the standardized error envelope `{"error":{"code","message","trace_id"}}`;
+`trace_id` is injected automatically from the execution context.
 
 ```bash
-curl -i http://localhost:3000/api/redirect
-# → HTTP 302 Found
-# → Location: https://example.com/next
+curl localhost:3000/api/error
+# → 404 {"error":{"code":"NOT_FOUND","message":"Thing not found","trace_id":"..."}}
 ```
 
-The `response.redirect` node sets the `Location` header and returns the specified HTTP status (default 302). Supports both relative (`/new-path`) and absolute URLs (`https://example.com/next`). Protocol-relative (`//example.com`) and invalid URLs are rejected.
+## response.redirect — `GET /api/redirect`
 
-### `GET /api/file` — Raw binary file response
-
-Returns raw bytes with appropriate headers for download:
+Sets the `Location` header from `url` and responds with the given status (default 302).
 
 ```bash
-curl -i http://localhost:3000/api/file
-# → HTTP 200
-# → Content-Type: text/csv
-# → Content-Disposition: attachment; filename="demo.csv"
-# → 
-# → hello,cookbook
-# → 1,2
+curl -i localhost:3000/api/redirect
+# → 302 with header: Location: https://example.com/next
 ```
 
-The `response.file` node sends raw bytes (or strings converted to bytes) with a `Content-Type` header. When `filename` is set, it adds a `Content-Disposition: attachment` header for browser downloads.
+## response.file — `GET /api/file`
 
-The `data` field accepts:
-- Bytes from `storage.read` nodes: `"data": "{{ nodes.read_file.data }}"`
-- String literals: `"data": "hello,world\n"` (sent as-is, converted to bytes)
-- Expressions that resolve to bytes or strings
+Sends raw bytes with a `Content-Type` header; a string `data` value is sent as-is,
+and setting `filename` adds a `Content-Disposition: attachment` header.
 
-## Project Structure
-
-```
-noda.json           — main configuration (server, services)
-routes/             — HTTP route definitions (json, error, redirect, file)
-workflows/          — workflow definitions (json, error, redirect, file)
-verify.json         — cookbook test suite
-README.md           — this file
+```bash
+curl -i localhost:3000/api/file
+# → 200 with headers:
+#   Content-Type: text/csv
+#   Content-Disposition: attachment; filename="demo.csv"
+# → body:
+# hello,cookbook
+# 1,2
 ```

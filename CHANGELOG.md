@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The editor validate endpoints and MCP noda_validate_config now run the same dry-run startup validation as noda validate, so they report node-config and reference errors they previously passed (#345).
 
 ### Fixed
+- `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
 - Trigger bodies with non-lowercase multipart Content-Type (e.g. MULTIPART/FORM-DATA) now parse via a manual fallback; previously they fell through to a raw string (#339).
 - Trigger inputs sourced from JSON bodies keep their JSON types; numeric coercion now applies only to bare references into string-typed transports (path params, query, headers, form bodies) (#331).
 - `parseBody` now recognizes form/JSON `Content-Type` values regardless of case (previously only exact-lowercase matches parsed; anything else fell through to a raw string), and duplicate urlencoded keys (`a=1&a=2`) now yield an array of values instead of silently keeping only the last one (#331).

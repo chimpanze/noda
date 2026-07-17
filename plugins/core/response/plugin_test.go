@@ -1054,6 +1054,37 @@ func TestFileExecutor_ValidFilenameSucceeds(t *testing.T) {
 	assert.Equal(t, `attachment; filename="report.pdf"`, resp.Headers["Content-Disposition"])
 }
 
+func TestFileExecutor_StringDataSentAsBytes(t *testing.T) {
+	exec := newFileExecutor(nil)
+	mCtx := newResolveContext(map[string]any{
+		"csv-data": "hello,cookbook\n1,2\n",
+	})
+
+	output, data, err := exec.Execute(context.Background(), mCtx, map[string]any{
+		"data":         "csv-data",
+		"content_type": "text/csv",
+	}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+	resp := data.(*api.HTTPResponse)
+	assert.Equal(t, []byte("hello,cookbook\n1,2\n"), resp.Body)
+	assert.Equal(t, "text/csv", resp.Headers["Content-Type"])
+}
+
+func TestFileExecutor_NonBytesNonStringDataErrors(t *testing.T) {
+	exec := newFileExecutor(nil)
+	mCtx := newResolveContext(map[string]any{
+		"numeric-data": 42,
+	})
+
+	_, _, err := exec.Execute(context.Background(), mCtx, map[string]any{
+		"data":         "numeric-data",
+		"content_type": "application/octet-stream",
+	}, nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected bytes or string")
+}
+
 // --- JSON Executor: empty inline cookie array ---
 
 func TestJSONExecutor_EmptyInlineCookieArray(t *testing.T) {
