@@ -381,6 +381,11 @@ func TestHmacVerify(t *testing.T) {
 
 	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("tampered", "key", "sha256", sig) }}`, ctx)
 	assert.Equal(t, false, result)
+
+	upperSig := strings.ToUpper(sig)
+	upperCtx := map[string]any{"sig": upperSig}
+	result = compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", sig) }}`, upperCtx)
+	assert.Equal(t, true, result, "uppercase-hex signatures must verify")
 }
 
 func TestHmacVerify_InvalidAlgorithm(t *testing.T) {

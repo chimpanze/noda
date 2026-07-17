@@ -144,7 +144,7 @@ The response fires after emitting the event — the HTTP response goes back to G
 
 **Trigger:** `POST /webhooks/stripe` → workflow `handle-stripe-webhook`
 
-Same pattern as GitHub — `raw_body: true`, signature verification, then branch on event type.
+Same `raw_body: true` ingestion pattern as GitHub, then branch on event type — but unlike GitHub, this example accepts the Stripe payload unverified (see the note above on why Stripe signature verification is out of scope here).
 
 For `invoice.paid`, the workflow:
 
@@ -153,7 +153,7 @@ For `invoice.paid`, the workflow:
 3. `db.update` — update subscription status
 4. `event.emit` — emit `payment.received` to stream for notification worker
 
-**Features exercised:** Webhook signature verification, database operations, event-driven notification pipeline.
+**Features exercised:** `raw_body` webhook ingestion (unverified for Stripe in this example), database operations, event-driven notification pipeline.
 
 ### File Upload with Thumbnail Generation
 
@@ -210,7 +210,7 @@ For `invoice.paid`, the workflow:
 |---|---|
 | Multi-tenant RBAC | Casbin with workspace-scoped policies |
 | Middleware presets + groups | Workspace auth applied to all nested routes |
-| `raw_body` | Webhook signature verification (GitHub, Stripe) |
+| `raw_body` | Webhook signature verification (GitHub; Stripe is accepted unverified in this example) |
 | `control.switch` | Route webhook events by type |
 | Event system (stream) | Decouple HTTP responses from background processing |
 | Workers | Email notifications, thumbnail generation, GitHub sync |

@@ -1,14 +1,14 @@
 # Discord Bot — outbound-WebSocket Wasm example
 
 A Wasm module that connects to the Discord Gateway from inside Noda's Wasm
-runtime and answers `!roll` (dice roll) messages. Demonstrates
-`wasm_runtimes` with `allow_outbound` (WebSocket + HTTP egress allowlists),
-tick-driven gateway handling, and async host calls.
+runtime and answers `!ping` ("Pong!") and `!roll` (dice roll) messages.
+Demonstrates `wasm_runtimes` with `allow_outbound` (WebSocket + HTTP egress
+allowlists), tick-driven gateway handling, and async host calls.
 
 ## Prerequisites
 
 1. A Discord application with a **bot token** — <https://discord.com/developers/applications> → New Application → Bot → Reset Token.
-2. Enable the **Message Content Intent** (Bot → Privileged Gateway Intents), or the bot cannot read `!roll` messages.
+2. Enable the **Message Content Intent** (Bot → Privileged Gateway Intents), or the bot cannot read `!ping`/`!roll` messages.
 3. Invite the bot to a server: OAuth2 → URL Generator → scope `bot` → permissions "Send Messages" → open the generated URL.
 
 ## Running
@@ -20,7 +20,7 @@ noda start --config .            # local binary
 DISCORD_BOT_TOKEN=your-bot-token docker compose up --build
 ```
 
-Then type `!roll` in a channel the bot can read.
+Then type `!ping` or `!roll` in a channel the bot can read.
 
 ## Rebuilding the Wasm module
 

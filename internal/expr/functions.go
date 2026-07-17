@@ -198,8 +198,9 @@ func NewFunctionRegistry() *FunctionRegistry {
 		default:
 			return nil, fmt.Errorf("hmac_verify: unsupported algorithm %q (want sha256 or sha512)", algorithm)
 		}
-		// Accept GitHub-style "<algorithm>=<hex>" prefixes.
-		signature = strings.TrimPrefix(signature, algorithm+"=")
+		// Accept GitHub-style "<algorithm>=<hex>" prefixes, and normalize case
+		// so uppercase-hex signatures verify too.
+		signature = strings.ToLower(strings.TrimPrefix(signature, algorithm+"="))
 		expected := hex.EncodeToString(mac)
 		return hmac.Equal([]byte(expected), []byte(signature)), nil
 	}, "Constant-time HMAC signature check; signature may be bare hex or '<algorithm>=<hex>'", "(data, key, algorithm, signature string) bool", new(func(string, string, string, string) bool))
