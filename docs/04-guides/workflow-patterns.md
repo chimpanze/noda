@@ -253,7 +253,7 @@ Nodes with no edge connecting them execute in parallel automatically. The engine
       "services": { "database": "postgres" },
       "config": {
         "query": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3",
-        "params": ["{{ auth.sub }}", "{{ input.limit }}", "{{ (input.page - 1) * input.limit }}"]
+        "params": ["{{ auth.sub }}", "{{ input.limit }}", "{{ (toInt(input.page) - 1) * toInt(input.limit) }}"]
       }
     },
     "respond": {
@@ -275,6 +275,8 @@ Nodes with no edge connecting them execute in parallel automatically. The engine
 ```
 
 **How it works:** Both `count` and `fetch` are entry nodes (no inbound edges), so they start simultaneously. The `respond` node has two inbound edges, making it an AND-join -- it waits for both queries to complete before executing.
+
+Note: `input.page`/`input.limit` only arrive numeric automatically when the route maps a bare transport reference (e.g. `{{ query.page }}`). If the route uses a computed default like `{{ query.page ?? '1' }}`, the value arrives as-typed (a string), so numeric arithmetic must wrap it in `toInt(...)` as shown above.
 
 ### Fan-Out / Fan-In
 

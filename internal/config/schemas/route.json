@@ -47,7 +47,11 @@
           "type": "array",
           "items": { "type": "string" }
         },
-        "raw_body": { "type": "boolean" }
+        "raw_body": { "type": "boolean" },
+        "coerce": {
+          "type": "boolean",
+          "description": "Numeric coercion of trigger inputs sourced from string-typed transports (params/query/headers/form body). Default true."
+        }
       },
       "required": ["workflow"]
     },

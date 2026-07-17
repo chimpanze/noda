@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `noda validate` and server startup now validate every workflow node's `config` against the node's ConfigSchema: missing required fields, wrong types, and unknown top-level fields are errors. Expression values (`{{ … }}`) satisfy any declared type (#332). **Upgrade note:** validation errors name the workflow, node, and field; configs newly rejected by this check were already broken or silently ignored at runtime, so fixing the named field is the complete upgrade path.
 - Node ConfigSchemas audited against executor behavior across all plugins; `required` lists and types now reflect what executors actually accept (improves editor forms and MCP guidance).
+- New `trigger.coerce` route option (default `true`) disables trigger-input numeric coercion per route. Literal and computed trigger-input values are no longer coerced. **Migration note:** computed defaults like `{{ query.page ?? '1' }}` now arrive as strings — switch to a bare reference (`{{ query.page }}`) or wrap numeric consumers in `toInt(...)`.
 - invalid `server.*` scalar values (bad numbers, malformed durations, invalid trust_proxy entries) now fail config validation/startup instead of silently falling back to defaults
 - `lk.token` now errors on invalid `canPublishSources` (unknown names, non-string entries, non-array values) instead of silently minting a token with wrong publish permissions (#309)
 - the wasm module's outstandingCalls invariant is now structural (`tryAddOutstanding`), not comment-enforced (#295)
@@ -46,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the worker's per-message timeout is applied once (runtime-owned); the `worker.timeout` middleware keeps its config name but is now the panic-to-error shield only (#285)
 
 ### Fixed
+- Trigger inputs sourced from JSON bodies keep their JSON types; numeric coercion now applies only to bare references into string-typed transports (path params, query, headers, form bodies) (#331).
+- `parseBody` now recognizes form/JSON `Content-Type` values regardless of case (previously only exact-lowercase matches parsed; anything else fell through to a raw string), and duplicate urlencoded keys (`a=1&a=2`) now yield an array of values instead of silently keeping only the last one (#331).
 - `storage.write` returns `{"path": ...}` in its success output as its descriptor and docs promise, instead of an empty map (#333)
 - email plugin parses string `port` values (the shape `$env()` substitution produces) instead of silently dialing 587; unparseable or out-of-range ports now fail service creation loudly (#334)
 - the MCP server and the workflow test runner's node registry now include the auth plugin's 8 node types (`auth.*`), previously invisible to `noda_list_nodes`/`noda_get_node_schema` and `noda test` (#327)

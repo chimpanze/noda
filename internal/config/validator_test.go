@@ -218,6 +218,24 @@ func TestValidate_InvalidModel_MissingTable(t *testing.T) {
 	assert.Equal(t, "models/bad.json", errs[0].FilePath)
 }
 
+func TestRouteSchema_TriggerCoerceFlag(t *testing.T) {
+	route := map[string]any{
+		"id":     "r1",
+		"method": "GET",
+		"path":   "/things/:id",
+		"trigger": map[string]any{
+			"workflow": "wf1",
+			"coerce":   false,
+		},
+	}
+	errs := validateAgainstSchema("route.json", "routes/r1.json", route)
+	assert.Empty(t, errs)
+
+	route["trigger"].(map[string]any)["coerce"] = "no"
+	errs = validateAgainstSchema("route.json", "routes/r1.json", route)
+	assert.NotEmpty(t, errs, "non-boolean coerce must be rejected")
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && searchString(s, substr)
 }
