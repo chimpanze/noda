@@ -17,12 +17,12 @@ func (d *sendDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"to":           map[string]any{"type": "string", "description": "Recipient email address(es)"},
+			"to":           map[string]any{"type": []any{"string", "array"}, "description": "Recipient email address(es): a single string or an array of strings"},
 			"subject":      map[string]any{"type": "string", "description": "Email subject line"},
 			"body":         map[string]any{"type": "string", "description": "Email body content"},
 			"from":         map[string]any{"type": "string", "description": "Sender address (overrides service default)"},
-			"cc":           map[string]any{"type": "string", "description": "CC recipients"},
-			"bcc":          map[string]any{"type": "string", "description": "BCC recipients"},
+			"cc":           map[string]any{"type": []any{"string", "array"}, "description": "CC recipients: a single string or an array of strings"},
+			"bcc":          map[string]any{"type": []any{"string", "array"}, "description": "BCC recipients: a single string or an array of strings"},
 			"reply_to":     map[string]any{"type": "string", "description": "Reply-To address"},
 			"content_type": map[string]any{"type": "string", "description": "Content type: html or text"},
 		},

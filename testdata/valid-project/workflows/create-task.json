@@ -9,7 +9,7 @@
       }
     },
     "insert": {
-      "type": "db.insert",
+      "type": "db.create",
       "services": { "database": "main-db" },
       "config": {
         "table": "tasks",

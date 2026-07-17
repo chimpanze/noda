@@ -17,8 +17,8 @@ func (d *jsonDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"status":  map[string]any{"type": []any{"integer", "string"}, "description": "HTTP status code, e.g. 200 (an integer literal, or a string expression that resolves to one)"},
-			"body":    map[string]any{"title": "body", "description": "Response body"},
+			"status":  map[string]any{"type": []any{"integer", "string"}, "description": "HTTP status code, e.g. 200 (an integer literal, or a string expression that resolves to one; default: 200)"},
+			"body":    map[string]any{"title": "body", "description": "Response body (default: null)"},
 			"headers": map[string]any{"type": "object", "description": "Response headers"},
 			"cookies": map[string]any{
 				"type":        "array",
@@ -39,7 +39,7 @@ func (d *jsonDescriptor) ConfigSchema() map[string]any {
 				},
 			},
 		},
-		"required": []any{"status", "body"},
+		"required": []any{},
 	}
 }
 func (d *jsonDescriptor) OutputDescriptions() map[string]string {

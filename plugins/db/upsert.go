@@ -25,9 +25,9 @@ func (d *upsertDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"table":    map[string]any{"type": "string", "description": "Table name"},
-			"data":     map[string]any{"type": "object", "description": "Column values as key-value pairs"},
-			"conflict": map[string]any{"description": "Conflict column(s) for ON CONFLICT"},
-			"update":   map[string]any{"description": "Columns to update on conflict"},
+			"data":     map[string]any{"type": "object", "description": "Column values as key-value pairs", "additionalProperties": true},
+			"conflict": map[string]any{"type": []any{"string", "array"}, "description": "Conflict column(s) for ON CONFLICT"},
+			"update":   map[string]any{"type": []any{"array", "object"}, "description": "Columns to update on conflict (array of names, or object of assignments)"},
 		},
 		"required": []any{"table", "data", "conflict"},
 	}

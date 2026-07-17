@@ -18,7 +18,7 @@ func (d *setDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"fields": map[string]any{"type": "object", "description": "Key-value map of field names to expressions"},
+			"fields": map[string]any{"type": "object", "additionalProperties": true, "description": "Key-value map of field names to expressions"},
 		},
 		"required": []any{"fields"},
 	}

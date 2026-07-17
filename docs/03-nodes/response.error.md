@@ -6,7 +6,7 @@ Builds a standardized error response.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `status` | integer/expr | yes | HTTP status code (default: 500) |
+| `status` | integer/expr | no | HTTP status code (default: 500) |
 | `code` | string (expr) | yes | Error code |
 | `message` | string (expr) | yes | Error message |
 | `details` | string (expr) | no | Additional details |

@@ -32,7 +32,7 @@ func (d *runDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"workflow":    map[string]any{"type": "string", "description": "Sub-workflow ID to execute"},
-			"input":       map[string]any{"type": "object", "description": "Input data mapping"},
+			"input":       map[string]any{"type": "object", "additionalProperties": true, "description": "Input data mapping"},
 			"transaction": map[string]any{"type": "boolean", "description": "Wrap execution in a database transaction"},
 		},
 		"required": []any{"workflow"},

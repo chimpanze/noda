@@ -18,11 +18,14 @@ func (d *cropDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"input":   map[string]any{"type": "string", "description": "Source image path"},
-			"output":  map[string]any{"type": "string", "description": "Output image path"},
-			"width":   map[string]any{"type": "number", "description": "Crop width in pixels"},
-			"height":  map[string]any{"type": "number", "description": "Crop height in pixels"},
-			"gravity": map[string]any{"type": "string", "description": "Crop position: center, top-left, top-right, bottom-left, bottom-right"},
+			"input":      map[string]any{"type": "string", "description": "Source image path"},
+			"output":     map[string]any{"type": "string", "description": "Output image path"},
+			"width":      map[string]any{"type": "number", "description": "Crop width in pixels"},
+			"height":     map[string]any{"type": "number", "description": "Crop height in pixels"},
+			"gravity":    map[string]any{"type": "string", "description": "Crop position: center, top-left, top-right, bottom-left, bottom-right"},
+			"max_width":  map[string]any{"type": "integer", "description": "Override the default 10000px per-side output limit"},
+			"max_height": map[string]any{"type": "integer", "description": "Override the default 10000px per-side output limit"},
+			"max_pixels": map[string]any{"type": "integer", "description": "Override the default 40,000,000px (width x height) output limit"},
 		},
 		"required": []any{"input", "output", "width", "height"},
 	}

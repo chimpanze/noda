@@ -20,9 +20,8 @@ func (d *writeDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"path":         map[string]any{"type": "string", "description": "File path to write"},
-			"data":         map[string]any{"description": "Data to write"},
-			"content_type": map[string]any{"type": "string", "description": "MIME type of the data"},
+			"path": map[string]any{"type": "string", "description": "File path to write"},
+			"data": map[string]any{"description": "Data to write"},
 		},
 		"required": []any{"path", "data"},
 	}

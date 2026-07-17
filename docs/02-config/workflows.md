@@ -22,6 +22,8 @@ Files in `workflows/*.json`. Each file defines one workflow.
 | `as` | string | no | Output alias: the node's output is stored (and referenced in expressions) under this name instead of the node ID. Must not collide with another node ID. |
 | `position` | object | no | Visual-editor coordinates (`{"x": ..., "y": ...}`); ignored by the runtime |
 
+Every node's `config` object is validated against the node's schema at two points: when you run `noda validate`, and when the server starts. Validation checks that all required fields are present, that literal values match their declared types, and that unknown top-level config fields are rejected. Expression values (`{{ … }}`) satisfy any declared type. Validation errors surface in the CLI output or server startup logs respectively.
+
 ## Edge Definition
 
 | Field | Type | Required | Description |

@@ -254,8 +254,7 @@ func TestJSONDescriptor(t *testing.T) {
 	assert.Contains(t, props, "headers")
 	assert.Contains(t, props, "cookies")
 	req := schema["required"].([]any)
-	assert.Contains(t, req, "status")
-	assert.Contains(t, req, "body")
+	assert.Empty(t, req, "status defaults to 200 and body defaults to null; neither errors when absent")
 
 	// cookies should be an array of objects with name/value required
 	cookiesProp := props["cookies"].(map[string]any)
@@ -292,7 +291,7 @@ func TestErrorDescriptor(t *testing.T) {
 	assert.Contains(t, props, "message")
 	assert.Contains(t, props, "details")
 	req := schema["required"].([]any)
-	assert.Contains(t, req, "status")
+	assert.NotContains(t, req, "status", "status defaults to 500 and never errors when absent")
 	assert.Contains(t, req, "code")
 	assert.Contains(t, req, "message")
 }

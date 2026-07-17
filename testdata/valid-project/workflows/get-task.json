@@ -27,6 +27,7 @@
       "type": "response.error",
       "config": {
         "status": 404,
+        "code": "NOT_FOUND",
         "message": "Task not found"
       }
     }

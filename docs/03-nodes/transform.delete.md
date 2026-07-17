@@ -7,7 +7,7 @@ Removes fields from an object.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `data` | string (expr) | yes | Expression resolving to object |
-| `fields` | array of strings | yes | Field names to remove |
+| `fields` | array of strings | no | Field names to remove (absent = no-op) |
 
 ## Outputs
 

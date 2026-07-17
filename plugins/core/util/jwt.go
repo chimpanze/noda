@@ -19,8 +19,9 @@ func (d *jwtSignDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"claims": map[string]any{
-				"type":        "object",
-				"description": "Claims to include in the token (expression values are resolved)",
+				"type":                 "object",
+				"additionalProperties": true,
+				"description":          "Claims to include in the token (expression values are resolved)",
 			},
 			"secret": map[string]any{
 				"type":        "string",

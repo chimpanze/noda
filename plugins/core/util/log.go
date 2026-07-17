@@ -18,7 +18,7 @@ func (d *logDescriptor) ConfigSchema() map[string]any {
 		"properties": map[string]any{
 			"level":   map[string]any{"type": "string", "enum": []any{"debug", "info", "warn", "error"}, "description": "Log level: debug, info, warn, error"},
 			"message": map[string]any{"type": "string", "description": "Log message expression"},
-			"fields":  map[string]any{"type": "object", "description": "Additional structured fields"},
+			"fields":  map[string]any{"type": "object", "additionalProperties": true, "description": "Additional structured fields"},
 		},
 		"required": []any{"level", "message"},
 	}

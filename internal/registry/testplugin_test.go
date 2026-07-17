@@ -95,7 +95,16 @@ func (d *kvSetDescriptor) ServiceDeps() map[string]api.ServiceDep {
 		"store": {Prefix: "kv", Required: true},
 	}
 }
-func (d *kvSetDescriptor) ConfigSchema() map[string]any          { return nil }
+func (d *kvSetDescriptor) ConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"key":   map[string]any{"type": "string"},
+			"value": map[string]any{},
+		},
+		"required": []any{"key"},
+	}
+}
 func (d *kvSetDescriptor) OutputDescriptions() map[string]string { return nil }
 
 type kvSetExecutor struct{}
@@ -107,6 +116,9 @@ func (e *kvSetExecutor) Execute(_ context.Context, nCtx api.ExecutionContext, cf
 		return "", nil, fmt.Errorf("kv.set: store service not available")
 	}
 	key, _ := cfg["key"].(string)
+	if key == "" {
+		return "", nil, fmt.Errorf("kv.set: key is required")
+	}
 	store[key] = cfg["value"]
 	return "ok", nil, nil
 }
@@ -144,6 +156,7 @@ func TestKVPlugin_FullLifecycle(t *testing.T) {
 					"write": map[string]any{
 						"type":     "kv.set",
 						"services": map[string]any{"store": "my-store"},
+						"config":   map[string]any{"key": "greeting", "value": "hello"},
 					},
 					"read": map[string]any{
 						"type":     "kv.get",

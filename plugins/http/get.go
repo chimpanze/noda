@@ -19,6 +19,7 @@ func (d *getDescriptor) ConfigSchema() map[string]any {
 		"properties": map[string]any{
 			"url":     map[string]any{"type": "string", "description": "Request URL"},
 			"headers": map[string]any{"type": "object", "description": "Request headers"},
+			"body":    map[string]any{"description": "Request body (shared doRequest resolves it even for GET)"},
 			"timeout": map[string]any{"type": "string", "description": "Request timeout"},
 		},
 		"required": []any{"url"},

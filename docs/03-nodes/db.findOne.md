@@ -26,8 +26,6 @@ Output: `map[string]any`. Forces `LIMIT 1`.
 
 Builds and executes a SELECT query with `LIMIT 1`. Returns a single row object. When `required` is `true` (the default), fires `error` with `NotFoundError` if no row matches. When `required` is `false`, returns `nil` instead.
 
-Note: `group` and `having` work at runtime but are not declared in this node's ConfigSchema, so the visual editor's form and schema-driven tooling won't offer or validate them.
-
 ## Service Dependencies
 
 | Slot | Prefix | Required |

@@ -23,11 +23,14 @@ func (d *getUserDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	}
 }
 func (d *getUserDescriptor) ConfigSchema() map[string]any {
+	fields := map[string]any{
+		"user_id": map[string]any{"type": "string", "description": "User id (expression); exactly one of user_id/email"},
+		"email":   map[string]any{"type": "string", "description": "Email (expression); exactly one of user_id/email"},
+	}
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"user_id": map[string]any{"type": "string", "description": "User id (expression); exactly one of user_id/email"},
-			"email":   map[string]any{"type": "string", "description": "Email (expression); exactly one of user_id/email"},
+		"oneOf": []any{
+			map[string]any{"type": "object", "properties": fields, "required": []any{"user_id"}},
+			map[string]any{"type": "object", "properties": fields, "required": []any{"email"}},
 		},
 	}
 }

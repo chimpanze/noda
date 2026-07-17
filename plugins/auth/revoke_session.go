@@ -23,12 +23,16 @@ func (d *revokeSessionDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	}
 }
 func (d *revokeSessionDescriptor) ConfigSchema() map[string]any {
+	fields := map[string]any{
+		"token":      map[string]any{"type": "string", "description": "Raw session token to revoke (expression); exactly one of token/session_id/user_id"},
+		"session_id": map[string]any{"type": "string", "description": "Session id to revoke (expression); exactly one of token/session_id/user_id"},
+		"user_id":    map[string]any{"type": "string", "description": "Revoke ALL sessions for this user (expression); exactly one of token/session_id/user_id"},
+	}
 	return map[string]any{
-		"type": "object",
-		"properties": map[string]any{
-			"token":      map[string]any{"type": "string", "description": "Raw session token to revoke (expression)"},
-			"session_id": map[string]any{"type": "string", "description": "Session id to revoke (expression)"},
-			"user_id":    map[string]any{"type": "string", "description": "Revoke ALL sessions for this user (expression)"},
+		"oneOf": []any{
+			map[string]any{"type": "object", "properties": fields, "required": []any{"token"}},
+			map[string]any{"type": "object", "properties": fields, "required": []any{"session_id"}},
+			map[string]any{"type": "object", "properties": fields, "required": []any{"user_id"}},
 		},
 	}
 }

@@ -24,8 +24,15 @@ func (d *mergeDescriptor) ConfigSchema() map[string]any {
 				"description": "Match configuration for match mode",
 				"type":        "object",
 				"properties": map[string]any{
-					"type":   map[string]any{"type": "string", "enum": []any{"inner", "outer", "enrich"}},
-					"fields": map[string]any{"type": "object"},
+					"type": map[string]any{"type": "string", "enum": []any{"inner", "outer", "enrich"}},
+					"fields": map[string]any{
+						"type":        "object",
+						"description": "Join key field names",
+						"properties": map[string]any{
+							"left":  map[string]any{"type": "string", "description": "Field name in the first input"},
+							"right": map[string]any{"type": "string", "description": "Field name in the second input"},
+						},
+					},
 				},
 			},
 		},

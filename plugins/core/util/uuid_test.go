@@ -35,7 +35,7 @@ func TestUUID_Descriptor(t *testing.T) {
 	d := &uuidDescriptor{}
 	assert.Equal(t, "uuid", d.Name())
 	assert.Nil(t, d.ServiceDeps())
-	assert.Nil(t, d.ConfigSchema())
+	assert.Equal(t, map[string]any{"type": "object", "properties": map[string]any{}}, d.ConfigSchema())
 }
 
 func TestUUID_Outputs(t *testing.T) {

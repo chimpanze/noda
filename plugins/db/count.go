@@ -23,7 +23,7 @@ func (d *countDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"table":        map[string]any{"type": "string", "description": "Table name"},
-			"where":        map[string]any{"type": "object", "description": "Equality conditions as key-value pairs"},
+			"where":        map[string]any{"type": "object", "description": "Equality conditions as key-value pairs", "additionalProperties": true},
 			"where_clause": map[string]any{"type": "object", "description": "Raw WHERE with query and params"},
 			"joins":        map[string]any{"type": "array", "description": "JOIN clauses"},
 		},

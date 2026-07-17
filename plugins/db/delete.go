@@ -23,7 +23,7 @@ func (d *deleteDescriptor) ConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"table": map[string]any{"type": "string", "description": "Table name"},
-			"where": map[string]any{"type": "object", "description": "Equality conditions for row matching"},
+			"where": map[string]any{"type": "object", "description": "Equality conditions for row matching", "additionalProperties": true},
 		},
 		"required": []any{"table", "where"},
 	}

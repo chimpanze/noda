@@ -20,7 +20,7 @@ func (d *fileDescriptor) ConfigSchema() map[string]any {
 	return map[string]any{
 		"type": "object",
 		"properties": map[string]any{
-			"status":       map[string]any{"type": "number", "description": "HTTP status code (default 200)"},
+			"status":       map[string]any{"type": []any{"integer", "string"}, "description": "HTTP status code (an integer literal, or a string expression that resolves to one; default: 200)"},
 			"data":         map[string]any{"description": "File data (bytes from storage.read)"},
 			"content_type": map[string]any{"type": "string", "description": "MIME type for Content-Type header"},
 			"filename":     map[string]any{"type": "string", "description": "Filename for Content-Disposition header (optional)"},
