@@ -83,7 +83,7 @@ func TestWatcher_Debounce(t *testing.T) {
 		called.Add(1)
 	}, slog.Default())
 	require.NoError(t, err)
-	w.debounce = 100 * time.Millisecond
+	w.debounce = 500 * time.Millisecond
 
 	require.NoError(t, w.WatchDir(dir))
 	w.Start()
@@ -94,10 +94,11 @@ func TestWatcher_Debounce(t *testing.T) {
 	// Rapid writes — should only trigger once after debounce
 	for i := 0; i < 5; i++ {
 		_ = os.WriteFile(testFile, []byte(`{"v":`+string(rune('0'+i))+`}`), 0644)
-		time.Sleep(20 * time.Millisecond)
+		time.Sleep(5 * time.Millisecond)
 	}
 
-	time.Sleep(300 * time.Millisecond)
+	require.Eventually(t, func() bool { return called.Load() >= 1 }, 3*time.Second, 20*time.Millisecond)
+	time.Sleep(700 * time.Millisecond)
 	assert.Equal(t, int32(1), called.Load())
 }
 
