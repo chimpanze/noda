@@ -1,0 +1,7 @@
+{
+  "id": "run",
+  "method": "POST",
+  "path": "/api/run",
+  "summary": "workflow.run — invoke a sub-workflow; workflow.output — name its result",
+  "trigger": { "workflow": "run", "input": { "x": "{{ body.x }}" } }
+}

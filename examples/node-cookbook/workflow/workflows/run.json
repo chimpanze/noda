@@ -1,0 +1,8 @@
+{
+  "id": "run",
+  "nodes": {
+    "call": { "type": "workflow.run", "config": { "workflow": "callee", "input": { "x": "{{ input.x }}" } } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "result": "{{ nodes.call }}" } } }
+  },
+  "edges": [ { "from": "call", "to": "respond" } ]
+}
