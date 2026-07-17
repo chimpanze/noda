@@ -514,6 +514,33 @@ func TestResolveOptionalInt_StringResolvesToNonInt(t *testing.T) {
 	assert.Contains(t, err.Error(), "expected int")
 }
 
+func TestResolveOptionalInt_LiteralNumericString(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+	val, ok, err := ResolveOptionalInt(nCtx, map[string]any{"limit": "20"}, "limit")
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, 20, val)
+}
+
+func TestResolveOptionalInt_StringResolvesToNumericString(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(_ string) (any, error) {
+		return "20", nil
+	}}
+	val, ok, err := ResolveOptionalInt(nCtx, map[string]any{"limit": "expr"}, "limit")
+	require.NoError(t, err)
+	assert.True(t, ok)
+	assert.Equal(t, 20, val)
+}
+
+func TestResolveOptionalInt_StringResolvesToNonNumericString(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(_ string) (any, error) {
+		return "abc", nil
+	}}
+	_, _, err := ResolveOptionalInt(nCtx, map[string]any{"limit": "expr"}, "limit")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected int")
+}
+
 func TestResolveOptionalInt_InvalidType(t *testing.T) {
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
 	_, _, err := ResolveOptionalInt(nCtx, map[string]any{"limit": true}, "limit")
@@ -579,8 +606,20 @@ func TestToInt64_Int64(t *testing.T) {
 	assert.Equal(t, int64(100), v)
 }
 
+func TestToInt64_StringValid(t *testing.T) {
+	v, ok := ToInt64("42")
+	assert.True(t, ok)
+	assert.Equal(t, int64(42), v)
+}
+
+func TestToInt64_StringInvalid(t *testing.T) {
+	v, ok := ToInt64("x")
+	assert.False(t, ok)
+	assert.Equal(t, int64(0), v)
+}
+
 func TestToInt64_UnsupportedType(t *testing.T) {
-	v, ok := ToInt64("hello")
+	v, ok := ToInt64(true)
 	assert.False(t, ok)
 	assert.Equal(t, int64(0), v)
 }
@@ -625,6 +664,31 @@ func TestResolveRawInt_StringResolveError(t *testing.T) {
 	}}
 	_, err := ResolveRawInt(nCtx, "expr")
 	require.Error(t, err)
+}
+
+func TestResolveRawInt_LiteralNumericString(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+	v, err := ResolveRawInt(nCtx, "20")
+	require.NoError(t, err)
+	assert.Equal(t, 20, v)
+}
+
+func TestResolveRawInt_StringResolvesToNumericString(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(_ string) (any, error) {
+		return "20", nil
+	}}
+	v, err := ResolveRawInt(nCtx, "expr")
+	require.NoError(t, err)
+	assert.Equal(t, 20, v)
+}
+
+func TestResolveRawInt_StringResolvesToNonNumericString(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(_ string) (any, error) {
+		return "abc", nil
+	}}
+	_, err := ResolveRawInt(nCtx, "expr")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "expected number")
 }
 
 func TestResolveRawInt_StringResolvesToNonNumber(t *testing.T) {

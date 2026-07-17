@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - wildcard channel matching is removed from the connection manager entirely — Send/SendSSE reject pattern channels at the chokepoint (all production callers already rejected them; the Manager-level wildcard delivery capability was unreachable and is deleted) (#279)
 - scheduled job runs record job history entries for same-instance overlap skips (`skipped` with a new `SkipReason: "overlap"` distinguishing them from `SkipReason: "lock"` distributed-lock skips) (#284)
 - the worker's per-message timeout is applied once (runtime-owned); the `worker.timeout` middleware keeps its config name but is now the panic-to-error shield only (#285)
+- Int-typed node config fields (db.find limit/offset, upload.handle max_size, image dimensions, …) now accept numeric strings — `{{ query.limit ?? '20' }}`-style computed defaults work without `toInt(...)` (#340)
 
 ### Fixed
 - Trigger inputs sourced from JSON bodies keep their JSON types; numeric coercion now applies only to bare references into string-typed transports (path params, query, headers, form bodies) (#331).
