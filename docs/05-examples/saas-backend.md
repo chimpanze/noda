@@ -102,9 +102,10 @@ The `workspace_auth` preset includes JWT + Casbin. Every route under `/api/works
     "workflow": "handle-github-webhook",
     "raw_body": true,
     "input": {
-      "event_type": "{{ headers['X-GitHub-Event'] }}",
-      "signature": "{{ headers['X-Hub-Signature-256'] }}",
-      "payload": "{{ body }}"
+      "event_type": "{{ headers['x-github-event'] }}",
+      "signature": "{{ headers['x-hub-signature-256'] }}",
+      "payload": "{{ body }}",
+      "raw_body": "{{ raw_body }}"
     }
   }
 }
@@ -112,13 +113,28 @@ The `workspace_auth` preset includes JWT + Casbin. Every route under `/api/works
 
 **Nodes:**
 
-> **Note:** the example does **not** verify the webhook signature — any request with the right shape is processed. Before exposing this route publicly, add verification, e.g. a `control.if` with condition `{{ ('sha256=' + hmac(raw_body, secrets.GITHUB_WEBHOOK_SECRET, 'sha256')) == input.signature }}` routing failures to a 401 `response.error`.
+The example verifies the webhook signature with `hmac_verify` before doing anything else:
+
+```json
+{
+  "verify_signature": {
+    "config": {
+      "condition": "{{ hmac_verify(input.raw_body, secrets.GITHUB_WEBHOOK_SECRET, 'sha256', input.signature ?? '') }}"
+    },
+    "type": "control.if"
+  }
+}
+```
+
+The `else` branch (bad or missing signature) routes to a `response.error` node returning 401 `INVALID_SIGNATURE`. Only the `then` branch reaches:
 
 1. `control.switch` — branch on `{{ input.event_type }}`
    - `"issues"` → `event.emit` to stream (topic: `github.issue`)
    - `"pull_request"` → `event.emit` to stream (topic: `github.pr`)
    - `default` → `util.log` (ignore unknown events)
 2. `response.json` — return 200 immediately
+
+Stripe webhook signature verification is intentionally omitted from this example — Stripe's `t=...,v1=...` scheme needs timestamp parsing that's out of scope here.
 
 The response fires after emitting the event — the HTTP response goes back to GitHub fast. The actual processing happens in workers.
 

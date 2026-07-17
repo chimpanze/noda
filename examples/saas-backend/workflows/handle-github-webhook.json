@@ -1,6 +1,16 @@
 {
   "edges": [
     {
+      "from": "verify_signature",
+      "output": "then",
+      "to": "switch_event"
+    },
+    {
+      "from": "verify_signature",
+      "output": "else",
+      "to": "reject"
+    },
+    {
       "from": "switch_event",
       "output": "issues",
       "to": "emit_issue"
@@ -31,6 +41,20 @@
   "id": "handle-github-webhook",
   "name": "Handle GitHub Webhook",
   "nodes": {
+    "verify_signature": {
+      "config": {
+        "condition": "{{ hmac_verify(input.raw_body, secrets.GITHUB_WEBHOOK_SECRET, 'sha256', input.signature ?? '') }}"
+      },
+      "type": "control.if"
+    },
+    "reject": {
+      "config": {
+        "status": 401,
+        "code": "INVALID_SIGNATURE",
+        "message": "X-Hub-Signature-256 verification failed"
+      },
+      "type": "response.error"
+    },
     "emit_issue": {
       "config": {
         "mode": "stream",

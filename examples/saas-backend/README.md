@@ -6,7 +6,7 @@ A multi-tenant project management backend demonstrating Noda's full plugin ecosy
 
 - **Multi-tenant RBAC** — Casbin with workspace-scoped policies (owner, admin, member, viewer)
 - **Middleware presets + route groups** — workspace auth applied to all nested routes
-- **Webhook ingestion** — GitHub and Stripe with signature verification and `raw_body`
+- **Webhook ingestion** — GitHub with HMAC signature verification (`hmac_verify` + `raw_body`); Stripe events accepted unverified (Stripe's `t=...,v1=...` scheme needs timestamp parsing — out of scope for this example)
 - **Event-driven workers** — email notifications, thumbnail generation, GitHub issue sync
 - **File uploads** — `upload.handle` with storage service, size/type validation
 - **Image processing** — thumbnail generation in worker with source/target storage
@@ -109,17 +109,15 @@ CREATE TABLE attachments (
 
 ## Docker Setup
 
-Use the SaaS backend override to switch from the default REST API example:
-
 ```bash
 cp .env.example .env   # required — validate/test/start fail without it
-docker compose -f docker-compose.yml -f docker-compose.saas.yml up --build -d
+docker compose up -d
 ```
 
 Then create the database tables:
 
 ```bash
-docker compose exec postgres psql -U noda -d noda_dev -f /dev/stdin <<'SQL'
+docker compose exec postgres psql -U noda -d noda -f /dev/stdin <<'SQL'
 -- Paste the SQL schema above
 SQL
 ```
@@ -128,12 +126,13 @@ SQL
 
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection string | `postgres://noda:noda@postgres:5432/noda_dev?sslmode=disable` |
+| `DATABASE_URL` | PostgreSQL connection string | `postgres://noda:noda@postgres:5432/noda?sslmode=disable` |
 | `REDIS_URL` | Redis connection string | `redis://redis:6379` |
 | `JWT_SECRET` | JWT signing secret | `your-secret-key` |
 | `SMTP_HOST` | SMTP server host | `smtp.example.com` |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_FROM` | Sender email address | `noreply@example.com` |
+| `GITHUB_WEBHOOK_SECRET` | GitHub webhook HMAC secret | `dev-webhook-secret` |
 
 ## Testing
 
@@ -147,6 +146,21 @@ Run workflow tests:
 
 ```bash
 go run ./cmd/noda test --config examples/saas-backend --verbose
+```
+
+## Try the GitHub webhook
+
+```bash
+export GITHUB_WEBHOOK_SECRET=dev-webhook-secret   # must match .env
+payload='{"action":"opened","issue":{"id":12345,"title":"Bug report","state":"open"}}'
+sig=$(printf '%s' "$payload" | openssl dgst -sha256 -hmac "$GITHUB_WEBHOOK_SECRET" | awk '{print $NF}')
+
+curl -i -X POST http://localhost:3000/webhooks/github \
+  -H 'Content-Type: application/json' \
+  -H 'x-github-event: issues' \
+  -H "x-hub-signature-256: sha256=$sig" \
+  -d "$payload"
+# → 200 {"status":"ok"}; a wrong/missing signature → 401 INVALID_SIGNATURE
 ```
 
 ## Workers

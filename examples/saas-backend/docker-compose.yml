@@ -15,5 +15,11 @@ services:
     ports:
       - "6379:6379"
 
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025" # web UI — inspect invitation emails here
+      - "1025:1025" # SMTP
+
 volumes:
   pgdata:
