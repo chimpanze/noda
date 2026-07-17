@@ -20,7 +20,7 @@ Smart crop + resize to exact dimensions.
 
 ## Behavior
 
-Always crops to exact dimensions using smart crop. Reads from `source` storage, generates the thumbnail, and writes to the `target` storage. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error. Requested output dimensions above 10,000 px per side or 40,000,000 px total are rejected (override with `max_width`/`max_height`/`max_pixels`).
+Always crops to exact dimensions using smart crop. Reads from `source` storage, generates the thumbnail, and writes to the `target` storage. Source images larger than 20 MiB or 50,000,000 px (width x height) are rejected with a validation error. Requested output dimensions above 10,000 px per side or 40,000,000 px total are rejected (override with `max_width`/`max_height`/`max_pixels`). Sources smaller than the requested dimensions are **not** enlarged — the output keeps the source size. The output is encoded in the **source image format** regardless of the `output` path's file extension; use `image.convert` to change formats.
 
 ## Service Dependencies
 

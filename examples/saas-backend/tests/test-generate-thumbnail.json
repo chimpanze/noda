@@ -13,7 +13,7 @@
       "mocks": {
         "thumbnail": {
           "output": {
-            "path": "ws-1/proj-1/photo_thumb.jpg"
+            "path": "ws-1/proj-1/photo.jpg-thumb"
           }
         },
         "update_record": {

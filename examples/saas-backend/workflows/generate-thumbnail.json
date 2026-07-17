@@ -35,7 +35,7 @@
       "config": {
         "height": 200,
         "input": "{{ input.path }}",
-        "output": "{{ input.path }}-thumb.jpg",
+        "output": "{{ input.path }}-thumb",
         "width": 200
       },
       "services": {
