@@ -1,0 +1,8 @@
+{
+  "id": "delay",
+  "nodes": {
+    "wait": { "type": "util.delay", "config": { "timeout": "50ms" } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "waited": "50ms" } } }
+  },
+  "edges": [ { "from": "wait", "to": "respond" } ]
+}

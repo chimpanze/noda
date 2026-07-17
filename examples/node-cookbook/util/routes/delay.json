@@ -1,0 +1,7 @@
+{
+  "id": "delay",
+  "method": "GET",
+  "path": "/api/delay",
+  "summary": "util.delay — pause execution",
+  "trigger": { "workflow": "delay" }
+}

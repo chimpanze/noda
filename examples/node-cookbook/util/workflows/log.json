@@ -1,0 +1,8 @@
+{
+  "id": "log",
+  "nodes": {
+    "write": { "type": "util.log", "config": { "level": "info", "message": "cookbook says hello to {{ input.who }}" } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "logged": true } } }
+  },
+  "edges": [ { "from": "write", "to": "respond" } ]
+}

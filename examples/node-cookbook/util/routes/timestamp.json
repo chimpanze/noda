@@ -1,0 +1,7 @@
+{
+  "id": "timestamp",
+  "method": "GET",
+  "path": "/api/timestamp",
+  "summary": "util.timestamp — get current time",
+  "trigger": { "workflow": "timestamp" }
+}
