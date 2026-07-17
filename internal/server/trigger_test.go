@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -362,6 +363,38 @@ func TestMapTrigger_FormBodyStringsCoerced_UppercaseContentType(t *testing.T) {
 		})
 	assert.Equal(t, 42, result.Input["amount"])
 	assert.Equal(t, "0042x", result.Input["note"])
+}
+
+func TestMapTrigger_MultipartFormBody_UppercaseContentType(t *testing.T) {
+	// #339: Content-Type media types are case-insensitive per RFC 7231 — an
+	// uppercase multipart media type (boundary parameter kept verbatim) must
+	// still be parsed into form fields.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.WriteField("field", "hello"))
+	require.NoError(t, mw.Close())
+
+	contentType := "MULTIPART/FORM-DATA; boundary=" + mw.Boundary()
+
+	result := triggerTestRaw(t, "POST", "/test", buf.String(), contentType, map[string]any{
+		"input": map[string]any{
+			"field": "{{ body.field }}",
+		},
+	})
+	assert.Equal(t, "hello", result.Input["field"])
+}
+
+func TestMapTrigger_FormBodyPartialParseLeniency(t *testing.T) {
+	// #339: a malformed percent-escape in one pair must not discard the
+	// pairs that did parse successfully (regression pin for the
+	// `len(values) > 0` gate around url.ParseQuery's error).
+	result := triggerTestRaw(t, "POST", "/test", "a=1&b=%zz",
+		"application/x-www-form-urlencoded", map[string]any{
+			"input": map[string]any{
+				"a": "{{ body.a }}",
+			},
+		})
+	assert.Equal(t, 1, result.Input["a"])
 }
 
 func TestMapTrigger_TransportRefsStillCoerced(t *testing.T) {

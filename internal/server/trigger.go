@@ -1,8 +1,11 @@
 package server
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"mime"
+	"mime/multipart"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -177,6 +180,25 @@ func parseBody(c fiber.Ctx) any {
 					}
 				}
 				return form
+			}
+			// fasthttp's MultipartForm() only recognizes the exact lowercase
+			// "multipart/form-data" media type; parse manually for
+			// case-varied media types (e.g. "MULTIPART/FORM-DATA") per RFC
+			// 7231 (#339). Use the raw (non-lowercased) header so the
+			// boundary parameter's case is preserved.
+			if mediatype, params, mErr := mime.ParseMediaType(c.Get("Content-Type")); mErr == nil && strings.HasPrefix(mediatype, "multipart/") {
+				mr := multipart.NewReader(bytes.NewReader(body), params["boundary"])
+				mform, mErr := mr.ReadForm(int64(len(body)) + 1)
+				if mErr == nil && mform != nil {
+					for k, v := range mform.Value {
+						if len(v) == 1 {
+							form[k] = v[0]
+						} else {
+							form[k] = v
+						}
+					}
+					return form
+				}
 			}
 		} else if values, err := url.ParseQuery(string(body)); err == nil || len(values) > 0 {
 			// url.ParseQuery returns the pairs it did manage to parse alongside
