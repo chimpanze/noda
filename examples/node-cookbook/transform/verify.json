@@ -1,0 +1,50 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "set computes fields",
+      "request": { "method": "POST", "path": "/api/set", "body": { "name": "Ada" } },
+      "expect": { "status": 200, "body": [
+        { "path": "greeting", "equals": "Hello, Ada!" },
+        { "path": "fixed", "equals": 42 }
+      ] }
+    },
+    {
+      "name": "map doubles every element",
+      "request": { "method": "POST", "path": "/api/map", "body": { "items": [1, 2, 3] } },
+      "expect": { "status": 200, "body": [ { "path": "items", "equals": [2, 4, 6] } ] }
+    },
+    {
+      "name": "filter keeps matching elements",
+      "request": { "method": "POST", "path": "/api/filter", "body": { "items": [ { "id": 1, "active": true }, { "id": 2, "active": false }, { "id": 3, "active": true } ] } },
+      "expect": { "status": 200, "body": [
+        { "path": "count", "equals": 2 },
+        { "path": "items.0.id", "equals": 1 },
+        { "path": "items.1.id", "equals": 3 }
+      ] }
+    },
+    {
+      "name": "merge appends two arrays",
+      "request": { "method": "POST", "path": "/api/merge", "body": { "a": [1, 2], "b": [3] } },
+      "expect": { "status": 200, "body": [ { "path": "items", "equals": [1, 2, 3] } ] }
+    },
+    {
+      "name": "delete removes the field",
+      "request": { "method": "POST", "path": "/api/delete", "body": { "user": { "name": "Ada", "password": "hunter2" } } },
+      "expect": { "status": 200, "body": [
+        { "path": "name", "equals": "Ada" },
+        { "path": "password", "exists": false }
+      ] }
+    },
+    {
+      "name": "validate passes a conforming document",
+      "request": { "method": "POST", "path": "/api/validate", "body": { "email": "ada@example.com", "name": "Ada" } },
+      "expect": { "status": 200, "body": [ { "path": "valid", "equals": true } ] }
+    },
+    {
+      "name": "validate rejects a missing required field",
+      "request": { "method": "POST", "path": "/api/validate", "body": { "name": "Ada" } },
+      "expect": { "status": 422, "body": [ { "path": "valid", "equals": false } ] }
+    }
+  ]
+}

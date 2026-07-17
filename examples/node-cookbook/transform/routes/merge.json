@@ -1,0 +1,7 @@
+{
+  "id": "merge",
+  "method": "POST",
+  "path": "/api/merge",
+  "summary": "transform.merge — combine arrays",
+  "trigger": { "workflow": "merge", "input": { "a": "{{ body.a }}", "b": "{{ body.b }}" } }
+}

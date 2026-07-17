@@ -1,0 +1,7 @@
+{
+  "id": "set",
+  "method": "POST",
+  "path": "/api/set",
+  "summary": "transform.set — compute new fields",
+  "trigger": { "workflow": "set", "input": { "name": "{{ body.name }}" } }
+}

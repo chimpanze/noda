@@ -1,0 +1,7 @@
+{
+  "id": "map",
+  "method": "POST",
+  "path": "/api/map",
+  "summary": "transform.map — apply expression to each element",
+  "trigger": { "workflow": "map", "input": { "items": "{{ body.items }}" } }
+}

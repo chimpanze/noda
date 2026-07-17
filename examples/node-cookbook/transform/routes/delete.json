@@ -1,0 +1,7 @@
+{
+  "id": "delete",
+  "method": "POST",
+  "path": "/api/delete",
+  "summary": "transform.delete — remove fields",
+  "trigger": { "workflow": "delete", "input": { "user": "{{ body.user }}" } }
+}

@@ -1,0 +1,18 @@
+{
+  "id": "validate",
+  "nodes": {
+    "check": {
+      "type": "transform.validate",
+      "config": {
+        "data": "{{ input }}",
+        "schema": { "type": "object", "required": ["email"], "properties": { "email": { "type": "string" }, "name": { "type": "string" } } }
+      }
+    },
+    "respond_ok": { "type": "response.json", "config": { "status": 200, "body": { "valid": true } } },
+    "respond_invalid": { "type": "response.json", "config": { "status": 422, "body": { "valid": false } } }
+  },
+  "edges": [
+    { "from": "check", "output": "success", "to": "respond_ok" },
+    { "from": "check", "output": "error", "to": "respond_invalid" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "validate",
+  "method": "POST",
+  "path": "/api/validate",
+  "summary": "transform.validate — check schema compliance",
+  "trigger": { "workflow": "validate", "input": { "email": "{{ body.email }}", "name": "{{ body.name }}" } }
+}

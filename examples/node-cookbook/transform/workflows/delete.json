@@ -1,0 +1,8 @@
+{
+  "id": "delete",
+  "nodes": {
+    "scrub": { "type": "transform.delete", "config": { "data": "{{ input.user }}", "fields": ["password"] } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": "{{ nodes.scrub }}" } }
+  },
+  "edges": [ { "from": "scrub", "to": "respond" } ]
+}
