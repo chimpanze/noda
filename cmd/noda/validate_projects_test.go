@@ -30,6 +30,9 @@ var envForDir = map[string][]string{
 func TestShippedProjectsValidate(t *testing.T) {
 	exampleDirs, err := filepath.Glob("../../examples/*")
 	require.NoError(t, err)
+	cookbookDirs, err := filepath.Glob("../../examples/node-cookbook/*")
+	require.NoError(t, err)
+	exampleDirs = append(exampleDirs, cookbookDirs...)
 	dirs := append(exampleDirs,
 		"../../testdata/auth",
 		"../../testdata/valid-project",
