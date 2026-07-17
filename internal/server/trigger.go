@@ -3,6 +3,8 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +60,14 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 		// Get file fields (to skip expression resolution)
 		fileFields := getFileFields(triggerConfig)
 
+		// Coercion policy (#331): only bare references into string-typed
+		// transports are numerically coerced. "coerce": false disables it.
+		coerceEnabled := true
+		if v, ok := triggerConfig["coerce"].(bool); ok {
+			coerceEnabled = v
+		}
+		bodyStringTyped := strings.Contains(strings.ToLower(c.Get("Content-Type")), "form")
+
 		resolver := expr.NewResolver(compiler, rawCtx)
 		for key, exprVal := range inputMap {
 			// Skip file fields — pass raw streams
@@ -80,7 +90,10 @@ func MapTrigger(c fiber.Ctx, triggerConfig map[string]any, compiler *expr.Compil
 			if err != nil {
 				return nil, fmt.Errorf("trigger mapping: field %q: %w", key, err)
 			}
-			result.Input[key] = coerceNumeric(resolved)
+			if coerceEnabled && shouldCoerce(exprStr, bodyStringTyped) {
+				resolved = coerceNumeric(resolved)
+			}
+			result.Input[key] = resolved
 		}
 	}
 
@@ -133,7 +146,7 @@ func buildRawRequestContext(c fiber.Ctx) map[string]any {
 }
 
 func parseBody(c fiber.Ctx) any {
-	contentType := c.Get("Content-Type")
+	contentType := strings.ToLower(c.Get("Content-Type"))
 	body := c.Body()
 	if len(body) == 0 {
 		return nil
@@ -147,26 +160,44 @@ func parseBody(c fiber.Ctx) any {
 		}
 	}
 
-	// Try form data
+	// Try form data. Content-Type media types are case-insensitive (RFC 7231),
+	// so match against the lowercased contentType computed above rather than
+	// relying on fasthttp's PostArgs(), which only recognizes the exact
+	// lowercase "application/x-www-form-urlencoded" prefix (#331).
 	if strings.Contains(contentType, "form") {
 		form := make(map[string]any)
-		for key, value := range c.Request().PostArgs().All() {
-			form[string(key)] = string(value)
-		}
-		if len(form) > 0 {
-			return form
-		}
-		// Try multipart
-		mf, err := c.MultipartForm()
-		if err == nil && mf != nil {
-			for k, v := range mf.Value {
+		if strings.Contains(contentType, "multipart") {
+			mf, err := c.MultipartForm()
+			if err == nil && mf != nil {
+				for k, v := range mf.Value {
+					if len(v) == 1 {
+						form[k] = v[0]
+					} else {
+						form[k] = v
+					}
+				}
+				return form
+			}
+		} else if values, err := url.ParseQuery(string(body)); err == nil || len(values) > 0 {
+			// url.ParseQuery returns the pairs it did manage to parse alongside
+			// an error for bad percent-escapes; use them rather than discarding
+			// to the raw-string fallback below -- lenient like the previous
+			// fasthttp parser. Note: unlike fasthttp, Go's ParseQuery (since
+			// 1.17) rejects semicolon-separated pairs as a deliberate delta.
+			for k, v := range values {
 				if len(v) == 1 {
 					form[k] = v[0]
 				} else {
-					form[k] = v
+					vals := make([]any, len(v))
+					for i, s := range v {
+						vals[i] = s
+					}
+					form[k] = vals
 				}
 			}
-			return form
+			if len(form) > 0 {
+				return form
+			}
 		}
 	}
 
@@ -240,9 +271,30 @@ func getFileFields(triggerConfig map[string]any) map[string]bool {
 	return fields
 }
 
+// transportRef matches input expressions that are a single bare member-access
+// reference into a transport namespace: {{ params.x }}, {{ query.x }},
+// {{ headers["X-Y"] }}, {{ body.x }}, and their request.* aliases. Computed
+// expressions and literals never match — their result type is authoritative.
+var transportRef = regexp.MustCompile(`^\{\{\s*(?:request\.)?(params|query|headers|body)(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[^\]{}]+\])+\s*\}\}$`)
+
+// shouldCoerce reports whether a trigger-input expression's resolved value
+// should go through coerceNumeric. params/query/headers always arrive as
+// strings; body values are string-typed only for form-encoded requests (#331).
+func shouldCoerce(exprStr string, bodyStringTyped bool) bool {
+	m := transportRef.FindStringSubmatch(strings.TrimSpace(exprStr))
+	if m == nil {
+		return false
+	}
+	if m[1] == "body" {
+		return bodyStringTyped
+	}
+	return true
+}
+
 // coerceNumeric attempts to convert string values to numeric types.
 // HTTP query parameters and route params are always strings, but downstream
-// expressions often need numeric types for arithmetic.
+// expressions often need numeric types for arithmetic. Applied only to bare
+// transport references — see shouldCoerce.
 func coerceNumeric(v any) any {
 	s, ok := v.(string)
 	if !ok {

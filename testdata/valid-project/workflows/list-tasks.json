@@ -7,8 +7,8 @@
       "services": { "database": "main-db" },
       "config": {
         "table": "tasks",
-        "limit": "{{ input.per_page }}",
-        "offset": "{{ (input.page - 1) * input.per_page }}"
+        "limit": "{{ toInt(input.per_page) }}",
+        "offset": "{{ (toInt(input.page) - 1) * toInt(input.per_page) }}"
       }
     },
     "count": {
