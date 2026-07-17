@@ -426,6 +426,48 @@ func TestValidateConfigHandler(t *testing.T) {
 		assert.Contains(t, first["error"], "api.json")
 		assert.Contains(t, first["error"], "/body/schema")
 	})
+
+	t.Run("catches node-config errors that pass file-level schema validation", func(t *testing.T) {
+		// A response.error node with an empty config is valid JSON and matches
+		// the generic node schema (file-level validation), but the response
+		// plugin's audited schema requires "code" and "message" — only the
+		// startup dry-run (node/service/expression checks) catches this.
+		tmpDir := t.TempDir()
+		projectPath := filepath.Join(tmpDir, "dryrun-project")
+		scaffoldReq := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectPath})
+		_, err := scaffoldProjectHandler(context.Background(), scaffoldReq)
+		require.NoError(t, err)
+
+		badWorkflow := `{
+  "id": "broken",
+  "nodes": {
+    "fail": { "type": "response.error", "config": {} }
+  },
+  "edges": []
+}`
+		require.NoError(t, os.WriteFile(filepath.Join(projectPath, "workflows", "broken.json"), []byte(badWorkflow), 0o644))
+
+		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": projectPath})
+		result, err := validateConfigHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		data := parseTextResult(t, result)
+		assert.False(t, data["valid"].(bool))
+
+		errsRaw, ok := data["errors"].([]any)
+		require.True(t, ok, "errors should be a list of objects")
+		require.NotEmpty(t, errsRaw)
+
+		found := false
+		for _, raw := range errsRaw {
+			m := raw.(map[string]any)
+			if msg, _ := m["message"].(string); strings.Contains(msg, "missing required config field") {
+				found = true
+			}
+		}
+		assert.True(t, found, "expected a 'missing required config field' error, got: %+v", errsRaw)
+	})
 }
 
 func TestExplainWorkflowHandler(t *testing.T) {
