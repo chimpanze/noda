@@ -117,8 +117,8 @@ func TestListFunctionsHandler(t *testing.T) {
 	functions := data["functions"].([]any)
 	assert.Equal(t, len(functions), count)
 
-	// Should have Noda built-in (12) + expr-lang built-in (19) = 31
-	assert.Equal(t, 31, count)
+	// Should have Noda built-in (13) + expr-lang built-in (19) = 32
+	assert.Equal(t, 32, count)
 
 	// Build a name set and check a few expected functions
 	nameSet := make(map[string]bool, len(functions))
