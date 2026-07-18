@@ -29,7 +29,7 @@ func (r *mockRunner) RunSubWorkflow(_ context.Context, workflowID string, input 
 
 func TestRun_ExecutesSubWorkflow(t *testing.T) {
 	runner := &mockRunner{outputName: "success", outputData: map[string]any{"id": 1}}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{"name": "Alice"}))
 	config := map[string]any{
@@ -51,7 +51,7 @@ func TestRun_ExecutesSubWorkflow(t *testing.T) {
 
 func TestRun_SubWorkflowFailure(t *testing.T) {
 	runner := &mockRunner{err: fmt.Errorf("sub-workflow failed")}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext()
 	config := map[string]any{"workflow": "bad-wf"}
@@ -62,7 +62,7 @@ func TestRun_SubWorkflowFailure(t *testing.T) {
 }
 
 func TestRun_NoRunner(t *testing.T) {
-	executor := &RunExecutor{outputs: []string{"success", "error"}}
+	executor := &RunExecutor{}
 
 	execCtx := engine.NewExecutionContext()
 	config := map[string]any{"workflow": "test"}
@@ -73,16 +73,19 @@ func TestRun_NoRunner(t *testing.T) {
 }
 
 func TestRun_DynamicOutputs(t *testing.T) {
-	executor := &RunExecutor{outputs: []string{"success", "error"}}
+	executor := &RunExecutor{}
 	assert.Equal(t, []string{"success", "error"}, executor.Outputs())
 
-	executor.setOutputs([]string{"approved", "rejected", "error"})
-	assert.Equal(t, []string{"approved", "rejected", "error"}, executor.Outputs())
+	// Any sub-workflow output name other than "error" collapses onto
+	// "success" — there are no dynamic per-name ports.
+	assert.Equal(t, "success", executor.routeOutput("approved"))
+	assert.Equal(t, "success", executor.routeOutput("rejected"))
+	assert.Equal(t, "error", executor.routeOutput("error"))
 }
 
 func TestRun_InputResolveError(t *testing.T) {
 	runner := &mockRunner{outputName: "success"}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext()
 	config := map[string]any{
@@ -99,7 +102,7 @@ func TestRun_InputResolveError(t *testing.T) {
 
 func TestRun_InputNonStringValues(t *testing.T) {
 	runner := &mockRunner{outputName: "success", outputData: "ok"}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext()
 	config := map[string]any{
@@ -121,7 +124,7 @@ func TestRun_InputNonStringValues(t *testing.T) {
 
 func TestRun_DepthTrackingExceeded(t *testing.T) {
 	runner := &mockRunner{outputName: "success"}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext()
 	// Exhaust recursion depth by calling CheckAndIncrementDepth until it fails
@@ -139,7 +142,7 @@ func TestRun_DepthTrackingExceeded(t *testing.T) {
 
 func TestRun_DepthTrackingSuccess(t *testing.T) {
 	runner := &mockRunner{outputName: "success", outputData: "ok"}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext()
 	config := map[string]any{"workflow": "sub-wf"}
@@ -152,7 +155,7 @@ func TestRun_DepthTrackingSuccess(t *testing.T) {
 
 func TestRun_NoInputMap(t *testing.T) {
 	runner := &mockRunner{outputName: "success", outputData: "done"}
-	executor := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	executor := &RunExecutor{Runner: runner}
 
 	execCtx := engine.NewExecutionContext()
 	config := map[string]any{"workflow": "sub-wf"}

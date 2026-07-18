@@ -3,7 +3,6 @@ package workflow
 import (
 	"context"
 	"fmt"
-	"slices"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -48,8 +47,7 @@ func (d *runDescriptor) OutputDescriptions() map[string]string {
 // RunExecutor executes a sub-workflow.
 // SubWorkflowRunner is injected by the engine via api.SubWorkflowInjectable.
 type RunExecutor struct {
-	Runner  api.SubWorkflowRunner
-	outputs []string
+	Runner api.SubWorkflowRunner
 }
 
 // InjectSubWorkflowRunner implements api.SubWorkflowInjectable.
@@ -57,21 +55,9 @@ func (e *RunExecutor) InjectSubWorkflowRunner(runner api.SubWorkflowRunner) {
 	e.Runner = runner
 }
 
-func newRunExecutor(config map[string]any) api.NodeExecutor {
-	// Collect outputs from sub-workflow's workflow.output nodes
-	// For now, use a default set. The engine will inject proper outputs.
-	return &RunExecutor{
-		outputs: []string{"success", "error"},
-	}
-}
+func newRunExecutor(_ map[string]any) api.NodeExecutor { return &RunExecutor{} }
 
-func (e *RunExecutor) Outputs() []string { return e.outputs }
-
-// setOutputs allows the engine to set the dynamic outputs after discovering
-// the sub-workflow's workflow.output nodes (test helper).
-func (e *RunExecutor) setOutputs(outputs []string) {
-	e.outputs = outputs
-}
+func (e *RunExecutor) Outputs() []string { return api.DefaultOutputs() }
 
 func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	workflowID, _ := config["workflow"].(string)
@@ -120,14 +106,13 @@ func (e *RunExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, co
 	return e.routeOutput(outputName), data, nil
 }
 
-// routeOutput maps the sub-workflow's terminal output name onto one of this
-// node's declared output ports. In production the declared ports are always
-// "success"/"error", so any other sub-workflow output name routes through
-// "success" (data is preserved). Tests may inject extra declared ports via
-// setOutputs, in which case a matching name is honored directly.
+// routeOutput maps the sub-workflow's terminal output name onto this node's
+// two declared ports: "error" stays "error", every other workflow.output
+// name routes through "success" (data preserved). Dynamic per-name ports
+// are not implemented — see docs/03-nodes/workflow.output.md.
 func (e *RunExecutor) routeOutput(outputName string) string {
-	if slices.Contains(e.outputs, outputName) {
-		return outputName
+	if outputName == "error" {
+		return "error"
 	}
 	return "success"
 }
