@@ -24,19 +24,25 @@ project's `verify.json`.
 | [wasm](wasm/) | `wasm.send`, `wasm.query` |
 | [auth](auth/) | `auth.create_user`, `auth.verify_credentials`, `auth.create_session`, `auth.create_token`, `auth.consume_token`, `auth.get_user`, `auth.set_password`, `auth.revoke_session` |
 | [oidc](oidc/) | `oidc.auth_url`, `oidc.exchange`, `oidc.refresh` |
+| [livekit](livekit/) | `lk.token`, `lk.roomCreate`, `lk.roomList`, `lk.roomDelete`, `lk.roomUpdateMetadata`, `lk.participantList`, `lk.participantGet`, `lk.participantUpdate`, `lk.participantRemove`, `lk.muteTrack`, `lk.sendData`, `lk.egressStartRoomComposite`, `lk.egressStartTrack`, `lk.egressList`, `lk.egressStop`, `lk.ingressCreate`, `lk.ingressList`, `lk.ingressDelete` (18 nodes; egress/ingress covered at the API level against the real dev-server — see the family README for the clearly-marked subset this exercises)
+
+Coverage: 81/81 — enforced by `TestCookbookCoverage`.
 
 The `auth` project needs Postgres (`DATABASE_URL`), same as `db`. The `oidc`
 project exercises a real authorization-code exchange against a
 [Dex](https://dexidp.io/) OIDC provider container started by the test
 harness — no `$env()` config is required at rest, only the harness-managed
 `DEX_ISSUER`/`DEX_CLIENT_ID`/`DEX_CLIENT_SECRET`/`DEX_REDIRECT_URI` values
-threaded through `verify.json`. Remaining service-backed family (livekit)
-arrives in a later tranche.
+threaded through `verify.json`. The `livekit` project exercises a real
+[LiveKit](https://livekit.io/) dev-server container started by the test
+harness, using the harness-managed `LIVEKIT_URL`/`LIVEKIT_API_KEY`/
+`LIVEKIT_API_SECRET` values.
 
 Projects whose `verify.json` lists a `deps` entry (`db`, `cache`, `email`,
-`events`, `realtime`, `auth`, `oidc`) need Docker running locally — `go test
--tags=integration ./internal/testing/cookbook/ -run TestCookbook -v` starts
-the required Postgres/Redis/Mailpit/Dex containers automatically. The `storage`, `upload`, `image`, and `events` projects use
+`events`, `realtime`, `auth`, `oidc`, `livekit`) need Docker running locally —
+`go test -tags=integration ./internal/testing/cookbook/ -run TestCookbook -v`
+starts the required Postgres/Redis/Mailpit/Dex/LiveKit containers
+automatically. The `storage`, `upload`, `image`, and `events` projects use
 `COOKBOOK_DATA_DIR`, which the test harness provisions automatically; set it
 manually (to any writable directory) when running `noda start` on one of
 these projects by hand. The `http` and `realtime` projects set `"listen":
