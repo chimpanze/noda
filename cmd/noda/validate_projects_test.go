@@ -32,6 +32,7 @@ var envForDir = map[string][]string{
 	"events":          {"REDIS_URL", "COOKBOOK_DATA_DIR"},
 	"realtime":        {"REDIS_URL"},
 	"auth":            {"DATABASE_URL"},
+	"livekit":         {"LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"},
 }
 
 // Every shipped example and full-project fixture must pass the exact

@@ -198,6 +198,9 @@ func DexAuthCode(t testing.TB, issuer, clientID, redirectURI string) string {
 		loc = resp.Request.URL.String()
 	}
 
+	// Track the final response (resp or resp2) for error reporting.
+	finalResp := resp
+
 	// Defensive fallback: not hit against the pinned image (skipApprovalScreen
 	// bypasses it), but in case a future Dex version routes through
 	// /dex/approval before the redirect-URI code, follow it with one GET.
@@ -213,6 +216,7 @@ func DexAuthCode(t testing.TB, issuer, clientID, redirectURI string) string {
 			t.Fatalf("dex approval get: %v", err)
 		}
 		defer func() { _ = resp2.Body.Close() }()
+		finalResp = resp2
 		loc = resp2.Header.Get("Location")
 		if loc == "" {
 			loc = resp2.Request.URL.String()
@@ -221,8 +225,8 @@ func DexAuthCode(t testing.TB, issuer, clientID, redirectURI string) string {
 
 	u, err := url.Parse(loc)
 	if err != nil || u.Query().Get("code") == "" {
-		b, _ := io.ReadAll(resp.Body)
-		t.Fatalf("dex dance did not yield a code (status %d, location %q, body %.300s)", resp.StatusCode, loc, b)
+		b, _ := io.ReadAll(finalResp.Body)
+		t.Fatalf("dex dance did not yield a code (status %d, location %q, body %.300s)", finalResp.StatusCode, loc, b)
 	}
 	return u.Query().Get("code")
 }

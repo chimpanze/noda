@@ -88,6 +88,7 @@ type ExpectSpec struct {
 // BodyAssertion checks one path in the JSON response body. Exactly one of
 // Equals, Regex, Exists, Type must be set.
 // Assert a JSON null via Type: "null" — an explicit "equals": null reads as matcher-unset.
+// ${var} substitution applies to Equals string values only (not Regex/BodyText).
 type BodyAssertion struct {
 	Path   string `json:"path"`
 	Equals any    `json:"equals,omitempty"`

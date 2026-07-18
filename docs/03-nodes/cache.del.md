@@ -70,3 +70,8 @@ The `error` port fires if the Redis connection fails. The error output contains:
 ```
 
 After `update_user` succeeds, `invalidate_cache` removes the stale cached entry. The output `nodes.invalidate_cache.ok` is `true` on success.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/cache`](../../examples/node-cookbook/cache/README.md) — its README documents the exact request/response pair the integration suite executes.

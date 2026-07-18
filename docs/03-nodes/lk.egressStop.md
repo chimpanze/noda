@@ -67,3 +67,8 @@ Output stored as `nodes.stop_recording`:
 ```
 
 Downstream nodes access the final status via `nodes.stop_recording.status` or `nodes.stop_recording.ended_at`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

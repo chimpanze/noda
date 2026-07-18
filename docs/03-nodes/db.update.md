@@ -76,3 +76,8 @@ Output stored as `nodes.update_status`:
 ```
 
 Downstream nodes access `nodes.update_status.rows_affected` to check whether any row was modified.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

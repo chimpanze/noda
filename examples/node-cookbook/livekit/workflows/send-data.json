@@ -1,0 +1,25 @@
+{
+  "id": "send-data",
+  "name": "Send Data",
+  "nodes": {
+    "send": {
+      "type": "lk.sendData",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}",
+        "data": "{{ input.data }}",
+        "topic": "{{ input.topic }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.send }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "send", "to": "respond" }
+  ]
+}

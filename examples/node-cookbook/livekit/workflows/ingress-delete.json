@@ -1,0 +1,32 @@
+{
+  "id": "ingress-delete",
+  "name": "Delete Ingress",
+  "nodes": {
+    "delete": {
+      "type": "lk.ingressDelete",
+      "services": { "livekit": "lk" },
+      "config": {
+        "ingress_id": "{{ input.ingress_id }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.delete }}"
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "INGRESS_NOT_FOUND",
+        "message": "Ingress not found"
+      }
+    }
+  },
+  "edges": [
+    { "from": "delete", "to": "respond" },
+    { "from": "delete", "output": "error", "to": "not_found" }
+  ]
+}

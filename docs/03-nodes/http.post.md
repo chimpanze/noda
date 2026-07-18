@@ -114,3 +114,8 @@ For timeouts, the error message is: `"timeout: HTTP POST https://api.example.com
 ```
 
 `nodes.create_order.body` contains the parsed JSON response from the external service. `nodes.create_order.status` holds the HTTP status code, which can be forwarded or checked with `control.if`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/http`](../../examples/node-cookbook/http/README.md) — its README documents the exact request/response pair the integration suite executes.

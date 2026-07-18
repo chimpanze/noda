@@ -63,3 +63,8 @@ A downstream node uses the timestamp:
   }
 }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/util`](../../examples/node-cookbook/util/README.md) — its README documents the exact request/response pair the integration suite executes.

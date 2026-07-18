@@ -102,3 +102,8 @@ For timeouts, the error message is: `"timeout: HTTP GET https://api.example.com/
 ```
 
 `nodes.fetch_user.body` contains the parsed JSON response. Use `nodes.fetch_user.status` to branch on HTTP status codes with `control.if` or `control.switch`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/http`](../../examples/node-cookbook/http/README.md) — its README documents the exact request/response pair the integration suite executes.

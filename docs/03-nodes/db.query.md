@@ -65,3 +65,8 @@ Output stored as `nodes.task_summary`:
 ```
 
 Downstream nodes access fields via `nodes.task_summary[0].total` or iterate with `transform.map` over `nodes.task_summary`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

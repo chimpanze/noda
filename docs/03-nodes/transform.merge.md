@@ -67,3 +67,8 @@ Output stored as `nodes.enrich_users`:
 ```
 
 Downstream nodes access the merged data via `nodes.enrich_users` or individual fields like `nodes.enrich_users[0].department_name`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/transform`](../../examples/node-cookbook/transform/README.md) — its README documents the exact request/response pair the integration suite executes.

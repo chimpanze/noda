@@ -1,0 +1,13 @@
+{
+  "id": "room-delete",
+  "method": "DELETE",
+  "path": "/api/rooms/:room",
+  "summary": "lk.roomDelete — delete a LiveKit room",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "room-delete",
+    "input": {
+      "room": "{{ params.room }}"
+    }
+  }
+}

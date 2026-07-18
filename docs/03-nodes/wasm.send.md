@@ -65,3 +65,8 @@ null
 ```
 
 The node fires immediately without waiting for the module to process the command.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/wasm`](../../examples/node-cookbook/wasm/README.md) — its README documents the exact request/response pair the integration suite executes.

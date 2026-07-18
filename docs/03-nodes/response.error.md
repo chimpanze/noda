@@ -61,3 +61,8 @@ When `nodes.validate` produced `{"valid": false, "errors": [{"field": "email", "
   }
 }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/response`](../../examples/node-cookbook/response/README.md) — its README documents the exact request/response pair the integration suite executes.

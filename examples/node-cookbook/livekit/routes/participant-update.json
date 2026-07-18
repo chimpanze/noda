@@ -1,0 +1,15 @@
+{
+  "id": "participant-update",
+  "method": "PUT",
+  "path": "/api/rooms/:room/participants/:identity",
+  "summary": "lk.participantUpdate — update a participant's metadata/permissions (404 demo: no live participant exists)",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "participant-update",
+    "input": {
+      "room": "{{ params.room }}",
+      "identity": "{{ params.identity }}",
+      "metadata": "{{ body.metadata }}"
+    }
+  }
+}

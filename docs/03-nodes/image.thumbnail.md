@@ -86,3 +86,8 @@ Output stored as `nodes.make_thumb`:
 ```
 
 Downstream nodes access the thumbnail via `nodes.make_thumb.path`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/image`](../../examples/node-cookbook/image/README.md) — its README documents the exact request/response pair the integration suite executes.

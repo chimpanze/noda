@@ -79,3 +79,8 @@ Output stored as `nodes.create_room`:
 ```
 
 Downstream nodes access the room via `nodes.create_room.sid` or `nodes.create_room.name`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

@@ -69,3 +69,8 @@ When `nodes.lookup_cart` produced `{"id": 88, "items": [{"sku": "X1", "qty": 1}]
 ```json
 { "order_id": 501, "status": "confirmed" }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/workflow`](../../examples/node-cookbook/workflow/README.md) — its README documents the exact request/response pair the integration suite executes.

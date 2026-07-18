@@ -1,0 +1,13 @@
+{
+  "id": "ingress-delete",
+  "method": "DELETE",
+  "path": "/api/ingress/:ingress_id",
+  "summary": "lk.ingressDelete — delete an ingress endpoint",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "ingress-delete",
+    "input": {
+      "ingress_id": "{{ params.ingress_id }}"
+    }
+  }
+}

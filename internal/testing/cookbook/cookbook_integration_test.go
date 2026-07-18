@@ -28,6 +28,7 @@ import (
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
+	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
@@ -57,6 +58,7 @@ func cookbookPlugins() []api.Plugin {
 		&corewasm.Plugin{},
 		&coreoidc.Plugin{},
 		&authplugin.Plugin{},
+		&livekitplugin.Plugin{},
 	}
 }
 
@@ -85,6 +87,11 @@ func resolveDeps(t *testing.T, deps []string) Options {
 				opt.Vars = map[string]string{}
 			}
 			opt.Vars["dex_code"] = containers.DexAuthCode(t, issuer, clientID, redirectURI)
+		case "livekit":
+			url, key, secret := containers.StartLiveKit(t)
+			opt.Env["LIVEKIT_URL"] = url
+			opt.Env["LIVEKIT_API_KEY"] = key
+			opt.Env["LIVEKIT_API_SECRET"] = secret
 		default:
 			t.Fatalf("unknown cookbook dep %q", dep)
 		}

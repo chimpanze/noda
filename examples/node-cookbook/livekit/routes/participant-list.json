@@ -1,0 +1,13 @@
+{
+  "id": "participant-list",
+  "method": "GET",
+  "path": "/api/rooms/:room/participants",
+  "summary": "lk.participantList — list participants in a room",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "participant-list",
+    "input": {
+      "room": "{{ params.room }}"
+    }
+  }
+}

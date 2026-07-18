@@ -57,3 +57,8 @@ Looks up a row in `auth_users` by `id` (if `user_id` is set) or by normalized `e
 ```
 
 `auth-request-password-reset` looks a user up by email instead, and treats `not_found` as a normal (non-error) branch so the response is identical to the success path — see `auth.create_token` and the [authentication guide](../04-guides/authentication.md) for the enumeration-safe pattern.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/auth`](../../examples/node-cookbook/auth/README.md) — its README documents the exact request/response pair the integration suite executes.

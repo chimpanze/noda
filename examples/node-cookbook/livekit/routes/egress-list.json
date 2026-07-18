@@ -1,0 +1,13 @@
+{
+  "id": "egress-list",
+  "method": "GET",
+  "path": "/api/egress",
+  "summary": "lk.egressList — list egress recordings",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "egress-list",
+    "input": {
+      "room": "{{ query.room }}"
+    }
+  }
+}

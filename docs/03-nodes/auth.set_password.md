@@ -64,3 +64,8 @@ token's owner; no `user_id` is needed.
 ```
 
 To change a password from an authenticated "account settings" flow without forcing the current session to log out, pass `"revoke_sessions": false` — though in that case you should still verify the user's *current* password with `auth.verify_credentials` first, since this node performs no such check.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/auth`](../../examples/node-cookbook/auth/README.md) — its README documents the exact request/response pair the integration suite executes.

@@ -68,3 +68,8 @@ When `nodes.get_post` produced `{"author_id": "user-77", "title": "My Post"}` an
 ```json
 { "channel": "user.user-77" }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/realtime`](../../examples/node-cookbook/realtime/README.md) — its README documents the exact request/response pair the integration suite executes.

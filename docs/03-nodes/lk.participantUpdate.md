@@ -102,3 +102,8 @@ Output stored as `nodes.promote`:
 ```
 
 Downstream nodes access the updated participant via `nodes.promote.metadata`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

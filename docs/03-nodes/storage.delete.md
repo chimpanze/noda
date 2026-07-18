@@ -78,3 +78,8 @@ After `delete_account` succeeds, `delete_avatar` removes the associated file fro
 For the `local` backend, the configured root directory must be a real
 directory — not a symlink. This is enforced at service creation. Admins
 should not create symlinks under the storage root either.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/storage`](../../examples/node-cookbook/storage/README.md) — its README documents the exact request/response pair the integration suite executes.

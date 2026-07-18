@@ -1,0 +1,33 @@
+{
+  "id": "participant-get",
+  "name": "Get Participant",
+  "nodes": {
+    "get": {
+      "type": "lk.participantGet",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}",
+        "identity": "{{ input.identity }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.get }}"
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "NO_SUCH_PARTICIPANT",
+        "message": "Participant not found in room"
+      }
+    }
+  },
+  "edges": [
+    { "from": "get", "to": "respond" },
+    { "from": "get", "output": "error", "to": "not_found" }
+  ]
+}

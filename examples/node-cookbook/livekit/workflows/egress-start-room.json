@@ -1,0 +1,37 @@
+{
+  "id": "egress-start-room",
+  "name": "Start Room Composite Egress",
+  "nodes": {
+    "start": {
+      "type": "lk.egressStartRoomComposite",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}",
+        "layout": "speaker-dark",
+        "output": {
+          "type": "file",
+          "filepath": "/out/recording.mp4"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.start }}"
+      }
+    },
+    "unavailable": {
+      "type": "response.error",
+      "config": {
+        "status": 502,
+        "code": "EGRESS_UNAVAILABLE",
+        "message": "Room composite egress could not be started"
+      }
+    }
+  },
+  "edges": [
+    { "from": "start", "to": "respond" },
+    { "from": "start", "output": "error", "to": "unavailable" }
+  ]
+}

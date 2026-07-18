@@ -1,0 +1,33 @@
+{
+  "id": "participant-remove",
+  "name": "Remove Participant",
+  "nodes": {
+    "remove": {
+      "type": "lk.participantRemove",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}",
+        "identity": "{{ input.identity }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.remove }}"
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "NO_SUCH_PARTICIPANT",
+        "message": "Participant not found in room"
+      }
+    }
+  },
+  "edges": [
+    { "from": "remove", "to": "respond" },
+    { "from": "remove", "output": "error", "to": "not_found" }
+  ]
+}

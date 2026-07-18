@@ -62,3 +62,8 @@ Output stored as `nodes.list_rooms`:
 ```
 
 Downstream nodes access the list via `nodes.list_rooms.rooms`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

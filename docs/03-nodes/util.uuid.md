@@ -58,3 +58,8 @@ A downstream node can reference this value:
   }
 }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/util`](../../examples/node-cookbook/util/README.md) — its README documents the exact request/response pair the integration suite executes.

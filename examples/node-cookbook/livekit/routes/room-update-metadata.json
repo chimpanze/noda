@@ -1,0 +1,14 @@
+{
+  "id": "room-update-metadata",
+  "method": "PUT",
+  "path": "/api/rooms/:room/metadata",
+  "summary": "lk.roomUpdateMetadata — replace a room's metadata",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "room-update-metadata",
+    "input": {
+      "room": "{{ params.room }}",
+      "metadata": "{{ body.metadata }}"
+    }
+  }
+}

@@ -89,3 +89,8 @@ Output stored as `nodes.get_task`:
 ```
 
 Downstream nodes access fields via `nodes.get_task.title` or `nodes.get_assignee.display_name`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

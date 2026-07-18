@@ -1,0 +1,14 @@
+{
+  "id": "participant-remove",
+  "method": "DELETE",
+  "path": "/api/rooms/:room/participants/:identity",
+  "summary": "lk.participantRemove — remove a participant from a room (404 demo: no live participant exists)",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "participant-remove",
+    "input": {
+      "room": "{{ params.room }}",
+      "identity": "{{ params.identity }}"
+    }
+  }
+}

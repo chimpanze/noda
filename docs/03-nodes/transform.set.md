@@ -64,3 +64,8 @@ Output stored as `nodes.build_profile`:
 ```
 
 Downstream nodes access fields via `nodes.build_profile.name` or `nodes.build_profile.task_count`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/transform`](../../examples/node-cookbook/transform/README.md) — its README documents the exact request/response pair the integration suite executes.

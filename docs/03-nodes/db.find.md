@@ -85,3 +85,8 @@ Output stored as `nodes.list_tasks`:
 ```
 
 Downstream nodes access fields via `nodes.list_tasks[0].title` or iterate with `transform.map` over `nodes.list_tasks`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

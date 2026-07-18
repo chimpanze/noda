@@ -56,3 +56,8 @@ Output stored as `nodes.overdue_tasks`:
 ```
 
 Downstream nodes access the filtered array via `nodes.overdue_tasks` or check `len(nodes.overdue_tasks)` in a conditional.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/transform`](../../examples/node-cookbook/transform/README.md) — its README documents the exact request/response pair the integration suite executes.

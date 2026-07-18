@@ -60,3 +60,8 @@ Normalizes the email (lowercased, trimmed), validates the password (8–512 char
 ```
 
 Edges route the `exists` output straight to a `400` response so registration fails cleanly on a duplicate email, without ever confirming *which* email is taken.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/auth`](../../examples/node-cookbook/auth/README.md) — its README documents the exact request/response pair the integration suite executes.

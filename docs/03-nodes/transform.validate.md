@@ -71,3 +71,8 @@ Output stored as `nodes.validate_order` (on success, the data passes through unc
 ```
 
 Downstream nodes access fields via `nodes.validate_order.product_id`. On validation failure, the `error` output fires with a `ValidationError` containing field-level details.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/transform`](../../examples/node-cookbook/transform/README.md) — its README documents the exact request/response pair the integration suite executes.

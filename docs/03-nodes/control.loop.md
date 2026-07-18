@@ -66,3 +66,8 @@ When `nodes.list_orders.rows` is `[{"id": 1, "customer_id": 42}, {"id": 2, "cust
   { "id": 2, "customer_name": "Bob", "total": 45.00 }
 ]
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/control`](../../examples/node-cookbook/control/README.md) — its README documents the exact request/response pair the integration suite executes.
