@@ -134,6 +134,87 @@ func TestValidateFile_CatchesDryRunNodeConfigError(t *testing.T) {
 	assert.True(t, found, "expected a 'missing required config field' error, got: %+v", errs)
 }
 
+// twoWorkflowProjectFiles has one workflow file that is clean at the
+// file-level schema stage but fails the dry-run node-config check
+// ("broken"), and a second workflow file that is fully clean ("clean").
+// Used to verify validateFile scopes dry-run errors to the requested file
+// rather than folding in errors from unrelated workflows (#349).
+func twoWorkflowProjectFiles() map[string]string {
+	return map[string]string{
+		"noda.json": `{}`,
+		"routes/hello.json": `{
+  "id": "hello",
+  "method": "GET",
+  "path": "/hello",
+  "trigger": { "workflow": "hello" }
+}`,
+		"routes/other.json": `{
+  "id": "other",
+  "method": "GET",
+  "path": "/other",
+  "trigger": { "workflow": "other" }
+}`,
+		"workflows/hello.json": `{
+  "id": "hello",
+  "nodes": {
+    "fail": { "type": "response.error", "config": {} }
+  },
+  "edges": []
+}`,
+		"workflows/other.json": `{
+  "id": "other",
+  "nodes": {
+    "ok": { "type": "response.error", "config": { "code": "NOT_FOUND", "message": "nope" } }
+  },
+  "edges": []
+}`,
+	}
+}
+
+func TestValidateFile_ScopesDryRunErrorsToRequestedFile(t *testing.T) {
+	app := setupValidationApp(t, twoWorkflowProjectFiles())
+
+	// The clean file must be reported valid — dry-run errors from the
+	// unrelated broken workflow must not leak in.
+	cleanBody := strings.NewReader(`{"path":"workflows/other.json"}`)
+	req := httptest.NewRequest("POST", "/_noda/validate", cleanBody)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result))
+	assert.True(t, result["valid"].(bool), "expected clean file to be valid, got %+v", result)
+
+	// The broken file must be reported invalid, with errors attributed to
+	// that file's path (not "").
+	brokenBody := strings.NewReader(`{"path":"workflows/hello.json"}`)
+	req2 := httptest.NewRequest("POST", "/_noda/validate", brokenBody)
+	req2.Header.Set("Content-Type", "application/json")
+	resp2, err := app.Test(req2)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp2.StatusCode)
+
+	respBody2, _ := io.ReadAll(resp2.Body)
+	var result2 map[string]any
+	require.NoError(t, json.Unmarshal(respBody2, &result2))
+	assert.False(t, result2["valid"].(bool), "expected broken file to be invalid, got %+v", result2)
+
+	errs, ok := result2["errors"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, errs)
+
+	for _, raw := range errs {
+		m := raw.(map[string]any)
+		file, _ := m["file"].(string)
+		assert.NotEmpty(t, file, "expected dry-run error to carry a non-empty file attribution, got: %+v", m)
+		assert.True(t, strings.HasSuffix(file, filepath.Join("workflows", "hello.json")),
+			"expected error file to be workflows/hello.json, got %q", file)
+	}
+}
+
 func TestValidateAll_ValidProjectStillPasses(t *testing.T) {
 	app := setupValidationApp(t, map[string]string{
 		"noda.json": `{}`,

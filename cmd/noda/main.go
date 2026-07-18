@@ -439,6 +439,10 @@ func newDevCmd() *cobra.Command {
 
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rtCtx.RC, hub, rtCtx.Logger)
+			reloader.SetDryRun(func(rc *config.ResolvedConfig) []error {
+				deferred, errs := registry.CollectDeferredServices(rc)
+				return append(errs, registry.ValidateStartupDryRun(rc, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Compiler, deferred)...)
+			})
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
 				if err := rtCtx.WorkflowCache.Invalidate(newRC.Workflows, rtCtx.Bootstrap.Nodes); err != nil {
 					rtCtx.Logger.Error("workflow cache invalidation failed", "error", err)

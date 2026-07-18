@@ -97,7 +97,7 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 
 	// Resolve body
 	var bodyReader io.Reader
-	bodyVal, bodyOk, bodyErr := plugin.ResolveOptionalAny(nCtx, config, "body")
+	bodyVal, bodyOk, bodyErr := plugin.ResolveOptionalDeepAny(nCtx, config, "body")
 	if bodyErr != nil {
 		return "", nil, fmt.Errorf("http.request: resolve body: %w", bodyErr)
 	}

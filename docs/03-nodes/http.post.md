@@ -19,7 +19,7 @@ Output: `{status, headers, body}`
 
 ## Behavior
 
-Equivalent to `http.request` with `method: "POST"`. Resolves the URL, headers, and body, makes the POST request through the configured HTTP client service, and returns the response.
+Equivalent to `http.request` with `method: "POST"`. Resolves the URL, headers, and body, makes the POST request through the configured HTTP client service, and returns the response. The `body` field deep-resolves expression templates nested inside maps and slices (e.g. `{"event": "{{ nodes.order }}"}`), same as `sse.send`/`ws.send`/`event.emit`.
 
 ## Service Dependencies
 

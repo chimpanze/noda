@@ -64,13 +64,9 @@ curl -X POST localhost:3000/api/proxy-post -H 'Content-Type: application/json' -
 # → 200 {"echoed":"hello from post"}
 ```
 
-**Gotcha:** the `body` config field is resolved with `plugin.ResolveOptionalAny`, which only
-evaluates the *whole* field when it is itself an expression string — it does **not** recurse
-into a literal JSON object to resolve `{{ ... }}` strings nested inside it (only `headers`
-resolves per-key, since `ResolveHeaders` walks each entry individually). A body of
-`{"message": "{{ input.message }}"}` is therefore sent to the wire verbatim, with the template
-un-evaluated. Build the whole object as a single expr map-literal expression instead:
-`"body": "{{ {message: input.message} }}"` — this is what `workflows/post.json` does.
+The `body` config field deep-resolves expression templates nested inside a literal JSON
+object, so `"body": {"message": "{{ input.message }}"}` works directly — no need to wrap the
+whole object in a single expr map-literal expression.
 
 ## http.request — `GET /api/proxy-request`
 

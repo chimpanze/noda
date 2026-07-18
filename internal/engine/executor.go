@@ -172,7 +172,13 @@ func ExecuteGraph(
 				errorTargets := graph.Adjacency[nodeID]["error"]
 				if len(errorTargets) == 0 {
 					errData, _ := execCtx.GetOutput(nodeID)
-					nodeErr := fmt.Errorf("node %q failed with no error edge: %v", nodeID, errData)
+					var nodeErr error
+					if orig := execCtx.NodeError(nodeID); orig != nil {
+						// %w keeps errors.As working so MapErrorToHTTP can type it.
+						nodeErr = fmt.Errorf("node %q failed with no error edge: %w", nodeID, orig)
+					} else {
+						nodeErr = fmt.Errorf("node %q failed with no error edge: %v", nodeID, errData)
+					}
 					execCtx.Log("warn", "node error with no error edge", map[string]any{
 						"node_id": nodeID,
 					})
