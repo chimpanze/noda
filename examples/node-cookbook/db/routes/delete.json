@@ -1,0 +1,10 @@
+{
+  "id": "delete",
+  "method": "DELETE",
+  "path": "/api/books/:id",
+  "summary": "db.delete — remove a book",
+  "trigger": {
+    "workflow": "delete",
+    "input": { "id": "{{ params.id }}" }
+  }
+}

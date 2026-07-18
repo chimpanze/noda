@@ -1,0 +1,10 @@
+{
+  "id": "update",
+  "method": "PUT",
+  "path": "/api/books/:id",
+  "summary": "db.update — change a book's year",
+  "trigger": {
+    "workflow": "update",
+    "input": { "id": "{{ params.id }}", "year": "{{ body.year }}" }
+  }
+}

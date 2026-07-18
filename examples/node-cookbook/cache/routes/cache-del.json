@@ -1,0 +1,13 @@
+{
+  "id": "cache-del",
+  "method": "DELETE",
+  "path": "/api/cache/:key",
+  "summary": "Delete a cache value",
+  "tags": ["cache"],
+  "trigger": {
+    "workflow": "cache-del",
+    "input": {
+      "key": "{{ params.key }}"
+    }
+  }
+}

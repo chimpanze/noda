@@ -54,3 +54,53 @@ func TestLoadSuiteRejects(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadSuiteSeedMultipartMail(t *testing.T) {
+	p := writeSuite(t, `{
+	  "deps": ["postgres"],
+	  "seed": {"images/in.png": "files/in.png"},
+	  "steps": [
+	    {
+	      "name": "upload",
+	      "request": {
+	        "method": "POST", "path": "/api/upload",
+	        "multipart": {
+	          "fields": {"note": "hello"},
+	          "files": [{"field": "file", "filename": "in.png", "content_type": "image/png", "content_base64": "aGk="}]
+	        }
+	      },
+	      "expect": {"status": 201, "body": [{"path": "path", "exists": true}]}
+	    },
+	    {
+	      "name": "invitation arrives",
+	      "mail": {"to": "bob@example.com", "subject": "Welcome", "body_regex": "hi"}
+	    }
+	  ]
+	}`)
+	s, err := LoadSuite(p)
+	require.NoError(t, err)
+	assert.Equal(t, "files/in.png", s.Seed["images/in.png"])
+	require.Len(t, s.Steps, 2)
+	require.NotNil(t, s.Steps[0].Request.Multipart)
+	assert.Equal(t, "aGk=", s.Steps[0].Request.Multipart.Files[0].ContentBase64)
+	require.NotNil(t, s.Steps[1].Mail)
+	assert.Equal(t, "Welcome", s.Steps[1].Mail.Subject)
+}
+
+func TestLoadSuiteRejectsNewShapes(t *testing.T) {
+	cases := map[string]string{
+		"mail and request together": `{"steps": [{"name": "a", "mail": {"to": "x@y", "subject": "s"}, "request": {"method": "GET", "path": "/x"}, "expect": {"status": 200}}]}`,
+		"mail missing subject":      `{"steps": [{"name": "a", "mail": {"to": "x@y"}}]}`,
+		"mail missing to":           `{"steps": [{"name": "a", "mail": {"subject": "s"}}]}`,
+		"neither mail nor request":  `{"steps": [{"name": "a"}]}`,
+		"multipart with body":       `{"steps": [{"name": "a", "request": {"method": "POST", "path": "/x", "body": {"k": 1}, "multipart": {"fields": {"f": "v"}}}, "expect": {"status": 200}}]}`,
+		"file content both":         `{"steps": [{"name": "a", "request": {"method": "POST", "path": "/x", "multipart": {"files": [{"filename": "f.txt", "content": "x", "content_base64": "eA=="}]}}, "expect": {"status": 200}}]}`,
+		"file content neither":      `{"steps": [{"name": "a", "request": {"method": "POST", "path": "/x", "multipart": {"files": [{"filename": "f.txt"}]}}, "expect": {"status": 200}}]}`,
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := LoadSuite(writeSuite(t, content))
+			assert.Error(t, err)
+		})
+	}
+}

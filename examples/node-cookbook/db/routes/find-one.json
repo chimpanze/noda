@@ -1,0 +1,10 @@
+{
+  "id": "find-one",
+  "method": "GET",
+  "path": "/api/books/:id",
+  "summary": "db.findOne — fetch a single book by id",
+  "trigger": {
+    "workflow": "find-one",
+    "input": { "id": "{{ params.id }}" }
+  }
+}

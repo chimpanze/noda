@@ -1,0 +1,25 @@
+{
+  "id": "upsert",
+  "name": "Upsert Book",
+  "nodes": {
+    "save": {
+      "type": "db.upsert",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "data": {
+          "title": "{{ input.title }}",
+          "author": "{{ input.author }}",
+          "year": "{{ input.year }}"
+        },
+        "conflict": ["title"],
+        "update": ["year"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.save }}" }
+    }
+  },
+  "edges": [ { "from": "save", "to": "respond" } ]
+}

@@ -1,0 +1,9 @@
+{
+  "id": "send",
+  "nodes": {
+    "deliver": { "type": "email.send", "services": { "mailer": "mailer" },
+      "config": { "to": "{{ input.to }}", "subject": "{{ input.subject }}", "body": "{{ input.body }}", "content_type": "text" } },
+    "respond": { "type": "response.json", "config": { "status": 202, "body": { "sent": true } } }
+  },
+  "edges": [ { "from": "deliver", "to": "respond" } ]
+}

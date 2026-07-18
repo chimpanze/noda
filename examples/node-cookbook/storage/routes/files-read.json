@@ -1,0 +1,13 @@
+{
+  "id": "files-read",
+  "method": "GET",
+  "path": "/api/files/read",
+  "summary": "Read a file from storage",
+  "tags": ["storage"],
+  "trigger": {
+    "workflow": "files-read",
+    "input": {
+      "path": "{{ query.path }}"
+    }
+  }
+}

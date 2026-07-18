@@ -23,6 +23,12 @@ var envForDir = map[string][]string{
 	"rest-api":        {"DATABASE_URL", "JWT_SECRET"},
 	"saas-backend":    {"JWT_SECRET", "REDIS_URL", "SMTP_FROM", "SMTP_HOST", "SMTP_PORT", "DATABASE_URL"},
 	"video-rooms":     {"LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "LIVEKIT_URL"},
+	"db":              {"DATABASE_URL"},
+	"cache":           {"REDIS_URL"},
+	"storage":         {"COOKBOOK_DATA_DIR"},
+	"upload":          {"COOKBOOK_DATA_DIR"},
+	"image":           {"COOKBOOK_DATA_DIR"},
+	"email":           {"SMTP_HOST", "SMTP_PORT"},
 }
 
 // Every shipped example and full-project fixture must pass the exact

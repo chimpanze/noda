@@ -1,0 +1,12 @@
+{
+  "server": { "port": 3000 },
+  "services": {
+    "uploads": {
+      "plugin": "storage",
+      "config": {
+        "backend": "local",
+        "path": "{{ $env('COOKBOOK_DATA_DIR') }}/uploads"
+      }
+    }
+  }
+}

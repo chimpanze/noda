@@ -1,0 +1,10 @@
+{
+  "deps": ["mailpit"],
+  "steps": [
+    { "name": "send accepts the message",
+      "request": { "method": "POST", "path": "/api/send", "body": { "to": "bob@example.com", "subject": "Cookbook hello", "body": "greetings from the cookbook" } },
+      "expect": { "status": 202, "body": [ { "path": "sent", "equals": true } ] } },
+    { "name": "message lands in the inbox",
+      "mail": { "to": "bob@example.com", "subject": "Cookbook hello", "body_regex": "greetings" } }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "query",
+  "method": "GET",
+  "path": "/api/book-stats",
+  "summary": "db.query — raw SQL aggregate of books per author",
+  "trigger": {
+    "workflow": "query",
+    "input": {}
+  }
+}

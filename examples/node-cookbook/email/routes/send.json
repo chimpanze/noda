@@ -1,0 +1,10 @@
+{
+  "id": "send",
+  "method": "POST",
+  "path": "/api/send",
+  "summary": "email.send — send an email",
+  "trigger": {
+    "workflow": "send",
+    "input": { "to": "{{ body.to }}", "subject": "{{ body.subject }}", "body": "{{ body.body }}" }
+  }
+}

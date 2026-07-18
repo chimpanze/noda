@@ -1,0 +1,6 @@
+{
+  "server": { "port": 3000 },
+  "services": {
+    "mailer": { "plugin": "email", "config": { "host": "{{ $env('SMTP_HOST') }}", "port": "{{ $env('SMTP_PORT') }}", "from": "cookbook@noda.local" } }
+  }
+}

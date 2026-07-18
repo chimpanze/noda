@@ -1,0 +1,10 @@
+{
+  "id": "create",
+  "method": "POST",
+  "path": "/api/books",
+  "summary": "db.create — insert a book",
+  "trigger": {
+    "workflow": "create",
+    "input": { "title": "{{ body.title }}", "author": "{{ body.author }}", "year": "{{ body.year }}" }
+  }
+}

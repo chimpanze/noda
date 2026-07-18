@@ -1,0 +1,34 @@
+{
+  "id": "upload",
+  "name": "Upload File",
+  "nodes": {
+    "store": {
+      "type": "upload.handle",
+      "services": { "destination": "uploads" },
+      "config": {
+        "path": "docs/{{ $uuid() }}",
+        "allowed_types": ["text/*"],
+        "max_size": 1048576
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.store }}"
+      }
+    },
+    "rejected": {
+      "type": "response.error",
+      "config": {
+        "status": 422,
+        "code": "VALIDATION_ERROR",
+        "message": "File rejected: size or type constraints violated"
+      }
+    }
+  },
+  "edges": [
+    { "from": "store", "to": "respond" },
+    { "from": "store", "output": "error", "to": "rejected" }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "id": "cache-set",
+  "name": "Cache Set",
+  "nodes": {
+    "set": {
+      "type": "cache.set",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "{{ input.key }}",
+        "value": "{{ input.value }}",
+        "ttl": 60
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "stored": true }
+      }
+    }
+  },
+  "edges": [
+    { "from": "set", "to": "respond" }
+  ]
+}

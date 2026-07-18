@@ -1,0 +1,23 @@
+{
+  "id": "cache-exists",
+  "name": "Cache Exists",
+  "nodes": {
+    "check": {
+      "type": "cache.exists",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "{{ input.key }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "exists": "{{ nodes.check.exists }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "check", "to": "respond" }
+  ]
+}

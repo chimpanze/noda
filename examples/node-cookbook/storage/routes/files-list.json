@@ -1,0 +1,13 @@
+{
+  "id": "files-list",
+  "method": "GET",
+  "path": "/api/files",
+  "summary": "List files under a prefix",
+  "tags": ["storage"],
+  "trigger": {
+    "workflow": "files-list",
+    "input": {
+      "prefix": "{{ query.prefix }}"
+    }
+  }
+}

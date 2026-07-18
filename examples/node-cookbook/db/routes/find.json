@@ -1,0 +1,10 @@
+{
+  "id": "find",
+  "method": "GET",
+  "path": "/api/books",
+  "summary": "db.find — list books filtered by author",
+  "trigger": {
+    "workflow": "find",
+    "input": { "author": "{{ query.author }}" }
+  }
+}

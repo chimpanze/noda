@@ -1,0 +1,86 @@
+{
+  "deps": ["redis"],
+  "steps": [
+    {
+      "name": "set greeting to hello",
+      "request": {
+        "method": "POST",
+        "path": "/api/cache",
+        "body": {
+          "key": "greeting",
+          "value": "hello"
+        }
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "stored", "equals": true }
+        ]
+      }
+    },
+    {
+      "name": "get greeting",
+      "request": {
+        "method": "GET",
+        "path": "/api/cache/greeting"
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "value", "equals": "hello" }
+        ]
+      }
+    },
+    {
+      "name": "check greeting exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/cache/greeting/exists"
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "exists", "equals": true }
+        ]
+      }
+    },
+    {
+      "name": "delete greeting",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/cache/greeting"
+      },
+      "expect": {
+        "status": 204
+      }
+    },
+    {
+      "name": "check greeting no longer exists",
+      "request": {
+        "method": "GET",
+        "path": "/api/cache/greeting/exists"
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "exists", "equals": false }
+        ]
+      }
+    },
+    {
+      "name": "get greeting after delete returns 404",
+      "request": {
+        "method": "GET",
+        "path": "/api/cache/greeting"
+      },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "NOT_FOUND" },
+          { "path": "error.message", "equals": "Cache key not found" },
+          { "path": "error.trace_id", "exists": true }
+        ]
+      }
+    }
+  ]
+}

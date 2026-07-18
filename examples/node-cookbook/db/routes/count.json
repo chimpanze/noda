@@ -1,0 +1,10 @@
+{
+  "id": "count",
+  "method": "GET",
+  "path": "/api/books/count",
+  "summary": "db.count — count books filtered by author",
+  "trigger": {
+    "workflow": "count",
+    "input": { "author": "{{ query.author }}" }
+  }
+}

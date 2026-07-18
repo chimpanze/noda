@@ -1,0 +1,10 @@
+{
+  "id": "exec",
+  "method": "POST",
+  "path": "/api/books/retitle",
+  "summary": "db.exec — raw SQL UPDATE by title",
+  "trigger": {
+    "workflow": "exec",
+    "input": { "from": "{{ body.from }}", "to": "{{ body.to }}" }
+  }
+}

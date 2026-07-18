@@ -1,0 +1,13 @@
+{
+  "id": "cache-exists",
+  "method": "GET",
+  "path": "/api/cache/:key/exists",
+  "summary": "Check if a key exists in cache",
+  "tags": ["cache"],
+  "trigger": {
+    "workflow": "cache-exists",
+    "input": {
+      "key": "{{ params.key }}"
+    }
+  }
+}

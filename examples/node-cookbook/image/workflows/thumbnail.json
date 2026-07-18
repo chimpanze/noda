@@ -1,0 +1,34 @@
+{
+  "id": "thumbnail",
+  "name": "Generate Thumbnail",
+  "nodes": {
+    "op": {
+      "type": "image.thumbnail",
+      "services": {
+        "source": "media",
+        "target": "media"
+      },
+      "config": {
+        "input": "in/source.png",
+        "output": "out/thumb",
+        "width": 120,
+        "height": 120
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "path": "{{ nodes.op.path }}",
+          "width": "{{ nodes.op.width }}",
+          "height": "{{ nodes.op.height }}",
+          "size": "{{ nodes.op.size }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "op", "to": "respond" }
+  ]
+}

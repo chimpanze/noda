@@ -1,0 +1,10 @@
+{
+  "id": "thumbnail",
+  "method": "GET",
+  "path": "/api/thumbnail",
+  "summary": "Generate a thumbnail",
+  "tags": ["image"],
+  "trigger": {
+    "workflow": "thumbnail"
+  }
+}

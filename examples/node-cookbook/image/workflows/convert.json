@@ -1,0 +1,34 @@
+{
+  "id": "convert",
+  "name": "Convert Image Format",
+  "nodes": {
+    "op": {
+      "type": "image.convert",
+      "services": {
+        "source": "media",
+        "target": "media"
+      },
+      "config": {
+        "input": "in/source.png",
+        "output": "out/converted.jpg",
+        "format": "jpeg",
+        "quality": 80
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "path": "{{ nodes.op.path }}",
+          "width": "{{ nodes.op.width }}",
+          "height": "{{ nodes.op.height }}",
+          "size": "{{ nodes.op.size }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "op", "to": "respond" }
+  ]
+}
