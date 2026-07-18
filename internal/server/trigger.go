@@ -173,11 +173,7 @@ func parseBody(c fiber.Ctx) any {
 			mf, err := c.MultipartForm()
 			if err == nil && mf != nil {
 				for k, v := range mf.Value {
-					if len(v) == 1 {
-						form[k] = v[0]
-					} else {
-						form[k] = v
-					}
+					form[k] = formValue(v)
 				}
 				return form
 			}
@@ -197,11 +193,7 @@ func parseBody(c fiber.Ctx) any {
 					// guards against a future maxMemory change leaking temp files.
 					defer func() { _ = mform.RemoveAll() }()
 					for k, v := range mform.Value {
-						if len(v) == 1 {
-							form[k] = v[0]
-						} else {
-							form[k] = v
-						}
+						form[k] = formValue(v)
 					}
 					return form
 				}
@@ -213,15 +205,7 @@ func parseBody(c fiber.Ctx) any {
 			// fasthttp parser. Note: unlike fasthttp, Go's ParseQuery (since
 			// 1.17) rejects semicolon-separated pairs as a deliberate delta.
 			for k, v := range values {
-				if len(v) == 1 {
-					form[k] = v[0]
-				} else {
-					vals := make([]any, len(v))
-					for i, s := range v {
-						vals[i] = s
-					}
-					form[k] = vals
-				}
+				form[k] = formValue(v)
 			}
 			if len(form) > 0 {
 				return form
@@ -231,6 +215,19 @@ func parseBody(c fiber.Ctx) any {
 
 	// Return raw string as fallback
 	return string(body)
+}
+
+// formValue normalizes repeated form fields to []any so downstream code
+// (expressions, control.loop) sees one type regardless of content type (#350).
+func formValue(v []string) any {
+	if len(v) == 1 {
+		return v[0]
+	}
+	vals := make([]any, len(v))
+	for i, s := range v {
+		vals[i] = s
+	}
+	return vals
 }
 
 func parseParams(c fiber.Ctx) map[string]any {

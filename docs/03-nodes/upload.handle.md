@@ -103,6 +103,18 @@ node execution:
 These checks happen before any byte is written. The destination storage
 service applies the same checks again as defence-in-depth.
 
+## Uppercase multipart media type limitation
+
+Content-Type media types are case-insensitive per RFC 7231, and trigger form
+*value* parsing (`body.*`) has a manual fallback for case-varied media types
+like `MULTIPART/FORM-DATA` (#339). **File** extraction does not have an
+equivalent fallback: trigger `files` mapping uses fasthttp's `c.FormFile`,
+which only recognizes the exact lowercase `multipart/form-data` media type.
+An uppercase (or otherwise case-varied) multipart request with file fields
+fails loudly with `trigger mapping: file field ...` rather than silently
+dropping the file. Use lowercase `multipart/form-data` when uploading files
+to this node.
+
 ## Runnable example
 
 A runnable, CI-verified example of this node lives in the cookbook:
