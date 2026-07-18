@@ -66,6 +66,9 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		if err != nil {
 			return nil, fmt.Errorf("livekit: invalid timeout %q: %w", v, err)
 		}
+		if d <= 0 {
+			return nil, fmt.Errorf("livekit: timeout must be positive, got %q", v)
+		}
 		timeout = d
 	}
 

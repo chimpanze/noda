@@ -72,6 +72,27 @@ func TestCallWithTimeout_FastFailPassesThroughUnchanged(t *testing.T) {
 	assert.Same(t, errTwirpNotFound, err, "server errors returned before the deadline must pass through unchanged")
 }
 
+// TestCallWithTimeout_ParentCancellationNotRelabeledAsTimeout pins the
+// guard in callWithTimeout that only relabels an error when the deadline
+// (not the caller's own cancellation) is what ended the call. When the
+// parent context is cancelled, the wrapped call must surface
+// context.Canceled unchanged -- not a synthetic "timed out after" error.
+func TestCallWithTimeout_ParentCancellationNotRelabeledAsTimeout(t *testing.T) {
+	client := &timeoutEgressClient{inner: &fakeBlockingEgressClient{}, d: 5 * time.Second}
+
+	parentCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(10 * time.Millisecond)
+		cancel()
+	}()
+
+	_, err := client.StartRoomCompositeEgress(parentCtx, &lkproto.RoomCompositeEgressRequest{})
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, context.Canceled), "parent cancellation must surface as context.Canceled")
+	assert.NotContains(t, err.Error(), "timed out after", "parent cancellation must not be relabeled as a service timeout")
+}
+
 func TestPlugin_CreateService_WithValidTimeout(t *testing.T) {
 	p := &Plugin{}
 	svc, err := p.CreateService(map[string]any{
@@ -103,6 +124,30 @@ func TestPlugin_CreateService_WithInvalidTimeout(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid timeout")
+}
+
+func TestPlugin_CreateService_WithNonPositiveTimeout(t *testing.T) {
+	cases := []struct {
+		name    string
+		timeout string
+	}{
+		{name: "negative", timeout: "-1s"},
+		{name: "zero", timeout: "0s"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			p := &Plugin{}
+			_, err := p.CreateService(map[string]any{
+				"url":        "wss://example.livekit.cloud",
+				"api_key":    "key",
+				"api_secret": "secret",
+				"timeout":    tc.timeout,
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "timeout must be positive")
+		})
+	}
 }
 
 func TestPlugin_CreateService_WithoutTimeoutLeavesBareClients(t *testing.T) {
