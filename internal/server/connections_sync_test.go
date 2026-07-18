@@ -106,6 +106,59 @@ func TestRegisterConnections_SyncPubSub_ServiceNotFound(t *testing.T) {
 	require.ErrorContains(t, err, "missing-pubsub")
 }
 
+// syncConnectionsConfigRaw is like syncConnectionsConfig but lets the caller
+// supply an arbitrary "pubsub" value (including its absence), to exercise the
+// empty/missing/non-string boot-error guard.
+func syncConnectionsConfigRaw(endpoint string, syncBlock map[string]any) map[string]map[string]any {
+	return map[string]map[string]any{
+		"connections/sync.json": {
+			"sync": syncBlock,
+			"endpoints": map[string]any{
+				endpoint: map[string]any{
+					"type": "websocket",
+					"path": "/ws/" + endpoint,
+					"channels": map[string]any{
+						"pattern": endpoint + ".general",
+					},
+				},
+			},
+		},
+	}
+}
+
+// TestRegisterConnections_SyncPubSub_EmptyOrMissing covers the boot-error
+// guard for a "sync" block whose "pubsub" value is missing, empty, or not a
+// string. Schema/crossref validation catches these on the normal config-file
+// path, but programmatic embedders that build ResolvedConfig by hand bypass
+// that validation, so registerConnections must still boot-error rather than
+// silently skip building the sync bridge.
+func TestRegisterConnections_SyncPubSub_EmptyOrMissing(t *testing.T) {
+	cases := []struct {
+		name      string
+		syncBlock map[string]any
+	}{
+		{name: "missing", syncBlock: map[string]any{}},
+		{name: "empty string", syncBlock: map[string]any{"pubsub": ""}},
+		{name: "non-string", syncBlock: map[string]any{"pubsub": 42}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svcReg := registry.NewServiceRegistry()
+			nodeReg := buildTestNodeRegistry()
+
+			rc := baseSyncResolvedConfig(syncConnectionsConfigRaw("chat", tc.syncBlock))
+
+			srv, err := NewServer(rc, svcReg, nodeReg)
+			require.NoError(t, err)
+
+			err = srv.Setup()
+			require.Error(t, err)
+			require.ErrorContains(t, err, `"pubsub" must be a non-empty service name`)
+		})
+	}
+}
+
 // TestRegisterConnections_SyncPubSub_WrongType covers boot error 1b: the
 // named service exists but doesn't implement api.PubSubService.
 func TestRegisterConnections_SyncPubSub_WrongType(t *testing.T) {

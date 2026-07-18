@@ -21,18 +21,19 @@ func (s *Server) registerConnections() error {
 		// endpoints.
 		var bridge *connmgr.SyncBridge
 		if syncCfg, ok := connConfig["sync"].(map[string]any); ok {
-			pubsubName, _ := syncCfg["pubsub"].(string)
-			if pubsubName != "" {
-				raw, found := s.services.Get(pubsubName)
-				if !found {
-					return fmt.Errorf("connections sync: pubsub service %q not found", pubsubName)
-				}
-				ps, ok := raw.(api.PubSubService)
-				if !ok {
-					return fmt.Errorf("connections sync: service %q does not implement PubSubService", pubsubName)
-				}
-				bridge = connmgr.NewSyncBridge(ps, s.instanceID, s.logger)
+			pubsubName, ok := syncCfg["pubsub"].(string)
+			if !ok || pubsubName == "" {
+				return fmt.Errorf(`connections sync: "pubsub" must be a non-empty service name`)
 			}
+			raw, found := s.services.Get(pubsubName)
+			if !found {
+				return fmt.Errorf("connections sync: pubsub service %q not found", pubsubName)
+			}
+			ps, ok := raw.(api.PubSubService)
+			if !ok {
+				return fmt.Errorf("connections sync: service %q does not implement PubSubService", pubsubName)
+			}
+			bridge = connmgr.NewSyncBridge(ps, s.instanceID, s.logger)
 		}
 
 		endpoints, ok := connConfig["endpoints"].(map[string]any)

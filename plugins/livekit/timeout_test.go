@@ -93,6 +93,29 @@ func TestCallWithTimeout_ParentCancellationNotRelabeledAsTimeout(t *testing.T) {
 	assert.NotContains(t, err.Error(), "timed out after", "parent cancellation must not be relabeled as a service timeout")
 }
 
+// TestCallWithTimeout_ParentDeadlineShorterNotRelabeled pins the same guard
+// as TestCallWithTimeout_ParentCancellationNotRelabeledAsTimeout, but for a
+// parent deadline (context.WithTimeout) rather than an explicit cancel. When
+// the caller's own deadline is what expires -- shorter than the service
+// timeout -- the error must surface as an unlabeled context.DeadlineExceeded,
+// not a synthetic "timed out after" service-timeout error. This is the
+// `ctx.Err() == nil` clause of callWithTimeout's guard: deleting it makes the
+// call see tctx.Err() == context.DeadlineExceeded (derived from the expired
+// parent) and relabel the error even though the *service* timeout never
+// fired.
+func TestCallWithTimeout_ParentDeadlineShorterNotRelabeled(t *testing.T) {
+	client := &timeoutEgressClient{inner: &fakeBlockingEgressClient{}, d: 5 * time.Second}
+
+	parentCtx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+
+	_, err := client.StartRoomCompositeEgress(parentCtx, &lkproto.RoomCompositeEgressRequest{})
+
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, context.DeadlineExceeded), "parent deadline expiry must surface as context.DeadlineExceeded")
+	assert.NotContains(t, err.Error(), "timed out after", "a parent deadline shorter than the service timeout must not be relabeled as a service timeout")
+}
+
 func TestPlugin_CreateService_WithValidTimeout(t *testing.T) {
 	p := &Plugin{}
 	svc, err := p.CreateService(map[string]any{
