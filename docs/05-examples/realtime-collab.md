@@ -2,7 +2,7 @@
 
 **Version**: 0.4.0
 
-A collaborative document editing backend with live presence (who's online), real-time updates (edits broadcast to all viewers), and cursor tracking. This validates the WebSocket connection manager, routing table, and the workflow-to-WebSocket pipeline.
+A collaborative document editing backend with live presence (who's online), real-time updates (edits broadcast to all viewers), and cursor tracking. This validates the WebSocket connection manager, cross-instance pubsub fan-out, and the workflow-to-WebSocket pipeline.
 
 ---
 
@@ -77,7 +77,7 @@ workflows/
 }
 ```
 
-Each document gets its own channel: `doc.abc-123`. All clients viewing that document are on the same channel. The connection manager handles multi-instance routing via the Redis routing table.
+Each document gets its own channel: `doc.abc-123`. All clients viewing that document are on the same channel. The connection manager handles multi-instance delivery by publishing to the endpoint's pubsub channel; every instance subscribed to it delivers to its own matching local connections.
 
 ---
 
@@ -158,12 +158,11 @@ When two users are editing the same document but connected to different Noda ins
 
 1. User A (on instance 1) sends an edit via WebSocket
 2. Instance 1 runs `ws-on-message` workflow, persists to DB, calls `ws.send` to channel `doc.abc-123`
-3. The `ws.send` node calls the connection manager, which checks the Redis routing table
-4. Routing table shows: `doc.abc-123` has connections on instance 1 AND instance 2
-5. Instance 1 delivers locally to its connections AND publishes to instance 2 via PubSub
-6. Instance 2 receives the PubSub message and delivers to User B's WebSocket
+3. The `ws.send` node delivers locally to instance 1's own connections, then publishes a versioned envelope to the pubsub channel `noda:sync:<endpoint>`
+4. Every instance subscribed to that endpoint — not just instance 2 — receives the envelope, but each one only delivers to local connections matching `doc.abc-123`
+5. Instance 2 has such a connection, so it delivers to User B's WebSocket; any other subscribed instance with no matching connection simply discards the envelope
 
-The routing table enables targeted delivery — only instances holding relevant connections receive the message.
+There is no channel-to-instance registry: delivery fans out to every instance subscribed to the endpoint, and each instance is responsible for matching the channel against its own local connections.
 
 ---
 
@@ -186,7 +185,7 @@ If a user's connection drops without a clean disconnect (instance crash), the TT
 | WebSocket connection manager | Client connections for live editing |
 | Connection lifecycle workflows | `on_connect`, `on_message`, `on_disconnect` |
 | Channel-based messaging | Each document = one channel |
-| Redis routing table | Cross-instance targeted delivery |
+| Cross-instance pubsub fan-out | Envelope published per-endpoint; every subscribed instance delivers to its own local connections |
 | Auth in WebSocket | JWT middleware on WebSocket endpoint |
 | Cache for presence | Ephemeral user presence with TTL |
 | `control.switch` | Route different message types |

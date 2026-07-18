@@ -988,7 +988,7 @@ Use case: "Something just happened. Tell everyone who's listening right now."
 
 ### 15.3 Cross-Instance Sync
 
-PubSub serves a critical infrastructure role: **synchronizing the connection manager across multiple Noda instances**. When a workflow on instance A sends a WebSocket message to channel `user.123`, but that user is connected to instance B, the connection manager looks up the channel in a Redis routing table to find instance B and publishes the message to that specific instance via PubSub. Instance B receives it and delivers to the local connection. See Section 19.5 for details on the routing table.
+PubSub serves a critical infrastructure role: **synchronizing the connection manager across multiple Noda instances**. When a workflow on instance A sends a WebSocket message to channel `user.123`, instance A publishes a versioned envelope to the pubsub channel `noda:sync:<endpoint>`. Every other instance subscribed to that endpoint receives the envelope and delivers it to its own local connections that match the channel — including instance B, wherever `user.123` happens to be connected. There is no lookup of which instance holds which connection; delivery fans out to every subscribed instance and each one filters locally. See Section 19.5 for details.
 
 ### 15.4 Unified Event Node
 
@@ -1195,15 +1195,13 @@ Channels support wildcard patterns for broadcasting:
 
 ### 19.5 Multi-Instance Scaling
 
-When running multiple Noda instances, the connection manager tracks which instance holds which connections using a **routing table in Redis**. When a client connects, the instance registers the connection's channel in a Redis hash mapping `channel → instance_id`. When a client disconnects, the entry is removed.
+When running multiple Noda instances, there is no registry mapping channels to instances. Instead, each connections file that configures `sync` on an endpoint gets every instance subscribing to a single pubsub channel, `noda:sync:<endpoint>`. Local delivery always happens first, on whichever instance received the send.
 
-When a workflow node sends a message to a channel (e.g., `ws.send` to `user.123`), the connection manager looks up the routing table to determine which instance holds that connection and publishes the message only to that instance via Redis PubSub. This is **targeted delivery** — not broadcast.
+When a workflow node sends a message to a channel (e.g., `ws.send` to `user.123`), the connection manager delivers locally, then publishes a versioned envelope (instance ID, kind, channel, payload) to `noda:sync:<endpoint>`. Every instance subscribed to that endpoint receives the envelope — regardless of whether it holds a matching connection — and delivers it to its own local connections, skipping envelopes it originated itself so the sender's local delivery is never duplicated. This is **fan-out to all subscribed instances**, not targeted delivery: an instance with no `user.123` connection still receives and discards the envelope.
 
-For wildcard channels (`user.*`, `*`), the connection manager queries the routing table for all matching channels, groups them by instance, and publishes once per instance. This is still more efficient than broadcasting every message to every instance.
+For wildcard channels (`user.*`, `*`), the same fan-out applies: every subscribed instance gets the envelope and matches it against its own local connections using the same wildcard rules.
 
-The routing table entries have a TTL slightly longer than the ping interval. If an instance crashes without cleaning up, entries expire automatically and the routing table self-heals.
-
-**Implementation note:** Redis HASH does not support pattern-based key lookups natively. Wildcard channel resolution (`user.*`, `*`) will require either SCAN-based iteration, a secondary sorted set index for pattern matching, or a hierarchical key structure that enables prefix queries. The specific approach should be chosen during implementation based on expected connection counts and wildcard usage patterns.
+A lost subscription reconnects with backoff, and malformed envelopes are dropped with a warning log rather than killing the subscription — there is no TTL-based registry to self-heal, because there is no registry.
 
 ---
 
@@ -1674,7 +1672,7 @@ Noda is designed to run as multiple instances behind a load balancer. The key co
 
 **Scheduler** — distributed locks via the cache service (atomic set-if-not-exists) ensure only one instance executes each scheduled job. All instances run the cron engine, but the lock prevents duplicate execution.
 
-**Connection Manager** — each instance holds its own set of WebSocket/SSE connections. A Redis routing table maps channels to instance IDs, enabling targeted delivery via PubSub instead of broadcast (see Section 19.5).
+**Connection Manager** — each instance holds its own set of WebSocket/SSE connections. Cross-instance delivery uses per-endpoint pubsub fan-out (`noda:sync:<endpoint>`): every subscribed instance receives each envelope and matches it against its own local connections, rather than a channel-to-instance registry targeting only the instance holding the connection (see Section 19.5).
 
 **Wasm Runtime** — each Wasm module runs on a single Noda instance with its own in-memory state. For game servers, this means separate game worlds per instance. For bots, each instance can run its own bot process. Coordination between Wasm modules across instances happens through Redis events — the same infrastructure workers use.
 

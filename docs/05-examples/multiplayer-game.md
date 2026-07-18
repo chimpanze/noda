@@ -262,7 +262,7 @@ Each Noda instance runs its own game module with its own lobbies. Scaling:
 - **Lobby assignment** — the matchmaking workflow assigns players to a specific Noda instance's lobby. The lobby ID includes the instance identifier.
 - **No cross-instance game state** — each lobby runs entirely on one instance. No shared game state between instances.
 - **Cross-instance leaderboard** — the global leaderboard aggregates across instances via the database or cache. Workers process match events from all instances.
-- **Spectator routing** — spectators connect to the same instance as the lobby via the routing table. The matchmaking API returns the correct WebSocket URL.
+- **Spectator routing** — spectators connect directly to the instance holding the lobby; the matchmaking API returns that instance's WebSocket URL rather than relying on any cross-instance routing.
 
 ---
 
@@ -284,7 +284,7 @@ Each Noda instance runs its own game module with its own lobbies. Scaling:
 | `control.loop` | Per-player stat updates in transaction |
 | Cache for read offloading | Leaderboard cached, most HTTP requests skip Wasm |
 | Stream events | Match analytics processed by workers |
-| Redis routing table | Spectators routed to correct instance |
+| Matchmaking-assigned WebSocket URL | Spectators connect directly to the correct instance |
 | Tick budget monitoring | Performance validation during development |
 
 ---
