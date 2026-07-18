@@ -4,7 +4,8 @@
     "rooms": {
       "type": "websocket",
       "path": "/ws/rooms/:room",
-      "channels": { "pattern": "room.{{ request.params.room }}" }
+      "channels": { "pattern": "room.{{ request.params.room }}" },
+      "on_connect": "room-joined"
     },
     "feed": {
       "type": "sse",

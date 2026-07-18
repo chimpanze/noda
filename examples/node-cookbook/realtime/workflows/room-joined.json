@@ -1,0 +1,15 @@
+{
+  "id": "room-joined",
+  "name": "Room Connect — Welcome Broadcast",
+  "nodes": {
+    "broadcast_joined": {
+      "type": "ws.send",
+      "services": { "connections": "rooms" },
+      "config": {
+        "channel": "{{ input.channel }}",
+        "data": { "type": "user_joined" }
+      }
+    }
+  },
+  "edges": []
+}

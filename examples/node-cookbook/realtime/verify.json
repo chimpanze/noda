@@ -3,7 +3,9 @@
   "deps": ["redis"],
   "steps": [
     { "name": "client a joins the room", "ws": { "client": "a", "connect": "/ws/rooms/42" } },
+    { "name": "a's join is confirmed", "ws": { "client": "a", "expect": [ { "path": "type", "equals": "user_joined" } ] } },
     { "name": "client b joins the room", "ws": { "client": "b", "connect": "/ws/rooms/42" } },
+    { "name": "b's join is confirmed", "ws": { "client": "b", "expect": [ { "path": "type", "equals": "user_joined" } ] } },
     { "name": "broadcast reaches the room",
       "request": { "method": "POST", "path": "/api/rooms/42/broadcast", "body": { "message": "hello room" } },
       "expect": { "status": 200 } },

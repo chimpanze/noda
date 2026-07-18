@@ -638,7 +638,12 @@ func runWSStep(baseURL string, conns map[string]*websocket.Conn, step Step, vars
 		// steps are always at least a full HTTP request/response (the POST
 		// that triggers ws.send) plus this connect's own RTT later, which
 		// is orders of magnitude longer than the registration that happens
-		// synchronously inside the WS upgrade handler.
+		// synchronously inside the WS upgrade handler. Under CI load that
+		// window can still widen enough to matter (see the realtime
+		// cookbook flake fixed by an on_connect welcome broadcast — a
+		// deterministic per-client registration gate in verify.json rather
+		// than a code fix here, since delivery on this path is
+		// unrecoverable/unpollable).
 		conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 		if err != nil {
 			return fmt.Errorf("ws connect %q: %w", ws.Client, err)
