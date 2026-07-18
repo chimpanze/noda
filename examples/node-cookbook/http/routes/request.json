@@ -1,0 +1,10 @@
+{
+  "id": "proxy-request",
+  "method": "GET",
+  "path": "/api/proxy-request",
+  "summary": "Proxies a PUT to the project's own echo endpoint via http.request",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "request"
+  }
+}

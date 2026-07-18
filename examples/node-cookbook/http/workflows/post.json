@@ -1,0 +1,26 @@
+{
+  "id": "post",
+  "nodes": {
+    "push": {
+      "type": "http.post",
+      "services": { "client": "web" },
+      "config": {
+        "url": "{{ secrets.COOKBOOK_BASE_URL }}/api/echo",
+        "body": "{{ {message: input.message} }}",
+        "timeout": "5s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "echoed": "{{ nodes.push.body.echo.message }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "push", "to": "respond" }
+  ]
+}

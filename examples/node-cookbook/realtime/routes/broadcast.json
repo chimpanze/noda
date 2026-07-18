@@ -1,0 +1,14 @@
+{
+  "id": "broadcast",
+  "method": "POST",
+  "path": "/api/rooms/:room/broadcast",
+  "summary": "Broadcast a chat message to everyone in a room",
+  "tags": ["realtime"],
+  "trigger": {
+    "workflow": "broadcast",
+    "input": {
+      "room": "{{ params.room }}",
+      "message": "{{ body.message }}"
+    }
+  }
+}

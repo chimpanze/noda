@@ -1,0 +1,13 @@
+{
+  "id": "proxy-post",
+  "method": "POST",
+  "path": "/api/proxy-post",
+  "summary": "Proxies a POST to the project's own echo endpoint via http.post",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "post",
+    "input": {
+      "message": "{{ body.message }}"
+    }
+  }
+}

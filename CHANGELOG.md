@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `hmac_verify(data, key, algorithm, signature)` expression function — constant-time webhook signature verification.
 - Node cookbook (`examples/node-cookbook/`): runnable per-family example projects verified end-to-end in CI by a new `verify.json` harness (`internal/testing/cookbook`). Tranche 1 covers the control, transform, response, util, and workflow families (20 node types).
 - Node cookbook tranche 2: db, cache, storage, upload, image, and email families (24 node types) verified against real Postgres/Redis/Mailpit containers; harness gains dependency provisioning, migrations, seeded storage, multipart requests, and Mailpit inbox assertions.
+- Node cookbook tranche 3: events, realtime, http, and wasm families (8 node types) verified end-to-end with real WebSocket/SSE test clients and worker/wasm runtimes in the harness (cumulative 52/81 node types covered).
 
 ### Changed
 - Inbound trigger header keys are now lowercase (previously fasthttp-canonical, e.g. `X-Github-Event`). Constant-key lookups like `{{ headers['X-GitHub-Event'] }}` are compile-time normalized and keep working in any case; expressions that iterate the headers map or use dynamic keys now see/need lowercase keys.
@@ -95,6 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - sub-workflow timeouts inherited from a parent deadline report the child's actual budget instead of "timeout after 0s" (#273); any TimeoutError without a duration now omits it from the message (previously "after 0s")
 - `{{ request.raw_body }}` now mirrors `{{ raw_body }}` on the request alias (#275)
 - dev-mode shutdown no longer waits unboundedly for a stuck in-flight reload — bounded by the lifecycle stop budget (#287)
+- SSE connections now flush headers and an initial `: connected` comment immediately on connect; previously no bytes reached the client until the first event or heartbeat (up to 30s).
 
 ### Security
 - Edge & trace hardening: DB conflict/unavailable error bodies no longer leak driver/constraint detail in production (detail gated behind dev mode); trace redaction now covers slice-typed node data (e.g. `db.query` rows) and `stream_key`; the dev `/ws/trace` endpoint rejects cross-origin connections; `response.redirect` rejects `/\`-authority open redirects; `ws.send`/`sse.send` (and the Wasm host connection API) reject wildcard channels — **broadcasting via a wildcard send is no longer supported; subscribe connections to a shared literal channel instead**; `image.resize`/`crop`/`thumbnail` cap output dimensions.

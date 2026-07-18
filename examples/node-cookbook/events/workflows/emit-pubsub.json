@@ -1,0 +1,25 @@
+{
+  "id": "emit-pubsub",
+  "name": "Emit Pubsub Event",
+  "nodes": {
+    "emit": {
+      "type": "event.emit",
+      "services": { "pubsub": "notify-pubsub" },
+      "config": {
+        "mode": "pubsub",
+        "topic": "cookbook.notify",
+        "payload": { "text": "{{ input.text }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 202,
+        "body": { "ok": "{{ nodes.emit.ok }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "emit", "to": "respond" }
+  ]
+}

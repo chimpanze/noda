@@ -1,0 +1,32 @@
+{
+  "id": "job-status",
+  "name": "Job Status",
+  "nodes": {
+    "load": {
+      "type": "storage.read",
+      "services": { "storage": "scratch" },
+      "config": {
+        "path": "done/{{ input.job_id }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "done": true }
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "PENDING",
+        "message": "not processed yet"
+      }
+    }
+  },
+  "edges": [
+    { "from": "load", "to": "respond" },
+    { "from": "load", "output": "error", "to": "not_found" }
+  ]
+}

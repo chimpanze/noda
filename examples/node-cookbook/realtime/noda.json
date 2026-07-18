@@ -1,0 +1,6 @@
+{
+  "server": { "port": 3000 },
+  "services": {
+    "realtime": { "plugin": "pubsub", "config": { "url": "{{ $env('REDIS_URL') }}" } }
+  }
+}

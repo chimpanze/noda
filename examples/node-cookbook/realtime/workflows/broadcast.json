@@ -1,0 +1,21 @@
+{
+  "id": "broadcast",
+  "name": "Broadcast to Room",
+  "nodes": {
+    "push": {
+      "type": "ws.send",
+      "services": { "connections": "rooms" },
+      "config": {
+        "channel": "room.{{ input.room }}",
+        "data": { "type": "chat", "message": "{{ input.message }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.push }}" }
+    }
+  },
+  "edges": [
+    { "from": "push", "to": "respond" }
+  ]
+}

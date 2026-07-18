@@ -1,0 +1,8 @@
+{
+  "server": { "port": 3000 },
+  "services": {
+    "jobs-stream": { "plugin": "stream", "config": { "url": "{{ $env('REDIS_URL') }}" } },
+    "notify-pubsub": { "plugin": "pubsub", "config": { "url": "{{ $env('REDIS_URL') }}" } },
+    "scratch": { "plugin": "storage", "config": { "backend": "local", "path": "{{ $env('COOKBOOK_DATA_DIR') }}/scratch" } }
+  }
+}

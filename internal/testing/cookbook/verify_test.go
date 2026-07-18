@@ -104,3 +104,47 @@ func TestLoadSuiteRejectsNewShapes(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadSuiteListenWSSSE(t *testing.T) {
+	p := writeSuite(t, `{
+	  "listen": true,
+	  "steps": [
+	    {"name": "a connects", "ws": {"client": "a", "connect": "/ws/room/1"}},
+	    {"name": "a sends", "ws": {"client": "a", "send": {"type": "hello"}}},
+	    {"name": "a receives", "ws": {"client": "a", "expect": [{"path": "type", "equals": "hello"}]}},
+	    {"name": "s connects", "sse": {"client": "s", "connect": "/events/updates"}},
+	    {"name": "s receives", "sse": {"client": "s", "expect": [{"path": "kind", "equals": "note"}]}},
+	    {"name": "poll until done", "request": {"method": "GET", "path": "/api/status", "retry_timeout": "5s"}, "expect": {"status": 200}}
+	  ]
+	}`)
+	s, err := LoadSuite(p)
+	require.NoError(t, err)
+	assert.True(t, s.Listen)
+	require.NotNil(t, s.Steps[0].WS)
+	assert.Equal(t, "a", s.Steps[0].WS.Client)
+	assert.Equal(t, "/ws/room/1", s.Steps[0].WS.Connect)
+	require.NotNil(t, s.Steps[3].SSE)
+	assert.Equal(t, "5s", s.Steps[5].Request.RetryTimeout)
+}
+
+func TestLoadSuiteRejectsRealtimeShapes(t *testing.T) {
+	cases := map[string]string{
+		"ws without listen":         `{"steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}}]}`,
+		"ws missing client":         `{"listen": true, "steps": [{"name": "a", "ws": {"connect": "/x"}}]}`,
+		"ws two actions":            `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x", "send": {"k": 1}}}]}`,
+		"ws no action":              `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a"}}]}`,
+		"ws and request":            `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "request": {"method": "GET", "path": "/y"}, "expect": {"status": 200}}]}`,
+		"sse two actions":           `{"listen": true, "steps": [{"name": "a", "sse": {"client": "s", "connect": "/x", "expect": [{"path": "k", "exists": true}]}}]}`,
+		"mail with body assertion":  `{"steps": [{"name": "a", "mail": {"to": "x@y", "subject": "s"}, "expect": {"body": [{"path": "x", "exists": true}]}}]}`,
+		"ws with top-level expect":  `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "expect": {"status": 200}}]}`,
+		"ws with capture":           `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "capture": {"k": "body.id"}}]}`,
+		"sse with top-level expect": `{"listen": true, "steps": [{"name": "a", "sse": {"client": "s", "connect": "/x"}, "expect": {"status": 200}}]}`,
+		"bad retry duration":        `{"steps": [{"name": "a", "request": {"method": "GET", "path": "/x", "retry_timeout": "banana"}, "expect": {"status": 200}}]}`,
+	}
+	for name, content := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := LoadSuite(writeSuite(t, content))
+			assert.Error(t, err)
+		})
+	}
+}

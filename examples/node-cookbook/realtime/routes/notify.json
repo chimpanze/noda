@@ -1,0 +1,14 @@
+{
+  "id": "notify",
+  "method": "POST",
+  "path": "/api/feeds/:channel/notify",
+  "summary": "Push a note to an SSE feed",
+  "tags": ["realtime"],
+  "trigger": {
+    "workflow": "notify",
+    "input": {
+      "channel": "{{ params.channel }}",
+      "text": "{{ body.text }}"
+    }
+  }
+}

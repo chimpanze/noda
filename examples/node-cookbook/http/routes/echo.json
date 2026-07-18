@@ -1,0 +1,14 @@
+{
+  "id": "echo",
+  "method": "POST",
+  "path": "/api/echo",
+  "summary": "Echo endpoint used as the outbound target for the http.* nodes",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "echo",
+    "input": {
+      "payload": "{{ body }}",
+      "method": "{{ method }}"
+    }
+  }
+}

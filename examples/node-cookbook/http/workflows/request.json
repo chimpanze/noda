@@ -1,0 +1,29 @@
+{
+  "id": "request",
+  "nodes": {
+    "call": {
+      "type": "http.request",
+      "services": { "client": "web" },
+      "config": {
+        "method": "PUT",
+        "url": "{{ secrets.COOKBOOK_BASE_URL }}/api/echo",
+        "headers": { "X-Cookbook": "yes" },
+        "body": { "via": "request" },
+        "timeout": "5s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "status": "{{ nodes.call.status }}",
+          "echo_via": "{{ nodes.call.body.echo.via }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "call", "to": "respond" }
+  ]
+}

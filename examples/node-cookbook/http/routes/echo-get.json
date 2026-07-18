@@ -1,0 +1,14 @@
+{
+  "id": "echo-get",
+  "method": "GET",
+  "path": "/api/echo",
+  "summary": "Echo endpoint (GET variant) used as the outbound target for http.get",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "echo",
+    "input": {
+      "payload": "{{ body }}",
+      "method": "{{ method }}"
+    }
+  }
+}

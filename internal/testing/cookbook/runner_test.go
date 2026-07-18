@@ -2,11 +2,13 @@ package cookbook
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/chimpanze/noda/plugins/core/response"
@@ -176,8 +178,142 @@ func TestMailStepAgainstStubMailpit(t *testing.T) {
 
 	err := checkMail(stub.URL, MailExpect{To: "bob@example.com", Subject: "Welcome", BodyRegex: "hi"})
 	assert.NoError(t, err)
+
+	// Override the poll deadline for the negative case so the unit suite
+	// stays fast — the production default (5s) is only exercised by the
+	// integration-tagged mailpit tests.
+	origDeadline := mailPollDeadline
+	mailPollDeadline = 300 * time.Millisecond
+	defer func() { mailPollDeadline = origDeadline }()
+
 	err = checkMail(stub.URL, MailExpect{To: "carol@example.com", Subject: "Welcome"})
 	assert.Error(t, err)
+}
+
+func TestCheckMailInvalidRegexFailsFast(t *testing.T) {
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"total": 0, "messages": []}`))
+	}))
+	defer stub.Close()
+
+	start := time.Now()
+	err := checkMail(stub.URL, MailExpect{To: "bob@example.com", Subject: "Welcome", BodyRegex: "("})
+	assert.Error(t, err)
+	assert.Less(t, time.Since(start), time.Second, "invalid regex must be reported immediately, not after a poll timeout")
+}
+
+// TestRunProjectListenMode proves the listen-mode transport switch: a real
+// TCP listener is reserved, the server is dialed over it via runStepHTTP
+// (not the in-process Fiber test transport runStep uses), and
+// COOKBOOK_BASE_URL is exported before config load.
+//
+// Note: {{ $env('COOKBOOK_BASE_URL') }} cannot be used inside a workflow
+// node's config to prove the export, because $env() resolution is scoped
+// to the root config document only (internal/secrets/resolve.go: "Only
+// meant for the root config (not routes/workflows)") — workflows are a
+// separate config section that never goes through sm.Resolve. So the
+// export is instead verified directly against the process environment
+// after RunProject returns.
+func TestRunProjectListenMode(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"noda.json": `{"server": {"port": 3000}, "services": {}}`,
+		"routes/base.json": `{
+		  "id": "base", "method": "GET", "path": "/api/base",
+		  "trigger": {"workflow": "base"}
+		}`,
+		"workflows/base.json": `{
+		  "id": "base",
+		  "nodes": {"respond": {"type": "response.json", "config": {"status": 200, "body": {"ok": true}}}},
+		  "edges": []
+		}`,
+		"verify.json": `{
+		  "listen": true,
+		  "steps": [{"name": "serves over tcp", "request": {"method": "GET", "path": "/api/base"},
+		    "expect": {"status": 200, "body": [{"path": "ok", "equals": true}]}}]
+		}`,
+	}
+	for name, content := range files {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
+	}
+	RunProject(t, dir, testPlugins())
+
+	baseURL := os.Getenv("COOKBOOK_BASE_URL")
+	require.NotEmpty(t, baseURL, "COOKBOOK_BASE_URL must be exported for listen-mode suites")
+	assert.Regexp(t, `^http://127\.0\.0\.1:\d+$`, baseURL)
+}
+
+// TestWithRetry unit-tests the shared retry loop both transports (runStep
+// and runStepHTTP) delegate to, so retry_timeout semantics can't diverge
+// between listen-mode and in-process suites.
+func TestWithRetry(t *testing.T) {
+	t.Run("no timeout runs once", func(t *testing.T) {
+		calls := 0
+		err := withRetry("", func() error {
+			calls++
+			return assert.AnError
+		})
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.Equal(t, 1, calls, "empty retry_timeout must not retry")
+	})
+
+	t.Run("succeeds on third attempt", func(t *testing.T) {
+		calls := 0
+		err := withRetry("5s", func() error {
+			calls++
+			if calls < 3 {
+				return assert.AnError
+			}
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 3, calls)
+	})
+
+	t.Run("times out with last error", func(t *testing.T) {
+		attempt := 0
+		err := withRetry("1ms", func() error {
+			attempt++
+			return fmt.Errorf("attempt %d failed", attempt)
+		})
+		require.Error(t, err)
+		assert.Equal(t, fmt.Sprintf("attempt %d failed", attempt), err.Error(),
+			"the LAST attempt's error must be reported")
+	})
+
+	t.Run("invalid duration", func(t *testing.T) {
+		err := withRetry("bogus", func() error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid retry_timeout")
+	})
+}
+
+func TestRetryTimeoutPolls(t *testing.T) {
+	// Serve a counter endpoint that returns ready=false twice, then true.
+	// Simplest: a workflow can't count — use a stub http server instead to
+	// unit-test runStepHTTP's retry directly against a flaky handler.
+	hits := 0
+	stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits++
+		w.Header().Set("Content-Type", "application/json")
+		if hits < 3 {
+			_, _ = w.Write([]byte(`{"ready": false}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"ready": true}`))
+	}))
+	defer stub.Close()
+
+	step := Step{
+		Name:    "poll",
+		Request: RequestSpec{Method: "GET", Path: "/", RetryTimeout: "5s"},
+		Expect:  ExpectSpec{Status: 200, Body: []BodyAssertion{{Path: "ready", Equals: true}}},
+	}
+	err := runStepHTTP(stub.URL, step, map[string]string{})
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, hits, 3)
 }
 
 func TestBuildMultipartBody(t *testing.T) {

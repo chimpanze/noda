@@ -29,6 +29,8 @@ var envForDir = map[string][]string{
 	"upload":          {"COOKBOOK_DATA_DIR"},
 	"image":           {"COOKBOOK_DATA_DIR"},
 	"email":           {"SMTP_HOST", "SMTP_PORT"},
+	"events":          {"REDIS_URL", "COOKBOOK_DATA_DIR"},
+	"realtime":        {"REDIS_URL"},
 }
 
 // Every shipped example and full-project fixture must pass the exact

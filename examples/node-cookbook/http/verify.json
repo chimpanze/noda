@@ -1,0 +1,24 @@
+{
+  "listen": true,
+  "deps": [],
+  "steps": [
+    { "name": "http.get proxies the echo endpoint",
+      "request": { "method": "GET", "path": "/api/proxy-get" },
+      "expect": { "status": 200, "body": [
+        { "path": "marker", "equals": "cookbook-echo" },
+        { "path": "content_type", "regex": "application/json" },
+        { "path": "status", "equals": 200 }
+      ] } },
+    { "name": "http.post round-trips the message",
+      "request": { "method": "POST", "path": "/api/proxy-post", "body": { "message": "hello from post" } },
+      "expect": { "status": 200, "body": [
+        { "path": "echoed", "equals": "hello from post" }
+      ] } },
+    { "name": "http.request sends a PUT with a custom body",
+      "request": { "method": "GET", "path": "/api/proxy-request" },
+      "expect": { "status": 200, "body": [
+        { "path": "status", "equals": 200 },
+        { "path": "echo_via", "equals": "request" }
+      ] } }
+  ]
+}

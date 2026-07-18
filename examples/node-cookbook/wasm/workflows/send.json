@@ -1,0 +1,26 @@
+{
+  "id": "send",
+  "name": "Send Add Command to Tally",
+  "nodes": {
+    "push": {
+      "type": "wasm.send",
+      "services": { "runtime": "tally" },
+      "config": {
+        "data": {
+          "op": "add",
+          "value": "{{ input.value }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 202,
+        "body": "{{ nodes.push }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "push", "to": "respond" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "query-tally",
+  "method": "GET",
+  "path": "/api/tally",
+  "summary": "Read the current running total",
+  "trigger": {
+    "workflow": "query",
+    "input": {}
+  }
+}

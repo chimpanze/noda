@@ -1,0 +1,11 @@
+{
+  "id": "job-status",
+  "method": "GET",
+  "path": "/api/jobs/:job_id",
+  "summary": "Check whether a queued job has been processed by the worker",
+  "tags": ["events"],
+  "trigger": {
+    "workflow": "job-status",
+    "input": { "job_id": "{{ params.job_id }}" }
+  }
+}

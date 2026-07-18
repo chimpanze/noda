@@ -1,0 +1,11 @@
+{
+  "id": "emit-pubsub",
+  "method": "POST",
+  "path": "/api/notify",
+  "summary": "Publish a real-time notification via pubsub",
+  "tags": ["events"],
+  "trigger": {
+    "workflow": "emit-pubsub",
+    "input": { "text": "{{ body.text }}" }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "id": "process-job",
+  "name": "Process Job",
+  "nodes": {
+    "mark": {
+      "type": "storage.write",
+      "services": { "storage": "scratch" },
+      "config": {
+        "path": "done/{{ input.job_id }}",
+        "data": "processed"
+      }
+    }
+  },
+  "edges": []
+}
