@@ -119,7 +119,7 @@ func TestSseSend(t *testing.T) {
 		},
 	}))
 
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
 		"ch": "updates",
@@ -142,7 +142,7 @@ func TestSseSend(t *testing.T) {
 
 func TestSseSend_NoClients(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -174,7 +174,7 @@ func TestSseSend_WithoutOptionalFields(t *testing.T) {
 		},
 	}))
 
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -213,7 +213,7 @@ func TestSseSend_MissingService(t *testing.T) {
 
 func TestSseSend_MissingChannel(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -231,7 +231,7 @@ func TestSseSend_MissingChannel(t *testing.T) {
 
 func TestSseSend_MissingData(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -262,7 +262,7 @@ func TestSSESend_RejectsWildcardChannel(t *testing.T) {
 		}))
 	}
 
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 	e := newSendExecutor(nil)

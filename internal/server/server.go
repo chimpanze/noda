@@ -17,6 +17,7 @@ import (
 	gojson "github.com/goccy/go-json"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/google/uuid"
 )
 
 // Server wraps the Fiber app and Noda runtime dependencies.
@@ -39,6 +40,9 @@ type Server struct {
 	readyFlag         atomic.Bool
 	subWorkflowRunner *engine.SubWorkflowRunnerImpl
 	serverMiddleware  map[string]MiddlewareFactory
+	instanceID        string
+	syncCtx           context.Context
+	syncCancel        context.CancelFunc
 }
 
 // ServerOption configures a Server.
@@ -92,7 +96,9 @@ func NewServer(rc *config.ResolvedConfig, services *registry.ServiceRegistry, no
 		connManagers: connmgr.NewManagerGroup(),
 		port:         3000,
 		logger:       slog.Default(),
+		instanceID:   uuid.New().String(),
 	}
+	s.syncCtx, s.syncCancel = context.WithCancel(context.Background())
 	for _, opt := range opts {
 		opt(s)
 	}
@@ -243,6 +249,14 @@ func (s *Server) WorkflowCache() *engine.WorkflowCache { return s.workflows }
 
 // ConnManagers returns the server's connection manager group (for graceful shutdown).
 func (s *Server) ConnManagers() *connmgr.ManagerGroup { return s.connManagers }
+
+// StopRealtime cancels cross-instance sync subscribers, then closes all
+// connections. Registered with the lifecycle manager in place of the bare
+// ManagerGroup stop.
+func (s *Server) StopRealtime(ctx context.Context) error {
+	s.syncCancel()
+	return s.connManagers.Stop(ctx)
+}
 
 // Start begins listening on the configured port.
 func (s *Server) Start() error {

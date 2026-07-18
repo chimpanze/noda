@@ -334,6 +334,11 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 	if err := srv.Setup(); err != nil {
 		return fmt.Errorf("server setup: %w", err)
 	}
+	// StopRealtime cancels any cross-instance sync subscriber goroutines
+	// registerConnections started (connections/*.json with a "sync" block).
+	// Without this, every realtime-suite run leaks one subscriber goroutine
+	// per synced endpoint for the lifetime of the test binary.
+	defer func() { _ = srv.StopRealtime(context.Background()) }()
 
 	if len(rc.Workers) > 0 {
 		workerConfigs := worker.ParseWorkerConfigs(rc.Workers)

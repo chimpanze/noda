@@ -19,7 +19,7 @@ func TestWSSend_Engine(t *testing.T) {
 		Channel: "room.1",
 		SendFn:  func(d []byte) error { got = d; return nil },
 	}))
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("conns", svc, nil))
@@ -51,7 +51,7 @@ func TestWSSend_Engine(t *testing.T) {
 
 func TestWSSend_Engine_MissingChannel(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("conns", svc, nil))
 	nodeReg := registry.NewNodeRegistry()

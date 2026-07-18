@@ -142,6 +142,25 @@ func TestCrossRefs_ConnectionLifecycleNonExistentWorkflow(t *testing.T) {
 	assert.Contains(t, errs[0].Message, "non-existent-connect")
 }
 
+func TestCrossRefs_ConnectionSyncWrongServiceType(t *testing.T) {
+	// #363: sync.pubsub must reference a "pubsub"-plugin service; crossref
+	// checking is untouched by making the schema-level "sync" field optional.
+	rc := makeBaseRC()
+	rc.Connections["connections/realtime.json"] = map[string]any{
+		"sync": map[string]any{
+			"pubsub": "app-cache", // cache, not pubsub
+		},
+		"endpoints": map[string]any{
+			"chat": map[string]any{"type": "websocket", "path": "/ws/chat"},
+		},
+	}
+
+	errs := ValidateCrossRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Message, "app-cache")
+	assert.Contains(t, errs[0].Message, "expected \"pubsub\"")
+}
+
 func TestCrossRefs_WsSendNonExistentEndpoint(t *testing.T) {
 	// #232: ws.send binds the "connections" slot to a connections endpoint name;
 	// a value that matches no defined endpoint must be flagged.

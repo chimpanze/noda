@@ -108,7 +108,7 @@ func TestWsSend(t *testing.T) {
 		SendFn:  func(data []byte) error { received = data; return nil },
 	}))
 
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
 		"room": "room.42",
@@ -128,7 +128,7 @@ func TestWsSend(t *testing.T) {
 
 func TestWsSend_NoClients(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -153,7 +153,7 @@ func TestWSSend_RejectsWildcardChannel(t *testing.T) {
 		}))
 	}
 
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 	e := newSendExecutor(nil)
@@ -206,7 +206,7 @@ func TestWsSend_WrongServiceType(t *testing.T) {
 
 func TestWsSend_MissingChannel(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -221,7 +221,7 @@ func TestWsSend_MissingChannel(t *testing.T) {
 
 func TestWsSend_MissingData(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -244,7 +244,7 @@ func TestWsSend_MapData_JSONSerialized(t *testing.T) {
 		SendFn:  func(data []byte) error { received = data; return nil },
 	}))
 
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 
@@ -269,7 +269,7 @@ func TestWsSend_MapData_JSONSerialized(t *testing.T) {
 
 func TestWsSend_ChannelNonString(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 	services := map[string]any{"connections": svc}
 	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
 

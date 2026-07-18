@@ -229,6 +229,7 @@ Example for an HTTP service that needs to call an internal `/metrics` endpoint:
 | `url` | string | yes | LiveKit server URL (e.g., `wss://myapp.livekit.cloud`) |
 | `api_key` | string | yes | LiveKit API key |
 | `api_secret` | string | yes | LiveKit API secret |
+| `timeout` | string | no | Per-API-call deadline as a Go duration (e.g. `"5s"`). Applies to every Room/Egress/Ingress client call. Unset means no deadline (today's behavior) — a call can block as long as the LiveKit server takes to respond, which matters for egress/ingress calls against a server with no available worker. |
 
 ```json
 {
@@ -238,7 +239,8 @@ Example for an HTTP service that needs to call an internal `/metrics` endpoint:
       "config": {
         "url": "{{ $env('LIVEKIT_URL') }}",
         "api_key": "{{ $env('LIVEKIT_API_KEY') }}",
-        "api_secret": "{{ $env('LIVEKIT_API_SECRET') }}"
+        "api_secret": "{{ $env('LIVEKIT_API_SECRET') }}",
+        "timeout": "5s"
       }
     }
   }

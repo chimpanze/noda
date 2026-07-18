@@ -19,12 +19,19 @@ caveat below), and the CI dev container is a bare `livekit-server --dev`
 with no egress or ingress worker attached. That shapes what "verified"
 means per node:
 
-> **Why the ~20s egress steps stay in CI:** the two `egressStart*` calls
-> genuinely block ~20s while the server waits for a worker before returning
-> its real `EGRESS_UNAVAILABLE` error. `lk.*` nodes have no per-node timeout
-> config, and a workflow-level `timeout` would replace the real API error
-> with Noda's generic cancellation — less honest, not faster. The wait is
-> the price of asserting the true error path.
+> **Why the egress steps still take ~5s in CI:** without a bound, the two
+> `egressStart*` calls (and `egressList`) genuinely block ~20s while the
+> server waits for a worker before returning its real `EGRESS_UNAVAILABLE`
+> error. This project's `noda.json` opts the `lk` service into the
+> service-level `timeout: "5s"` (see `docs/02-config/noda-json.md`), so
+> those calls now fail after ~5s with an internal `livekit <op>: request
+> timed out after 5s: ...` error instead of waiting out the server's own
+> ~20s give-up. The workflows' `error` output routes to the same fixed
+> `502 EGRESS_UNAVAILABLE` response either way — the *caller-visible*
+> behavior is unchanged, only the wait is shorter. A workflow-level
+> `timeout` would have replaced the real API error with Noda's generic
+> cancellation regardless of which one fired first; the service-level
+> timeout is scoped to the LiveKit call itself, so it stays honest.
 
 | Node | Verified | Observed against the dev server |
 |------|----------|----------------------------------|
@@ -209,8 +216,9 @@ curl localhost:3000/api/rooms/cookbook-room/participants/ghost
 `verify.json` deletes `cookbook-room` and confirms it's gone from the list
 *before* touching egress/ingress at all, then creates a second room,
 `cookbook-egress-room`, to exercise the 7 nodes below. This isn't just
-tidiness: the two egress-start calls each take ~20s to time out against a
-workerless dev server, and running them against the same room used for the
+tidiness: the two egress-start calls each take ~5s to time out (bounded by
+the `lk` service's `timeout: "5s"`; see below) against a workerless dev
+server, and running them against the same room used for the
 earlier participant/mute-track assertions was observed to occasionally
 destabilize that room's later `lk.roomDelete` call (an intermittent `500`).
 Giving egress/ingress their own room keeps the two narratives — "room
@@ -222,8 +230,11 @@ quirk in one can't bleed into the other.
 Starts a room composite recording (all audio/video tracks, `file` output to
 `/out/recording.mp4`). **Observed:** on a bare `--dev` server with no egress
 worker attached, the request eventually fails — LiveKit accepts the twirp
-call, waits for an egress worker to pick up the job, and after roughly
-20 seconds gives up. The node's `error` output fires; the workflow routes
+call and waits for an egress worker to pick up the job, but this cookbook's
+`lk` service sets `timeout: "5s"`, so the call is cut off after ~5s with a
+`livekit StartRoomCompositeEgress: request timed out after 5s: ...` error
+(LiveKit's own server-side give-up is much later, around 20s, if left
+unbounded). The node's `error` output fires either way; the workflow routes
 it to `502 EGRESS_UNAVAILABLE`.
 
 ```bash
@@ -235,8 +246,8 @@ curl -X POST localhost:3000/api/egress/room-composite \
 ## lk.egressStartTrack — `POST /api/egress/track`
 
 Starts a single-track recording (same `output` shape, same egress-worker
-dependency). **Observed:** identical to room composite egress — ~20s wait,
-then `502 EGRESS_UNAVAILABLE`.
+dependency). **Observed:** identical to room composite egress — ~5s wait
+(bounded by the service `timeout`), then `502 EGRESS_UNAVAILABLE`.
 
 ```bash
 curl -X POST localhost:3000/api/egress/track \
@@ -249,7 +260,8 @@ curl -X POST localhost:3000/api/egress/track \
 
 Lists egress recordings. **Observed:** even listing requires the egress
 worker to be reachable on this LiveKit version — it errors the same way
-the two start-egress calls do, rather than returning an empty array.
+the two start-egress calls do (~5s, bounded by the service `timeout`),
+rather than returning an empty array.
 
 ```bash
 curl localhost:3000/api/egress

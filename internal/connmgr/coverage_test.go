@@ -53,7 +53,7 @@ func TestEndpointService_Send(t *testing.T) {
 		SendFn:  func(data []byte) error { received = data; return nil },
 	}))
 
-	svc := NewEndpointService(mgr, "my-endpoint")
+	svc := NewEndpointService(mgr, "my-endpoint", nil)
 	err := svc.Send(context.Background(), "ch1", "hello")
 	require.NoError(t, err)
 	assert.Equal(t, []byte("hello"), received)
@@ -74,7 +74,7 @@ func TestEndpointService_SendSSE(t *testing.T) {
 		},
 	}))
 
-	svc := NewEndpointService(mgr, "sse-endpoint")
+	svc := NewEndpointService(mgr, "sse-endpoint", nil)
 	err := svc.SendSSE(context.Background(), "sse-ch", "update", "payload", "evt1")
 	require.NoError(t, err)
 	assert.Equal(t, "update", gotEvent)
@@ -84,7 +84,7 @@ func TestEndpointService_SendSSE(t *testing.T) {
 
 func TestEndpointService_Manager(t *testing.T) {
 	mgr := NewManager()
-	svc := NewEndpointService(mgr, "ep")
+	svc := NewEndpointService(mgr, "ep", nil)
 	assert.Same(t, mgr, svc.Manager())
 }
 

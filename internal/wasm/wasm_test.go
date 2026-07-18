@@ -1046,6 +1046,14 @@ func (p *mockPubSubService) Publish(_ context.Context, channel string, payload a
 	return nil
 }
 
+// Subscribe is unused by these host-dispatcher tests; it exists only to
+// satisfy api.PubSubService, which gained Subscribe alongside Publish for
+// the connmgr sync bridge (#363).
+func (p *mockPubSubService) Subscribe(ctx context.Context, _ string, _ func(payload any) error) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 // --- Host Dispatcher: Storage dispatch ---
 
 func TestHostDispatcher_StorageService(t *testing.T) {
@@ -1176,7 +1184,7 @@ func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
 	}))
 
 	svcReg := registry.NewServiceRegistry()
-	require.NoError(t, svcReg.Register("ws-conn", connmgr.NewEndpointService(mgr, "ws-conn"), nil))
+	require.NoError(t, svcReg.Register("ws-conn", connmgr.NewEndpointService(mgr, "ws-conn", nil), nil))
 
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
 	plugin := newMockPlugin()

@@ -19,7 +19,7 @@ func TestSSESend_Engine(t *testing.T) {
 		Channel: "feed.1",
 		SSEFn:   func(event, data, id string) error { gotEvent, gotData = event, data; return nil },
 	}))
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("conns", svc, nil))

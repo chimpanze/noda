@@ -23,7 +23,7 @@ import (
 // TestE2E_WebSocketSendReceive tests: REST endpoint triggers ws.send → WebSocket client receives.
 func TestE2E_WebSocketSendReceive(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-test")
+	svc := connmgr.NewEndpointService(mgr, "ws-test", nil)
 
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("ws-test", svc, nil))
@@ -111,7 +111,7 @@ func TestE2E_WebSocketSendReceive(t *testing.T) {
 // TestE2E_SSESendReceive tests: REST endpoint triggers sse.send → SSE client receives.
 func TestE2E_SSESendReceive(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "sse-test")
+	svc := connmgr.NewEndpointService(mgr, "sse-test", nil)
 
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("sse-test", svc, nil))
@@ -213,7 +213,7 @@ type sseTestEvent struct {
 // receives anything.
 func TestE2E_WebSocketWildcardBroadcastRejected(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "ws-broadcast")
+	svc := connmgr.NewEndpointService(mgr, "ws-broadcast", nil)
 
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("ws-broadcast", svc, nil))
@@ -297,7 +297,7 @@ func TestE2E_WebSocketWildcardBroadcastRejected(t *testing.T) {
 // TestE2E_RealWebSocketConnection tests a real WebSocket connection with Fiber.
 func TestE2E_RealWebSocketConnection(t *testing.T) {
 	mgr := connmgr.NewManager()
-	svc := connmgr.NewEndpointService(mgr, "chat")
+	svc := connmgr.NewEndpointService(mgr, "chat", nil)
 
 	svcReg := registry.NewServiceRegistry()
 	require.NoError(t, svcReg.Register("chat", svc, nil))

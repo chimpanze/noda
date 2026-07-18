@@ -60,9 +60,31 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 		return nil, fmt.Errorf("livekit: missing required field \"api_secret\"")
 	}
 
+	var timeout time.Duration
+	if v, ok := config["timeout"].(string); ok && v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("livekit: invalid timeout %q: %w", v, err)
+		}
+		if d <= 0 {
+			return nil, fmt.Errorf("livekit: timeout must be positive, got %q", v)
+		}
+		timeout = d
+	}
+
 	roomClient := lksdk.NewRoomServiceClient(url, apiKey, apiSecret)
 	egressClient := lksdk.NewEgressClient(url, apiKey, apiSecret)
 	ingressClient := lksdk.NewIngressClient(url, apiKey, apiSecret)
+
+	if timeout > 0 {
+		return &Service{
+			Room:      &timeoutRoomClient{inner: roomClient, d: timeout},
+			Egress:    &timeoutEgressClient{inner: egressClient, d: timeout},
+			Ingress:   &timeoutIngressClient{inner: ingressClient, d: timeout},
+			APIKey:    apiKey,
+			APISecret: apiSecret,
+		}, nil
+	}
 
 	return &Service{
 		Room:      roomClient,
