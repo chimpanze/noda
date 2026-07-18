@@ -129,14 +129,17 @@ func TestLoadSuiteListenWSSSE(t *testing.T) {
 
 func TestLoadSuiteRejectsRealtimeShapes(t *testing.T) {
 	cases := map[string]string{
-		"ws without listen":        `{"steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}}]}`,
-		"ws missing client":        `{"listen": true, "steps": [{"name": "a", "ws": {"connect": "/x"}}]}`,
-		"ws two actions":           `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x", "send": {"k": 1}}}]}`,
-		"ws no action":             `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a"}}]}`,
-		"ws and request":           `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "request": {"method": "GET", "path": "/y"}, "expect": {"status": 200}}]}`,
-		"sse two actions":          `{"listen": true, "steps": [{"name": "a", "sse": {"client": "s", "connect": "/x", "expect": [{"path": "k", "exists": true}]}}]}`,
-		"mail with body assertion": `{"steps": [{"name": "a", "mail": {"to": "x@y", "subject": "s"}, "expect": {"body": [{"path": "x", "exists": true}]}}]}`,
-		"bad retry duration":       `{"steps": [{"name": "a", "request": {"method": "GET", "path": "/x", "retry_timeout": "banana"}, "expect": {"status": 200}}]}`,
+		"ws without listen":         `{"steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}}]}`,
+		"ws missing client":         `{"listen": true, "steps": [{"name": "a", "ws": {"connect": "/x"}}]}`,
+		"ws two actions":            `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x", "send": {"k": 1}}}]}`,
+		"ws no action":              `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a"}}]}`,
+		"ws and request":            `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "request": {"method": "GET", "path": "/y"}, "expect": {"status": 200}}]}`,
+		"sse two actions":           `{"listen": true, "steps": [{"name": "a", "sse": {"client": "s", "connect": "/x", "expect": [{"path": "k", "exists": true}]}}]}`,
+		"mail with body assertion":  `{"steps": [{"name": "a", "mail": {"to": "x@y", "subject": "s"}, "expect": {"body": [{"path": "x", "exists": true}]}}]}`,
+		"ws with top-level expect":  `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "expect": {"status": 200}}]}`,
+		"ws with capture":           `{"listen": true, "steps": [{"name": "a", "ws": {"client": "a", "connect": "/x"}, "capture": {"k": "body.id"}}]}`,
+		"sse with top-level expect": `{"listen": true, "steps": [{"name": "a", "sse": {"client": "s", "connect": "/x"}, "expect": {"status": 200}}]}`,
+		"bad retry duration":        `{"steps": [{"name": "a", "request": {"method": "GET", "path": "/x", "retry_timeout": "banana"}, "expect": {"status": 200}}]}`,
 	}
 	for name, content := range cases {
 		t.Run(name, func(t *testing.T) {

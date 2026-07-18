@@ -96,6 +96,12 @@ type BodyAssertion struct {
 	Type   string `json:"type,omitempty"`
 }
 
+// hasTopLevelExpectOrCapture reports whether a step sets any top-level
+// expect assertion or capture block (invalid on ws/sse steps).
+func hasTopLevelExpectOrCapture(st Step) bool {
+	return st.Expect.Status != 0 || len(st.Expect.Body) > 0 || st.Expect.BodyText != nil || len(st.Expect.Headers) > 0 || len(st.Capture) > 0
+}
+
 // LoadSuite reads and validates a verify.json file.
 func LoadSuite(path string) (*Suite, error) {
 	raw, err := os.ReadFile(path)
@@ -191,6 +197,9 @@ func LoadSuite(path string) (*Suite, error) {
 				}
 			}
 		case isWS:
+			if hasTopLevelExpectOrCapture(st) {
+				return nil, fmt.Errorf("cookbook: %s: step %q: ws/sse steps take no top-level expect/capture (assertions go inside the ws/sse block)", path, st.Name)
+			}
 			if st.WS.Client == "" {
 				return nil, fmt.Errorf("cookbook: %s: step %q: ws requires client", path, st.Name)
 			}
@@ -209,6 +218,9 @@ func LoadSuite(path string) (*Suite, error) {
 				return nil, fmt.Errorf("cookbook: %s: step %q: ws requires exactly one of connect/send/expect", path, st.Name)
 			}
 		case isSSE:
+			if hasTopLevelExpectOrCapture(st) {
+				return nil, fmt.Errorf("cookbook: %s: step %q: ws/sse steps take no top-level expect/capture (assertions go inside the ws/sse block)", path, st.Name)
+			}
 			if st.SSE.Client == "" {
 				return nil, fmt.Errorf("cookbook: %s: step %q: sse requires client", path, st.Name)
 			}
