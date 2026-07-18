@@ -20,6 +20,13 @@ caveat below), and the CI dev container is a bare `livekit-server --dev`
 with no egress or ingress worker attached. That shapes what "verified"
 means per node:
 
+> **Why the ~20s egress steps stay in CI:** the two `egressStart*` calls
+> genuinely block ~20s while the server waits for a worker before returning
+> its real `EGRESS_UNAVAILABLE` error. `lk.*` nodes have no per-node timeout
+> config, and a workflow-level `timeout` would replace the real API error
+> with Noda's generic cancellation — less honest, not faster. The wait is
+> the price of asserting the true error path.
+
 | Node | Verified | Observed against the dev server |
 |------|----------|----------------------------------|
 | `lk.roomCreate` | success path | 201, room created |
