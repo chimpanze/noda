@@ -57,3 +57,8 @@ When `nodes.insert_order` produced `{"id": 501}`, `nodes.calculate_total` produc
 ```
 
 This becomes the output of the parent's `workflow.run` node on its `success` port.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/workflow`](../../examples/node-cookbook/workflow/README.md) — its README documents the exact request/response pair the integration suite executes.

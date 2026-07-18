@@ -53,3 +53,8 @@ When `nodes.parse_webhook` produced `{"event_type": "order.updated", "payload": 
 ```
 
 The `order.updated` branch continues; unmatched values fire `default`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/control`](../../examples/node-cookbook/control/README.md) — its README documents the exact request/response pair the integration suite executes.

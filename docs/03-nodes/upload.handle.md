@@ -102,3 +102,8 @@ node execution:
 
 These checks happen before any byte is written. The destination storage
 service applies the same checks again as defence-in-depth.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/upload`](../../examples/node-cookbook/upload/README.md) — its README documents the exact request/response pair the integration suite executes.

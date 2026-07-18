@@ -69,3 +69,8 @@ Output stored as `nodes.count_open`:
 ```
 
 Downstream nodes access `nodes.count_open.count` to include the value in a response or conditional logic.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

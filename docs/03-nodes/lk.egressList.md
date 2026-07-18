@@ -69,3 +69,8 @@ Output stored as `nodes.list_recordings`:
 ```
 
 Downstream nodes access the recordings via `nodes.list_recordings.items`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

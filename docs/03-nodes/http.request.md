@@ -50,3 +50,8 @@ Response bodies are limited to 100 MB. Responses exceeding this limit produce an
   }
 }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/http`](../../examples/node-cookbook/http/README.md) — its README documents the exact request/response pair the integration suite executes.

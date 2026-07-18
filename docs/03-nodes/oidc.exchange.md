@@ -89,3 +89,8 @@ Output stored as `nodes.exchange`:
 ```
 
 Downstream nodes access identity fields via `nodes.exchange.claims.email` or `nodes.exchange.access_token`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/oidc`](../../examples/node-cookbook/oidc/README.md) — its README documents the exact request/response pair the integration suite executes.

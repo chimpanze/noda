@@ -104,3 +104,8 @@ Output stored as `nodes.issue_token`:
 ```
 
 Downstream nodes access the token via `nodes.issue_token.token`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

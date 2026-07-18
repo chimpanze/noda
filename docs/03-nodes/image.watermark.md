@@ -88,3 +88,8 @@ Output stored as `nodes.watermark`:
 ```
 
 Downstream nodes access the watermarked image via `nodes.watermark.path`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/image`](../../examples/node-cookbook/image/README.md) — its README documents the exact request/response pair the integration suite executes.

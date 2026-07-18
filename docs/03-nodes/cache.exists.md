@@ -69,3 +69,8 @@ The `error` port fires if the Redis connection fails. The error output contains:
 ```
 
 `nodes.check_rate_limit.exists` is `true` if the rate-limit key is present. Wire `is_rate_limited`'s `then` output to a `response.error` node returning 429, and the `else` output to the normal request handler.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/cache`](../../examples/node-cookbook/cache/README.md) — its README documents the exact request/response pair the integration suite executes.

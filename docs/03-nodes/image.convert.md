@@ -80,3 +80,8 @@ Output stored as `nodes.to_webp`:
 ```
 
 Downstream nodes access the converted file via `nodes.to_webp.path`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/image`](../../examples/node-cookbook/image/README.md) — its README documents the exact request/response pair the integration suite executes.

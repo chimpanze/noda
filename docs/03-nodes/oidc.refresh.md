@@ -95,3 +95,8 @@ Output stored as `nodes.refresh`:
 ```
 
 Downstream nodes access the new tokens via `nodes.refresh.access_token`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/oidc`](../../examples/node-cookbook/oidc/README.md) — its README documents the exact request/response pair the integration suite executes.

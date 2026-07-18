@@ -70,3 +70,8 @@ When `nodes.create_order` produced `{"id": 501, "items": [{"sku": "A1", "qty": 2
 ```json
 { "message_id": "1705312200000-0" }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/events`](../../examples/node-cookbook/events/README.md) — its README documents the exact request/response pair the integration suite executes.

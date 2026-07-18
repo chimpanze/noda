@@ -82,3 +82,8 @@ Output stored as `nodes.save_preferences` (the resolved input data — note ther
 ```
 
 Downstream nodes access fields via `nodes.save_preferences.timezone`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

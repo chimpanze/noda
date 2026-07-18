@@ -48,3 +48,8 @@ true
 ```
 
 The `then` branch receives this value; the `else` branch would receive `false`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/control`](../../examples/node-cookbook/control/README.md) — its README documents the exact request/response pair the integration suite executes.

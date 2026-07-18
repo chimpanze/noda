@@ -66,3 +66,8 @@ Invalidates any prior unconsumed token for the same `user_id` + `purpose` (marks
 ```
 
 `auth-request-password-reset` uses `purpose: "reset_password"` the same way. Because the response body for that flow is identical whether or not the email exists (see the [authentication guide](../04-guides/authentication.md)), only the presence of this node's `create_token` → `email.send` chain — which never runs for an unknown email — differs observably, and only in timing. Decoupling the email send with `event.emit` closes that gap; see the guide for the pattern.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/auth`](../../examples/node-cookbook/auth/README.md) — its README documents the exact request/response pair the integration suite executes.

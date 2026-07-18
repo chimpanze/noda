@@ -63,3 +63,8 @@ The `error` port fires when the key does not exist in the cache (`NotFoundError`
 ```
 
 On a cache hit, `nodes.check_cache.value` contains the cached data. On a cache miss, the `error` output fires with a `NotFoundError` — use a `control.if` or wire the error edge to fall through to a database lookup.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/cache`](../../examples/node-cookbook/cache/README.md) — its README documents the exact request/response pair the integration suite executes.

@@ -62,3 +62,8 @@ If `purpose` is `"verify_email"`, a successful consumption also stamps `email_ve
   }
 }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/auth`](../../examples/node-cookbook/auth/README.md) — its README documents the exact request/response pair the integration suite executes.

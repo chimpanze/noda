@@ -63,3 +63,8 @@ Sets `revoked_at` on matching, not-already-revoked rows in `auth_sessions`. Revo
 ```
 
 To force-logout a user everywhere (e.g. "log out of all devices", or as part of `auth.set_password`'s own session revocation), pass `user_id` instead of `session_id` — every active session for that user is revoked in one call.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/auth`](../../examples/node-cookbook/auth/README.md) — its README documents the exact request/response pair the integration suite executes.

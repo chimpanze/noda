@@ -63,3 +63,8 @@ When `nodes.find_user` produced `{"id": 42, "email": "alice@example.com", "roles
 ```json
 "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOjQyLCJlbWFpbCI6ImFsaWNlQGV4YW1wbGUuY29tIiwicm9sZXMiOlsiYWRtaW4iXSwiZXhwIjoxNzA1MzE1MDAwfQ.signature"
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/util`](../../examples/node-cookbook/util/README.md) — its README documents the exact request/response pair the integration suite executes.

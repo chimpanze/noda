@@ -56,3 +56,8 @@ Output stored as `nodes.format_users`:
 ```
 
 Downstream nodes access the mapped array via `nodes.format_users` or individual items via `nodes.format_users[0].display_name`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/transform`](../../examples/node-cookbook/transform/README.md) — its README documents the exact request/response pair the integration suite executes.

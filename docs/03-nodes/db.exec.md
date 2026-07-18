@@ -70,3 +70,8 @@ The `error` port fires on SQL errors such as constraint violations, syntax error
 ```
 
 After `deactivate_users` completes, `nodes.deactivate_users.rows_affected` contains the number of updated rows. Downstream nodes can use this value for logging, conditional logic, or response bodies.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/db`](../../examples/node-cookbook/db/README.md) — its README documents the exact request/response pair the integration suite executes.

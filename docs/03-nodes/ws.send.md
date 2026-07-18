@@ -67,3 +67,8 @@ When `nodes.save_message` produced `{"id": 9001, "room_id": "general", "author":
 ```json
 { "channel": "chat.general" }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/realtime`](../../examples/node-cookbook/realtime/README.md) — its README documents the exact request/response pair the integration suite executes.

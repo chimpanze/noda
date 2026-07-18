@@ -86,3 +86,8 @@ Output stored as `nodes.crop_avatar`:
 ```
 
 Downstream nodes access fields via `nodes.crop_avatar.path`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/image`](../../examples/node-cookbook/image/README.md) — its README documents the exact request/response pair the integration suite executes.

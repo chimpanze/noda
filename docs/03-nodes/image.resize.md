@@ -89,3 +89,8 @@ Output stored as `nodes.resize`:
 ```
 
 Downstream nodes access fields via `nodes.resize.path` or `nodes.resize.size`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/image`](../../examples/node-cookbook/image/README.md) — its README documents the exact request/response pair the integration suite executes.

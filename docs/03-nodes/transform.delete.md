@@ -56,3 +56,8 @@ Output stored as `nodes.sanitize_user`:
 ```
 
 Downstream nodes access the cleaned object via `nodes.sanitize_user.email` or `nodes.sanitize_user.display_name`.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/transform`](../../examples/node-cookbook/transform/README.md) — its README documents the exact request/response pair the integration suite executes.

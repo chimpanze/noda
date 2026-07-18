@@ -76,3 +76,8 @@ Output stored as `nodes.kick`:
 ```
 
 Downstream nodes can check `nodes.kick.removed` to confirm the participant was disconnected.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.

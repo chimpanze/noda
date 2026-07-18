@@ -39,3 +39,8 @@ Writes the given value to the cache under the specified key. If `ttl` is provide
   }
 }
 ```
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/cache`](../../examples/node-cookbook/cache/README.md) — its README documents the exact request/response pair the integration suite executes.

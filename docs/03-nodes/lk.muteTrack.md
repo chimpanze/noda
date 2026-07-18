@@ -75,3 +75,8 @@ Output stored as `nodes.mute_audio`:
 ```
 
 (The three `track_*` fields appear only when LiveKit returns track info.) Downstream nodes can check `nodes.mute_audio.muted`, and `nodes.mute_audio.track_type` when present.
+
+## Runnable example
+
+A runnable, CI-verified example of this node lives in the cookbook:
+[`examples/node-cookbook/livekit`](../../examples/node-cookbook/livekit/README.md) — its README documents the exact request/response pair the integration suite executes.
