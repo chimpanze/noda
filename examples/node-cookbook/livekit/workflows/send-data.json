@@ -7,8 +7,8 @@
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",
-        "data": { "kind": "cookbook-ping" },
-        "topic": "cookbook"
+        "data": "{{ input.data }}",
+        "topic": "{{ input.topic }}"
       }
     },
     "respond": {
