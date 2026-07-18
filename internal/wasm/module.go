@@ -81,6 +81,10 @@ type Module struct {
 	// fast instead of queuing work a dead loop will never service.
 	failed atomic.Bool
 
+	// closed guards Plugin.Close so a never-started module (Stop's
+	// early-return path) and a double Stop can't Close the plugin twice.
+	closed atomic.Bool
+
 	// Outbound gateway connections
 	gateway *Gateway
 
@@ -203,6 +207,11 @@ func (m *Module) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	if !m.running {
 		m.mu.Unlock()
+		// Loaded but never started: still release the Extism plugin so a
+		// failed multi-module load doesn't leak wazero runtimes (#365).
+		if m.closed.CompareAndSwap(false, true) {
+			_ = m.Plugin.Close(ctx)
+		}
 		return nil
 	}
 	m.running = false
@@ -256,7 +265,9 @@ func (m *Module) Stop(ctx context.Context) error {
 	m.gateway.CloseAll()
 
 	// Close plugin
-	_ = m.Plugin.Close(ctx)
+	if m.closed.CompareAndSwap(false, true) {
+		_ = m.Plugin.Close(ctx)
+	}
 
 	return err
 }

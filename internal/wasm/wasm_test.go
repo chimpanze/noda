@@ -1535,6 +1535,21 @@ func TestRuntime_StopAll_NoModules(t *testing.T) {
 	_ = rt.StopAll(context.Background())
 }
 
+// TestStopAll_ClosesNeverStartedModules covers #365: a module that was
+// loaded but never started (because a later module failed mid-load-loop)
+// must still have its Extism plugin closed by StopAll, or the wazero
+// runtime/memory leaks.
+func TestStopAll_ClosesNeverStartedModules(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	rt := NewRuntime(svcReg, nil, testLogger())
+	fake := newMockPlugin()
+	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "m1"}, fake)
+	require.NoError(t, err)
+	// Never StartAll — simulates a later module failing mid-loop (#365).
+	require.NoError(t, rt.StopAll(context.Background()))
+	assert.True(t, fake.closed, "unstarted module's plugin must be closed to free the wazero runtime")
+}
+
 // --- Runtime: StartAll with no modules ---
 
 func TestRuntime_StartAll_NoModules(t *testing.T) {
@@ -1862,10 +1877,12 @@ func TestModule_Stop_NotRunning(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	// Stop without starting should be no-op
+	// Stop without starting is a no-op for the tick loop, but the plugin
+	// must still be closed so a never-started module doesn't leak its
+	// wazero runtime (#365).
 	err = m.Stop(context.Background())
 	require.NoError(t, err)
-	assert.False(t, plugin.closed)
+	assert.True(t, plugin.closed)
 }
 
 // --- Module: Start twice is no-op ---
