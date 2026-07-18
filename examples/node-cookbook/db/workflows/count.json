@@ -1,0 +1,19 @@
+{
+  "id": "count",
+  "name": "Count Books",
+  "nodes": {
+    "tally": {
+      "type": "db.count",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "where": { "author": "{{ input.author }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": { "count": "{{ nodes.tally.count }}" } }
+    }
+  },
+  "edges": [ { "from": "tally", "to": "respond" } ]
+}

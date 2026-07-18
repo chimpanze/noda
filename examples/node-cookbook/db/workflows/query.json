@@ -1,0 +1,19 @@
+{
+  "id": "query",
+  "name": "Book Stats",
+  "nodes": {
+    "stats": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT author, COUNT(*) AS n FROM books GROUP BY author ORDER BY author",
+        "params": []
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": { "rows": "{{ nodes.stats }}" } }
+    }
+  },
+  "edges": [ { "from": "stats", "to": "respond" } ]
+}

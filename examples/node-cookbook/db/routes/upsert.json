@@ -1,0 +1,10 @@
+{
+  "id": "upsert",
+  "method": "POST",
+  "path": "/api/books/upsert",
+  "summary": "db.upsert — insert or update on title conflict",
+  "trigger": {
+    "workflow": "upsert",
+    "input": { "title": "{{ body.title }}", "author": "{{ body.author }}", "year": "{{ body.year }}" }
+  }
+}

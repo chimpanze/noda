@@ -1,0 +1,75 @@
+{
+  "deps": ["postgres"],
+  "steps": [
+    {
+      "name": "create inserts a row",
+      "request": { "method": "POST", "path": "/api/books", "body": { "title": "Dune", "author": "Herbert", "year": 1965 } },
+      "expect": { "status": 201, "body": [
+        { "path": "id", "exists": true },
+        { "path": "title", "equals": "Dune" }
+      ] },
+      "capture": { "book_id": "body.id" }
+    },
+    {
+      "name": "second row for aggregates",
+      "request": { "method": "POST", "path": "/api/books", "body": { "title": "Hyperion", "author": "Simmons", "year": 1989 } },
+      "expect": { "status": 201 }
+    },
+    {
+      "name": "findOne returns the row",
+      "request": { "method": "GET", "path": "/api/books/${book_id}" },
+      "expect": { "status": 200, "body": [ { "path": "title", "equals": "Dune" } ] }
+    },
+    {
+      "name": "findOne 404s on unknown id",
+      "request": { "method": "GET", "path": "/api/books/00000000-0000-0000-0000-000000000000" },
+      "expect": { "status": 404 }
+    },
+    {
+      "name": "find filters by author",
+      "request": { "method": "GET", "path": "/api/books?author=Herbert" },
+      "expect": { "status": 200, "body": [
+        { "path": "data.0.title", "equals": "Dune" },
+        { "path": "data.1", "exists": false }
+      ] }
+    },
+    {
+      "name": "update changes the year",
+      "request": { "method": "PUT", "path": "/api/books/${book_id}", "body": { "year": 1966 } },
+      "expect": { "status": 200, "body": [ { "path": "year", "equals": 1966 } ] }
+    },
+    {
+      "name": "upsert updates on title conflict",
+      "request": { "method": "POST", "path": "/api/books/upsert", "body": { "title": "Dune", "author": "Herbert", "year": 2021 } },
+      "expect": { "status": 200, "body": [ { "path": "year", "equals": 2021 } ] }
+    },
+    {
+      "name": "count counts by author",
+      "request": { "method": "GET", "path": "/api/books/count?author=Herbert" },
+      "expect": { "status": 200, "body": [ { "path": "count", "equals": 1 } ] }
+    },
+    {
+      "name": "query aggregates rows",
+      "request": { "method": "GET", "path": "/api/book-stats" },
+      "expect": { "status": 200, "body": [
+        { "path": "rows.0.author", "equals": "Herbert" },
+        { "path": "rows.0.n", "equals": 1 }
+      ] }
+    },
+    {
+      "name": "exec retitles via raw SQL",
+      "request": { "method": "POST", "path": "/api/books/retitle", "body": { "from": "Hyperion", "to": "Fall of Hyperion" } },
+      "expect": { "status": 200, "body": [ { "path": "rows_affected", "equals": 1 } ] }
+    },
+    {
+      "name": "delete removes the row",
+      "request": { "method": "DELETE", "path": "/api/books/${book_id}" },
+      "expect": { "status": 204 }
+    },
+    {
+      "name": "deleted row is gone",
+      "request": { "method": "GET", "path": "/api/books/${book_id}" },
+      "expect": { "status": 404 }
+    }
+  ]
+}

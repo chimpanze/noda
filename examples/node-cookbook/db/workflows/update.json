@@ -1,0 +1,31 @@
+{
+  "id": "update",
+  "name": "Update Book",
+  "nodes": {
+    "change": {
+      "type": "db.update",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "where": { "id": "{{ input.id }}" },
+        "data": { "year": "{{ input.year }}" }
+      }
+    },
+    "reload": {
+      "type": "db.findOne",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "where": { "id": "{{ input.id }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.reload }}" }
+    }
+  },
+  "edges": [
+    { "from": "change", "to": "reload" },
+    { "from": "reload", "to": "respond" }
+  ]
+}

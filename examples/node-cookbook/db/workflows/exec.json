@@ -1,0 +1,19 @@
+{
+  "id": "exec",
+  "name": "Retitle Book",
+  "nodes": {
+    "retitle": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "UPDATE books SET title = $1 WHERE title = $2",
+        "params": ["{{ input.to }}", "{{ input.from }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.retitle }}" }
+    }
+  },
+  "edges": [ { "from": "retitle", "to": "respond" } ]
+}

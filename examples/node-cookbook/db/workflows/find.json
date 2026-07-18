@@ -1,0 +1,20 @@
+{
+  "id": "find",
+  "name": "Find Books",
+  "nodes": {
+    "list": {
+      "type": "db.find",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "where": { "author": "{{ input.author }}" },
+        "order": "title ASC"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": { "data": "{{ nodes.list }}" } }
+    }
+  },
+  "edges": [ { "from": "list", "to": "respond" } ]
+}

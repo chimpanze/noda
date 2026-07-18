@@ -1,0 +1,19 @@
+{
+  "id": "delete",
+  "name": "Delete Book",
+  "nodes": {
+    "remove": {
+      "type": "db.delete",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "where": { "id": "{{ input.id }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 204 }
+    }
+  },
+  "edges": [ { "from": "remove", "to": "respond" } ]
+}

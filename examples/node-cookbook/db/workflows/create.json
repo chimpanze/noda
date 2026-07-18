@@ -1,0 +1,23 @@
+{
+  "id": "create",
+  "name": "Create Book",
+  "nodes": {
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "books",
+        "data": {
+          "title": "{{ input.title }}",
+          "author": "{{ input.author }}",
+          "year": "{{ input.year }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 201, "body": "{{ nodes.insert }}" }
+    }
+  },
+  "edges": [ { "from": "insert", "to": "respond" } ]
+}
