@@ -202,7 +202,9 @@ func (m *Module) Start() {
 // Stop halts the tick loop and calls shutdown. After Stop returns, the
 // Module is single-use: the stopping flag is not reset, so any subsequent
 // call to AddAsyncResult silently drops. Construct a new Module via
-// Runtime.LoadModule to restart.
+// Runtime.LoadModule to restart. A module that was loaded but never
+// started still has its Extism plugin closed, so the wazero runtime is
+// released even on that early-return path (#365).
 func (m *Module) Stop(ctx context.Context) error {
 	m.mu.Lock()
 	if !m.running {
