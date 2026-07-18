@@ -33,6 +33,13 @@ linters:
       - linters: [gosec]
         text: "G703"
         path: internal/testing/cookbook/
+      # G107: HTTP requests with a variable URL, cookbook runner only — the
+      # "variable" URL is always the runner's own COOKBOOK_BASE_URL (an
+      # ephemeral 127.0.0.1 listener the runner itself reserved) plus a
+      # project-controlled path, never attacker input.
+      - linters: [gosec]
+        text: "G107"
+        path: internal/testing/cookbook/
       # G124: request cookies in tests carry no attributes on the wire
       - linters: [gosec]
         text: "G124"
