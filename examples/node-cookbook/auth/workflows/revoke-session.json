@@ -1,0 +1,18 @@
+{
+  "id": "revoke-session",
+  "name": "Revoke Session",
+  "nodes": {
+    "revoke": {
+      "type": "auth.revoke_session",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "token": "{{ input.token }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 204 }
+    }
+  },
+  "edges": [
+    { "from": "revoke", "output": "success", "to": "respond" }
+  ]
+}

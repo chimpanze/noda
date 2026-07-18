@@ -1,0 +1,10 @@
+{
+  "id": "refresh",
+  "method": "POST",
+  "path": "/api/oidc/refresh",
+  "summary": "oidc.refresh — exchange a refresh token for new tokens",
+  "trigger": {
+    "workflow": "refresh",
+    "input": { "refresh_token": "{{ body.refresh_token }}" }
+  }
+}

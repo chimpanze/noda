@@ -1,0 +1,10 @@
+{
+  "id": "revoke-session",
+  "method": "POST",
+  "path": "/api/auth/revoke-session",
+  "summary": "auth.revoke_session — revoke a session by raw token",
+  "trigger": {
+    "workflow": "revoke-session",
+    "input": { "token": "{{ body.token }}" }
+  }
+}

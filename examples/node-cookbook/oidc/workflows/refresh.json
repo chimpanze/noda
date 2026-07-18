@@ -1,0 +1,17 @@
+{
+  "id": "refresh",
+  "nodes": {
+    "renew": { "type": "oidc.refresh", "config": {
+      "issuer_url": "{{ secrets.DEX_ISSUER }}",
+      "client_id": "{{ secrets.DEX_CLIENT_ID }}",
+      "client_secret": "{{ secrets.DEX_CLIENT_SECRET }}",
+      "refresh_token": "{{ input.refresh_token }}"
+    } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": "{{ nodes.renew }}" } },
+    "reject": { "type": "response.error", "config": { "status": 401, "code": "REFRESH_FAILED", "message": "token refresh failed" } }
+  },
+  "edges": [
+    { "from": "renew", "output": "success", "to": "respond" },
+    { "from": "renew", "output": "error", "to": "reject" }
+  ]
+}

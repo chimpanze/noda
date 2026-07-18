@@ -1,0 +1,93 @@
+{
+  "deps": ["postgres"],
+  "steps": [
+    {
+      "name": "create_user registers",
+      "request": { "method": "POST", "path": "/api/auth/create-user", "body": { "email": "ada@example.com", "password": "correct-horse-1" } },
+      "expect": { "status": 201, "body": [
+        { "path": "id", "exists": true },
+        { "path": "email", "equals": "ada@example.com" },
+        { "path": "password_hash", "exists": false }
+      ] },
+      "capture": { "user_id": "body.id" }
+    },
+    {
+      "name": "duplicate email hits the exists output",
+      "request": { "method": "POST", "path": "/api/auth/create-user", "body": { "email": "ada@example.com", "password": "whatever-2" } },
+      "expect": { "status": 409, "body": [ { "path": "error.code", "equals": "EMAIL_TAKEN" } ] }
+    },
+    {
+      "name": "verify_credentials accepts the password",
+      "request": { "method": "POST", "path": "/api/auth/verify-credentials", "body": { "email": "ada@example.com", "password": "correct-horse-1" } },
+      "expect": { "status": 200, "body": [ { "path": "id", "equals": "${user_id}" } ] }
+    },
+    {
+      "name": "verify_credentials rejects a wrong password",
+      "request": { "method": "POST", "path": "/api/auth/verify-credentials", "body": { "email": "ada@example.com", "password": "wrong" } },
+      "expect": { "status": 401, "body": [ { "path": "error.code", "equals": "INVALID_CREDENTIALS" } ] }
+    },
+    {
+      "name": "create_session issues a raw token",
+      "request": { "method": "POST", "path": "/api/auth/create-session", "body": { "user_id": "${user_id}" } },
+      "expect": { "status": 200, "body": [ { "path": "token", "type": "string" } ] },
+      "capture": { "session_token": "body.token" }
+    },
+    {
+      "name": "get_user finds by id",
+      "request": { "method": "GET", "path": "/api/auth/users?user_id=${user_id}" },
+      "expect": { "status": 200, "body": [ { "path": "email", "equals": "ada@example.com" } ] }
+    },
+    {
+      "name": "get_user 404s on unknown id",
+      "request": { "method": "GET", "path": "/api/auth/users?user_id=nope" },
+      "expect": { "status": 404, "body": [ { "path": "error.code", "equals": "USER_NOT_FOUND" } ] }
+    },
+    {
+      "name": "create_token mints a reset token",
+      "request": { "method": "POST", "path": "/api/auth/create-token", "body": { "user_id": "${user_id}", "purpose": "reset_password" } },
+      "expect": { "status": 201, "body": [ { "path": "token", "type": "string" } ] },
+      "capture": { "reset_token": "body.token" }
+    },
+    {
+      "name": "set_password consumes the token atomically",
+      "request": { "method": "POST", "path": "/api/auth/set-password", "body": { "token": "${reset_token}", "password": "new-horse-9" } },
+      "expect": { "status": 200, "body": [ { "path": "revoked_sessions", "equals": 1 } ] }
+    },
+    {
+      "name": "new password verifies",
+      "request": { "method": "POST", "path": "/api/auth/verify-credentials", "body": { "email": "ada@example.com", "password": "new-horse-9" } },
+      "expect": { "status": 200 }
+    },
+    {
+      "name": "old password no longer verifies",
+      "request": { "method": "POST", "path": "/api/auth/verify-credentials", "body": { "email": "ada@example.com", "password": "correct-horse-1" } },
+      "expect": { "status": 401 }
+    },
+    {
+      "name": "set_password on a reused reset token hits the invalid output",
+      "request": { "method": "POST", "path": "/api/auth/set-password", "body": { "token": "${reset_token}", "password": "another-one-1" } },
+      "expect": { "status": 400, "body": [ { "path": "error.code", "equals": "TOKEN_INVALID" } ] }
+    },
+    {
+      "name": "create_token mints a verify token",
+      "request": { "method": "POST", "path": "/api/auth/create-token", "body": { "user_id": "${user_id}", "purpose": "verify_email" } },
+      "expect": { "status": 201 },
+      "capture": { "verify_token": "body.token" }
+    },
+    {
+      "name": "consume_token returns the owner",
+      "request": { "method": "POST", "path": "/api/auth/consume-token", "body": { "token": "${verify_token}", "purpose": "verify_email" } },
+      "expect": { "status": 200, "body": [ { "path": "user_id", "equals": "${user_id}" } ] }
+    },
+    {
+      "name": "tokens are single-use",
+      "request": { "method": "POST", "path": "/api/auth/consume-token", "body": { "token": "${verify_token}", "purpose": "verify_email" } },
+      "expect": { "status": 400, "body": [ { "path": "error.code", "equals": "TOKEN_INVALID" } ] }
+    },
+    {
+      "name": "revoke_session is idempotent post set_password",
+      "request": { "method": "POST", "path": "/api/auth/revoke-session", "body": { "token": "${session_token}" } },
+      "expect": { "status": 204 }
+    }
+  ]
+}

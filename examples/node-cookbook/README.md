@@ -22,14 +22,21 @@ project's `verify.json`.
 | [realtime](realtime/) | `ws.send`, `sse.send` |
 | [http](http/) | `http.get`, `http.post`, `http.request` |
 | [wasm](wasm/) | `wasm.send`, `wasm.query` |
+| [auth](auth/) | `auth.create_user`, `auth.verify_credentials`, `auth.create_session`, `auth.create_token`, `auth.consume_token`, `auth.get_user`, `auth.set_password`, `auth.revoke_session` |
+| [oidc](oidc/) | `oidc.auth_url`, `oidc.exchange`, `oidc.refresh` |
 
-Remaining service-backed families (auth, oidc, livekit) arrive in later
-tranches.
+The `auth` project needs Postgres (`DATABASE_URL`), same as `db`. The `oidc`
+project exercises a real authorization-code exchange against a
+[Dex](https://dexidp.io/) OIDC provider container started by the test
+harness — no `$env()` config is required at rest, only the harness-managed
+`DEX_ISSUER`/`DEX_CLIENT_ID`/`DEX_CLIENT_SECRET`/`DEX_REDIRECT_URI` values
+threaded through `verify.json`. Remaining service-backed family (livekit)
+arrives in a later tranche.
 
 Projects whose `verify.json` lists a `deps` entry (`db`, `cache`, `email`,
-`events`, `realtime`) need Docker running locally — `go test -tags=integration
-./internal/testing/cookbook/ -run TestCookbook -v` starts the required
-Postgres/Redis/Mailpit containers automatically. The `storage`, `upload`, `image`, and `events` projects use
+`events`, `realtime`, `auth`, `oidc`) need Docker running locally — `go test
+-tags=integration ./internal/testing/cookbook/ -run TestCookbook -v` starts
+the required Postgres/Redis/Mailpit/Dex containers automatically. The `storage`, `upload`, `image`, and `events` projects use
 `COOKBOOK_DATA_DIR`, which the test harness provisions automatically; set it
 manually (to any writable directory) when running `noda start` on one of
 these projects by hand. The `http` and `realtime` projects set `"listen":

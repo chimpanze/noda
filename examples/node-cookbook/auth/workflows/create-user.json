@@ -1,0 +1,23 @@
+{
+  "id": "create-user",
+  "name": "Create User",
+  "nodes": {
+    "create": {
+      "type": "auth.create_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "email": "{{ input.email }}", "password": "{{ input.password }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 201, "body": "{{ nodes.create }}" }
+    },
+    "conflict": {
+      "type": "response.error",
+      "config": { "status": 409, "code": "EMAIL_TAKEN", "message": "email already registered" }
+    }
+  },
+  "edges": [
+    { "from": "create", "output": "success", "to": "respond" },
+    { "from": "create", "output": "exists", "to": "conflict" }
+  ]
+}

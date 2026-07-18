@@ -1,0 +1,7 @@
+{
+  "server": { "port": 3000 },
+  "services": {
+    "main-db": { "plugin": "postgres", "config": { "url": "{{ $env('DATABASE_URL') }}" } },
+    "auth": { "plugin": "auth", "config": { "database": "main-db" } }
+  }
+}

@@ -10,9 +10,11 @@ import (
 
 	"github.com/chimpanze/noda/internal/testing/containers"
 	"github.com/chimpanze/noda/pkg/api"
+	authplugin "github.com/chimpanze/noda/plugins/auth"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/event"
+	coreoidc "github.com/chimpanze/noda/plugins/core/oidc"
 	"github.com/chimpanze/noda/plugins/core/response"
 	coresse "github.com/chimpanze/noda/plugins/core/sse"
 	corestorage "github.com/chimpanze/noda/plugins/core/storage"
@@ -53,6 +55,8 @@ func cookbookPlugins() []api.Plugin {
 		&corews.Plugin{},
 		&coresse.Plugin{},
 		&corewasm.Plugin{},
+		&coreoidc.Plugin{},
+		&authplugin.Plugin{},
 	}
 }
 
@@ -71,6 +75,16 @@ func resolveDeps(t *testing.T, deps []string) Options {
 			opt.Env["SMTP_HOST"] = host
 			opt.Env["SMTP_PORT"] = strconv.Itoa(port)
 			opt.MailpitAPI = apiBase
+		case "dex":
+			issuer, clientID, clientSecret, redirectURI := containers.StartDex(t)
+			opt.Env["DEX_ISSUER"] = issuer
+			opt.Env["DEX_CLIENT_ID"] = clientID
+			opt.Env["DEX_CLIENT_SECRET"] = clientSecret
+			opt.Env["DEX_REDIRECT_URI"] = redirectURI
+			if opt.Vars == nil {
+				opt.Vars = map[string]string{}
+			}
+			opt.Vars["dex_code"] = containers.DexAuthCode(t, issuer, clientID, redirectURI)
 		default:
 			t.Fatalf("unknown cookbook dep %q", dep)
 		}

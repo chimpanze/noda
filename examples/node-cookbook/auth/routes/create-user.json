@@ -1,0 +1,10 @@
+{
+  "id": "create-user",
+  "method": "POST",
+  "path": "/api/auth/create-user",
+  "summary": "auth.create_user — register a new user",
+  "trigger": {
+    "workflow": "create-user",
+    "input": { "email": "{{ body.email }}", "password": "{{ body.password }}" }
+  }
+}

@@ -42,6 +42,10 @@ import (
 type Options struct {
 	Env        map[string]string
 	MailpitAPI string
+	// Vars pre-seeds the step-loop's variable map before the first step
+	// runs (e.g. an auth code obtained by a walker dep). Step captures may
+	// later overwrite a seeded key; that's fine.
+	Vars map[string]string
 }
 
 // runContext carries the state prepareEnv establishes before config load —
@@ -382,6 +386,9 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 	}
 
 	vars := map[string]string{}
+	for k, v := range rctx.opt.Vars {
+		vars[k] = v
+	}
 	wsConns := map[string]*websocket.Conn{}
 	defer func() {
 		for _, c := range wsConns {
@@ -502,6 +509,14 @@ func checkResponse(status int, header http.Header, raw []byte, step Step, vars m
 			return fmt.Errorf("response is not JSON (%.200s): %w", raw, err)
 		}
 		for _, a := range step.Expect.Body {
+			// ${name} references in a string `equals` are resolved against
+			// the captured-variable map, same as request paths/bodies —
+			// lets a step assert that a response field matches a value
+			// captured from an earlier step (e.g. the same user id
+			// resurfacing from a later lookup).
+			if s, ok := a.Equals.(string); ok {
+				a.Equals = Substitute(s, vars)
+			}
 			if err := CheckAssertion(doc, a); err != nil {
 				return err
 			}
