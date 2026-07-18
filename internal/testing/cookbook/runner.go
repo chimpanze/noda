@@ -354,6 +354,8 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 				return fmt.Errorf("loading wasm module %q: %w", name, err)
 			}
 			wasmSvc := wasm.NewWasmService(wrt, name)
+			// Intentional divergence from cmd/noda's createWasm, which only
+			// warns on registration failure: the test harness fails loud.
 			if err := boot.Services.Register(name, wasmSvc, nil); err != nil {
 				return fmt.Errorf("registering wasm service %q: %w", name, err)
 			}
@@ -504,9 +506,35 @@ func checkResponse(status int, header http.Header, raw []byte, step Step, vars m
 	return nil
 }
 
-// runStep executes a request step in-process against the Fiber app's test
-// transport, for non-listen-mode projects.
-func runStep(srv *server.Server, step Step, vars map[string]string) error {
+// withRetry runs fn once when timeout is empty; otherwise it re-runs fn
+// (sleeping 150ms between attempts) until fn succeeds or the parsed
+// timeout elapses, returning the LAST attempt's error on expiry. Shared by
+// both request transports so retry_timeout behaves identically in listen
+// and in-process suites.
+func withRetry(timeout string, fn func() error) error {
+	if timeout == "" {
+		return fn()
+	}
+	d, err := time.ParseDuration(timeout)
+	if err != nil {
+		return fmt.Errorf("invalid retry_timeout %q: %w", timeout, err)
+	}
+	deadline := time.Now().Add(d)
+	for {
+		lastErr := fn()
+		if lastErr == nil {
+			return nil
+		}
+		if !time.Now().Before(deadline) {
+			return lastErr
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+}
+
+// doInProcessAttempt performs one in-process round trip through the Fiber
+// app's test transport and checks the response, without retrying.
+func doInProcessAttempt(srv *server.Server, step Step, vars map[string]string) error {
 	path := Substitute(step.Request.Path, vars)
 
 	bodyReader, contentType, hasBody, err := buildRequestBody(step, vars)
@@ -532,6 +560,15 @@ func runStep(srv *server.Server, step Step, vars map[string]string) error {
 		return fmt.Errorf("reading response: %w", err)
 	}
 	return checkResponse(resp.StatusCode, resp.Header, raw, step, vars)
+}
+
+// runStep executes a request step in-process against the Fiber app's test
+// transport, for non-listen-mode projects, honoring RetryTimeout with the
+// same semantics as the real-transport path.
+func runStep(srv *server.Server, step Step, vars map[string]string) error {
+	return withRetry(step.Request.RetryTimeout, func() error {
+		return doInProcessAttempt(srv, step, vars)
+	})
 }
 
 // doHTTPAttempt performs one real-transport HTTP round trip against
@@ -568,28 +605,12 @@ func doHTTPAttempt(baseURL string, step Step, vars map[string]string) error {
 }
 
 // runStepHTTP executes a request step over a real TCP connection, for
-// listen-mode projects. When step.Request.RetryTimeout is set, the request
-// is re-sent (honoring the retry interval) until it succeeds or the
-// deadline elapses; the final attempt's error is returned on timeout.
+// listen-mode projects, honoring RetryTimeout with the same semantics as
+// the in-process path.
 func runStepHTTP(baseURL string, step Step, vars map[string]string) error {
-	if step.Request.RetryTimeout == "" {
+	return withRetry(step.Request.RetryTimeout, func() error {
 		return doHTTPAttempt(baseURL, step, vars)
-	}
-	retryTimeout, err := time.ParseDuration(step.Request.RetryTimeout)
-	if err != nil {
-		return fmt.Errorf("invalid retry_timeout %q: %w", step.Request.RetryTimeout, err)
-	}
-	deadline := time.Now().Add(retryTimeout)
-	for {
-		lastErr := doHTTPAttempt(baseURL, step, vars)
-		if lastErr == nil {
-			return nil
-		}
-		if !time.Now().Before(deadline) {
-			return lastErr
-		}
-		time.Sleep(150 * time.Millisecond)
-	}
+	})
 }
 
 // runWSStep executes one connect/send/expect action against a named

@@ -2,6 +2,7 @@ package cookbook
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -242,6 +243,51 @@ func TestRunProjectListenMode(t *testing.T) {
 	baseURL := os.Getenv("COOKBOOK_BASE_URL")
 	require.NotEmpty(t, baseURL, "COOKBOOK_BASE_URL must be exported for listen-mode suites")
 	assert.Regexp(t, `^http://127\.0\.0\.1:\d+$`, baseURL)
+}
+
+// TestWithRetry unit-tests the shared retry loop both transports (runStep
+// and runStepHTTP) delegate to, so retry_timeout semantics can't diverge
+// between listen-mode and in-process suites.
+func TestWithRetry(t *testing.T) {
+	t.Run("no timeout runs once", func(t *testing.T) {
+		calls := 0
+		err := withRetry("", func() error {
+			calls++
+			return assert.AnError
+		})
+		assert.ErrorIs(t, err, assert.AnError)
+		assert.Equal(t, 1, calls, "empty retry_timeout must not retry")
+	})
+
+	t.Run("succeeds on third attempt", func(t *testing.T) {
+		calls := 0
+		err := withRetry("5s", func() error {
+			calls++
+			if calls < 3 {
+				return assert.AnError
+			}
+			return nil
+		})
+		require.NoError(t, err)
+		assert.Equal(t, 3, calls)
+	})
+
+	t.Run("times out with last error", func(t *testing.T) {
+		attempt := 0
+		err := withRetry("1ms", func() error {
+			attempt++
+			return fmt.Errorf("attempt %d failed", attempt)
+		})
+		require.Error(t, err)
+		assert.Equal(t, fmt.Sprintf("attempt %d failed", attempt), err.Error(),
+			"the LAST attempt's error must be reported")
+	})
+
+	t.Run("invalid duration", func(t *testing.T) {
+		err := withRetry("bogus", func() error { return nil })
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid retry_timeout")
+	})
 }
 
 func TestRetryTimeoutPolls(t *testing.T) {
