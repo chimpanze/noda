@@ -150,6 +150,117 @@
           { "path": "rooms.0", "exists": false }
         ]
       }
+    },
+    {
+      "name": "create a dedicated second room for egress/ingress (kept separate so long-running, worker-less recording/streaming calls can't destabilize the primary room's delete)",
+      "request": {
+        "method": "POST",
+        "path": "/api/rooms",
+        "body": { "name": "cookbook-egress-room" }
+      },
+      "expect": {
+        "status": 201,
+        "body": [
+          { "path": "name", "equals": "cookbook-egress-room" }
+        ]
+      }
+    },
+    {
+      "name": "starting a room composite egress (no egress worker on the dev server)",
+      "request": {
+        "method": "POST",
+        "path": "/api/egress/room-composite",
+        "body": { "room": "cookbook-egress-room" }
+      },
+      "expect": {
+        "status": 502,
+        "body": [
+          { "path": "error.code", "equals": "EGRESS_UNAVAILABLE" }
+        ]
+      }
+    },
+    {
+      "name": "starting a track egress (no egress worker on the dev server)",
+      "request": {
+        "method": "POST",
+        "path": "/api/egress/track",
+        "body": { "room": "cookbook-egress-room", "track_sid": "TR_fake" }
+      },
+      "expect": {
+        "status": 502,
+        "body": [
+          { "path": "error.code", "equals": "EGRESS_UNAVAILABLE" }
+        ]
+      }
+    },
+    {
+      "name": "listing egress recordings also errors (dev server has no egress worker)",
+      "request": { "method": "GET", "path": "/api/egress" },
+      "expect": {
+        "status": 502,
+        "body": [
+          { "path": "error.code", "equals": "EGRESS_UNAVAILABLE" }
+        ]
+      }
+    },
+    {
+      "name": "stopping a nonexistent egress 404s",
+      "request": { "method": "POST", "path": "/api/egress/EG_nonexistent/stop" },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "EGRESS_NOT_FOUND" }
+        ]
+      }
+    },
+    {
+      "name": "creating an ingress endpoint (no ingress worker on the dev server)",
+      "request": {
+        "method": "POST",
+        "path": "/api/ingress",
+        "body": {
+          "input_type": "url",
+          "room": "cookbook-egress-room",
+          "participant_identity": "streamer",
+          "url": "https://example.com/stream.m3u8"
+        }
+      },
+      "expect": {
+        "status": 502,
+        "body": [
+          { "path": "error.code", "equals": "INGRESS_UNAVAILABLE" }
+        ]
+      }
+    },
+    {
+      "name": "listing ingress endpoints also errors (dev server has no ingress worker)",
+      "request": { "method": "GET", "path": "/api/ingress" },
+      "expect": {
+        "status": 502,
+        "body": [
+          { "path": "error.code", "equals": "INGRESS_UNAVAILABLE" }
+        ]
+      }
+    },
+    {
+      "name": "deleting a nonexistent ingress 404s",
+      "request": { "method": "DELETE", "path": "/api/ingress/IN_nonexistent" },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "INGRESS_NOT_FOUND" }
+        ]
+      }
+    },
+    {
+      "name": "delete the second room",
+      "request": { "method": "DELETE", "path": "/api/rooms/cookbook-egress-room" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "deleted", "equals": true }
+        ]
+      }
     }
   ]
 }

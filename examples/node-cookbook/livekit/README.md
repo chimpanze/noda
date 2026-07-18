@@ -1,14 +1,64 @@
 # Cookbook: livekit nodes
 
 Runnable examples for Noda's `lk.*` nodes against a real LiveKit server:
-rooms, tokens, participants, and data messaging.
+rooms, tokens, participants, data messaging, egress (recording), and ingress
+(streaming in).
 
-> **Status: part 1 of 2.** This file currently covers the 11 nodes below
-> (rooms, token, participants, data). A follow-up tranche appends egress,
-> ingress, and webhook nodes — extend the tables/sections here rather than
-> starting a new file.
+> **Status: part 2 of 2 (egress + ingress).** This file now covers 18 of
+> the family's nodes: the 11 from part 1 (rooms, token, participants, data)
+> plus the 7 egress/ingress nodes below. The `lk.*` webhook trigger is out
+> of scope for this cookbook (it's a route trigger, not a node) — see
+> `internal/server/livekit_webhook.go` and `testdata/livekit-example` for
+> that integration.
 
 Every request/response below is verified in CI by [`verify.json`](verify.json).
+
+## API-level verification
+
+This cookbook drives the LiveKit **server APIs** only (see the WebRTC
+caveat below), and the CI dev container is a bare `livekit-server --dev`
+with no egress or ingress worker attached. That shapes what "verified"
+means per node:
+
+| Node | Verified | Observed against the dev server |
+|------|----------|----------------------------------|
+| `lk.roomCreate` | success path | 201, room created |
+| `lk.roomList` | success path | 200, room appears/disappears |
+| `lk.roomUpdateMetadata` | success path | 200, metadata replaced |
+| `lk.roomDelete` | success path | 200, room removed |
+| `lk.token` | success path (token issuance only) | 200, well-formed JWT — never redeemed |
+| `lk.participantList` | success path (empty-list case) | 200, honestly empty (no client joined) |
+| `lk.sendData` | success path (no-recipient case) | 200, fan-out with nobody to deliver to |
+| `lk.participantGet` | error path | 404 `NO_SUCH_PARTICIPANT` |
+| `lk.participantUpdate` | error path | 404 `NO_SUCH_PARTICIPANT` |
+| `lk.participantRemove` | error path | 404 `NO_SUCH_PARTICIPANT` |
+| `lk.muteTrack` | error path | 404 `NO_SUCH_PARTICIPANT` (~3s internal RPC timeout) |
+| `lk.egressStartRoomComposite` | error path | 502 — dev server has no egress worker attached |
+| `lk.egressStartTrack` | error path | 502 — dev server has no egress worker attached |
+| `lk.egressList` | error path | 502 — listing also requires the egress worker |
+| `lk.egressStop` | error path | 404 — no such egress exists |
+| `lk.ingressCreate` | error path | 502 — dev server has no ingress worker attached |
+| `lk.ingressList` | error path | 502 — listing also requires the ingress worker |
+| `lk.ingressDelete` | error path | 404 — no such ingress exists |
+
+**What full verification would need:**
+- A live WebRTC participant (browser/SDK client, e.g. `examples/video-rooms`
+  or the LiveKit CLI) actually joined to `cookbook-room`, to exercise the
+  success paths of `lk.participantGet/Update/Remove` and `lk.muteTrack`,
+  and to make `lk.token`'s issued JWT actually redeemable.
+- A running `livekit-egress` worker (with Redis message bus configured on
+  the server) to exercise the success paths of `lk.egressStartRoomComposite`,
+  `lk.egressStartTrack`, `lk.egressList`, and `lk.egressStop`.
+- A running `livekit-ingress` worker (RTMP/WHIP/URL-pull service, also
+  Redis-backed) to exercise the success paths of `lk.ingressCreate`,
+  `lk.ingressList`, and `lk.ingressDelete`.
+
+None of that infrastructure is available in the CI container or expected
+of a cookbook reader — every workflow below routes both the `success` and
+`error` outputs of the node it exercises, so the *observed* behavior
+(whichever branch actually fires) is what's asserted in `verify.json`.
+That is itself the point of this cookbook: it shows real, honest API
+responses rather than a mocked happy path.
 
 ## Run
 
@@ -146,6 +196,105 @@ isn't mistaken for a hang.
 ```bash
 curl localhost:3000/api/rooms/cookbook-room/participants/ghost
 # → 404 {"error":{"code":"NO_SUCH_PARTICIPANT","message":"Participant not found in room","trace_id":"..."}}
+```
+
+## Egress and ingress: a second, dedicated room
+
+`verify.json` deletes `cookbook-room` and confirms it's gone from the list
+*before* touching egress/ingress at all, then creates a second room,
+`cookbook-egress-room`, to exercise the 7 nodes below. This isn't just
+tidiness: the two egress-start calls each take ~20s to time out against a
+workerless dev server, and running them against the same room used for the
+earlier participant/mute-track assertions was observed to occasionally
+destabilize that room's later `lk.roomDelete` call (an intermittent `500`).
+Giving egress/ingress their own room keeps the two narratives — "room
+lifecycle + participants" and "recording + streaming" — independent, so a
+quirk in one can't bleed into the other.
+
+## lk.egressStartRoomComposite — `POST /api/egress/room-composite`
+
+Starts a room composite recording (all audio/video tracks, `file` output to
+`/out/recording.mp4`). **Observed:** on a bare `--dev` server with no egress
+worker attached, the request eventually fails — LiveKit accepts the twirp
+call, waits for an egress worker to pick up the job, and after roughly
+20 seconds gives up. The node's `error` output fires; the workflow routes
+it to `502 EGRESS_UNAVAILABLE`.
+
+```bash
+curl -X POST localhost:3000/api/egress/room-composite \
+  -H 'Content-Type: application/json' -d '{"room": "cookbook-egress-room"}'
+# → 502 {"error":{"code":"EGRESS_UNAVAILABLE","message":"Room composite egress could not be started","trace_id":"..."}}
+```
+
+## lk.egressStartTrack — `POST /api/egress/track`
+
+Starts a single-track recording (same `output` shape, same egress-worker
+dependency). **Observed:** identical to room composite egress — ~20s wait,
+then `502 EGRESS_UNAVAILABLE`.
+
+```bash
+curl -X POST localhost:3000/api/egress/track \
+  -H 'Content-Type: application/json' \
+  -d '{"room": "cookbook-egress-room", "track_sid": "TR_fake"}'
+# → 502 {"error":{"code":"EGRESS_UNAVAILABLE","message":"Track egress could not be started","trace_id":"..."}}
+```
+
+## lk.egressList — `GET /api/egress`
+
+Lists egress recordings. **Observed:** even listing requires the egress
+worker to be reachable on this LiveKit version — it errors the same way
+the two start-egress calls do, rather than returning an empty array.
+
+```bash
+curl localhost:3000/api/egress
+# → 502 {"error":{"code":"EGRESS_UNAVAILABLE","message":"Egress recordings could not be listed","trace_id":"..."}}
+```
+
+## lk.egressStop — `POST /api/egress/:egress_id/stop`
+
+Stops an active egress. **Observed:** against a nonexistent egress ID,
+this one *does* return promptly — LiveKit can reject an unknown egress ID
+from room-state lookup without needing the worker, so it 404s in ~3s
+rather than timing out at ~20s like the start/list calls.
+
+```bash
+curl -X POST localhost:3000/api/egress/EG_nonexistent/stop
+# → 404 {"error":{"code":"EGRESS_NOT_FOUND","message":"Egress not found","trace_id":"..."}}
+```
+
+## lk.ingressCreate — `POST /api/ingress`
+
+Creates an ingress endpoint (`url` input type, pulling from an external
+`.m3u8` source). **Observed:** unlike room/participant state, ingress
+creation on this dev server requires an ingress worker too — the twirp
+call fails immediately (no multi-second wait) and the workflow routes the
+node's `error` output to `502 INGRESS_UNAVAILABLE`.
+
+```bash
+curl -X POST localhost:3000/api/ingress -H 'Content-Type: application/json' \
+  -d '{"input_type": "url", "room": "cookbook-egress-room", "participant_identity": "streamer", "url": "https://example.com/stream.m3u8"}'
+# → 502 {"error":{"code":"INGRESS_UNAVAILABLE","message":"Ingress could not be created","trace_id":"..."}}
+```
+
+## lk.ingressList — `GET /api/ingress`
+
+Lists ingress endpoints. **Observed:** same as egress list — requires the
+worker, errors rather than returning an empty array.
+
+```bash
+curl localhost:3000/api/ingress
+# → 502 {"error":{"code":"INGRESS_UNAVAILABLE","message":"Ingress endpoints could not be listed","trace_id":"..."}}
+```
+
+## lk.ingressDelete — `DELETE /api/ingress/:ingress_id`
+
+Deletes an ingress endpoint. **Observed:** like egress-stop, a delete on a
+nonexistent ID resolves from state lookup without the worker, so it 404s
+rather than timing out.
+
+```bash
+curl -X DELETE localhost:3000/api/ingress/IN_nonexistent
+# → 404 {"error":{"code":"INGRESS_NOT_FOUND","message":"Ingress not found","trace_id":"..."}}
 ```
 
 ## Test

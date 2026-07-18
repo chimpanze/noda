@@ -1,0 +1,13 @@
+{
+  "id": "ingress-list",
+  "method": "GET",
+  "path": "/api/ingress",
+  "summary": "lk.ingressList — list ingress endpoints",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "ingress-list",
+    "input": {
+      "room": "{{ query.room }}"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "egress-start-track",
+  "method": "POST",
+  "path": "/api/egress/track",
+  "summary": "lk.egressStartTrack — start a single-track recording (dev server has no egress worker)",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "egress-start-track",
+    "input": {
+      "room": "{{ body.room }}",
+      "track_sid": "{{ body.track_sid }}"
+    }
+  }
+}

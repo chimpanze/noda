@@ -1,0 +1,16 @@
+{
+  "id": "ingress-create",
+  "method": "POST",
+  "path": "/api/ingress",
+  "summary": "lk.ingressCreate — create an ingress endpoint for streaming into a room",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "ingress-create",
+    "input": {
+      "input_type": "{{ body.input_type }}",
+      "room": "{{ body.room }}",
+      "participant_identity": "{{ body.participant_identity }}",
+      "url": "{{ body.url }}"
+    }
+  }
+}

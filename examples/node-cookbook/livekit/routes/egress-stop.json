@@ -1,0 +1,13 @@
+{
+  "id": "egress-stop",
+  "method": "POST",
+  "path": "/api/egress/:egress_id/stop",
+  "summary": "lk.egressStop — stop an egress recording (404 demo: no such egress exists)",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "egress-stop",
+    "input": {
+      "egress_id": "{{ params.egress_id }}"
+    }
+  }
+}

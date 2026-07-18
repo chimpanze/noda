@@ -1,0 +1,32 @@
+{
+  "id": "egress-stop",
+  "name": "Stop Egress",
+  "nodes": {
+    "stop": {
+      "type": "lk.egressStop",
+      "services": { "livekit": "lk" },
+      "config": {
+        "egress_id": "{{ input.egress_id }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.stop }}"
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "EGRESS_NOT_FOUND",
+        "message": "Egress not found"
+      }
+    }
+  },
+  "edges": [
+    { "from": "stop", "to": "respond" },
+    { "from": "stop", "output": "error", "to": "not_found" }
+  ]
+}

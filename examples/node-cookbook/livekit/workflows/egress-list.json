@@ -1,0 +1,32 @@
+{
+  "id": "egress-list",
+  "name": "List Egress Recordings",
+  "nodes": {
+    "list": {
+      "type": "lk.egressList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "items": "{{ nodes.list.items }}" }
+      }
+    },
+    "unavailable": {
+      "type": "response.error",
+      "config": {
+        "status": 502,
+        "code": "EGRESS_UNAVAILABLE",
+        "message": "Egress recordings could not be listed"
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "respond" },
+    { "from": "list", "output": "error", "to": "unavailable" }
+  ]
+}

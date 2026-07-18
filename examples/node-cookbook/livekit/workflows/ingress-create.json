@@ -1,0 +1,35 @@
+{
+  "id": "ingress-create",
+  "name": "Create Ingress",
+  "nodes": {
+    "create": {
+      "type": "lk.ingressCreate",
+      "services": { "livekit": "lk" },
+      "config": {
+        "input_type": "{{ input.input_type }}",
+        "room": "{{ input.room }}",
+        "participant_identity": "{{ input.participant_identity }}",
+        "url": "{{ input.url }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.create }}"
+      }
+    },
+    "unavailable": {
+      "type": "response.error",
+      "config": {
+        "status": 502,
+        "code": "INGRESS_UNAVAILABLE",
+        "message": "Ingress could not be created"
+      }
+    }
+  },
+  "edges": [
+    { "from": "create", "to": "respond" },
+    { "from": "create", "output": "error", "to": "unavailable" }
+  ]
+}

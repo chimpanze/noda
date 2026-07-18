@@ -1,0 +1,32 @@
+{
+  "id": "ingress-list",
+  "name": "List Ingress Endpoints",
+  "nodes": {
+    "list": {
+      "type": "lk.ingressList",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "items": "{{ nodes.list.items }}" }
+      }
+    },
+    "unavailable": {
+      "type": "response.error",
+      "config": {
+        "status": 502,
+        "code": "INGRESS_UNAVAILABLE",
+        "message": "Ingress endpoints could not be listed"
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "respond" },
+    { "from": "list", "output": "error", "to": "unavailable" }
+  ]
+}
