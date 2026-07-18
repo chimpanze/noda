@@ -4,8 +4,8 @@ Files in `connections/*.json`. Defines WebSocket and SSE endpoints.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `sync` | object | yes | Cross-instance sync service |
-| `sync.pubsub` | string | yes | PubSub service name from `noda.json` |
+| `sync` | object | no | Cross-instance sync service. Absent means local-only delivery (single-instance mode) |
+| `sync.pubsub` | string | yes (if `sync` present) | PubSub service name from `noda.json` |
 | `endpoints` | object | no | Map of endpoint ID to endpoint definition. **Caution:** a file without `endpoints` validates cleanly and registers nothing — don't forget it. |
 
 ## Endpoint Definition
@@ -174,15 +174,15 @@ source.addEventListener('status_change', (e) => { /* handle status */ });
 
 ## Cross-Instance Message Routing
 
-When running multiple Noda instances behind a load balancer, WebSocket and SSE connections are distributed across instances. The `sync.pubsub` service enables message delivery across instances using Redis PubSub.
+When running multiple Noda instances behind a load balancer, WebSocket and SSE connections are distributed across instances. Configuring `sync.pubsub` on a connections file enables message delivery across instances via a pubsub service (e.g. Redis). Without a `sync` block, delivery is local-only: a `ws.send`/`sse.send` only reaches connections held by the instance that ran it.
 
 ### How It Works
 
-1. Each instance tracks its own connections in the local connection manager.
-2. When a `ws.send` or `sse.send` node fires, the message is delivered locally to matching connections on this instance.
-3. The message is also published to Redis PubSub so other instances receive it.
-4. Each instance subscribes to PubSub and delivers incoming messages to its local connections.
-5. The Redis routing table tracks which channels have connections on which instances, enabling targeted delivery -- only instances holding relevant connections receive the message.
+1. Each instance tracks its own connections in the local connection manager. A `ws.send` or `sse.send` node always delivers locally first, to matching connections on this instance.
+2. If the endpoint's connections file configures `sync`, the send then publishes a versioned envelope (instance ID, `ws`/`sse` kind, channel, pre-marshaled payload, and SSE `event`/`id`) to the pubsub channel `noda:sync:<endpoint>` on the configured service.
+3. Every instance subscribed to that endpoint receives the envelope and delivers it to its own local connections, skipping envelopes that originated from itself (so a sender's local delivery is never duplicated). Malformed or unrecognized envelopes are dropped with a warning log rather than killing the subscription; a lost subscribe connection reconnects with a 1-second backoff.
+4. There is no routing table: fan-out goes to every instance subscribed to that endpoint's channel, not just the ones holding relevant connections. In deployments with many instances and low-traffic channels, this means idle instances still receive (and discard) sync traffic they have no local subscribers for.
+5. Local delivery and the cross-instance publish are two separate steps: local delivery has already happened by the time a publish is attempted, so a publish failure fails the sending node's `ws.send`/`sse.send` call (with local delivery already done) rather than being silently swallowed. Workflows that want best-effort cross-instance delivery should wire the node's error edge and continue rather than treat the failure as fatal.
 
 ### Configuration
 

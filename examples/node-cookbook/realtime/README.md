@@ -6,19 +6,19 @@ Runnable examples for `ws.send` (WebSocket broadcast) and `sse.send`
 against a real socket and asserts they receive the broadcast message —
 this is genuine two-client WS fan-out and SSE delivery, not a mock.
 
-**Honest scope note on `sync.pubsub`:** `connections/rooms.json` declares
-`"sync": { "pubsub": "realtime" }` because the connections JSON schema
-(`internal/config/schemas/connections.json`) currently requires a
-`sync.pubsub` block on any project with WebSocket/SSE endpoints. That
-Redis pubsub service is instantiated and pinged at boot
-(`plugins/pubsub/plugin.go:34`), but nothing on the `ws.send`/`sse.send`
-delivery path reads from it — `registerConnections` never wires the sync
-block to the connection Manager. In this single-process cookbook run,
-delivery to both WebSocket clients (and to the SSE client) happens
-entirely through the in-process `connmgr.Manager`; there is currently no
-mechanism that would fan a broadcast out to a *second* Noda instance. That
-cross-instance sync is a real, but currently unimplemented, product gap —
-tracked as a follow-up issue, not something this cookbook demonstrates.
+**On `sync.pubsub`:** `connections/rooms.json` declares
+`"sync": { "pubsub": "realtime" }`, which wires a real cross-instance sync
+bridge (`internal/connmgr/sync.go`): every `ws.send`/`sse.send` delivers
+locally first, then publishes a versioned envelope to the pubsub channel
+`noda:sync:<endpoint>` so other Noda instances subscribed to that endpoint
+can deliver it to their own local connections. This single-process
+cookbook run only has one instance, so what you observe here — delivery
+to both WebSocket clients and the SSE client via the in-process
+`connmgr.Manager` — is the local half of that path; there's no second
+instance in this run to receive the published envelope. `sync` is
+optional (omit it for local-only delivery); see
+[`docs/02-config/connections.md`](../../../docs/02-config/connections.md#cross-instance-message-routing)
+for the full cross-instance behavior.
 
 ## Run
 

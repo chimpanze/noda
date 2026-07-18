@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Node cookbook tranche 3: events, realtime, http, and wasm families (8 node types) verified end-to-end with real WebSocket/SSE test clients and worker/wasm runtimes in the harness (cumulative 52/81 node types covered).
 - Node cookbook tranche 4: auth and oidc families (11 node types) verified against real Postgres and a [Dex](https://dexidp.io/) OIDC provider container, including a real authorization-code exchange (`oidc.exchange`) (cumulative 63/81 node types covered).
 - Node cookbook tranche 5 (final): livekit family (18 node types) verified against a real LiveKit dev-server container; Runnable-example links added to all 81 node docs pages; CI coverage gate (`TestCookbookCoverage`) enforces every node type ships a cookbook example. Node cookbook complete at 81/81 node types covered.
+- Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
 
 ### Changed
 - Inbound trigger header keys are now lowercase (previously fasthttp-canonical, e.g. `X-Github-Event`). Constant-key lookups like `{{ headers['X-GitHub-Event'] }}` are compile-time normalized and keep working in any case; expressions that iterate the headers map or use dynamic keys now see/need lowercase keys.
@@ -55,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Int-typed node config fields (db.find limit/offset, upload.handle max_size, image dimensions, …) now accept numeric strings — `{{ query.limit ?? '20' }}`-style computed defaults work without `toInt(...)` (#340)
 - The editor validate endpoints and MCP noda_validate_config now run the same dry-run startup validation as noda validate, so they report node-config and reference errors they previously passed (#345).
 - `api.PubSubService` now includes `Subscribe` — custom services satisfying the old Publish-only shape must add it (#363).
+- `connections` `sync` block is now optional — was: schema-required while unused.
 
 ### Fixed
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
