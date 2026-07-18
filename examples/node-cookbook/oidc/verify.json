@@ -1,0 +1,26 @@
+{
+  "deps": ["dex"],
+  "steps": [
+    { "name": "auth_url builds the provider redirect",
+      "request": { "method": "GET", "path": "/api/oidc/login" },
+      "expect": { "status": 200, "body": [
+        { "path": "url", "regex": "/dex/auth\\?" },
+        { "path": "url", "regex": "client_id=cookbook-client" },
+        { "path": "url", "regex": "state=cookbook-state" }
+      ] } },
+    { "name": "exchange redeems a real Dex code",
+      "request": { "method": "POST", "path": "/api/oidc/exchange", "body": { "code": "${dex_code}" } },
+      "expect": { "status": 200, "body": [
+        { "path": "access_token", "type": "string" },
+        { "path": "id_token", "type": "string" },
+        { "path": "refresh_token", "type": "string" }
+      ] },
+      "capture": { "refresh_token": "body.refresh_token" } },
+    { "name": "refresh renews the access token",
+      "request": { "method": "POST", "path": "/api/oidc/refresh", "body": { "refresh_token": "${refresh_token}" } },
+      "expect": { "status": 200, "body": [ { "path": "access_token", "type": "string" } ] } },
+    { "name": "exchange rejects a bogus code",
+      "request": { "method": "POST", "path": "/api/oidc/exchange", "body": { "code": "bogus" } },
+      "expect": { "status": 401 } }
+  ]
+}

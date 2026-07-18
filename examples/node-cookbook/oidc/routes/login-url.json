@@ -1,0 +1,10 @@
+{
+  "id": "login-url",
+  "method": "GET",
+  "path": "/api/oidc/login",
+  "summary": "oidc.auth_url — build the provider authorization redirect",
+  "trigger": {
+    "workflow": "login-url",
+    "input": {}
+  }
+}

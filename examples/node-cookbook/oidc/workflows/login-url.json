@@ -1,0 +1,14 @@
+{
+  "id": "login-url",
+  "nodes": {
+    "build": { "type": "oidc.auth_url", "config": {
+      "issuer_url": "{{ secrets.DEX_ISSUER }}",
+      "client_id": "{{ secrets.DEX_CLIENT_ID }}",
+      "redirect_uri": "{{ secrets.DEX_REDIRECT_URI }}",
+      "state": "cookbook-state",
+      "scopes": ["openid", "profile", "email", "offline_access"]
+    } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": "{{ nodes.build }}" } }
+  },
+  "edges": [ { "from": "build", "to": "respond" } ]
+}

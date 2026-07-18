@@ -1,0 +1,18 @@
+{
+  "id": "exchange",
+  "nodes": {
+    "redeem": { "type": "oidc.exchange", "config": {
+      "issuer_url": "{{ secrets.DEX_ISSUER }}",
+      "client_id": "{{ secrets.DEX_CLIENT_ID }}",
+      "client_secret": "{{ secrets.DEX_CLIENT_SECRET }}",
+      "redirect_uri": "{{ secrets.DEX_REDIRECT_URI }}",
+      "code": "{{ input.code }}"
+    } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": "{{ nodes.redeem }}" } },
+    "reject": { "type": "response.error", "config": { "status": 401, "code": "EXCHANGE_FAILED", "message": "code exchange failed" } }
+  },
+  "edges": [
+    { "from": "redeem", "output": "success", "to": "respond" },
+    { "from": "redeem", "output": "error", "to": "reject" }
+  ]
+}

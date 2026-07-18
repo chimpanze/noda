@@ -1,0 +1,10 @@
+{
+  "id": "exchange",
+  "method": "POST",
+  "path": "/api/oidc/exchange",
+  "summary": "oidc.exchange — redeem an authorization code for tokens",
+  "trigger": {
+    "workflow": "exchange",
+    "input": { "code": "{{ body.code }}" }
+  }
+}
