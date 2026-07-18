@@ -1,0 +1,46 @@
+{
+  "id": "test-sync-github-issue",
+  "workflow": "sync-github-issue",
+  "tests": [
+    {
+      "name": "opened issue lands in the oldest project",
+      "input": {
+        "action": "opened",
+        "issue_id": "42",
+        "title": "Bug report",
+        "body": "Something is broken"
+      },
+      "mocks": {
+        "find_project": {
+          "output": [{ "id": "p1", "workspace_id": "w1" }]
+        },
+        "create_task": {
+          "output": { "id": "t1" }
+        }
+      },
+      "expect": {
+        "status": "success"
+      }
+    },
+    {
+      "name": "opened issue with no projects is skipped",
+      "input": {
+        "action": "opened",
+        "issue_id": "42",
+        "title": "Bug report",
+        "body": "Something is broken"
+      },
+      "mocks": {
+        "find_project": {
+          "output": []
+        },
+        "log_no_project": {
+          "output": {}
+        }
+      },
+      "expect": {
+        "status": "success"
+      }
+    }
+  ]
+}

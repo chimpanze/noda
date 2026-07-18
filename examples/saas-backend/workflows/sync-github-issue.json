@@ -1,68 +1,55 @@
 {
-  "edges": [
-    {
-      "from": "switch_action",
-      "output": "opened",
-      "to": "create_task"
-    },
-    {
-      "from": "switch_action",
-      "output": "closed",
-      "to": "close_task"
-    },
-    {
-      "from": "switch_action",
-      "output": "default",
-      "to": "log_unknown"
-    }
-  ],
   "id": "sync-github-issue",
   "name": "Sync GitHub Issue",
   "nodes": {
-    "close_task": {
-      "config": {
-        "table": "tasks",
-        "data": { "status": "done" },
-        "where": { "github_issue_id": "{{ input.issue_id }}" }
-      },
-      "services": {
-        "database": "main-db"
-      },
-      "type": "db.update"
+    "switch_action": {
+      "config": { "cases": ["opened", "closed"], "expression": "{{ input.action }}" },
+      "type": "control.switch"
+    },
+    "find_project": {
+      "config": { "table": "projects", "order": "created_at asc", "limit": 1 },
+      "services": { "database": "main-db" },
+      "type": "db.find"
+    },
+    "has_project": {
+      "config": { "condition": "{{ len(nodes.find_project) > 0 }}" },
+      "type": "control.if"
     },
     "create_task": {
       "config": {
+        "table": "tasks",
         "data": {
-          "description": "{{ input.body }}",
-          "github_issue_id": "{{ input.issue_id }}",
-          "project_id": "{{ input.project_id }}",
-          "status": "todo",
           "title": "{{ input.title }}",
-          "workspace_id": "{{ input.workspace_id }}"
-        },
-        "table": "tasks"
+          "description": "{{ input.body }}",
+          "status": "todo",
+          "github_issue_id": "{{ input.issue_id }}",
+          "project_id": "{{ nodes.find_project[0].id }}",
+          "workspace_id": "{{ nodes.find_project[0].workspace_id }}"
+        }
       },
-      "services": {
-        "database": "main-db"
-      },
+      "services": { "database": "main-db" },
       "type": "db.create"
     },
-    "log_unknown": {
-      "config": {
-        "level": "info",
-        "message": "Ignoring GitHub issue action: {{ input.action }}"
-      },
+    "log_no_project": {
+      "config": { "level": "warn", "message": "No project exists; skipping GitHub issue {{ input.issue_id }}" },
       "type": "util.log"
     },
-    "switch_action": {
-      "config": {
-        "cases": [
-          "opened",
-          "closed"
-        ],
-        "expression": "{{ input.action }}"
-      },
-      "type": "control.switch"
+    "close_task": {
+      "config": { "table": "tasks", "data": { "status": "done" }, "where": { "github_issue_id": "{{ input.issue_id }}" } },
+      "services": { "database": "main-db" },
+      "type": "db.update"
+    },
+    "log_unknown": {
+      "config": { "level": "info", "message": "Ignoring GitHub issue action: {{ input.action }}" },
+      "type": "util.log"
     }
-  }
+  },
+  "edges": [
+    { "from": "switch_action", "output": "opened", "to": "find_project" },
+    { "from": "find_project", "output": "success", "to": "has_project" },
+    { "from": "has_project", "output": "then", "to": "create_task" },
+    { "from": "has_project", "output": "else", "to": "log_no_project" },
+    { "from": "switch_action", "output": "closed", "to": "close_task" },
+    { "from": "switch_action", "output": "default", "to": "log_unknown" }
+  ]
 }
