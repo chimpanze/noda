@@ -6,7 +6,10 @@
       "request": { "method": "POST", "path": "/api/jobs", "body": { "job_id": "job-1" } },
       "expect": {
         "status": 202,
-        "body": [ { "path": "queued", "equals": true } ]
+        "body": [
+          { "path": "queued", "equals": true },
+          { "path": "message_id", "type": "string" }
+        ]
       }
     },
     {

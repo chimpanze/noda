@@ -83,8 +83,13 @@ curl -X POST localhost:3000/api/notify -H 'Content-Type: application/json' \
 **Honest scope note:** this family proves pubsub *emission* at the node
 boundary only — `event.emit` accepts the call and the underlying
 `PubSubService.Publish` returns without error. It does not itself prove a
-subscriber receives the message; pubsub *delivery* is exercised end-to-end
-by the realtime cookbook family, whose WebSocket fan-out synchronizes
-through the same pubsub service. Stream-mode delivery, by contrast, *is*
-proven end-to-end right here, via the worker → `storage.write` → polled
-`storage.read` round trip above.
+subscriber receives the message, and no cookbook currently does: the
+`realtime` family's `ws.send`/`sse.send` broadcasts are delivered by the
+in-process `connmgr.Manager`, not by subscribing to this pubsub service —
+`registerConnections` never wires a project's `sync.pubsub` declaration to
+the delivery path (see `examples/node-cookbook/realtime/README.md`'s
+scope note). So pubsub *delivery* currently has no consumer anywhere in
+the framework; that's a real product gap, tracked as a follow-up issue,
+not something exercised end-to-end today. Stream-mode delivery, by
+contrast, *is* proven end-to-end right here, via the worker →
+`storage.write` → polled `storage.read` round trip above.

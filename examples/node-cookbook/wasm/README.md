@@ -75,14 +75,21 @@ sees a Wasm query's result as the JSON object the guest returned from
 `query()`, unwrapped (mirrors `examples/wasm-helpers`' `nodes.format.value`
 pattern, where `helpers`' query guest returns `{"value": ...}`).
 
-The committed `wasm/tally.wasm` is rebuilt by CI's "Build example guest
-modules" step on every run (drift would fail that job, though it does not
-currently diff the artifact — see `examples/wasm-counter` for the same
-convention). To rebuild it locally after editing `main.go`:
+Unlike `examples/wasm-counter` (whose `.wasm` is *not* committed — it's
+gitignored by the repo-wide `*.wasm` rule and built fresh by CI into
+`/tmp` for every run), this cookbook's `wasm/tally.wasm` **is** committed,
+force-added past that same `.gitignore` rule
+(`git ls-files | grep '\.wasm$'` shows it as the repo's only tracked
+`.wasm` binary). CI's "Build example guest modules" step
+(`.github/workflows/ci.yml`) rebuilds `tally.wasm` from source into
+`/tmp` on every run and then `cmp`s it byte-for-byte against the
+committed copy, so drift between `main.go` and the committed binary now
+fails CI. To rebuild it locally after editing `main.go`:
 
 ```bash
 cd examples/node-cookbook/wasm/wasm/tally
 tinygo build -o ../tally.wasm -target wasi -buildmode=c-shared .
+git add -f ../tally.wasm   # force-add: .wasm is gitignored repo-wide
 ```
 
 Requires tinygo (this repo is built against 0.40.1) — see
