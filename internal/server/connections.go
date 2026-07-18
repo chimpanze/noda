@@ -15,6 +15,26 @@ import (
 // registerConnections sets up WebSocket and SSE endpoints from connection config.
 func (s *Server) registerConnections() error {
 	for _, connConfig := range s.config.Connections {
+		// Build the sync bridge once per config file (not per endpoint): every
+		// endpoint in this file shares the same "sync" block, and a broken
+		// sync config should boot-error even if the file declares zero
+		// endpoints.
+		var bridge *connmgr.SyncBridge
+		if syncCfg, ok := connConfig["sync"].(map[string]any); ok {
+			pubsubName, _ := syncCfg["pubsub"].(string)
+			if pubsubName != "" {
+				raw, found := s.services.Get(pubsubName)
+				if !found {
+					return fmt.Errorf("connections sync: pubsub service %q not found", pubsubName)
+				}
+				ps, ok := raw.(api.PubSubService)
+				if !ok {
+					return fmt.Errorf("connections sync: service %q does not implement PubSubService", pubsubName)
+				}
+				bridge = connmgr.NewSyncBridge(ps, s.instanceID, s.logger)
+			}
+		}
+
 		endpoints, ok := connConfig["endpoints"].(map[string]any)
 		if !ok {
 			continue
@@ -44,22 +64,6 @@ func (s *Server) registerConnections() error {
 			}
 			mgr := connmgr.NewManager(mgrCfg)
 			s.connManagers.Add(mgr)
-
-			var bridge *connmgr.SyncBridge
-			if syncCfg, ok := connConfig["sync"].(map[string]any); ok {
-				pubsubName, _ := syncCfg["pubsub"].(string)
-				if pubsubName != "" {
-					raw, found := s.services.Get(pubsubName)
-					if !found {
-						return fmt.Errorf("connections sync: pubsub service %q not found", pubsubName)
-					}
-					ps, ok := raw.(api.PubSubService)
-					if !ok {
-						return fmt.Errorf("connections sync: service %q does not implement PubSubService", pubsubName)
-					}
-					bridge = connmgr.NewSyncBridge(ps, s.instanceID, s.logger)
-				}
-			}
 
 			svc := connmgr.NewEndpointService(mgr, name, bridge)
 
