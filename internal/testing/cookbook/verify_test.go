@@ -40,12 +40,12 @@ func TestLoadSuite(t *testing.T) {
 
 func TestLoadSuiteRejects(t *testing.T) {
 	cases := map[string]string{
-		"unknown field":   `{"steps": [], "bogus": 1}`,
-		"no steps":        `{"deps": []}`,
-		"missing name":    `{"steps": [{"request": {"method": "GET", "path": "/x"}, "expect": {"status": 200}}]}`,
-		"missing method":  `{"steps": [{"name": "a", "request": {"path": "/x"}, "expect": {"status": 200}}]}`,
-		"missing path":    `{"steps": [{"name": "a", "request": {"method": "GET"}, "expect": {"status": 200}}]}`,
-		"missing status":  `{"steps": [{"name": "a", "request": {"method": "GET", "path": "/x"}, "expect": {}}]}`,
+		"unknown field":  `{"steps": [], "bogus": 1}`,
+		"no steps":       `{"deps": []}`,
+		"missing name":   `{"steps": [{"request": {"method": "GET", "path": "/x"}, "expect": {"status": 200}}]}`,
+		"missing method": `{"steps": [{"name": "a", "request": {"path": "/x"}, "expect": {"status": 200}}]}`,
+		"missing path":   `{"steps": [{"name": "a", "request": {"method": "GET"}, "expect": {"status": 200}}]}`,
+		"missing status": `{"steps": [{"name": "a", "request": {"method": "GET", "path": "/x"}, "expect": {}}]}`,
 	}
 	for name, content := range cases {
 		t.Run(name, func(t *testing.T) {

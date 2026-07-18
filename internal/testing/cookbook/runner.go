@@ -74,7 +74,10 @@ func runProject(dir string, plugins []api.Plugin) error {
 		return fmt.Errorf("bootstrap: %v", berrs)
 	}
 
-	// Build workflow cache from the resolved config
+	// The cache must be built here and injected via WithWorkflowCache: although
+	// srv.Setup() would self-build an identical cache, NewServer only wires the
+	// sub-workflow runner (used by workflow.run / control.loop) when the cache
+	// is already present at construction time (server.go NewServer).
 	wfCache, err := engine.NewWorkflowCache(rc.Workflows, boot.Nodes)
 	if err != nil {
 		return fmt.Errorf("workflow cache: %w", err)
@@ -146,7 +149,7 @@ func runStep(srv *server.Server, step Step, vars map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("reading response: %w", err)
@@ -156,8 +159,9 @@ func runStep(srv *server.Server, step Step, vars map[string]string) error {
 		return fmt.Errorf("expected status %d, got %d (body: %.500s)", step.Expect.Status, resp.StatusCode, raw)
 	}
 	for k, want := range step.Expect.Headers {
-		if got := resp.Header.Get(k); got != Substitute(want, vars) {
-			return fmt.Errorf("expected header %s=%q, got %q", k, want, got)
+		expected := Substitute(want, vars)
+		if got := resp.Header.Get(k); got != expected {
+			return fmt.Errorf("expected header %s=%q, got %q", k, expected, got)
 		}
 	}
 	if step.Expect.BodyText != nil {

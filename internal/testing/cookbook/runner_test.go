@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -95,12 +94,19 @@ func TestSubstituteBodyEscapesSpecialCharacters(t *testing.T) {
 
 func TestRunProjectRejectsDeps(t *testing.T) {
 	dir := writeProject(t)
-	p := filepath.Join(dir, "verify.json")
-	raw, err := os.ReadFile(p)
-	require.NoError(t, err)
-	patched := strings.Replace(string(raw), `"deps": []`, `"deps": ["postgres"]`, 1)
-	require.NotEqual(t, string(raw), patched, "expected to find deps: [] to patch")
-	require.NoError(t, os.WriteFile(p, []byte(patched), 0o644))
+	// Overwrite verify.json with a suite that declares a dep, built from a
+	// constant rather than patching the file on disk.
+	depsSuite := `{
+	  "deps": ["postgres"],
+	  "steps": [
+	    {
+	      "name": "never runs",
+	      "request": {"method": "POST", "path": "/api/echo", "body": {"name": "x"}},
+	      "expect": {"status": 200}
+	    }
+	  ]
+	}`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "verify.json"), []byte(depsSuite), 0o644))
 
 	failed := runProjectRecorded(t, dir, testPlugins())
 	require.True(t, failed, "non-empty deps must fail in this tranche")

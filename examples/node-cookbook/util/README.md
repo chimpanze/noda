@@ -54,3 +54,5 @@ real projects should use `{{ secrets.NAME }}` per [`docs/02-config/variables.md`
 curl -X POST localhost:3000/api/jwt-sign -H 'Content-Type: application/json' -d '{"uid": "user-1"}'
 # → 200 {"token":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTEifQ.5Q1dEPpDpFz_dS1n_x_X_x_X_x_X_x_X"}
 ```
+
+The token shown is illustrative — the real payload also carries an `exp` claim, since the workflow sets `expiry: 1h`.
