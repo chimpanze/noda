@@ -1017,6 +1017,14 @@ func (p *mockPubSubService) Publish(_ context.Context, channel string, payload a
 	return nil
 }
 
+// Subscribe is unused by these host-dispatcher tests; it exists only to
+// satisfy api.PubSubService, which gained Subscribe alongside Publish for
+// the connmgr sync bridge (#363).
+func (p *mockPubSubService) Subscribe(ctx context.Context, _ string, _ func(payload any) error) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 // --- Host Dispatcher: Storage dispatch ---
 
 func TestHostDispatcher_StorageService(t *testing.T) {

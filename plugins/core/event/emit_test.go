@@ -65,6 +65,14 @@ func (m *mockPubSubService) Publish(_ context.Context, channel string, payload a
 	return nil
 }
 
+// Subscribe is unused by these tests; it exists only to satisfy
+// api.PubSubService, which gained Subscribe alongside Publish for the
+// connmgr sync bridge (#363).
+func (m *mockPubSubService) Subscribe(ctx context.Context, _ string, _ func(payload any) error) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
 // failingStreamService always returns an error on Publish.
 type failingStreamService struct {
 	err error
@@ -81,6 +89,12 @@ type failingPubSubService struct {
 
 func (f *failingPubSubService) Publish(_ context.Context, _ string, _ any) error {
 	return f.err
+}
+
+// Subscribe is unused by these tests; see mockPubSubService.Subscribe.
+func (f *failingPubSubService) Subscribe(ctx context.Context, _ string, _ func(payload any) error) error {
+	<-ctx.Done()
+	return ctx.Err()
 }
 
 func TestPlugin_Metadata(t *testing.T) {

@@ -26,6 +26,9 @@ type StreamService interface {
 // PubSubService provides real-time fan-out messaging (Redis PubSub).
 type PubSubService interface {
 	Publish(ctx context.Context, channel string, payload any) error
+	// Subscribe listens on channel and invokes handler for each message until
+	// ctx is cancelled or handler returns an error, whichever comes first.
+	Subscribe(ctx context.Context, channel string, handler func(payload any) error) error
 }
 
 // ConnectionService provides WebSocket and SSE messaging.
