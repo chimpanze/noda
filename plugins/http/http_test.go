@@ -475,6 +475,33 @@ func TestRequest_ByteSliceBody(t *testing.T) {
 	assert.Equal(t, "success", output)
 }
 
+func TestRequest_NestedMapBodyResolvesTemplates(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		bodyBytes, _ := io.ReadAll(r.Body)
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal(bodyBytes, &payload))
+		assert.Equal(t, "hi", payload["message"])
+		w.WriteHeader(200)
+	}))
+	defer ts.Close()
+
+	svc := newTestService()
+	services := map[string]any{"client": svc}
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{
+		"message": "hi",
+	}))
+
+	e := newPostExecutor(nil)
+	output, _, err := e.Execute(context.Background(), execCtx, map[string]any{
+		"url": ts.URL,
+		"body": map[string]any{
+			"message": "{{ input.message }}",
+		},
+	}, services)
+	require.NoError(t, err)
+	assert.Equal(t, "success", output)
+}
+
 func TestRequest_InvalidTimeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(200)

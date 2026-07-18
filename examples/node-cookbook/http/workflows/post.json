@@ -6,7 +6,7 @@
       "services": { "client": "web" },
       "config": {
         "url": "{{ secrets.COOKBOOK_BASE_URL }}/api/echo",
-        "body": "{{ {message: input.message} }}",
+        "body": { "message": "{{ input.message }}" },
         "timeout": "5s"
       }
     },
