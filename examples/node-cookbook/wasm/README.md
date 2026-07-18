@@ -82,9 +82,13 @@ force-added past that same `.gitignore` rule
 (`git ls-files | grep '\.wasm$'` shows it as the repo's only tracked
 `.wasm` binary). CI's "Build example guest modules" step
 (`.github/workflows/ci.yml`) rebuilds `tally.wasm` from source into
-`/tmp` on every run and then `cmp`s it byte-for-byte against the
-committed copy, so drift between `main.go` and the committed binary now
-fails CI. To rebuild it locally after editing `main.go`:
+`/tmp` on every run, so compile or ABI breakage in `main.go` fails the
+job — but it does **not** byte-compare the result against the committed
+copy: tinygo output embeds absolute host paths (the committed binary
+carries this machine's `/Users/...` build paths) and is not
+byte-reproducible across machines, so a `cmp` would always fail on the
+Linux runner. Keeping the committed binary in sync with `main.go` after
+an edit is a manual step. To rebuild it locally after editing `main.go`:
 
 ```bash
 cd examples/node-cookbook/wasm/wasm/tally

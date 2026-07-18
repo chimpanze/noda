@@ -47,7 +47,8 @@ confirmed against `docs/02-config/connections.md`):
     "feed": {
       "type": "sse",
       "path": "/events/:channel",
-      "channels": { "pattern": "feed.{{ request.params.channel }}" }
+      "channels": { "pattern": "feed.{{ request.params.channel }}" },
+      "heartbeat": "1s"
     }
   }
 }
@@ -104,6 +105,7 @@ keep-alive comment on that interval so idle SSE connections don't sit on
 an open socket indefinitely. It also bounds this cookbook's own test
 teardown: without it, an SSE response can hold its connection open past
 the harness's shutdown deadline.
+
 ## Test harness notes
 
 `verify.json` uses the cookbook harness's named ws/sse clients
