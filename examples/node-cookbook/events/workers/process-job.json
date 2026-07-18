@@ -1,0 +1,17 @@
+{
+  "id": "process-job-worker",
+  "services": {
+    "stream": "jobs-stream"
+  },
+  "subscribe": {
+    "topic": "cookbook.jobs",
+    "group": "cookbook-workers"
+  },
+  "concurrency": 1,
+  "trigger": {
+    "workflow": "process-job",
+    "input": {
+      "job_id": "{{ message.payload.job_id }}"
+    }
+  }
+}

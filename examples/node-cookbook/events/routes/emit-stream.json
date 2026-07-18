@@ -1,0 +1,11 @@
+{
+  "id": "emit-stream",
+  "method": "POST",
+  "path": "/api/jobs",
+  "summary": "Queue a job by emitting a stream event",
+  "tags": ["events"],
+  "trigger": {
+    "workflow": "emit-stream",
+    "input": { "job_id": "{{ body.job_id }}" }
+  }
+}

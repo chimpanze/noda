@@ -1,0 +1,29 @@
+{
+  "deps": ["redis"],
+  "steps": [
+    {
+      "name": "emit queues a stream event",
+      "request": { "method": "POST", "path": "/api/jobs", "body": { "job_id": "job-1" } },
+      "expect": {
+        "status": 202,
+        "body": [ { "path": "queued", "equals": true } ]
+      }
+    },
+    {
+      "name": "worker processes the event (polled)",
+      "request": { "method": "GET", "path": "/api/jobs/job-1", "retry_timeout": "10s" },
+      "expect": {
+        "status": 200,
+        "body": [ { "path": "done", "equals": true } ]
+      }
+    },
+    {
+      "name": "emit publishes a pubsub event",
+      "request": { "method": "POST", "path": "/api/notify", "body": { "text": "hello" } },
+      "expect": {
+        "status": 202,
+        "body": [ { "path": "ok", "equals": true } ]
+      }
+    }
+  ]
+}

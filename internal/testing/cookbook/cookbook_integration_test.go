@@ -12,6 +12,7 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
 	"github.com/chimpanze/noda/plugins/core/control"
+	"github.com/chimpanze/noda/plugins/core/event"
 	"github.com/chimpanze/noda/plugins/core/response"
 	corestorage "github.com/chimpanze/noda/plugins/core/storage"
 	"github.com/chimpanze/noda/plugins/core/transform"
@@ -22,7 +23,9 @@ import (
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
+	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
+	streamplugin "github.com/chimpanze/noda/plugins/stream"
 	"github.com/stretchr/testify/require"
 )
 
@@ -41,6 +44,9 @@ func cookbookPlugins() []api.Plugin {
 		&imageplugin.Plugin{},
 		&emailplugin.Plugin{},
 		&httpplugin.Plugin{},
+		&event.Plugin{},
+		&streamplugin.Plugin{},
+		&pubsubplugin.Plugin{},
 	}
 }
 

@@ -1,0 +1,25 @@
+{
+  "id": "emit-stream",
+  "name": "Emit Stream Event",
+  "nodes": {
+    "emit": {
+      "type": "event.emit",
+      "services": { "stream": "jobs-stream" },
+      "config": {
+        "mode": "stream",
+        "topic": "cookbook.jobs",
+        "payload": { "job_id": "{{ input.job_id }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 202,
+        "body": { "queued": true, "message_id": "{{ nodes.emit.message_id }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "emit", "to": "respond" }
+  ]
+}
