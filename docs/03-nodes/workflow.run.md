@@ -1,6 +1,6 @@
 # workflow.run
 
-Executes a sub-workflow. Outputs are dynamic -- they match the sub-workflow's `workflow.output` node names.
+Executes a sub-workflow.
 
 ## Config
 
@@ -12,11 +12,11 @@ Executes a sub-workflow. Outputs are dynamic -- they match the sub-workflow's `w
 
 ## Outputs
 
-Dynamic from sub-workflow + `error`
+Exactly two ports: `success` and `error`. The sub-workflow's `workflow.output` name is not surfaced as a port -- any name other than `error` routes through `success`, with that output node's data preserved. Branch on the data, not the port.
 
 ## Behavior
 
-Resolves `input` expressions and populates the sub-workflow's `$.input`. Executes the sub-workflow. Whichever `workflow.output` node fires determines which output this node emits in the parent, along with that output node's data. If the sub-workflow fails without reaching a `workflow.output`, fires `error`. When `transaction: true`, the `services.database` slot must be filled -- the engine wraps execution in a database transaction and swaps the connection for all `db.*` nodes inside.
+Resolves `input` expressions and populates the sub-workflow's `$.input`. Executes the sub-workflow. Whichever `workflow.output` node fires determines the data this node emits in the parent; if that output's `name` is `"error"` it routes to this node's `error` port, otherwise it routes to `success` (see `workflow.output.md`). If the sub-workflow fails without reaching a `workflow.output`, fires `error`. When `transaction: true`, the `services.database` slot must be filled -- the engine wraps execution in a database transaction and swaps the connection for all `db.*` nodes inside.
 
 Recursion limit: Recursive workflow calls (direct or indirect) are limited to a depth of 64, shared with `control.loop`. Exceeding this limit returns a `RECURSION_DEPTH_EXCEEDED` error.
 
@@ -65,7 +65,7 @@ A parent workflow validates input and delegates creation to a sub-workflow, pass
 }
 ```
 
-When `nodes.lookup_cart` produced `{"id": 88, "items": [{"sku": "X1", "qty": 1}]}` and `nodes.get_profile` produced `{"address": {"city": "Berlin"}}`, those values populate the sub-workflow's `input`. The sub-workflow's `workflow.output` name determines which output fires. Output stored as `nodes.run_checkout`:
+When `nodes.lookup_cart` produced `{"id": 88, "items": [{"sku": "X1", "qty": 1}]}` and `nodes.get_profile` produced `{"address": {"city": "Berlin"}}`, those values populate the sub-workflow's `input`. The sub-workflow's `workflow.output` node reached had `name: "confirmed"`, so `run_checkout` routes to its `success` port with that node's data. Output stored as `nodes.run_checkout`:
 ```json
 { "order_id": 501, "status": "confirmed" }
 ```

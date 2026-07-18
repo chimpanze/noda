@@ -103,7 +103,7 @@ func TestRun_TransactionCommitOnSuccess(t *testing.T) {
 		},
 	}
 
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{
@@ -133,7 +133,7 @@ func TestRun_TransactionRollbackOnFailure(t *testing.T) {
 		},
 	}
 
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{
@@ -164,7 +164,7 @@ func TestRun_TransactionMultipleInserts(t *testing.T) {
 		},
 	}
 
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{
@@ -193,7 +193,7 @@ func TestRun_TransactionMultipleInsertsRollback(t *testing.T) {
 		},
 	}
 
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{
@@ -213,7 +213,7 @@ func TestRun_TransactionMultipleInsertsRollback(t *testing.T) {
 
 func TestRun_TransactionMissingDatabaseService(t *testing.T) {
 	runner := &mockTransactionalRunner{}
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{
@@ -229,7 +229,7 @@ func TestRun_TransactionMissingDatabaseService(t *testing.T) {
 func TestRun_TransactionRunnerNotSupported(t *testing.T) {
 	// Use a basic SubWorkflowRunner that doesn't implement TransactionalRunner
 	runner := &basicRunner{}
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{
@@ -271,7 +271,7 @@ func TestRun_NestedTransactionSavepoint(t *testing.T) {
 		},
 	}
 
-	exec := &RunExecutor{Runner: runner, outputs: []string{"success", "error"}}
+	exec := &RunExecutor{Runner: runner}
 	nCtx := &mockTxExecCtx{}
 
 	config := map[string]any{

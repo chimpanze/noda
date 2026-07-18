@@ -16,11 +16,9 @@
     "workflow": "sync-github-issue",
     "input": {
       "action": "{{ message.payload.action }}",
-      "issue_id": "{{ message.payload.issue.id }}",
+      "issue_id": "{{ string(message.payload.issue.id) }}",
       "title": "{{ message.payload.issue.title }}",
-      "body": "{{ message.payload.issue.body }}",
-      "workspace_id": "{{ message.payload.workspace_id }}",
-      "project_id": "{{ message.payload.project_id }}"
+      "body": "{{ message.payload.issue.body }}"
     }
   }
 }

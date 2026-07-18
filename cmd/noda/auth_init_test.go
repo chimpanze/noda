@@ -233,7 +233,7 @@ func runScaffoldedAuthSuite(t *testing.T, suiteID string) {
 			continue
 		}
 		ran = true
-		for _, res := range nodatesting.RunTestSuite(suite, rc, reg) {
+		for _, res := range nodatesting.RunTestSuite(suite, rc, reg, nil) {
 			assert.Truef(t, res.Passed, "case %q failed: %s", res.CaseName, res.Error)
 		}
 	}

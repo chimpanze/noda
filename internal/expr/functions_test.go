@@ -388,6 +388,15 @@ func TestHmacVerify(t *testing.T) {
 	assert.Equal(t, true, result, "uppercase-hex signatures must verify")
 }
 
+func TestHmacVerify_UppercaseAlgorithmPrefix(t *testing.T) {
+	// echo -n 'hello' | openssl dgst -sha256 -hmac 'key'
+	const sig = "9307b3b915efb5171ff14d8cb55fbcc798c6c0ef1456d66ded1a6aa723a58b7b"
+	ctx := map[string]any{"sig": "SHA256=" + strings.ToUpper(sig)}
+
+	result := compileAndEvalWithFunctions(t, `{{ hmac_verify("hello", "key", "sha256", sig) }}`, ctx)
+	assert.Equal(t, true, result, "uppercase '<ALGORITHM>=' prefix must verify")
+}
+
 func TestHmacVerify_InvalidAlgorithm(t *testing.T) {
 	c := NewCompilerWithFunctions()
 	compiled, err := c.Compile(`{{ hmac_verify("hello", "key", "md5", "abc") }}`)

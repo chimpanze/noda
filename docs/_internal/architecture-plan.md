@@ -249,7 +249,7 @@ Every node type declares which **outputs** it provides. Outputs are the named co
 - **`control.if`**: `then`, `else`, `error`
 - **`control.switch`**: statically named branches from config (e.g., `"admin"`, `"user"`, `"guest"`), plus `default` and `error`. Case names must be string literals — expressions are not allowed because outputs must be known at startup for graph validation and visual editor rendering.
 - **`control.loop`**: `done` (fires when all iterations complete, carries collected results), `error`
-- **`workflow.run`**: dynamic outputs collected from the sub-workflow's `workflow.output` nodes, plus `error` (see Section 8.5)
+- **`workflow.run`**: exactly `success`, `error` — the sub-workflow's `workflow.output` name is not surfaced as a port; any name other than `error` routes through `success`, with that output node's data preserved (see Section 8.5)
 
 The visual editor reads each node's output declarations to render the correct connection ports. Edges reference outputs by name:
 
@@ -644,7 +644,7 @@ The parent wires edges to each possible output:
 }
 ```
 
-The `workflow.run` node has **dynamic outputs** — its factory reads the referenced sub-workflow, collects all `workflow.output` node names, and returns those as its `Outputs()`. The engine validates at startup that every edge references a valid output name, and every `workflow.output` name within a sub-workflow is unique.
+The `workflow.run` node has exactly two static outputs, `success` and `error`. The sub-workflow's `workflow.output` name is not surfaced as a port: whichever `workflow.output` node fires inside the sub-workflow, its name is checked against the literal string `"error"` — a match routes to the parent's `error` output, anything else routes to `success` with that output node's data preserved. Callers branch on the data, not on a port name. The engine validates at startup that every `workflow.output` name within a sub-workflow is unique.
 
 If a sub-workflow node fails and has no error edge, the engine fires the `workflow.run` node's `"error"` output in the parent (this output is always present, even if the sub-workflow doesn't define a `workflow.output` named "error").
 
@@ -1420,7 +1420,7 @@ Nodes are the atomic units of workflow logic. They are organized by prefix, whic
 
 Retries are not a node type — they are configured on edges (see Section 8.4). Parallelism is implicit from the graph structure (see Section 8.2) — no explicit parallel node is needed.
 
-**Workflow**: `workflow.run` (invoke sub-workflow, outputs are dynamic from sub-workflow's `workflow.output` nodes, plus `error`; optionally wrapped in a database transaction), `workflow.output` (terminal node in sub-workflows — declares a named output and return data)
+**Workflow**: `workflow.run` (invoke sub-workflow; exactly two static outputs, `success` and `error` — any non-`error` sub-workflow output name routes through `success` with its data preserved; optionally wrapped in a database transaction), `workflow.output` (terminal node in sub-workflows — declares a named output and return data)
 
 **Transform** (all outputs: `success`, `error`): `transform.set`, `transform.map`, `transform.filter`, `transform.merge`, `transform.delete`, `transform.validate`
 

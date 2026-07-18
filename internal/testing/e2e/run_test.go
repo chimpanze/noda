@@ -42,7 +42,7 @@ func TestNodeE2E(t *testing.T) {
 	require.NotEmpty(t, suites, "no test suites found in testdata/node-e2e/tests")
 
 	for _, s := range suites {
-		for _, r := range nodatesting.RunTestSuite(s, rc, coreReg) {
+		for _, r := range nodatesting.RunTestSuite(s, rc, coreReg, nil) {
 			if !r.Passed {
 				t.Errorf("[workflow %s] case %q failed: %s", s.Workflow, r.CaseName, r.Error)
 			}

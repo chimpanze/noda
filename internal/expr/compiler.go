@@ -71,6 +71,20 @@ var knownContextEnv = map[string]any{
 	"secrets": map[string]any{},
 	"$item":   map[string]any{}, // loop/map/filter iteration value (control.loop, transform.map/filter)
 	"$index":  0,                // loop/map/filter iteration index
+	// Transport namespaces available to trigger input mappings (#354):
+	// HTTP routes (internal/server/trigger.go buildRawRequestContext),
+	// workers ("message", internal/worker/runtime.go), schedulers
+	// ("schedule", internal/scheduler/runtime.go).
+	"body":     map[string]any{},
+	"query":    map[string]any{},
+	"params":   map[string]any{},
+	"headers":  map[string]any{},
+	"request":  map[string]any{},
+	"raw_body": "",
+	"method":   "",
+	"path":     "",
+	"message":  map[string]any{},
+	"schedule": map[string]any{},
 }
 
 // Compiler compiles and caches expressions.

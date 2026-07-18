@@ -23,7 +23,9 @@ func (headerKeyPatcher) Visit(node *ast.Node) {
 		return
 	}
 	if lower := strings.ToLower(str.Value); lower != str.Value {
-		member.Property = &ast.StringNode{Value: lower}
+		patched := &ast.StringNode{Value: lower}
+		patched.SetLocation(str.Location())
+		member.Property = patched
 	}
 }
 

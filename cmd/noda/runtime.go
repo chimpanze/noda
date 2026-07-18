@@ -200,6 +200,7 @@ func createWasm(rtCtx *runtimeContext) (*wasm.Runtime, error) {
 			cfg.ModulePath = resolved
 		}
 		if _, err := rt.LoadModule(context.Background(), cfg); err != nil {
+			_ = rt.StopAll(context.Background()) // release already-loaded modules (#365)
 			return nil, fmt.Errorf("loading wasm module %q: %w", name, err)
 		}
 		wasmSvc := wasm.NewWasmService(rt, name)

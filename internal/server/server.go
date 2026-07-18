@@ -184,6 +184,16 @@ func (s *Server) Setup() error {
 		s.workflows = cache
 	}
 
+	// The constructor only wires the sub-workflow runner when a cache was
+	// injected via WithWorkflowCache; a self-built cache arrives here (#359).
+	if s.subWorkflowRunner == nil && s.workflows != nil {
+		s.subWorkflowRunner = &engine.SubWorkflowRunnerImpl{
+			Cache:    s.workflows,
+			Services: s.services,
+			Nodes:    s.nodes,
+		}
+	}
+
 	// Make internal runtime objects available to middleware factories via rootConfig.
 	// Keys prefixed with "_" are reserved for internal use and must not collide with user config.
 	s.config.Root["_services"] = s.services

@@ -24,11 +24,12 @@ func RunTestSuite(
 	suite TestSuite,
 	rc *config.ResolvedConfig,
 	coreNodeReg *registry.NodeRegistry,
+	secretsCtx map[string]any,
 ) []TestResult {
 	var results []TestResult
 
 	for _, tc := range suite.Cases {
-		result := runTestCase(tc, suite.Workflow, rc, coreNodeReg)
+		result := runTestCase(tc, suite.Workflow, rc, coreNodeReg, secretsCtx)
 		results = append(results, result)
 	}
 
@@ -40,6 +41,7 @@ func runTestCase(
 	workflowID string,
 	rc *config.ResolvedConfig,
 	coreNodeReg *registry.NodeRegistry,
+	secretsCtx map[string]any,
 ) TestResult {
 	start := time.Now()
 
@@ -115,6 +117,9 @@ func runTestCase(
 	}
 	if tc.Input != nil {
 		opts = append(opts, engine.WithInput(tc.Input))
+	}
+	if secretsCtx != nil {
+		opts = append(opts, engine.WithSecrets(secretsCtx))
 	}
 	if tc.Auth != nil {
 		opts = append(opts, engine.WithAuth(&api.AuthData{
