@@ -1,0 +1,10 @@
+{
+  "id": "create-token",
+  "method": "POST",
+  "path": "/api/auth/create-token",
+  "summary": "auth.create_token — mint a single-use token",
+  "trigger": {
+    "workflow": "create-token",
+    "input": { "user_id": "{{ body.user_id }}", "purpose": "{{ body.purpose }}" }
+  }
+}

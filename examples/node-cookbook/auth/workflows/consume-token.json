@@ -1,0 +1,23 @@
+{
+  "id": "consume-token",
+  "name": "Consume Token",
+  "nodes": {
+    "consume": {
+      "type": "auth.consume_token",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "token": "{{ input.token }}", "purpose": "{{ input.purpose }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.consume }}" }
+    },
+    "rejected": {
+      "type": "response.error",
+      "config": { "status": 400, "code": "TOKEN_INVALID", "message": "token is unknown, expired, or already used" }
+    }
+  },
+  "edges": [
+    { "from": "consume", "output": "success", "to": "respond" },
+    { "from": "consume", "output": "invalid", "to": "rejected" }
+  ]
+}

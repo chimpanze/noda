@@ -1,0 +1,23 @@
+{
+  "id": "get-user",
+  "name": "Get User",
+  "nodes": {
+    "get": {
+      "type": "auth.get_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "user_id": "{{ input.user_id }}" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.get }}" }
+    },
+    "missing": {
+      "type": "response.error",
+      "config": { "status": 404, "code": "USER_NOT_FOUND", "message": "user not found" }
+    }
+  },
+  "edges": [
+    { "from": "get", "output": "success", "to": "respond" },
+    { "from": "get", "output": "not_found", "to": "missing" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "create-session",
+  "method": "POST",
+  "path": "/api/auth/create-session",
+  "summary": "auth.create_session — mint a session token",
+  "trigger": {
+    "workflow": "create-session",
+    "input": { "user_id": "{{ body.user_id }}" }
+  }
+}

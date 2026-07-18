@@ -1,0 +1,10 @@
+{
+  "id": "get-user",
+  "method": "GET",
+  "path": "/api/auth/users",
+  "summary": "auth.get_user — fetch a user by id",
+  "trigger": {
+    "workflow": "get-user",
+    "input": { "user_id": "{{ query.user_id }}" }
+  }
+}

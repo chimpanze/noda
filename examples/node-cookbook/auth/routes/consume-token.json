@@ -1,0 +1,10 @@
+{
+  "id": "consume-token",
+  "method": "POST",
+  "path": "/api/auth/consume-token",
+  "summary": "auth.consume_token — atomically consume a single-use token",
+  "trigger": {
+    "workflow": "consume-token",
+    "input": { "token": "{{ body.token }}", "purpose": "{{ body.purpose }}" }
+  }
+}

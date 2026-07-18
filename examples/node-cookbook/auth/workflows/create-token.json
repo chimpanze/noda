@@ -1,0 +1,18 @@
+{
+  "id": "create-token",
+  "name": "Create Token",
+  "nodes": {
+    "mint": {
+      "type": "auth.create_token",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "user_id": "{{ input.user_id }}", "purpose": "{{ input.purpose }}", "ttl": "1h" }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 201, "body": "{{ nodes.mint }}" }
+    }
+  },
+  "edges": [
+    { "from": "mint", "output": "success", "to": "respond" }
+  ]
+}

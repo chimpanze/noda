@@ -357,3 +357,34 @@ func TestOptionsVarsPreSeed(t *testing.T) {
 	}
 	RunProject(t, dir, testPlugins(), Options{Vars: map[string]string{"seeded": "from-options"}})
 }
+
+func TestBodyAssertionEqualsSubstitutesCapturedVar(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"noda.json": `{"server": {"port": 3000}, "services": {}}`,
+		"routes/echo.json": `{
+		  "id": "echo", "method": "POST", "path": "/api/echo",
+		  "trigger": {"workflow": "echo", "input": {"v": "{{ body.v }}"}}
+		}`,
+		"workflows/echo.json": `{
+		  "id": "echo",
+		  "nodes": {"respond": {"type": "response.json", "config": {"status": 200, "body": {"v": "{{ input.v }}"}}}},
+		  "edges": []
+		}`,
+		"verify.json": `{
+		  "steps": [
+		    {"name": "capture v", "request": {"method": "POST", "path": "/api/echo", "body": {"v": "abc-123"}},
+		      "expect": {"status": 200, "body": [{"path": "v", "equals": "abc-123"}]},
+		      "capture": {"seen": "body.v"}},
+		    {"name": "later response echoes the captured value", "request": {"method": "POST", "path": "/api/echo", "body": {"v": "abc-123"}},
+		      "expect": {"status": 200, "body": [{"path": "v", "equals": "${seen}"}]}}
+		  ]
+		}`,
+	}
+	for name, content := range files {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
+	}
+	RunProject(t, dir, testPlugins(), Options{})
+}
