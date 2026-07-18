@@ -139,11 +139,10 @@ For dynamic nodes, the outputs depend on the config. Case names and output names
 | Node | Config | Outputs |
 |---|---|---|
 | `control.switch` | `cases: ["admin", "user"]` | `["admin", "user", "default", "error"]` |
-| `workflow.run` | `workflow: "check-inventory"` | collected from sub-workflow's `workflow.output` nodes, plus `"error"` |
 
-The `workflow.run` factory reads the referenced sub-workflow at compilation time, collects all `workflow.output` node names, and returns those plus `"error"` as its outputs. This means the sub-workflow must exist and be valid at startup.
+`workflow.run` is not a dynamic-output node — its `Outputs()` are always the static `["success", "error"]`. Its factory still reads the referenced sub-workflow at compilation time, but only to validate that it exists and is valid at startup; the sub-workflow's `workflow.output` name is not surfaced as a port. Whichever `workflow.output` node fires inside the sub-workflow, a name of literal `"error"` routes to the parent's `error` output and any other name routes to `success`, with that output node's data preserved.
 
-All dynamic-output nodes follow the same contract: **exactly one output fires per execution.** `control.if` fires one of `then`/`else`. `control.switch` fires one case. `workflow.run` fires whichever `workflow.output` was reached inside the sub-workflow. The engine enforces this for sub-workflows at startup by validating that all `workflow.output` nodes are on mutually exclusive branches.
+All dynamic-output nodes follow the same contract: **exactly one output fires per execution.** `control.if` fires one of `then`/`else`. `control.switch` fires one case. `workflow.run` always fires either `success` or `error`, regardless of which `workflow.output` was reached inside the sub-workflow. The engine enforces this for sub-workflows at startup by validating that all `workflow.output` nodes are on mutually exclusive branches.
 
 The visual editor calls the factory with the current config whenever the user changes node configuration, and re-renders the output ports based on what `Outputs()` returns. The engine validates at startup that every edge references a valid output name.
 
