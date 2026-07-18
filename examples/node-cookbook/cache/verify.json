@@ -74,7 +74,12 @@
         "path": "/api/cache/greeting"
       },
       "expect": {
-        "status": 404
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "NOT_FOUND" },
+          { "path": "error.message", "equals": "Cache key not found" },
+          { "path": "error.trace_id", "exists": true }
+        ]
       }
     }
   ]

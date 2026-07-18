@@ -51,7 +51,7 @@ curl http://localhost:3000/api/cache/greeting/exists
 
 # Get after delete returns 404
 curl http://localhost:3000/api/cache/greeting
-# → {"code":"NOT_FOUND","message":"Cache key not found"} (404)
+# → 404 {"error":{"code":"NOT_FOUND","message":"Cache key not found","trace_id":"..."}}
 ```
 
 ## Project Structure
