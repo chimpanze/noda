@@ -1184,14 +1184,16 @@ Connection lifecycle events — `on_connect`, `on_message`, `on_disconnect` — 
 
 Workflow nodes `ws.send` and `sse.send` push data to connected clients by targeting a channel name on a specific endpoint (see example above in Section 19.1).
 
-### 19.4 Wildcard Channels
+### 19.4 Literal Channels Only
 
-Channels support wildcard patterns for broadcasting:
+Wildcard patterns for channels were removed in favor of explicit literal addresses. Workflow nodes must send to specific channels by name. To broadcast to multiple clients, applications manage a list of channel names and send to each explicitly.
 
-- `user.123` — send to a specific user
-- `user.*` — broadcast to all user channels
-- `feed.*` — broadcast to all feed subscribers
-- `*` — broadcast to all connected clients
+Examples of valid channel sends:
+- `user.123` — send to a specific user channel
+- `feed.tech` — send to a specific feed channel
+- Any application-defined channel name
+
+Attempts to send to channels containing `*` are rejected by the connection manager.
 
 ### 19.5 Multi-Instance Scaling
 
@@ -1199,7 +1201,7 @@ When running multiple Noda instances, there is no registry mapping channels to i
 
 When a workflow node sends a message to a channel (e.g., `ws.send` to `user.123`), the connection manager delivers locally, then publishes a versioned envelope (instance ID, kind, channel, payload) to `noda:sync:<endpoint>`. Every instance subscribed to that endpoint receives the envelope — regardless of whether it holds a matching connection — and delivers it to its own local connections, skipping envelopes it originated itself so the sender's local delivery is never duplicated. This is **fan-out to all subscribed instances**, not targeted delivery: an instance with no `user.123` connection still receives and discards the envelope.
 
-For wildcard channels (`user.*`, `*`), the same fan-out applies: every subscribed instance gets the envelope and matches it against its own local connections using the same wildcard rules.
+For literal channel sends, every subscribed instance receives the envelope and matches it against its own local connections by exact channel name.
 
 A lost subscription reconnects with backoff, and malformed envelopes are dropped with a warning log rather than killing the subscription — there is no TTL-based registry to self-heal, because there is no registry.
 
