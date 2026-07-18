@@ -26,6 +26,10 @@ linters:
       - linters: [gosec]
         text: "G304"
         path: (_test\.go|internal/|cmd/)
+      # G703: taint-analysis path-traversal variant of G304, same rationale
+      - linters: [gosec]
+        text: "G703"
+        path: (_test\.go|internal/|cmd/)
       # G124: request cookies in tests carry no attributes on the wire
       - linters: [gosec]
         text: "G124"
