@@ -42,6 +42,10 @@ import (
 type Options struct {
 	Env        map[string]string
 	MailpitAPI string
+	// Vars pre-seeds the step-loop's variable map before the first step
+	// runs (e.g. an auth code obtained by a walker dep). Step captures may
+	// later overwrite a seeded key; that's fine.
+	Vars map[string]string
 }
 
 // runContext carries the state prepareEnv establishes before config load —
@@ -382,6 +386,9 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 	}
 
 	vars := map[string]string{}
+	for k, v := range rctx.opt.Vars {
+		vars[k] = v
+	}
 	wsConns := map[string]*websocket.Conn{}
 	defer func() {
 		for _, c := range wsConns {

@@ -331,3 +331,29 @@ func TestBuildMultipartBody(t *testing.T) {
 	assert.Contains(t, s, "body-X")
 	assert.Contains(t, s, "Content-Type: text/plain")
 }
+
+func TestOptionsVarsPreSeed(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"noda.json": `{"server": {"port": 3000}, "services": {}}`,
+		"routes/echo.json": `{
+		  "id": "echo", "method": "POST", "path": "/api/echo",
+		  "trigger": {"workflow": "echo", "input": {"v": "{{ body.v }}"}}
+		}`,
+		"workflows/echo.json": `{
+		  "id": "echo",
+		  "nodes": {"respond": {"type": "response.json", "config": {"status": 200, "body": {"v": "{{ input.v }}"}}}},
+		  "edges": []
+		}`,
+		"verify.json": `{
+		  "steps": [{"name": "seeded var substitutes", "request": {"method": "POST", "path": "/api/echo", "body": {"v": "${seeded}"}},
+		    "expect": {"status": 200, "body": [{"path": "v", "equals": "from-options"}]}}]
+		}`,
+	}
+	for name, content := range files {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
+	}
+	RunProject(t, dir, testPlugins(), Options{Vars: map[string]string{"seeded": "from-options"}})
+}
