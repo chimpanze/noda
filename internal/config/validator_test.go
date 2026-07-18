@@ -31,6 +31,34 @@ func TestValidate_ValidRoute(t *testing.T) {
 	assert.Empty(t, errs)
 }
 
+// TestValidate_ConnectionsWithoutSync verifies that a connections config
+// with no "sync" block validates cleanly against the schema (#363: sync is
+// optional — a bridge is only wired when it's present).
+func TestValidate_ConnectionsWithoutSync(t *testing.T) {
+	rc := &RawConfig{
+		Root: map[string]any{},
+		Connections: map[string]map[string]any{
+			"connections/realtime.json": {
+				"endpoints": map[string]any{
+					"chat": map[string]any{
+						"type": "websocket",
+						"path": "/ws/chat",
+					},
+				},
+			},
+		},
+		Schemas:   map[string]map[string]any{},
+		Routes:    map[string]map[string]any{},
+		Workflows: map[string]map[string]any{},
+		Workers:   map[string]map[string]any{},
+		Schedules: map[string]map[string]any{},
+		Tests:     map[string]map[string]any{},
+	}
+
+	errs := Validate(rc)
+	assert.Empty(t, errs)
+}
+
 func TestValidate_MissingRequiredField(t *testing.T) {
 	rc := &RawConfig{
 		Root: map[string]any{},

@@ -1155,7 +1155,7 @@ func TestHostDispatcher_ConnectionService_RejectsWildcardChannel(t *testing.T) {
 	}))
 
 	svcReg := registry.NewServiceRegistry()
-	require.NoError(t, svcReg.Register("ws-conn", connmgr.NewEndpointService(mgr, "ws-conn"), nil))
+	require.NoError(t, svcReg.Register("ws-conn", connmgr.NewEndpointService(mgr, "ws-conn", nil), nil))
 
 	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
 	plugin := newMockPlugin()

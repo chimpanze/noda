@@ -355,6 +355,167 @@ func TestSyncBridge_SubscribeErrorRetriesAndRecovers(t *testing.T) {
 	mu.Unlock()
 }
 
+// --- EndpointService + SyncBridge tests (#363) ---
+
+func TestEndpointService_Send_WithBridge_PublishesAndDeliversLocally(t *testing.T) {
+	bus := newFakeBus()
+	bridge := NewSyncBridge(bus, "instanceA", nil)
+
+	mgr := NewManager()
+	var localReceived []byte
+	require.NoError(t, mgr.Register(&Conn{
+		ID: "c1", Channel: "room:1",
+		SendFn: func(data []byte) error { localReceived = data; return nil },
+	}))
+
+	// A subscriber on instance B observes the published envelope.
+	var published string
+	sub := make(chan struct{})
+	go func() {
+		_ = bus.Subscribe(context.Background(), syncChannelPrefix+"ws-chat", func(payload any) error {
+			raw, _ := json.Marshal(payload)
+			var env Envelope
+			_ = json.Unmarshal(raw, &env)
+			published = env.Payload
+			close(sub)
+			return errors.New("stop") // end the subscribe loop after one message
+		})
+	}()
+	waitFor(t, time.Second, func() bool {
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		return len(bus.subscribers[syncChannelPrefix+"ws-chat"]) == 1
+	})
+
+	svc := NewEndpointService(mgr, "ws-chat", bridge)
+	require.NoError(t, svc.Send(context.Background(), "room:1", "hello"))
+
+	require.Equal(t, []byte("hello"), localReceived)
+	waitFor(t, time.Second, func() bool {
+		select {
+		case <-sub:
+			return true
+		default:
+			return false
+		}
+	})
+	require.Equal(t, "hello", published)
+}
+
+func TestEndpointService_Send_PublishFailure_ReturnsError(t *testing.T) {
+	bus := newFakeBus()
+	bus.failPublish = true
+	bridge := NewSyncBridge(bus, "instanceA", nil)
+
+	mgr := NewManager()
+	var localReceived []byte
+	require.NoError(t, mgr.Register(&Conn{
+		ID: "c1", Channel: "room:1",
+		SendFn: func(data []byte) error { localReceived = data; return nil },
+	}))
+
+	svc := NewEndpointService(mgr, "ws-chat", bridge)
+	err := svc.Send(context.Background(), "room:1", "hello")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cross-instance sync publish")
+	// local delivery already happened before the publish attempt.
+	require.Equal(t, []byte("hello"), localReceived)
+}
+
+func TestEndpointService_Send_NilBridge_LocalOnly(t *testing.T) {
+	mgr := NewManager()
+	var localReceived []byte
+	require.NoError(t, mgr.Register(&Conn{
+		ID: "c1", Channel: "room:1",
+		SendFn: func(data []byte) error { localReceived = data; return nil },
+	}))
+
+	svc := NewEndpointService(mgr, "ws-chat", nil)
+	require.NoError(t, svc.Send(context.Background(), "room:1", "hello"))
+	require.Equal(t, []byte("hello"), localReceived)
+}
+
+func TestEndpointService_SendSSE_WithBridge_PublishesAndDeliversLocally(t *testing.T) {
+	bus := newFakeBus()
+	bridge := NewSyncBridge(bus, "instanceA", nil)
+
+	mgr := NewManager()
+	var gotEvent, gotData, gotID string
+	require.NoError(t, mgr.Register(&Conn{
+		ID: "c1", Channel: "feed:1",
+		SSEFn: func(event, data, id string) error {
+			gotEvent, gotData, gotID = event, data, id
+			return nil
+		},
+	}))
+
+	var published Envelope
+	sub := make(chan struct{})
+	go func() {
+		_ = bus.Subscribe(context.Background(), syncChannelPrefix+"sse-feed", func(payload any) error {
+			raw, _ := json.Marshal(payload)
+			_ = json.Unmarshal(raw, &published)
+			close(sub)
+			return errors.New("stop")
+		})
+	}()
+	waitFor(t, time.Second, func() bool {
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		return len(bus.subscribers[syncChannelPrefix+"sse-feed"]) == 1
+	})
+
+	svc := NewEndpointService(mgr, "sse-feed", bridge)
+	require.NoError(t, svc.SendSSE(context.Background(), "feed:1", "tick", "update", "42"))
+
+	require.Equal(t, "tick", gotEvent)
+	require.Equal(t, "update", gotData)
+	require.Equal(t, "42", gotID)
+	waitFor(t, time.Second, func() bool {
+		select {
+		case <-sub:
+			return true
+		default:
+			return false
+		}
+	})
+	require.Equal(t, "sse", published.Kind)
+	require.Equal(t, "feed:1", published.Channel)
+	require.Equal(t, "update", published.Payload)
+	require.Equal(t, "tick", published.Event)
+	require.Equal(t, "42", published.ID)
+}
+
+func TestEndpointService_SendSSE_PublishFailure_ReturnsError(t *testing.T) {
+	bus := newFakeBus()
+	bus.failPublish = true
+	bridge := NewSyncBridge(bus, "instanceA", nil)
+
+	mgr := NewManager()
+	require.NoError(t, mgr.Register(&Conn{
+		ID: "c1", Channel: "feed:1",
+		SSEFn: func(event, data, id string) error { return nil },
+	}))
+
+	svc := NewEndpointService(mgr, "sse-feed", bridge)
+	err := svc.SendSSE(context.Background(), "feed:1", "tick", "update", "42")
+	require.Error(t, err)
+	require.ErrorContains(t, err, "cross-instance sync publish")
+}
+
+func TestEndpointService_SendSSE_NilBridge_LocalOnly(t *testing.T) {
+	mgr := NewManager()
+	var gotEvent string
+	require.NoError(t, mgr.Register(&Conn{
+		ID: "c1", Channel: "feed:1",
+		SSEFn: func(event, data, id string) error { gotEvent = event; return nil },
+	}))
+
+	svc := NewEndpointService(mgr, "sse-feed", nil)
+	require.NoError(t, svc.SendSSE(context.Background(), "feed:1", "tick", "update", "42"))
+	require.Equal(t, "tick", gotEvent)
+}
+
 func TestSyncBridge_CtxCancelReturns(t *testing.T) {
 	bus := newFakeBus()
 	ctx, cancel := context.WithCancel(context.Background())

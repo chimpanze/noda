@@ -44,7 +44,24 @@ func (s *Server) registerConnections() error {
 			}
 			mgr := connmgr.NewManager(mgrCfg)
 			s.connManagers.Add(mgr)
-			svc := connmgr.NewEndpointService(mgr, name)
+
+			var bridge *connmgr.SyncBridge
+			if syncCfg, ok := connConfig["sync"].(map[string]any); ok {
+				pubsubName, _ := syncCfg["pubsub"].(string)
+				if pubsubName != "" {
+					raw, found := s.services.Get(pubsubName)
+					if !found {
+						return fmt.Errorf("connections sync: pubsub service %q not found", pubsubName)
+					}
+					ps, ok := raw.(api.PubSubService)
+					if !ok {
+						return fmt.Errorf("connections sync: service %q does not implement PubSubService", pubsubName)
+					}
+					bridge = connmgr.NewSyncBridge(ps, s.instanceID, s.logger)
+				}
+			}
+
+			svc := connmgr.NewEndpointService(mgr, name, bridge)
 
 			// Register as a service so workflow nodes can reference it
 			if err := s.services.Register(name, svc, nil); err != nil {
@@ -90,6 +107,11 @@ func (s *Server) registerConnections() error {
 				handler.Register(s.app, middleware...)
 				s.logger.Info("connection endpoint registered", "name", name, "type", "websocket", "path", path)
 
+				if bridge != nil {
+					go bridge.Run(s.syncCtx, name, mgr)
+					s.logger.Info("cross-instance sync active", "endpoint", name)
+				}
+
 			case "sse":
 				cfg := connmgr.SSEConfig{
 					Endpoint:       name,
@@ -117,6 +139,11 @@ func (s *Server) registerConnections() error {
 				handler := connmgr.NewSSEHandler(cfg, mgr, runner, s.compiler, s.logger)
 				handler.Register(s.app, middleware...)
 				s.logger.Info("connection endpoint registered", "name", name, "type", "sse", "path", path)
+
+				if bridge != nil {
+					go bridge.Run(s.syncCtx, name, mgr)
+					s.logger.Info("cross-instance sync active", "endpoint", name)
+				}
 			}
 		}
 	}

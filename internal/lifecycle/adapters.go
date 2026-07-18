@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/devmode"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
@@ -58,12 +57,19 @@ func (c *wasmComponent) Stop(ctx context.Context) error {
 	return c.rt.StopAll(ctx)
 }
 
-// connManagerComponent wraps *connmgr.ManagerGroup.
-type connManagerComponent struct {
-	mg *connmgr.ManagerGroup
+// connStopper is satisfied by both *connmgr.ManagerGroup (local-only stop)
+// and an adapter around *server.Server.StopRealtime (cancels cross-instance
+// sync subscribers before stopping connections, #363).
+type connStopper interface {
+	Stop(ctx context.Context) error
 }
 
-func ConnManagerComponent(mg *connmgr.ManagerGroup) Component  { return &connManagerComponent{mg: mg} }
+// connManagerComponent wraps a connStopper.
+type connManagerComponent struct {
+	mg connStopper
+}
+
+func ConnManagerComponent(mg connStopper) Component            { return &connManagerComponent{mg: mg} }
 func (c *connManagerComponent) Name() string                   { return "connections" }
 func (c *connManagerComponent) Start(_ context.Context) error  { return nil }
 func (c *connManagerComponent) Stop(ctx context.Context) error { return c.mg.Stop(ctx) }

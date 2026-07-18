@@ -37,6 +37,5 @@
         "required": ["type", "path"]
       }
     }
-  },
-  "required": ["sync"]
+  }
 }

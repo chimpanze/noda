@@ -280,6 +280,15 @@ type lifecycleComponents struct {
 	ExtraComponents []lifecycle.Component
 }
 
+// realtimeStopper adapts *server.Server to the lifecycle package's connStopper
+// interface, routing connection-manager shutdown through StopRealtime so
+// cross-instance sync subscribers are cancelled before connections close (#363).
+type realtimeStopper struct {
+	srv *server.Server
+}
+
+func (r realtimeStopper) Stop(ctx context.Context) error { return r.srv.StopRealtime(ctx) }
+
 // setupLifecycle creates a lifecycle manager, installs the signal handler,
 // registers all non-nil components in dependency order, and calls StartAll.
 // Returns a done channel that is closed after graceful shutdown completes.
@@ -314,7 +323,7 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 	}
 	lc.Register(lifecycle.ServiceRegistryComponent(rtCtx.Bootstrap.Services))
 	if comps.Server != nil {
-		lc.Register(lifecycle.ConnManagerComponent(comps.Server.ConnManagers()))
+		lc.Register(lifecycle.ConnManagerComponent(realtimeStopper{comps.Server}))
 	}
 	for _, c := range comps.ExtraComponents {
 		lc.Register(c)
