@@ -1,0 +1,11 @@
+{
+  "server": { "port": 3000 },
+  "services": {
+    "app-cache": {
+      "plugin": "cache",
+      "config": {
+        "url": "{{ $env('REDIS_URL') }}"
+      }
+    }
+  }
+}

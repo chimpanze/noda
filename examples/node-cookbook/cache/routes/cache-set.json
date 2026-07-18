@@ -1,0 +1,14 @@
+{
+  "id": "cache-set",
+  "method": "POST",
+  "path": "/api/cache",
+  "summary": "Set a cache value",
+  "tags": ["cache"],
+  "trigger": {
+    "workflow": "cache-set",
+    "input": {
+      "key": "{{ body.key }}",
+      "value": "{{ body.value }}"
+    }
+  }
+}

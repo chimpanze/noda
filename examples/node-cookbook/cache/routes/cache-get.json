@@ -1,0 +1,13 @@
+{
+  "id": "cache-get",
+  "method": "GET",
+  "path": "/api/cache/:key",
+  "summary": "Get a cache value by key",
+  "tags": ["cache"],
+  "trigger": {
+    "workflow": "cache-get",
+    "input": {
+      "key": "{{ params.key }}"
+    }
+  }
+}

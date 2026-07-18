@@ -1,0 +1,23 @@
+{
+  "id": "cache-del",
+  "name": "Cache Delete",
+  "nodes": {
+    "del": {
+      "type": "cache.del",
+      "services": { "cache": "app-cache" },
+      "config": {
+        "key": "{{ input.key }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 204,
+        "body": null
+      }
+    }
+  },
+  "edges": [
+    { "from": "del", "to": "respond" }
+  ]
+}
