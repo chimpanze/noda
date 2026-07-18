@@ -31,6 +31,7 @@ var envForDir = map[string][]string{
 	"email":           {"SMTP_HOST", "SMTP_PORT"},
 	"events":          {"REDIS_URL", "COOKBOOK_DATA_DIR"},
 	"realtime":        {"REDIS_URL"},
+	"auth":            {"DATABASE_URL"},
 }
 
 // Every shipped example and full-project fixture must pass the exact
