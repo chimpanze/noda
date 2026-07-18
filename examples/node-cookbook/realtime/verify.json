@@ -1,0 +1,18 @@
+{
+  "listen": true,
+  "deps": ["redis"],
+  "steps": [
+    { "name": "client a joins the room", "ws": { "client": "a", "connect": "/ws/rooms/42" } },
+    { "name": "client b joins the room", "ws": { "client": "b", "connect": "/ws/rooms/42" } },
+    { "name": "broadcast reaches the room",
+      "request": { "method": "POST", "path": "/api/rooms/42/broadcast", "body": { "message": "hello room" } },
+      "expect": { "status": 200 } },
+    { "name": "a receives the chat", "ws": { "client": "a", "expect": [ { "path": "type", "equals": "chat" }, { "path": "message", "equals": "hello room" } ] } },
+    { "name": "b receives the chat", "ws": { "client": "b", "expect": [ { "path": "message", "equals": "hello room" } ] } },
+    { "name": "sse client subscribes", "sse": { "client": "s", "connect": "/events/news" } },
+    { "name": "notify pushes to the feed",
+      "request": { "method": "POST", "path": "/api/feeds/news/notify", "body": { "text": "breaking" } },
+      "expect": { "status": 200 } },
+    { "name": "sse client receives the note", "sse": { "client": "s", "expect": [ { "path": "kind", "equals": "note" }, { "path": "text", "equals": "breaking" } ] } }
+  ]
+}

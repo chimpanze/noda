@@ -186,10 +186,21 @@ func (h *SSEHandler) handleConnection(c fiber.Ctx) error {
 			}
 		}()
 
-		// Send retry header
+		// Establish the stream immediately. fasthttp's chunked transfer
+		// buffers everything written to w -- including the response
+		// headers -- until the first Flush, so without an initial write
+		// here a connecting client receives nothing at all (not even
+		// headers) until the first event or heartbeat tick, which can be
+		// Heartbeat (default 30s) later. Send the retry header if
+		// configured, otherwise a comment line, and flush right away so
+		// the connection is observably open as soon as it's registered.
 		if h.config.Retry > 0 {
 			_, _ = fmt.Fprintf(w, "retry: %d\n\n", h.config.Retry)
-			_ = w.Flush()
+		} else {
+			_, _ = fmt.Fprintf(w, ": connected\n\n")
+		}
+		if err := w.Flush(); err != nil {
+			return
 		}
 
 		ticker := time.NewTicker(h.config.Heartbeat)

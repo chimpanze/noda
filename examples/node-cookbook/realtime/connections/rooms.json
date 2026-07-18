@@ -1,0 +1,15 @@
+{
+  "sync": { "pubsub": "realtime" },
+  "endpoints": {
+    "rooms": {
+      "type": "websocket",
+      "path": "/ws/rooms/:room",
+      "channels": { "pattern": "room.{{ request.params.room }}" }
+    },
+    "feed": {
+      "type": "sse",
+      "path": "/events/:channel",
+      "channels": { "pattern": "feed.{{ request.params.channel }}" }
+    }
+  }
+}

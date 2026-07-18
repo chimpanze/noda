@@ -1,0 +1,21 @@
+{
+  "id": "notify",
+  "name": "Notify Feed",
+  "nodes": {
+    "push": {
+      "type": "sse.send",
+      "services": { "connections": "feed" },
+      "config": {
+        "channel": "feed.{{ input.channel }}",
+        "data": { "kind": "note", "text": "{{ input.text }}" }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": "{{ nodes.push }}" }
+    }
+  },
+  "edges": [
+    { "from": "push", "to": "respond" }
+  ]
+}

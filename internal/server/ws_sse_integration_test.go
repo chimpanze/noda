@@ -406,11 +406,10 @@ func TestE2E_RealSSEConnection(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode)
 	assert.Contains(t, resp.Header.Get("Content-Type"), "text/event-stream")
 
-	// Read at least a heartbeat comment
+	// Read non-blank lines (the "connected" comment, then a heartbeat).
 	reader := bufio.NewReader(resp.Body)
 
-	// Set a read deadline via a timer
-	done := make(chan string, 1)
+	done := make(chan string, 2)
 	go func() {
 		for {
 			line, err := reader.ReadString('\n')
@@ -421,14 +420,24 @@ func TestE2E_RealSSEConnection(t *testing.T) {
 			line = strings.TrimSpace(line)
 			if line != "" {
 				done <- line
-				return
 			}
 		}
 	}()
 
 	select {
 	case line := <-done:
-		// Should be a heartbeat comment
+		// The stream is established immediately with a "connected" comment
+		// (not a heartbeat -- headers/first bytes must not wait for the
+		// 1s heartbeat tick configured above).
+		assert.Contains(t, line, "connected")
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for SSE connect line")
+	}
+
+	select {
+	case line := <-done:
+		// The next line, after the 1s heartbeat interval, should be an
+		// actual heartbeat comment.
 		assert.Contains(t, line, "heartbeat")
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for SSE heartbeat")

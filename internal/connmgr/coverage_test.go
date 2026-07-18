@@ -1283,6 +1283,40 @@ func TestSSEHandler_Integration_MultipleEvents(t *testing.T) {
 	assert.Contains(t, bodyStr, "id: 4")
 }
 
+// TestSSEHandler_Integration_HeadersFlushedImmediately proves the SSE
+// handler establishes the stream (sends response headers and an initial
+// line) as soon as the connection is registered, rather than waiting up to
+// Heartbeat for the first flush. This requires a real TCP listener --
+// fiber's in-process app.Test transport buffers the whole response and
+// can't observe a header-arrival delay -- which is why every other SSE
+// test in this file (all app.Test-based) never caught the regression this
+// guards: before the fix, an http.Get on a real connection blocked with
+// zero bytes received (not even headers) until the first heartbeat tick.
+func TestSSEHandler_Integration_HeadersFlushedImmediately(t *testing.T) {
+	mgr := NewManager()
+	h := NewSSEHandler(SSEConfig{
+		Endpoint:       "sse-test",
+		Path:           "/events",
+		ChannelPattern: "ch",
+		Heartbeat:      2 * time.Second, // long enough that a header-flush-on-heartbeat bug would fail this test
+	}, mgr, nil, nil, nil)
+
+	app := fiber.New()
+	h.Register(app)
+	addr, cleanup := startTestApp(t, app)
+	defer cleanup()
+
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	start := time.Now()
+	resp, err := client.Get("http://" + addr + "/events")
+	require.NoError(t, err, "headers must arrive well before the 2s heartbeat")
+	elapsed := time.Since(start)
+	_ = resp.Body.Close() // close promptly so the handler's next write unblocks Shutdown
+
+	assert.Less(t, elapsed, 1*time.Second, "SSE headers should be flushed immediately, not deferred to the heartbeat tick")
+	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+}
+
 // --- SSE handler: Send (not SendSSE) to SSE connection (should not deliver since SendFn is nil) ---
 
 func TestSSEHandler_Integration_SendNotSSE(t *testing.T) {
