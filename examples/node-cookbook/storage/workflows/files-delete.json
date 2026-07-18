@@ -1,0 +1,31 @@
+{
+  "id": "files-delete",
+  "name": "Delete File",
+  "nodes": {
+    "rm": {
+      "type": "storage.delete",
+      "services": { "storage": "files" },
+      "config": {
+        "path": "{{ input.path }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 204
+      }
+    },
+    "not_found": {
+      "type": "response.error",
+      "config": {
+        "status": 404,
+        "code": "NOT_FOUND",
+        "message": "File not found"
+      }
+    }
+  },
+  "edges": [
+    { "from": "rm", "to": "respond" },
+    { "from": "rm", "output": "error", "to": "not_found" }
+  ]
+}

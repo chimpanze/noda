@@ -1,0 +1,50 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "upload notes.txt succeeds",
+      "request": {
+        "method": "POST",
+        "path": "/api/upload",
+        "multipart": {
+          "files": [
+            {
+              "field": "file",
+              "filename": "notes.txt",
+              "content_type": "text/plain",
+              "content": "cookbook upload"
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": 201,
+        "body": [
+          { "path": "path", "exists": true },
+          { "path": "content_type", "equals": "text/plain; charset=utf-8" },
+          { "path": "size", "equals": 15 }
+        ]
+      }
+    },
+    {
+      "name": "upload evil.bin is rejected",
+      "request": {
+        "method": "POST",
+        "path": "/api/upload",
+        "multipart": {
+          "files": [
+            {
+              "field": "file",
+              "filename": "evil.bin",
+              "content_type": "application/octet-stream",
+              "content_base64": "AAECA/7+/QQFBgcICQoLDA0ODw=="
+            }
+          ]
+        }
+      },
+      "expect": {
+        "status": 422
+      }
+    }
+  ]
+}

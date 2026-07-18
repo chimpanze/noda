@@ -1,0 +1,24 @@
+{
+  "id": "files-write",
+  "name": "Write File",
+  "nodes": {
+    "write": {
+      "type": "storage.write",
+      "services": { "storage": "files" },
+      "config": {
+        "path": "{{ input.path }}",
+        "data": "{{ input.data }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": { "path": "{{ input.path }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "write", "to": "respond" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "files-delete",
+  "method": "DELETE",
+  "path": "/api/files",
+  "summary": "Delete a file from storage",
+  "tags": ["storage"],
+  "trigger": {
+    "workflow": "files-delete",
+    "input": {
+      "path": "{{ query.path }}"
+    }
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "id": "files-list",
+  "name": "List Files",
+  "nodes": {
+    "ls": {
+      "type": "storage.list",
+      "services": { "storage": "files" },
+      "config": {
+        "prefix": "{{ input.prefix }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "files": "{{ nodes.ls.paths }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "ls", "to": "respond" }
+  ]
+}

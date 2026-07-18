@@ -1,0 +1,14 @@
+{
+  "id": "upload",
+  "method": "POST",
+  "path": "/api/upload",
+  "summary": "Upload a file",
+  "tags": ["upload"],
+  "trigger": {
+    "workflow": "upload",
+    "files": ["file"],
+    "input": {
+      "file": "file"
+    }
+  }
+}

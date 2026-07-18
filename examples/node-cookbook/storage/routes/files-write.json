@@ -1,0 +1,14 @@
+{
+  "id": "files-write",
+  "method": "POST",
+  "path": "/api/files",
+  "summary": "Write a file to storage",
+  "tags": ["storage"],
+  "trigger": {
+    "workflow": "files-write",
+    "input": {
+      "path": "{{ body.path }}",
+      "data": "{{ body.data }}"
+    }
+  }
+}

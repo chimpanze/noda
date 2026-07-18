@@ -21,6 +21,7 @@ import (
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
+	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,6 +35,7 @@ func cookbookPlugins() []api.Plugin {
 		&dbplugin.Plugin{},
 		&cacheplugin.Plugin{},
 		&corestorage.Plugin{},
+		&storageplugin.Plugin{},
 		&upload.Plugin{},
 		&imageplugin.Plugin{},
 		&emailplugin.Plugin{},

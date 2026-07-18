@@ -1,0 +1,87 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "write docs/a.txt",
+      "request": {
+        "method": "POST",
+        "path": "/api/files",
+        "body": { "path": "docs/a.txt", "data": "alpha" }
+      },
+      "expect": {
+        "status": 201,
+        "body": [
+          { "path": "path", "equals": "docs/a.txt" }
+        ]
+      }
+    },
+    {
+      "name": "read docs/a.txt back",
+      "request": {
+        "method": "GET",
+        "path": "/api/files/read?path=docs/a.txt"
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "content_base64", "equals": "YWxwaGE=" },
+          { "path": "content_type", "exists": true },
+          { "path": "size", "equals": 5 }
+        ]
+      }
+    },
+    {
+      "name": "write docs/b.txt",
+      "request": {
+        "method": "POST",
+        "path": "/api/files",
+        "body": { "path": "docs/b.txt", "data": "beta" }
+      },
+      "expect": {
+        "status": 201,
+        "body": [
+          { "path": "path", "equals": "docs/b.txt" }
+        ]
+      }
+    },
+    {
+      "name": "list docs/ has 2 entries",
+      "request": {
+        "method": "GET",
+        "path": "/api/files?prefix=docs/"
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "files.0", "exists": true },
+          { "path": "files.1", "exists": true },
+          { "path": "files.2", "exists": false }
+        ]
+      }
+    },
+    {
+      "name": "delete docs/a.txt",
+      "request": {
+        "method": "DELETE",
+        "path": "/api/files?path=docs/a.txt"
+      },
+      "expect": {
+        "status": 204
+      }
+    },
+    {
+      "name": "list docs/ has 1 entry",
+      "request": {
+        "method": "GET",
+        "path": "/api/files?prefix=docs/"
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "files.0", "equals": "docs/b.txt" },
+          { "path": "files.1", "exists": false }
+        ]
+      }
+    }
+  ]
+}
