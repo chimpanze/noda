@@ -120,6 +120,21 @@ func resolveDeep(nCtx api.ExecutionContext, raw any) (any, error) {
 	}
 }
 
+// ResolveOptionalDeepAny resolves an optional config key, recursively
+// resolving expression strings inside nested maps and slices.
+// Returns (nil, false, nil) if the key is absent.
+func ResolveOptionalDeepAny(nCtx api.ExecutionContext, config map[string]any, key string) (any, bool, error) {
+	raw, ok := config[key]
+	if !ok {
+		return nil, false, nil
+	}
+	val, err := resolveDeep(nCtx, raw)
+	if err != nil {
+		return nil, false, fmt.Errorf("resolve %q: %w", key, err)
+	}
+	return val, true, nil
+}
+
 // ResolveOptionalInt resolves an optional config key as an integer.
 // Returns (0, false, nil) if the key is absent.
 // Numeric strings (e.g. "20") are accepted, since computed defaults such as

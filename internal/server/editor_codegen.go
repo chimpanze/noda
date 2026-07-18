@@ -51,7 +51,11 @@ func (e *EditorAPI) runTests(c fiber.Ctx) error {
 		return c.Status(400).JSON(map[string]any{"error": "no test suite found"})
 	}
 
-	results := nodatesting.RunTestSuite(suites[0], rc, e.nodes)
+	var secretsCtx map[string]any
+	if e.secrets != nil {
+		secretsCtx = e.secrets.ExpressionContext()
+	}
+	results := nodatesting.RunTestSuite(suites[0], rc, e.nodes, secretsCtx)
 
 	// Serialize results
 	output := make([]map[string]any, 0, len(results))

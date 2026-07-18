@@ -3,6 +3,7 @@ package devmode
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -281,6 +282,87 @@ func TestReloader_Config_ThreadSafe(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func TestHandleChange_DryRunFailureKeepsOldConfig(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "noda.json"), map[string]any{
+		"server": map[string]any{"port": 3000},
+	})
+
+	hub := trace.NewEventHub()
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+
+	r := NewReloader(dir, "", initial, hub, slog.Default())
+	old := r.Config()
+	r.SetDryRun(func(*config.ResolvedConfig) []error {
+		return []error{fmt.Errorf("workflow \"w\", node \"n\": config schema violation")}
+	})
+
+	var reloadCalled atomic.Int32
+	r.OnReload(func(rc *config.ResolvedConfig) {
+		reloadCalled.Add(1)
+	})
+
+	var events []trace.Event
+	var mu sync.Mutex
+	unsub := hub.Subscribe(func(data []byte) {
+		var e trace.Event
+		_ = json.Unmarshal(data, &e)
+		mu.Lock()
+		events = append(events, e)
+		mu.Unlock()
+	})
+	defer unsub()
+
+	r.HandleChange(filepath.Join(dir, "noda.json"))
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(events) == 1
+	}, time.Second, 5*time.Millisecond)
+
+	assert.Same(t, old, r.Config(), "dry-run failure must refuse the swap (#349)")
+	assert.Equal(t, int32(0), reloadCalled.Load())
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, events, 1)
+	assert.Equal(t, trace.EventType("file:error"), events[0].Type)
+	assert.NotEmpty(t, events[0].Error)
+}
+
+func TestHandleChange_DryRunSuccessAllowsSwap(t *testing.T) {
+	dir := t.TempDir()
+	writeJSON(t, filepath.Join(dir, "noda.json"), map[string]any{
+		"server": map[string]any{"port": 3000},
+	})
+
+	hub := trace.NewEventHub()
+	initial := &config.ResolvedConfig{
+		Root:      map[string]any{"server": map[string]any{"port": 3000}},
+		FileCount: 1,
+	}
+
+	r := NewReloader(dir, "", initial, hub, slog.Default())
+	old := r.Config()
+	r.SetDryRun(func(*config.ResolvedConfig) []error {
+		return nil
+	})
+
+	var reloadCalled atomic.Int32
+	r.OnReload(func(rc *config.ResolvedConfig) {
+		reloadCalled.Add(1)
+	})
+
+	r.HandleChange(filepath.Join(dir, "noda.json"))
+
+	assert.NotSame(t, old, r.Config(), "dry-run success must allow the swap")
+	assert.Equal(t, int32(1), reloadCalled.Load())
 }
 
 // --- Shutdown tests ---

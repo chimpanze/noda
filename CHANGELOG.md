@@ -35,6 +35,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
 
 ### Changed
+- Dev-mode hot reload now runs the same dry-run startup validation as boot/validate/editor and refuses the swap on failure (emits `file:error`) — was: node-config violations hot-reloaded "successfully" (#349). Editor per-file validation scopes dry-run errors to the saved file — was: unrelated workflows' errors shown with empty file attribution.
+- http.post/http.request `body` now deep-resolves nested expression templates like sse.send/ws.send/event.emit — was: maps/slices passed through verbatim with `{{ … }}` text unevaluated (#364).
+- Typed node errors (ValidationError, NotFoundError, …) now map to their HTTP statuses even when no error edge is wired — was: generic 500 INTERNAL_ERROR (#361).
 - Inbound trigger header keys are now lowercase (previously fasthttp-canonical, e.g. `X-Github-Event`). Constant-key lookups like `{{ headers['X-GitHub-Event'] }}` are compile-time normalized and keep working in any case; expressions that iterate the headers map or use dynamic keys now see/need lowercase keys.
 - `noda validate` and server startup now validate every workflow node's `config` against the node's ConfigSchema: missing required fields, wrong types, and unknown top-level fields are errors. Expression values (`{{ … }}`) satisfy any declared type (#332). **Upgrade note:** validation errors name the workflow, node, and field; configs newly rejected by this check were already broken or silently ignored at runtime, so fixing the named field is the complete upgrade path.
 - Node ConfigSchemas audited against executor behavior across all plugins; `required` lists and types now reflect what executors actually accept (improves editor forms and MCP guidance).
@@ -58,6 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The editor validate endpoints and MCP noda_validate_config now run the same dry-run startup validation as noda validate, so they report node-config and reference errors they previously passed (#345).
 - `api.PubSubService` now includes `Subscribe` — custom services satisfying the old Publish-only shape must add it (#363).
 - `connections` `sync` block is now optional — was: schema-required while unused.
+- Multipart repeated form values now normalize to `[]any` like urlencoded — was: `[]string`, which broke `control.loop` and type-switched expressions (#350).
 
 ### Fixed
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
@@ -103,6 +107,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `{{ request.raw_body }}` now mirrors `{{ raw_body }}` on the request alias (#275)
 - dev-mode shutdown no longer waits unboundedly for a stuck in-flight reload — bounded by the lifecycle stop budget (#287)
 - SSE connections now flush headers and an initial `: connected` comment immediately on connect; previously no bytes reached the client until the first event or heartbeat (up to 30s).
+- Strict expression mode now admits the transport namespaces used by trigger mappings (`body`, `query`, `params`, `headers`, `request`, `raw_body`, `method`, `path`, `message`, `schedule`) in `knownContextEnv` (#354)
+- `noda test` now evaluates `secrets.*` expressions: `RunTestSuite` takes a `secretsCtx` param, the CLI passes the loaded `SecretsManager`'s expression context, and the dev-mode editor test-run endpoint is wired through as well (#355)
+- The headers-patcher now preserves source location on patched keys (previously lost, breaking error line/column reporting); `hmac_verify` accepts uppercase `<ALGORITHM>=` signature prefixes, not just lowercase (#356)
+- `examples/saas-backend` GitHub sync example: the issue id is now a string (matching GitHub's payload) and routes to the correct landing-zone project (#357)
+- `workflow.output` docs now describe the real success/error routing (the parent's `workflow.run` routes any non-`"error"` name through its `success` port; the name is available to the parent as data, not as a separate port); the dead `setOutputs` reference was removed (#358)
+- Servers built without `WithWorkflowCache` now get a working `subWorkflowRunner` sourced from `Setup`'s self-built workflow cache, instead of silently failing to run sub-workflows (#359)
+- Wasm modules that were loaded but never started are now closed on `Stop`; a partial multi-module load now unloads the modules it already loaded before failing (#365)
 
 ### Security
 - Edge & trace hardening: DB conflict/unavailable error bodies no longer leak driver/constraint detail in production (detail gated behind dev mode); trace redaction now covers slice-typed node data (e.g. `db.query` rows) and `stream_key`; the dev `/ws/trace` endpoint rejects cross-origin connections; `response.redirect` rejects `/\`-authority open redirects; `ws.send`/`sse.send` (and the Wasm host connection API) reject wildcard channels — **broadcasting via a wildcard send is no longer supported; subscribe connections to a shared literal channel instead**; `image.resize`/`crop`/`thumbnail` cap output dimensions.

@@ -38,11 +38,12 @@ func (p *stubPlugin) Shutdown(service any) error                       { return 
 
 // mockPlugin implements PluginInstance for testing.
 type mockPlugin struct {
-	mu        sync.Mutex
-	calls     []mockCall
-	responses map[string]mockResponse
-	exports   map[string]bool
-	closed    bool
+	mu         sync.Mutex
+	calls      []mockCall
+	responses  map[string]mockResponse
+	exports    map[string]bool
+	closed     bool
+	closeCount atomic.Int32
 }
 
 type mockCall struct {
@@ -89,6 +90,7 @@ func (m *mockPlugin) Close(_ context.Context) error {
 	m.mu.Lock()
 	m.closed = true
 	m.mu.Unlock()
+	m.closeCount.Add(1)
 	return nil
 }
 
@@ -295,6 +297,33 @@ func TestModule_Stop(t *testing.T) {
 	calls := plugin.getCalls("shutdown")
 	assert.Len(t, calls, 1)
 	assert.True(t, plugin.closed)
+}
+
+// TestModule_Stop_Twice_Started pins the single-Close guarantee (#365):
+// calling Stop twice on a module that was started must close the
+// underlying Extism plugin exactly once, even though both the
+// end-of-teardown path and a repeat Stop call race for it.
+func TestModule_Stop_Twice_Started(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	err = m.Initialize(context.Background())
+	require.NoError(t, err)
+
+	m.Start()
+	time.Sleep(50 * time.Millisecond) // let tick loop start
+
+	err = m.Stop(context.Background())
+	require.NoError(t, err)
+
+	err = m.Stop(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(1), plugin.closeCount.Load())
 }
 
 func TestModule_TickLoop(t *testing.T) {
@@ -1543,6 +1572,21 @@ func TestRuntime_StopAll_NoModules(t *testing.T) {
 	_ = rt.StopAll(context.Background())
 }
 
+// TestStopAll_ClosesNeverStartedModules covers #365: a module that was
+// loaded but never started (because a later module failed mid-load-loop)
+// must still have its Extism plugin closed by StopAll, or the wazero
+// runtime/memory leaks.
+func TestStopAll_ClosesNeverStartedModules(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	rt := NewRuntime(svcReg, nil, testLogger())
+	fake := newMockPlugin()
+	_, err := rt.LoadModuleWithPlugin(ModuleConfig{Name: "m1"}, fake)
+	require.NoError(t, err)
+	// Never StartAll — simulates a later module failing mid-loop (#365).
+	require.NoError(t, rt.StopAll(context.Background()))
+	assert.True(t, fake.closed, "unstarted module's plugin must be closed to free the wazero runtime")
+}
+
 // --- Runtime: StartAll with no modules ---
 
 func TestRuntime_StartAll_NoModules(t *testing.T) {
@@ -1870,10 +1914,33 @@ func TestModule_Stop_NotRunning(t *testing.T) {
 	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
 	require.NoError(t, err)
 
-	// Stop without starting should be no-op
+	// Stop without starting is a no-op for the tick loop, but the plugin
+	// must still be closed so a never-started module doesn't leak its
+	// wazero runtime (#365).
 	err = m.Stop(context.Background())
 	require.NoError(t, err)
-	assert.False(t, plugin.closed)
+	assert.True(t, plugin.closed)
+}
+
+// TestModule_Stop_Twice_NeverStarted pins the single-Close guarantee
+// (#365) on the never-started early-return path: calling Stop twice on a
+// module that was loaded but never started must close the underlying
+// Extism plugin exactly once.
+func TestModule_Stop_Twice_NeverStarted(t *testing.T) {
+	plugin := newMockPlugin()
+	svcReg := registry.NewServiceRegistry()
+	dispatcher := NewHostDispatcher(svcReg, nil, testLogger())
+
+	m, err := NewModule("test", plugin, ModuleConfig{Name: "test", TickRate: 10}, dispatcher, testLogger())
+	require.NoError(t, err)
+
+	err = m.Stop(context.Background())
+	require.NoError(t, err)
+
+	err = m.Stop(context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, int32(1), plugin.closeCount.Load())
 }
 
 // --- Module: Start twice is no-op ---

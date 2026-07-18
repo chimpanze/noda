@@ -439,6 +439,43 @@ func TestResolveDeepAny_ResolveErrorInMap(t *testing.T) {
 	require.Error(t, err)
 }
 
+// --- ResolveOptionalDeepAny tests ---
+
+func TestResolveOptionalDeepAny_Absent(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: identityResolve}
+	val, ok, err := ResolveOptionalDeepAny(nCtx, map[string]any{}, "data")
+	require.NoError(t, err)
+	assert.False(t, ok)
+	assert.Nil(t, val)
+}
+
+func TestResolveOptionalDeepAny_NestedMap(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(expr string) (any, error) {
+		return "R:" + expr, nil
+	}}
+	config := map[string]any{
+		"data": map[string]any{
+			"message": "{{ input.message }}",
+		},
+	}
+	val, ok, err := ResolveOptionalDeepAny(nCtx, config, "data")
+	require.NoError(t, err)
+	assert.True(t, ok)
+	m := val.(map[string]any)
+	assert.Equal(t, "R:{{ input.message }}", m["message"])
+}
+
+func TestResolveOptionalDeepAny_ResolveError(t *testing.T) {
+	nCtx := &mockExecCtx{resolveFunc: func(_ string) (any, error) {
+		return nil, fmt.Errorf("boom")
+	}}
+	config := map[string]any{
+		"data": map[string]any{"key": "expr"},
+	}
+	_, _, err := ResolveOptionalDeepAny(nCtx, config, "data")
+	require.Error(t, err)
+}
+
 func TestResolveDeepAny_ResolveErrorInSlice(t *testing.T) {
 	nCtx := &mockExecCtx{resolveFunc: func(_ string) (any, error) {
 		return nil, fmt.Errorf("boom")

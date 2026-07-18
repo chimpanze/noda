@@ -15,7 +15,7 @@ None (terminal node).
 
 ## Behavior
 
-When reached, the sub-workflow completes with this output name and the resolved `data`. The parent's `workflow.run` node fires the output matching this `name`.
+When reached, the sub-workflow completes with this output name and the resolved `data`. The parent's `workflow.run` node routes any name other than `"error"` through its `success` port (an `"error"` name routes to `error`); this `name` is not itself a port on `workflow.run` -- it's available to the parent as data, so branch on the data, not the name.
 
 All `workflow.output` nodes in a sub-workflow must have unique `name` values. They must be on mutually exclusive branches (validated at startup).
 

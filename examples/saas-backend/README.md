@@ -174,3 +174,7 @@ Each worker subscribes to a single Redis Stream topic and processes events async
 | `sync-github-issue` | `github.issue` | Creates/closes tasks from GitHub issues |
 
 To scale to additional notification topics (e.g., `task.assigned`, `payment.received`), add separate worker files for each topic — the worker runtime supports one topic per worker.
+
+### GitHub issue sync landing zone
+
+GitHub webhook payloads carry no `workspace_id`/`project_id` — GitHub has no concept of Noda workspaces or projects — so `sync-github-issue` cannot route a new issue to the "right" project. Instead, on an `opened` action it looks up the oldest project (`ORDER BY created_at ASC LIMIT 1`) and creates the task there as a landing zone; a human moves it afterward if needed. If no project exists yet, the issue is logged and skipped rather than failing the worker (there's nowhere to land it). On a `closed` action, the matching task (by `github_issue_id`) is updated to `done` regardless of which project it landed in, since `github_issue_id` alone identifies it. Note `issue.id` arrives from GitHub as a JSON number and is converted with `string()` before being written to the TEXT `github_issue_id` column.

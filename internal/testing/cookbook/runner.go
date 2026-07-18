@@ -360,6 +360,7 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 				cfg.ModulePath = filepath.Join(dir, cfg.ModulePath)
 			}
 			if _, err := wrt.LoadModule(context.Background(), cfg); err != nil {
+				_ = wrt.StopAll(context.Background()) // release already-loaded modules (#365)
 				return fmt.Errorf("loading wasm module %q: %w", name, err)
 			}
 			wasmSvc := wasm.NewWasmService(wrt, name)

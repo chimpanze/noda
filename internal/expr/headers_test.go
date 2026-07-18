@@ -3,6 +3,8 @@ package expr
 import (
 	"testing"
 
+	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/parser"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -58,4 +60,15 @@ func TestHeaderKeyPatcher(t *testing.T) {
 			map[string]any{"headers": headers, "input": map[string]any{"h": "x-github-event"}})
 		assert.Equal(t, "issues", got)
 	})
+}
+
+func TestHeaderKeyPatcher_PreservesSourceLocation(t *testing.T) {
+	tree, err := parser.Parse(`headers['X-GitHub-Event']`)
+	require.NoError(t, err)
+	member := tree.Node.(*ast.MemberNode)
+	origLoc := member.Property.(*ast.StringNode).Location()
+	ast.Walk(&tree.Node, headerKeyPatcher{})
+	patched := tree.Node.(*ast.MemberNode).Property.(*ast.StringNode)
+	assert.Equal(t, "x-github-event", patched.Value)
+	assert.Equal(t, origLoc, patched.Location(), "patched key must keep the original source location")
 }

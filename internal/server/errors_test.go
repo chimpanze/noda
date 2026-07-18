@@ -141,6 +141,18 @@ func TestMapErrorToHTTP_DevMode_WrappedTypedError(t *testing.T) {
 	assert.Equal(t, []string{"fetch_user"}, details["available_nodes"])
 }
 
+func TestMapErrorToHTTP_NoErrorEdge_WrappedTypedError(t *testing.T) {
+	// Mirrors the wrap produced by the no-error-edge path in executor.go
+	// when a node's Execute returns a typed error but no error edge is
+	// wired: the typed error must survive via %w so it maps to its own
+	// HTTP status instead of a generic 500 (#361).
+	err := fmt.Errorf("node %q failed with no error edge: %w", "u",
+		&api.ValidationError{Field: "file", Message: "type"})
+	status, resp := MapErrorToHTTP(err, "t", false)
+	assert.Equal(t, 422, status)
+	assert.Equal(t, "VALIDATION_ERROR", resp.Error.Code)
+}
+
 func TestMapErrorToHTTP_DevMode_WrappedTypedError_NoNodeCtx(t *testing.T) {
 	// A typed error without NodeExecutionError wrapping — dev mode shouldn't add node fields
 	valErr := &api.ValidationError{Field: "email", Message: "invalid", Value: "bad"}

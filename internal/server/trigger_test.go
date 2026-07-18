@@ -384,6 +384,45 @@ func TestMapTrigger_MultipartFormBody_UppercaseContentType(t *testing.T) {
 	assert.Equal(t, "hello", result.Input["field"])
 }
 
+func TestMapTrigger_MultipartFormBody_RepeatedFieldNormalizesToSlice(t *testing.T) {
+	// #350: repeated multipart form fields must normalize to []any, matching
+	// the urlencoded branch, so downstream code (control.loop, expression
+	// type switches) sees one type regardless of content type.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.WriteField("tags", "a"))
+	require.NoError(t, mw.WriteField("tags", "b"))
+	require.NoError(t, mw.Close())
+
+	contentType := "multipart/form-data; boundary=" + mw.Boundary()
+
+	result := triggerTestRaw(t, "POST", "/test", buf.String(), contentType, map[string]any{
+		"input": map[string]any{
+			"tags": "{{ body.tags }}",
+		},
+	})
+	assert.Equal(t, []any{"a", "b"}, result.Input["tags"])
+}
+
+func TestMapTrigger_MultipartFormBody_RepeatedFieldNormalizesToSlice_UppercaseContentType(t *testing.T) {
+	// #350 + #339: the uppercase-mediatype manual fallback must normalize
+	// repeated fields the same way as the fasthttp path.
+	var buf bytes.Buffer
+	mw := multipart.NewWriter(&buf)
+	require.NoError(t, mw.WriteField("tags", "a"))
+	require.NoError(t, mw.WriteField("tags", "b"))
+	require.NoError(t, mw.Close())
+
+	contentType := "MULTIPART/FORM-DATA; boundary=" + mw.Boundary()
+
+	result := triggerTestRaw(t, "POST", "/test", buf.String(), contentType, map[string]any{
+		"input": map[string]any{
+			"tags": "{{ body.tags }}",
+		},
+	})
+	assert.Equal(t, []any{"a", "b"}, result.Input["tags"])
+}
+
 func TestMapTrigger_FormBodyPartialParseLeniency(t *testing.T) {
 	// #339: a malformed percent-escape in one pair must not discard the
 	// pairs that did parse successfully (regression pin for the

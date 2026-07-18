@@ -55,9 +55,17 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 	}
 
 	if len(errs) == 0 {
-		for _, dErr := range e.startupDryRunErrors(rc) {
+		// Scope dry-run errors to the requested file's workflows (#349):
+		// rc.Workflows is keyed by file path, so restrict to this file.
+		scoped := *rc
+		if wf, ok := rc.Workflows[absPath]; ok {
+			scoped.Workflows = map[string]map[string]any{absPath: wf}
+		} else {
+			scoped.Workflows = nil // non-workflow file: workflow dry-run errors are unrelated here
+		}
+		for _, dErr := range e.startupDryRunErrors(&scoped) {
 			filtered = append(filtered, map[string]any{
-				"file":    "",
+				"file":    absPath,
 				"path":    "",
 				"message": dErr.Error(),
 			})

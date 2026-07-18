@@ -3,6 +3,7 @@ package devmode
 import (
 	"context"
 	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 
@@ -22,6 +23,7 @@ type Reloader struct {
 	config *config.ResolvedConfig
 
 	onReload func(rc *config.ResolvedConfig)
+	dryRun   func(rc *config.ResolvedConfig) []error
 
 	reloadMu sync.Mutex // serializes the whole HandleChange (latest wins);
 	// also the shutdown barrier — Shutdown drains it to await an in-flight reload
@@ -41,6 +43,14 @@ func NewReloader(configDir, envFlag string, initial *config.ResolvedConfig, hub 
 // OnReload sets a callback invoked when config is successfully reloaded.
 func (r *Reloader) OnReload(fn func(rc *config.ResolvedConfig)) {
 	r.onReload = fn
+}
+
+// SetDryRun sets the startup dry-run validation hook (node ConfigSchema
+// checks, expression pre-compile, service refs — the same checks boot/`noda
+// validate`/editor run) invoked before a reload swap is accepted. Optional;
+// nil keeps the pre-#349 behavior of only running config.ValidateAll.
+func (r *Reloader) SetDryRun(fn func(rc *config.ResolvedConfig) []error) {
+	r.dryRun = fn
 }
 
 // Config returns the current active config.
@@ -132,6 +142,28 @@ func (r *Reloader) HandleChange(path string) {
 			})
 		}
 		return
+	}
+
+	// Hot reload must agree with boot/CLI/editor validation (#345, #349):
+	// run the same dry-run startup checks and refuse the swap on failure.
+	if r.dryRun != nil {
+		if dryErrs := r.dryRun(rc); len(dryErrs) > 0 {
+			r.logger.Warn("config reload failed dry-run validation — keeping previous config",
+				"errors", len(dryErrs), "trigger", path)
+			msgs := make([]string, len(dryErrs))
+			for i, e := range dryErrs {
+				msgs[i] = e.Error()
+				r.logger.Warn("validation error", "message", e.Error())
+			}
+			if r.hub != nil {
+				r.hub.Emit(trace.Event{
+					Type:  "file:error",
+					Error: strings.Join(msgs, "\n"),
+					Data:  map[string]any{"file": path, "count": len(dryErrs)},
+				})
+			}
+			return
+		}
 	}
 
 	// Re-check after validation (which is slow) before swapping / firing
