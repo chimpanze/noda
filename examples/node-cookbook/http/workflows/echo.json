@@ -1,0 +1,17 @@
+{
+  "id": "echo",
+  "nodes": {
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "echo": "{{ input.payload }}",
+          "method": "{{ input.method }}",
+          "marker": "cookbook-echo"
+        }
+      }
+    }
+  },
+  "edges": []
+}

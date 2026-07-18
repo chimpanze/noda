@@ -20,6 +20,7 @@ import (
 	workflowplugin "github.com/chimpanze/noda/plugins/core/workflow"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
+	httpplugin "github.com/chimpanze/noda/plugins/http"
 	imageplugin "github.com/chimpanze/noda/plugins/image"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,7 @@ func cookbookPlugins() []api.Plugin {
 		&upload.Plugin{},
 		&imageplugin.Plugin{},
 		&emailplugin.Plugin{},
+		&httpplugin.Plugin{},
 	}
 }
 

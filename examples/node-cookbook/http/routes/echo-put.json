@@ -1,0 +1,14 @@
+{
+  "id": "echo-put",
+  "method": "PUT",
+  "path": "/api/echo",
+  "summary": "Echo endpoint (PUT variant) used as the outbound target for http.request",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "echo",
+    "input": {
+      "payload": "{{ body }}",
+      "method": "{{ method }}"
+    }
+  }
+}

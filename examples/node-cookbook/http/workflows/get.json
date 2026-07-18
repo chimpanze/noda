@@ -1,0 +1,27 @@
+{
+  "id": "get",
+  "nodes": {
+    "fetch": {
+      "type": "http.get",
+      "services": { "client": "web" },
+      "config": {
+        "url": "{{ secrets.COOKBOOK_BASE_URL }}/api/echo",
+        "timeout": "5s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "status": "{{ nodes.fetch.status }}",
+          "marker": "{{ nodes.fetch.body.marker }}",
+          "content_type": "{{ nodes.fetch.headers['content-type'] }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "fetch", "to": "respond" }
+  ]
+}

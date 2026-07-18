@@ -1,0 +1,10 @@
+{
+  "id": "proxy-get",
+  "method": "GET",
+  "path": "/api/proxy-get",
+  "summary": "Proxies a GET to the project's own echo endpoint via http.get",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "get"
+  }
+}
