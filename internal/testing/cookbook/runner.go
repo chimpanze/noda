@@ -368,7 +368,14 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 
 	if suite.Listen {
 		go func() { _ = srv.App().Listener(rctx.ln) }()
-		defer func() { _ = srv.App().Shutdown() }()
+		// Bound shutdown the same way production does (internal/server/server.go's
+		// Stop, via a context deadline): an unbounded Shutdown() waits for every
+		// open connection to go idle, and this harness routinely leaves WS/SSE
+		// clients open across a suite (they're closed by the wsConns/sseClosers
+		// defers below, which — being registered later — run first, but any
+		// server-side write buffering or a slow client teardown can still stall
+		// an unbounded Shutdown()). Cap it so one suite can't hang the whole run.
+		defer func() { _ = srv.App().ShutdownWithTimeout(3 * time.Second) }()
 		if err := waitReady(rctx.baseURL + "/"); err != nil {
 			return err
 		}
@@ -623,6 +630,15 @@ func runWSStep(baseURL string, conns map[string]*websocket.Conn, step Step, vars
 			return fmt.Errorf("ws client %q already connected", ws.Client)
 		}
 		url := "ws" + strings.TrimPrefix(baseURL, "http") + Substitute(ws.Connect, vars)
+		// Theoretical race: the dial's 101 response completes on the client
+		// before the server has necessarily finished registering the conn
+		// with the connmgr Manager, so a broadcast fired immediately after
+		// this call returns could in principle miss this client. In
+		// practice the window is negligible — verify.json's broadcast
+		// steps are always at least a full HTTP request/response (the POST
+		// that triggers ws.send) plus this connect's own RTT later, which
+		// is orders of magnitude longer than the registration that happens
+		// synchronously inside the WS upgrade handler.
 		conn, _, err := websocket.DefaultDialer.Dial(url, nil)
 		if err != nil {
 			return fmt.Errorf("ws connect %q: %w", ws.Client, err)

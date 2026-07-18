@@ -9,7 +9,8 @@
     "feed": {
       "type": "sse",
       "path": "/events/:channel",
-      "channels": { "pattern": "feed.{{ request.params.channel }}" }
+      "channels": { "pattern": "feed.{{ request.params.channel }}" },
+      "heartbeat": "1s"
     }
   }
 }
