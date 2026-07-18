@@ -18,7 +18,10 @@ names.
 Because the target is `127.0.0.1`, the `web` service must set `"allow_private_networks": true`
 in `noda.json` — the http plugin's outbound SSRF guard (`netguard`) denies requests to private/
 loopback IPs by default (see `plugins/http/transport.go`), and this project deliberately calls
-back into its own loopback listener.
+back into its own loopback listener. **Do not copy this setting into production configs** — it
+disables the http plugin's SSRF guard, which exists to stop workflows from reaching internal
+networks; it is enabled here only because this example deliberately calls its own loopback
+server.
 
 ## Run
 
