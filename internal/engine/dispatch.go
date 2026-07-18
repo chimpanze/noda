@@ -80,6 +80,7 @@ func dispatchNode(
 				"available_nodes": availableNodes,
 			}
 			execCtx.SetOutput(node.ID, errorData)
+			execCtx.SetNodeError(node.ID, execErr) // keep the typed error for the no-edge wrap (#361)
 			trace.EndNodeSpan(nodeSpan, "error", nil)
 			execCtx.EmitTrace(string(trace.EventNodeCompleted), node.ID, node.Type, "error", execErr.Error(), errorData)
 			return "error", nil

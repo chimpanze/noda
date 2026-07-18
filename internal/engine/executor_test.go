@@ -218,6 +218,41 @@ func TestExecuteGraph_UnhandledError(t *testing.T) {
 	assert.Contains(t, err.Error(), "fail")
 }
 
+// typedFailExecutor always fails with a typed *api.ValidationError.
+type typedFailExecutor struct{}
+
+func (e *typedFailExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *typedFailExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
+	return "", nil, &api.ValidationError{Field: "f", Message: "bad"}
+}
+
+func TestExecuteGraph_UnwiredErrorEdgeKeepsTypedError(t *testing.T) {
+	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{
+		"n": &typedFailExecutor{},
+	})
+
+	wf := WorkflowConfig{
+		ID: "unwired-error",
+		Nodes: map[string]NodeConfig{
+			"n": {Type: "test.n"},
+		},
+		Edges: []EdgeConfig{},
+	}
+
+	// Default resolver declares [success, error] outputs for every node type,
+	// but no error edge is wired below, so this exercises the no-error-edge
+	// path in executor.go rather than the has-error-edges path in dispatch.go.
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+
+	execCtx := NewExecutionContext()
+	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.Error(t, err)
+	var valErr *api.ValidationError
+	assert.True(t, errors.As(err, &valErr),
+		"typed node error must survive the no-error-edge wrap, got: %v", err)
+}
+
 func TestExecuteGraph_ErrorEdgeFollowed(t *testing.T) {
 	var order []string
 	nodeReg, svcReg := setupExecutorTest(t, map[string]api.NodeExecutor{

@@ -25,9 +25,10 @@ type ExecutionContextImpl struct {
 	auth    *api.AuthData
 	trigger api.TriggerData
 
-	mu      sync.RWMutex
-	outputs map[string]any    // nodeID (or alias) → output data
-	aliases map[string]string // nodeID → alias (from "as" field)
+	mu         sync.RWMutex
+	outputs    map[string]any    // nodeID (or alias) → output data
+	aliases    map[string]string // nodeID → alias (from "as" field)
+	nodeErrors map[string]error  // nodeID → typed error from a failed Execute (#361)
 
 	// retainOutputs disables eviction so all node outputs survive the run
 	// (set by the test runner, which asserts on intermediate outputs).
@@ -59,8 +60,9 @@ type ExecutionContextImpl struct {
 // NewExecutionContext creates a new execution context for a workflow run.
 func NewExecutionContext(opts ...ExecutionContextOption) *ExecutionContextImpl {
 	ctx := &ExecutionContextImpl{
-		outputs: make(map[string]any),
-		aliases: make(map[string]string),
+		outputs:    make(map[string]any),
+		aliases:    make(map[string]string),
+		nodeErrors: make(map[string]error),
 		trigger: api.TriggerData{
 			TraceID: uuid.New().String(),
 		},
@@ -287,6 +289,26 @@ func (c *ExecutionContextImpl) GetOutput(nodeID string) (any, bool) {
 	}
 	v, ok := c.outputs[nodeID]
 	return v, ok
+}
+
+// SetNodeError records the typed error a node's Execute returned, keyed by
+// node ID (not alias — errors are internal engine bookkeeping, not workflow
+// output data). Kept alongside outputs so the no-error-edge failure path in
+// executor.go can preserve the original typed error (e.g. *api.ValidationError)
+// through the wrapping fmt.Errorf, letting MapErrorToHTTP's errors.As chain
+// match it (#361). Bounded by the number of nodes in the graph, same as
+// outputs, so it needs no eviction of its own.
+func (c *ExecutionContextImpl) SetNodeError(nodeID string, err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.nodeErrors[nodeID] = err
+}
+
+// NodeError retrieves the typed error recorded for a node, or nil if none.
+func (c *ExecutionContextImpl) NodeError(nodeID string) error {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.nodeErrors[nodeID]
 }
 
 // RegisterAlias registers an "as" alias for a node.
