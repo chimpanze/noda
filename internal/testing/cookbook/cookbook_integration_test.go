@@ -11,9 +11,6 @@ import (
 	"github.com/chimpanze/noda/internal/testing/containers"
 	"github.com/chimpanze/noda/pkg/api"
 	cacheplugin "github.com/chimpanze/noda/plugins/cache"
-	dbplugin "github.com/chimpanze/noda/plugins/db"
-	emailplugin "github.com/chimpanze/noda/plugins/email"
-	imageplugin "github.com/chimpanze/noda/plugins/image"
 	"github.com/chimpanze/noda/plugins/core/control"
 	"github.com/chimpanze/noda/plugins/core/response"
 	corestorage "github.com/chimpanze/noda/plugins/core/storage"
@@ -21,6 +18,9 @@ import (
 	"github.com/chimpanze/noda/plugins/core/upload"
 	"github.com/chimpanze/noda/plugins/core/util"
 	workflowplugin "github.com/chimpanze/noda/plugins/core/workflow"
+	dbplugin "github.com/chimpanze/noda/plugins/db"
+	emailplugin "github.com/chimpanze/noda/plugins/email"
+	imageplugin "github.com/chimpanze/noda/plugins/image"
 	"github.com/stretchr/testify/require"
 )
 
