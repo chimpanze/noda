@@ -149,7 +149,9 @@ output in token mode is `invalid` (not `error` — `error` is reserved for
 ```bash
 curl -X POST localhost:3000/api/auth/set-password -H 'Content-Type: application/json' \
   -d '{"token": "<reset-token>", "password": "new-horse-9"}'
-# → 200 {"updated": true}
+# → 200 {"revoked_sessions": 1}   (the node's own success output — the count
+#        of sessions revoked; 1 here because the session minted earlier was
+#        still active when the password was reset)
 
 # reusing the same (now-consumed) reset token:
 # → 400 {"error":{"code":"TOKEN_INVALID","message":"reset token is unknown, expired, or already used"}}

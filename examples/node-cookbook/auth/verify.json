@@ -51,7 +51,7 @@
     {
       "name": "set_password consumes the token atomically",
       "request": { "method": "POST", "path": "/api/auth/set-password", "body": { "token": "${reset_token}", "password": "new-horse-9" } },
-      "expect": { "status": 200, "body": [ { "path": "updated", "equals": true } ] }
+      "expect": { "status": 200, "body": [ { "path": "revoked_sessions", "equals": 1 } ] }
     },
     {
       "name": "new password verifies",
@@ -85,7 +85,7 @@
       "expect": { "status": 400, "body": [ { "path": "error.code", "equals": "TOKEN_INVALID" } ] }
     },
     {
-      "name": "revoke_session by raw token — the session was already revoked as a side effect of set_password's default revoke_sessions:true, so this demonstrates the node's idempotent success (revoked_count: 0) rather than an error",
+      "name": "revoke_session is idempotent post set_password",
       "request": { "method": "POST", "path": "/api/auth/revoke-session", "body": { "token": "${session_token}" } },
       "expect": { "status": 204 }
     }
