@@ -99,6 +99,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `{{ request.raw_body }}` now mirrors `{{ raw_body }}` on the request alias (#275)
 - dev-mode shutdown no longer waits unboundedly for a stuck in-flight reload — bounded by the lifecycle stop budget (#287)
 - SSE connections now flush headers and an initial `: connected` comment immediately on connect; previously no bytes reached the client until the first event or heartbeat (up to 30s).
+- Strict expression mode now admits the transport namespaces used by trigger mappings (`body`, `query`, `params`, `headers`, `request`, `raw_body`, `method`, `path`, `message`, `schedule`) in `knownContextEnv` (#354)
+- `noda test` now evaluates `secrets.*` expressions: `RunTestSuite` takes a `secretsCtx` param, the CLI passes the loaded `SecretsManager`'s expression context, and the dev-mode editor test-run endpoint is wired through as well (#355)
+- The headers-patcher now preserves source location on patched keys (previously lost, breaking error line/column reporting); `hmac_verify` accepts uppercase `<ALGORITHM>=` signature prefixes, not just lowercase (#356)
+- `examples/saas-backend` GitHub sync example: the issue id is now a string (matching GitHub's payload) and routes to the correct landing-zone project (#357)
+- `workflow.output` docs now describe the real success/error routing (the parent's `workflow.run` routes any non-`"error"` name through its `success` port; the name is available to the parent as data, not as a separate port); the dead `setOutputs` reference was removed (#358)
+- Servers built without `WithWorkflowCache` now get a working `subWorkflowRunner` sourced from `Setup`'s self-built workflow cache, instead of silently failing to run sub-workflows (#359)
+- Wasm modules that were loaded but never started are now closed on `Stop`; a partial multi-module load now unloads the modules it already loaded before failing (#365)
 
 ### Security
 - Edge & trace hardening: DB conflict/unavailable error bodies no longer leak driver/constraint detail in production (detail gated behind dev mode); trace redaction now covers slice-typed node data (e.g. `db.query` rows) and `stream_key`; the dev `/ws/trace` endpoint rejects cross-origin connections; `response.redirect` rejects `/\`-authority open redirects; `ws.send`/`sse.send` (and the Wasm host connection API) reject wildcard channels — **broadcasting via a wildcard send is no longer supported; subscribe connections to a shared literal channel instead**; `image.resize`/`crop`/`thumbnail` cap output dimensions.
