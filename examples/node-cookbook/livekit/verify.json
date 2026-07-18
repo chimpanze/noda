@@ -15,8 +15,7 @@
           { "path": "name", "equals": "cookbook-room" },
           { "path": "sid", "regex": "^RM_" }
         ]
-      },
-      "capture": { "room_sid": "body.sid" }
+      }
     },
     {
       "name": "issue a token for the room",
@@ -143,7 +142,7 @@
     },
     {
       "name": "the room is gone from the list",
-      "request": { "method": "GET", "path": "/api/rooms" },
+      "request": { "method": "GET", "path": "/api/rooms", "retry_timeout": "5s" },
       "expect": {
         "status": 200,
         "body": [

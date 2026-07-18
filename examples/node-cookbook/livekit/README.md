@@ -4,9 +4,8 @@ Runnable examples for Noda's `lk.*` nodes against a real LiveKit server:
 rooms, tokens, participants, data messaging, egress (recording), and ingress
 (streaming in).
 
-> **Status: part 2 of 2 (egress + ingress).** This file now covers 18 of
-> the family's nodes: the 11 from part 1 (rooms, token, participants, data)
-> plus the 7 egress/ingress nodes below. The `lk.*` webhook trigger is out
+> **Scope:** all 18 `lk.*` nodes — rooms, token, participants, and data
+> plus the 7 egress/ingress nodes below. The LiveKit webhook trigger is out
 > of scope for this cookbook (it's a route trigger, not a node) — see
 > `internal/server/livekit_webhook.go` and `testdata/livekit-example` for
 > that integration.
