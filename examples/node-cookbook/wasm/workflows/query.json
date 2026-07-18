@@ -1,0 +1,23 @@
+{
+  "id": "query",
+  "name": "Query Tally Total",
+  "nodes": {
+    "ask": {
+      "type": "wasm.query",
+      "services": { "runtime": "tally" },
+      "config": {
+        "data": { "op": "total" },
+        "timeout": "2s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "body": { "total": "{{ nodes.ask.total }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "ask", "to": "respond" }
+  ]
+}

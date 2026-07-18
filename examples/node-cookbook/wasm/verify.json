@@ -1,0 +1,11 @@
+{
+  "deps": [],
+  "steps": [
+    { "name": "tally starts at zero", "request": { "method": "GET", "path": "/api/tally" },
+      "expect": { "status": 200, "body": [ { "path": "total", "equals": 0 } ] } },
+    { "name": "send queues an add", "request": { "method": "POST", "path": "/api/tally", "body": { "value": 5 } },
+      "expect": { "status": 202 } },
+    { "name": "tick applies the add (polled)", "request": { "method": "GET", "path": "/api/tally", "retry_timeout": "5s" },
+      "expect": { "status": 200, "body": [ { "path": "total", "equals": 5 } ] } }
+  ]
+}

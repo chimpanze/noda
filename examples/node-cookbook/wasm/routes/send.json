@@ -1,0 +1,12 @@
+{
+  "id": "send-tally",
+  "method": "POST",
+  "path": "/api/tally",
+  "summary": "Queue an add command against the running total",
+  "trigger": {
+    "workflow": "send",
+    "input": {
+      "value": "{{ toInt(body.value) }}"
+    }
+  }
+}

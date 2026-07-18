@@ -1,0 +1,13 @@
+{
+  "server": { "port": 3000 },
+  "wasm_runtimes": {
+    "tally": {
+      "module": "wasm/tally.wasm",
+      "tick_rate": 10,
+      "encoding": "json",
+      "config": {
+        "initial": 0
+      }
+    }
+  }
+}

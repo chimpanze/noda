@@ -19,6 +19,7 @@ import (
 	"github.com/chimpanze/noda/plugins/core/transform"
 	"github.com/chimpanze/noda/plugins/core/upload"
 	"github.com/chimpanze/noda/plugins/core/util"
+	corewasm "github.com/chimpanze/noda/plugins/core/wasm"
 	workflowplugin "github.com/chimpanze/noda/plugins/core/workflow"
 	corews "github.com/chimpanze/noda/plugins/core/ws"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
@@ -51,6 +52,7 @@ func cookbookPlugins() []api.Plugin {
 		&pubsubplugin.Plugin{},
 		&corews.Plugin{},
 		&coresse.Plugin{},
+		&corewasm.Plugin{},
 	}
 }
 
