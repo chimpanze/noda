@@ -18,16 +18,23 @@ project's `verify.json`.
 | [upload](upload/) | `upload.handle` |
 | [image](image/) | `image.resize`, `image.crop`, `image.convert`, `image.watermark`, `image.thumbnail` |
 | [email](email/) | `email.send` |
+| [events](events/) | `event.emit` (stream + pubsub delivery), worker consumption |
+| [realtime](realtime/) | `ws.send`, `sse.send` |
+| [http](http/) | `http.get`, `http.post`, `http.request` |
+| [wasm](wasm/) | `wasm.send`, `wasm.query` |
 
-Remaining service-backed families (events, realtime, http, wasm, auth, oidc,
-livekit) arrive in later tranches.
+Remaining service-backed families (auth, oidc, livekit) arrive in later
+tranches.
 
-Projects whose `verify.json` lists a `deps` entry (`db`, `cache`, `email`)
-need Docker running locally — `go test -tags=integration ./internal/testing/cookbook/ -run TestCookbook -v`
-starts the required Postgres/Redis/Mailpit containers automatically. The
-`storage`, `upload`, and `image` projects use `COOKBOOK_DATA_DIR`, which the
-test harness provisions automatically; set it manually (to any writable
-directory) when running `noda start` on one of these projects by hand.
+Projects whose `verify.json` lists a `deps` entry (`db`, `cache`, `email`,
+`events`, `realtime`) need Docker running locally — `go test -tags=integration
+./internal/testing/cookbook/ -run TestCookbook -v` starts the required
+Postgres/Redis/Mailpit containers automatically. The `storage`, `upload`, `image`, and `events` projects use
+`COOKBOOK_DATA_DIR`, which the test harness provisions automatically; set it
+manually (to any writable directory) when running `noda start` on one of
+these projects by hand. The `http` and `realtime` projects set `"listen":
+true` in `verify.json` so the harness drives real HTTP/WebSocket/SSE clients
+against a running server instead of dry-run request/response assertions.
 
 ## Running one project
 
