@@ -1,0 +1,8 @@
+{
+  "id": "file",
+  "method": "GET",
+  "path": "/api/file",
+  "trigger": {
+    "workflow": "file"
+  }
+}

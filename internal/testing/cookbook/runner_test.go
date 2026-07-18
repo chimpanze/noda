@@ -1,0 +1,113 @@
+package cookbook
+
+import (
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/chimpanze/noda/pkg/api"
+	"github.com/chimpanze/noda/plugins/core/response"
+	"github.com/chimpanze/noda/plugins/core/transform"
+	"github.com/stretchr/testify/require"
+)
+
+// writeProject lays a minimal cookbook project into a temp dir.
+func writeProject(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	files := map[string]string{
+		"noda.json": `{"server": {"port": 3000}, "services": {}}`,
+		"routes/echo.json": `{
+		  "id": "echo",
+		  "method": "POST",
+		  "path": "/api/echo",
+		  "trigger": {"workflow": "echo", "input": {"name": "{{ body.name }}"}}
+		}`,
+		"workflows/echo.json": `{
+		  "id": "echo",
+		  "nodes": {
+		    "greet": {"type": "transform.set", "config": {"fields": {"greeting": "Hello, {{ input.name }}!"}}},
+		    "respond": {"type": "response.json", "config": {"status": 200, "body": {"greeting": "{{ nodes.greet.greeting }}", "id": "{{ $uuid() }}"}}}
+		  },
+		  "edges": [{"from": "greet", "to": "respond"}]
+		}`,
+		"verify.json": `{
+		  "deps": [],
+		  "steps": [
+		    {
+		      "name": "greets by name",
+		      "request": {"method": "POST", "path": "/api/echo", "body": {"name": "World"}},
+		      "expect": {"status": 200, "body": [
+		        {"path": "greeting", "equals": "Hello, World!"},
+		        {"path": "id", "regex": "^[0-9a-f-]{36}$"}
+		      ]},
+		      "capture": {"echo_id": "body.id"}
+		    },
+		    {
+		      "name": "captured variable substitutes",
+		      "request": {"method": "POST", "path": "/api/echo", "body": {"name": "${echo_id}"}},
+		      "expect": {"status": 200, "body": [{"path": "greeting", "regex": "^Hello, [0-9a-f-]{36}!$"}]}
+		    }
+		  ]
+		}`,
+	}
+	for name, content := range files {
+		p := filepath.Join(dir, name)
+		require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o755))
+		require.NoError(t, os.WriteFile(p, []byte(content), 0o644))
+	}
+	return dir
+}
+
+func testPlugins() []api.Plugin {
+	return []api.Plugin{&transform.Plugin{}, &response.Plugin{}}
+}
+
+func TestRunProject(t *testing.T) {
+	RunProject(t, writeProject(t), testPlugins())
+}
+
+func TestSubstituteBodyEscapesSpecialCharacters(t *testing.T) {
+	vars := map[string]string{"x": "he said \"hi\\\"\nnew line"}
+	body := map[string]any{
+		"msg":    "${x}",
+		"nested": map[string]any{"list": []any{"${x}", float64(3), true, nil}},
+	}
+
+	raw, err := json.Marshal(substituteBody(body, vars))
+	require.NoError(t, err, "substituted body must marshal to valid JSON")
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded), "marshaled body must round-trip")
+	require.Equal(t, vars["x"], decoded["msg"], "quote/backslash/newline must survive intact")
+	nested := decoded["nested"].(map[string]any)
+	list := nested["list"].([]any)
+	require.Equal(t, vars["x"], list[0])
+	require.Equal(t, float64(3), list[1])
+	require.Equal(t, true, list[2])
+	require.Nil(t, list[3])
+
+	// The original body must not be mutated.
+	require.Equal(t, "${x}", body["msg"])
+}
+
+func TestRunProjectRejectsDeps(t *testing.T) {
+	dir := writeProject(t)
+	// Overwrite verify.json with a suite that declares a dep, built from a
+	// constant rather than patching the file on disk.
+	depsSuite := `{
+	  "deps": ["postgres"],
+	  "steps": [
+	    {
+	      "name": "never runs",
+	      "request": {"method": "POST", "path": "/api/echo", "body": {"name": "x"}},
+	      "expect": {"status": 200}
+	    }
+	  ]
+	}`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "verify.json"), []byte(depsSuite), 0o644))
+
+	failed := runProjectRecorded(t, dir, testPlugins())
+	require.True(t, failed, "non-empty deps must fail in this tranche")
+}

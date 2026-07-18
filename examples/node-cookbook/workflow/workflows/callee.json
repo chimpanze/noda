@@ -1,0 +1,8 @@
+{
+  "id": "callee",
+  "nodes": {
+    "calc": { "type": "transform.set", "config": { "fields": { "result": "{{ input.x * 10 }}" } } },
+    "out": { "type": "workflow.output", "config": { "name": "result", "data": "{{ nodes.calc.result }}" } }
+  },
+  "edges": [ { "from": "calc", "to": "out" } ]
+}

@@ -1,0 +1,8 @@
+{
+  "id": "map",
+  "nodes": {
+    "double": { "type": "transform.map", "config": { "collection": "{{ input.items }}", "expression": "{{ $item * 2 }}" } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "items": "{{ nodes.double }}" } } }
+  },
+  "edges": [ { "from": "double", "to": "respond" } ]
+}

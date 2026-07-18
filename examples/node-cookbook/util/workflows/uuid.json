@@ -1,0 +1,8 @@
+{
+  "id": "uuid",
+  "nodes": {
+    "gen": { "type": "util.uuid", "config": {} },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "id": "{{ nodes.gen }}" } } }
+  },
+  "edges": [ { "from": "gen", "to": "respond" } ]
+}

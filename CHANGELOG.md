@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `noda.DecodeInto` in the Go PDK — typed decode for `Command.Data`/`ClientMessage.Data`/`IncomingWSMsg.Data`; both example guests use it (#294)
 - CI now compiles every example wasm guest module with tinygo, so PDK/ABI changes can't silently break them (#296)
 - `hmac_verify(data, key, algorithm, signature)` expression function — constant-time webhook signature verification.
+- Node cookbook (`examples/node-cookbook/`): runnable per-family example projects verified end-to-end in CI by a new `verify.json` harness (`internal/testing/cookbook`). Tranche 1 covers the control, transform, response, util, and workflow families (20 node types).
 
 ### Changed
 - Inbound trigger header keys are now lowercase (previously fasthttp-canonical, e.g. `X-Github-Event`). Constant-key lookups like `{{ headers['X-GitHub-Event'] }}` are compile-time normalized and keep working in any case; expressions that iterate the headers map or use dynamic keys now see/need lowercase keys.
@@ -51,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The editor validate endpoints and MCP noda_validate_config now run the same dry-run startup validation as noda validate, so they report node-config and reference errors they previously passed (#345).
 
 ### Fixed
+- `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
 - Trigger bodies with non-lowercase multipart Content-Type (e.g. MULTIPART/FORM-DATA) now parse via a manual fallback; previously they fell through to a raw string (#339).
 - Trigger inputs sourced from JSON bodies keep their JSON types; numeric coercion now applies only to bare references into string-typed transports (path params, query, headers, form bodies) (#331).
 - `parseBody` now recognizes form/JSON `Content-Type` values regardless of case (previously only exact-lowercase matches parsed; anything else fell through to a raw string), and duplicate urlencoded keys (`a=1&a=2`) now yield an array of values instead of silently keeping only the last one (#331).

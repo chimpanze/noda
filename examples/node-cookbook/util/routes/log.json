@@ -1,0 +1,7 @@
+{
+  "id": "log",
+  "method": "POST",
+  "path": "/api/log",
+  "summary": "util.log — write to application log",
+  "trigger": { "workflow": "log", "input": { "who": "{{ body.who }}" } }
+}

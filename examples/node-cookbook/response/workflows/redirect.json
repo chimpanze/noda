@@ -1,0 +1,13 @@
+{
+  "id": "redirect",
+  "nodes": {
+    "respond": {
+      "type": "response.redirect",
+      "config": {
+        "url": "https://example.com/next",
+        "status": 302
+      }
+    }
+  },
+  "edges": []
+}

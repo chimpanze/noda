@@ -1,0 +1,8 @@
+{
+  "id": "filter",
+  "nodes": {
+    "active_only": { "type": "transform.filter", "config": { "collection": "{{ input.items }}", "expression": "{{ $item.active }}" } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "items": "{{ nodes.active_only }}", "count": "{{ len(nodes.active_only) }}" } } }
+  },
+  "edges": [ { "from": "active_only", "to": "respond" } ]
+}

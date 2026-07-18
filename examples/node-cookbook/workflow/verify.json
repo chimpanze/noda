@@ -1,0 +1,10 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "run invokes callee and returns its named output",
+      "request": { "method": "POST", "path": "/api/run", "body": { "x": 4 } },
+      "expect": { "status": 200, "body": [ { "path": "result", "equals": 40 } ] }
+    }
+  ]
+}

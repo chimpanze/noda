@@ -1,0 +1,8 @@
+{
+  "id": "merge",
+  "nodes": {
+    "combine": { "type": "transform.merge", "config": { "mode": "append", "inputs": ["{{ input.a }}", "{{ input.b }}"] } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "items": "{{ nodes.combine }}" } } }
+  },
+  "edges": [ { "from": "combine", "to": "respond" } ]
+}

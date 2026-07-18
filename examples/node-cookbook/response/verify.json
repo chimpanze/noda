@@ -1,0 +1,73 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "json returns status and body",
+      "request": {
+        "method": "GET",
+        "path": "/api/json"
+      },
+      "expect": {
+        "status": 201,
+        "body": [
+          {
+            "path": "message",
+            "equals": "created"
+          },
+          {
+            "path": "nested.n",
+            "equals": 1
+          }
+        ]
+      }
+    },
+    {
+      "name": "error returns the structured error envelope",
+      "request": {
+        "method": "GET",
+        "path": "/api/error"
+      },
+      "expect": {
+        "status": 404,
+        "body": [
+          {
+            "path": "error.code",
+            "equals": "NOT_FOUND"
+          },
+          {
+            "path": "error.message",
+            "equals": "Thing not found"
+          }
+        ]
+      }
+    },
+    {
+      "name": "redirect sets Location",
+      "request": {
+        "method": "GET",
+        "path": "/api/redirect"
+      },
+      "expect": {
+        "status": 302,
+        "headers": {
+          "Location": "https://example.com/next"
+        }
+      }
+    },
+    {
+      "name": "file sends raw bytes with content type and disposition",
+      "request": {
+        "method": "GET",
+        "path": "/api/file"
+      },
+      "expect": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "text/csv",
+          "Content-Disposition": "attachment; filename=\"demo.csv\""
+        },
+        "body_text": "hello,cookbook\n1,2\n"
+      }
+    }
+  ]
+}

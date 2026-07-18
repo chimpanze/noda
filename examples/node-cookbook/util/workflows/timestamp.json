@@ -1,0 +1,8 @@
+{
+  "id": "timestamp",
+  "nodes": {
+    "now": { "type": "util.timestamp", "config": { "format": "unix" } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": { "unix": "{{ nodes.now }}" } } }
+  },
+  "edges": [ { "from": "now", "to": "respond" } ]
+}

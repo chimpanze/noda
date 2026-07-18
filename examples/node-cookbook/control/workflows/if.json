@@ -1,0 +1,12 @@
+{
+  "id": "if",
+  "nodes": {
+    "check": { "type": "control.if", "config": { "condition": "{{ input.value > 5 }}" } },
+    "respond_high": { "type": "response.json", "config": { "status": 200, "body": { "branch": "high", "value": "{{ input.value }}" } } },
+    "respond_low": { "type": "response.json", "config": { "status": 200, "body": { "branch": "low", "value": "{{ input.value }}" } } }
+  },
+  "edges": [
+    { "from": "check", "output": "then", "to": "respond_high" },
+    { "from": "check", "output": "else", "to": "respond_low" }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "id": "filter",
+  "method": "POST",
+  "path": "/api/filter",
+  "summary": "transform.filter — keep matching elements",
+  "trigger": { "workflow": "filter", "input": { "items": "{{ body.items }}" } }
+}

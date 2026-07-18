@@ -1,0 +1,14 @@
+{
+  "id": "file",
+  "nodes": {
+    "respond": {
+      "type": "response.file",
+      "config": {
+        "data": "hello,cookbook\n1,2\n",
+        "content_type": "text/csv",
+        "filename": "demo.csv"
+      }
+    }
+  },
+  "edges": []
+}

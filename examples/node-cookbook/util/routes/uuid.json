@@ -1,0 +1,7 @@
+{
+  "id": "uuid",
+  "method": "GET",
+  "path": "/api/uuid",
+  "summary": "util.uuid — generate a random v4 uuid",
+  "trigger": { "workflow": "uuid" }
+}

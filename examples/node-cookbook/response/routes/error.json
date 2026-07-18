@@ -1,0 +1,8 @@
+{
+  "id": "error",
+  "method": "GET",
+  "path": "/api/error",
+  "trigger": {
+    "workflow": "error"
+  }
+}

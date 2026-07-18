@@ -1,0 +1,7 @@
+{
+  "id": "switch",
+  "method": "POST",
+  "path": "/api/switch",
+  "summary": "control.switch — route on a value",
+  "trigger": { "workflow": "switch", "input": { "kind": "{{ body.kind }}" } }
+}

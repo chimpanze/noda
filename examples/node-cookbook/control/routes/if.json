@@ -1,0 +1,7 @@
+{
+  "id": "if",
+  "method": "POST",
+  "path": "/api/if",
+  "summary": "control.if — route on a condition",
+  "trigger": { "workflow": "if", "input": { "value": "{{ body.value }}" } }
+}

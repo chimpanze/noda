@@ -1,0 +1,8 @@
+{
+  "id": "loop-item",
+  "nodes": {
+    "dbl": { "type": "transform.set", "config": { "fields": { "doubled": "{{ input.val * 2 }}" } } },
+    "out": { "type": "workflow.output", "config": { "name": "result", "data": "{{ nodes.dbl }}" } }
+  },
+  "edges": [ { "from": "dbl", "to": "out" } ]
+}

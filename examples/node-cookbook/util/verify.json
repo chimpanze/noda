@@ -1,0 +1,34 @@
+{
+  "deps": [],
+  "steps": [
+    {
+      "name": "log writes and continues",
+      "request": { "method": "POST", "path": "/api/log", "body": { "who": "cookbook" } },
+      "expect": { "status": 200, "body": [ { "path": "logged", "equals": true } ] }
+    },
+    {
+      "name": "uuid returns a v4 uuid",
+      "request": { "method": "GET", "path": "/api/uuid" },
+      "expect": { "status": 200, "body": [
+        { "path": "id", "regex": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" }
+      ] }
+    },
+    {
+      "name": "timestamp returns unix seconds",
+      "request": { "method": "GET", "path": "/api/timestamp" },
+      "expect": { "status": 200, "body": [ { "path": "unix", "type": "number" } ] }
+    },
+    {
+      "name": "delay waits then responds",
+      "request": { "method": "GET", "path": "/api/delay" },
+      "expect": { "status": 200, "body": [ { "path": "waited", "equals": "50ms" } ] }
+    },
+    {
+      "name": "jwt_sign returns a three-segment token",
+      "request": { "method": "POST", "path": "/api/jwt-sign", "body": { "uid": "user-1" } },
+      "expect": { "status": 200, "body": [
+        { "path": "token", "regex": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$" }
+      ] }
+    }
+  ]
+}

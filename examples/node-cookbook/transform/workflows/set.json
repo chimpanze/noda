@@ -1,0 +1,8 @@
+{
+  "id": "set",
+  "nodes": {
+    "compute": { "type": "transform.set", "config": { "fields": { "greeting": "Hello, {{ input.name }}!", "fixed": 42 } } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": "{{ nodes.compute }}" } }
+  },
+  "edges": [ { "from": "compute", "to": "respond" } ]
+}
