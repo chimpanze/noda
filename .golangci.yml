@@ -26,10 +26,13 @@ linters:
       - linters: [gosec]
         text: "G304"
         path: (_test\.go|internal/|cmd/)
-      # G703: taint-analysis path-traversal variant of G304, same rationale
+      # G703: taint-analysis path-traversal variant of G304, cookbook runner only —
+      # the seed-copy in runner.go IS the feature (copying project files into the
+      # per-test data dir) and the test's ReadFile is the assertion itself, so an
+      # exclusion (not restructuring) is the right call here.
       - linters: [gosec]
         text: "G703"
-        path: (_test\.go|internal/|cmd/)
+        path: internal/testing/cookbook/
       # G124: request cookies in tests carry no attributes on the wire
       - linters: [gosec]
         text: "G124"
