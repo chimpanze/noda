@@ -129,3 +129,30 @@ func TestStrictMode_AllowsLoopVars(t *testing.T) {
 	_, err = c.Compile("{{ $index }}")
 	require.NoError(t, err, "strict mode must accept $index")
 }
+
+func TestStrictMode_TransportNamespaces(t *testing.T) {
+	c := NewCompiler(WithStrictMode(true))
+	// Every namespace a trigger mapping can reference: HTTP route transport
+	// (trigger.go buildRawRequestContext + raw_body), worker message
+	// (worker/runtime.go:380), scheduler metadata (scheduler/runtime.go:342).
+	valid := []string{
+		"{{ body.name }}",
+		"{{ query.page }}",
+		"{{ params.id }}",
+		"{{ headers['x-api-key'] }}",
+		"{{ request.headers['x-github-event'] }}",
+		"{{ raw_body }}",
+		"{{ method }}",
+		"{{ path }}",
+		"{{ message.payload.id }}",
+		"{{ schedule.cron }}",
+	}
+	for _, e := range valid {
+		if _, err := c.Compile(e); err != nil {
+			t.Errorf("strict mode rejected valid trigger-mapping expression %s: %v", e, err)
+		}
+	}
+	if _, err := c.Compile("{{ bodyy.name }}"); err == nil {
+		t.Error("strict mode should still reject unknown top-level names")
+	}
+}
