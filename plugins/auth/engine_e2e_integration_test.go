@@ -413,7 +413,7 @@ func TestEngineE2E_ScaffoldedTestSuites(t *testing.T) {
 	for _, suite := range suites {
 		suite := suite
 		t.Run(suite.ID, func(t *testing.T) {
-			results := nodatesting.RunTestSuite(suite, rc, coreNodeReg)
+			results := nodatesting.RunTestSuite(suite, rc, coreNodeReg, nil)
 			require.NotEmpty(t, results)
 			for _, r := range results {
 				assert.Truef(t, r.Passed, "case %q failed: %s", r.CaseName, r.Error)
