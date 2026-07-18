@@ -66,7 +66,7 @@ func TestSyncBridge_Integration_RealPubSub(t *testing.T) {
 	// publishing, so the message isn't lost to a subscriber that hasn't
 	// attached yet.
 	require.Eventually(t, func() bool {
-		return mr.PubSubNumSub(syncChannelPrefix+"chat")["noda:sync:chat"] == 2
+		return mr.PubSubNumSub(syncChannelPrefix + "chat")["noda:sync:chat"] == 2
 	}, 5*time.Second, 5*time.Millisecond)
 
 	endpoint := NewEndpointService(mgrA, "chat", bridgeA)
@@ -145,7 +145,7 @@ func TestSyncBridge_Integration_RealPubSub_SSE(t *testing.T) {
 	go bridgeB.Run(ctx, "chat", mgrB)
 
 	require.Eventually(t, func() bool {
-		return mr.PubSubNumSub(syncChannelPrefix+"chat")["noda:sync:chat"] == 2
+		return mr.PubSubNumSub(syncChannelPrefix + "chat")["noda:sync:chat"] == 2
 	}, 5*time.Second, 5*time.Millisecond)
 
 	endpoint := NewEndpointService(mgrA, "chat", bridgeA)
