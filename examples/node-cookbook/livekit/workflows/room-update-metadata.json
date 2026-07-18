@@ -1,0 +1,24 @@
+{
+  "id": "room-update-metadata",
+  "name": "Update Room Metadata",
+  "nodes": {
+    "update": {
+      "type": "lk.roomUpdateMetadata",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}",
+        "metadata": "{{ input.metadata }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.update }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "update", "to": "respond" }
+  ]
+}

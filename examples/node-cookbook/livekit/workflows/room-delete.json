@@ -1,0 +1,23 @@
+{
+  "id": "room-delete",
+  "name": "Delete Room",
+  "nodes": {
+    "delete": {
+      "type": "lk.roomDelete",
+      "services": { "livekit": "lk" },
+      "config": {
+        "room": "{{ input.room }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.delete }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "delete", "to": "respond" }
+  ]
+}

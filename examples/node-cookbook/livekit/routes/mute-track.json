@@ -1,0 +1,16 @@
+{
+  "id": "mute-track",
+  "method": "POST",
+  "path": "/api/rooms/:room/participants/:identity/tracks/:track_sid/mute",
+  "summary": "lk.muteTrack — mute/unmute a participant's track (404 demo: no live participant exists)",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "mute-track",
+    "input": {
+      "room": "{{ params.room }}",
+      "identity": "{{ params.identity }}",
+      "track_sid": "{{ params.track_sid }}",
+      "muted": "{{ body.muted }}"
+    }
+  }
+}

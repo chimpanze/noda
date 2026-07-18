@@ -1,0 +1,14 @@
+{
+  "id": "participant-get",
+  "method": "GET",
+  "path": "/api/rooms/:room/participants/:identity",
+  "summary": "lk.participantGet — get a participant by identity (404 demo: no live participant exists)",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "participant-get",
+    "input": {
+      "room": "{{ params.room }}",
+      "identity": "{{ params.identity }}"
+    }
+  }
+}

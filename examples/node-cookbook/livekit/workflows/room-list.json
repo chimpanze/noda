@@ -1,0 +1,21 @@
+{
+  "id": "room-list",
+  "name": "List Rooms",
+  "nodes": {
+    "list": {
+      "type": "lk.roomList",
+      "services": { "livekit": "lk" },
+      "config": {}
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "rooms": "{{ nodes.list.rooms }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "respond" }
+  ]
+}

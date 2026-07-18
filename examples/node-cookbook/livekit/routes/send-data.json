@@ -1,0 +1,15 @@
+{
+  "id": "send-data",
+  "method": "POST",
+  "path": "/api/rooms/:room/data",
+  "summary": "lk.sendData — broadcast a data message into a room",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "send-data",
+    "input": {
+      "room": "{{ params.room }}",
+      "data": "{{ body.data }}",
+      "topic": "{{ body.topic }}"
+    }
+  }
+}

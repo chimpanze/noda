@@ -1,0 +1,155 @@
+{
+  "listen": true,
+  "deps": ["livekit"],
+  "steps": [
+    {
+      "name": "create the cookbook room",
+      "request": {
+        "method": "POST",
+        "path": "/api/rooms",
+        "body": { "name": "cookbook-room" }
+      },
+      "expect": {
+        "status": 201,
+        "body": [
+          { "path": "name", "equals": "cookbook-room" },
+          { "path": "sid", "regex": "^RM_" }
+        ]
+      },
+      "capture": { "room_sid": "body.sid" }
+    },
+    {
+      "name": "issue a token for the room",
+      "request": {
+        "method": "POST",
+        "path": "/api/rooms/cookbook-room/token",
+        "body": { "identity": "alice", "name": "Alice" }
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "token", "regex": "^[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+$" },
+          { "path": "identity", "equals": "alice" },
+          { "path": "room", "equals": "cookbook-room" }
+        ]
+      }
+    },
+    {
+      "name": "the room appears in the list",
+      "request": { "method": "GET", "path": "/api/rooms" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "rooms.0.name", "equals": "cookbook-room" }
+        ]
+      }
+    },
+    {
+      "name": "update the room's metadata",
+      "request": {
+        "method": "PUT",
+        "path": "/api/rooms/cookbook-room/metadata",
+        "body": { "metadata": "{\"purpose\":\"updated\"}" }
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "metadata", "equals": "{\"purpose\":\"updated\"}" }
+        ]
+      }
+    },
+    {
+      "name": "no WebRTC participants have joined — honest empty list",
+      "request": { "method": "GET", "path": "/api/rooms/cookbook-room/participants" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "participants", "type": "array" },
+          { "path": "participants.0", "exists": false }
+        ]
+      }
+    },
+    {
+      "name": "broadcasting data into a participant-less room still succeeds (no-op fan-out)",
+      "request": {
+        "method": "POST",
+        "path": "/api/rooms/cookbook-room/data",
+        "body": { "data": { "kind": "cookbook-ping" }, "topic": "cookbook" }
+      },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "sent", "equals": true }
+        ]
+      }
+    },
+    {
+      "name": "getting a ghost participant 404s",
+      "request": { "method": "GET", "path": "/api/rooms/cookbook-room/participants/ghost" },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "NO_SUCH_PARTICIPANT" }
+        ]
+      }
+    },
+    {
+      "name": "updating a ghost participant 404s",
+      "request": {
+        "method": "PUT",
+        "path": "/api/rooms/cookbook-room/participants/ghost",
+        "body": { "metadata": "{\"x\":1}" }
+      },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "NO_SUCH_PARTICIPANT" }
+        ]
+      }
+    },
+    {
+      "name": "removing a ghost participant 404s",
+      "request": { "method": "DELETE", "path": "/api/rooms/cookbook-room/participants/ghost" },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "NO_SUCH_PARTICIPANT" }
+        ]
+      }
+    },
+    {
+      "name": "muting a ghost participant's track 404s",
+      "request": {
+        "method": "POST",
+        "path": "/api/rooms/cookbook-room/participants/ghost/tracks/TR_fake/mute",
+        "body": { "muted": true }
+      },
+      "expect": {
+        "status": 404,
+        "body": [
+          { "path": "error.code", "equals": "NO_SUCH_PARTICIPANT" }
+        ]
+      }
+    },
+    {
+      "name": "delete the room",
+      "request": { "method": "DELETE", "path": "/api/rooms/cookbook-room" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "deleted", "equals": true }
+        ]
+      }
+    },
+    {
+      "name": "the room is gone from the list",
+      "request": { "method": "GET", "path": "/api/rooms" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "rooms.0", "exists": false }
+        ]
+      }
+    }
+  ]
+}

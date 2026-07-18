@@ -1,0 +1,10 @@
+{
+  "id": "room-list",
+  "method": "GET",
+  "path": "/api/rooms",
+  "summary": "lk.roomList — list LiveKit rooms",
+  "tags": ["livekit"],
+  "trigger": {
+    "workflow": "room-list"
+  }
+}
