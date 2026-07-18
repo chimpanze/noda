@@ -1,0 +1,74 @@
+{
+  "deps": [],
+  "seed": {
+    "media/in/source.png": "files/source.png",
+    "media/in/mark.png": "files/mark.png"
+  },
+  "steps": [
+    {
+      "name": "resize",
+      "request": { "method": "GET", "path": "/api/resize" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "width", "equals": 200 },
+          { "path": "height", "equals": 150 },
+          { "path": "path", "equals": "out/resized.png" },
+          { "path": "size", "type": "number" }
+        ]
+      }
+    },
+    {
+      "name": "crop",
+      "request": { "method": "GET", "path": "/api/crop" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "width", "equals": 100 },
+          { "path": "height", "equals": 100 },
+          { "path": "path", "equals": "out/cropped.png" },
+          { "path": "size", "type": "number" }
+        ]
+      }
+    },
+    {
+      "name": "convert",
+      "request": { "method": "GET", "path": "/api/convert" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "path", "equals": "out/converted.jpg" },
+          { "path": "width", "equals": 400 },
+          { "path": "height", "equals": 300 },
+          { "path": "size", "type": "number" }
+        ]
+      }
+    },
+    {
+      "name": "thumbnail",
+      "request": { "method": "GET", "path": "/api/thumbnail" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "width", "equals": 120 },
+          { "path": "height", "equals": 120 },
+          { "path": "path", "equals": "out/thumb" },
+          { "path": "size", "type": "number" }
+        ]
+      }
+    },
+    {
+      "name": "watermark",
+      "request": { "method": "GET", "path": "/api/watermark" },
+      "expect": {
+        "status": 200,
+        "body": [
+          { "path": "path", "equals": "out/marked.png" },
+          { "path": "width", "equals": 400 },
+          { "path": "height", "equals": 300 },
+          { "path": "size", "type": "number" }
+        ]
+      }
+    }
+  ]
+}

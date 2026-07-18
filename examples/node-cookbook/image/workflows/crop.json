@@ -1,0 +1,35 @@
+{
+  "id": "crop",
+  "name": "Crop Image",
+  "nodes": {
+    "op": {
+      "type": "image.crop",
+      "services": {
+        "source": "media",
+        "target": "media"
+      },
+      "config": {
+        "input": "in/source.png",
+        "output": "out/cropped.png",
+        "width": 100,
+        "height": 100,
+        "gravity": "center"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "path": "{{ nodes.op.path }}",
+          "width": "{{ nodes.op.width }}",
+          "height": "{{ nodes.op.height }}",
+          "size": "{{ nodes.op.size }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "op", "to": "respond" }
+  ]
+}

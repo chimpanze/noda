@@ -1,0 +1,10 @@
+{
+  "id": "crop",
+  "method": "GET",
+  "path": "/api/crop",
+  "summary": "Crop an image",
+  "tags": ["image"],
+  "trigger": {
+    "workflow": "crop"
+  }
+}

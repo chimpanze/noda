@@ -1,0 +1,10 @@
+{
+  "id": "resize",
+  "method": "GET",
+  "path": "/api/resize",
+  "summary": "Resize an image",
+  "tags": ["image"],
+  "trigger": {
+    "workflow": "resize"
+  }
+}

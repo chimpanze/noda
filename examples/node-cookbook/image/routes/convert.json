@@ -1,0 +1,10 @@
+{
+  "id": "convert",
+  "method": "GET",
+  "path": "/api/convert",
+  "summary": "Convert an image format",
+  "tags": ["image"],
+  "trigger": {
+    "workflow": "convert"
+  }
+}

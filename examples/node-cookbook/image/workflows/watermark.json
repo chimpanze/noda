@@ -1,0 +1,35 @@
+{
+  "id": "watermark",
+  "name": "Add Watermark",
+  "nodes": {
+    "op": {
+      "type": "image.watermark",
+      "services": {
+        "source": "media",
+        "target": "media"
+      },
+      "config": {
+        "input": "in/source.png",
+        "output": "out/marked.png",
+        "watermark": "in/mark.png",
+        "position": "bottom-right",
+        "opacity": 0.8
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "path": "{{ nodes.op.path }}",
+          "width": "{{ nodes.op.width }}",
+          "height": "{{ nodes.op.height }}",
+          "size": "{{ nodes.op.size }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "op", "to": "respond" }
+  ]
+}

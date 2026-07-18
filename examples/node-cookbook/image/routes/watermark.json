@@ -1,0 +1,10 @@
+{
+  "id": "watermark",
+  "method": "GET",
+  "path": "/api/watermark",
+  "summary": "Add a watermark to an image",
+  "tags": ["image"],
+  "trigger": {
+    "workflow": "watermark"
+  }
+}

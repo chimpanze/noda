@@ -1,0 +1,34 @@
+{
+  "id": "resize",
+  "name": "Resize Image",
+  "nodes": {
+    "op": {
+      "type": "image.resize",
+      "services": {
+        "source": "media",
+        "target": "media"
+      },
+      "config": {
+        "input": "in/source.png",
+        "output": "out/resized.png",
+        "width": 200,
+        "height": 150
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "path": "{{ nodes.op.path }}",
+          "width": "{{ nodes.op.width }}",
+          "height": "{{ nodes.op.height }}",
+          "size": "{{ nodes.op.size }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "op", "to": "respond" }
+  ]
+}
