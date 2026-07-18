@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - the worker's per-message timeout is applied once (runtime-owned); the `worker.timeout` middleware keeps its config name but is now the panic-to-error shield only (#285)
 - Int-typed node config fields (db.find limit/offset, upload.handle max_size, image dimensions, …) now accept numeric strings — `{{ query.limit ?? '20' }}`-style computed defaults work without `toInt(...)` (#340)
 - The editor validate endpoints and MCP noda_validate_config now run the same dry-run startup validation as noda validate, so they report node-config and reference errors they previously passed (#345).
+- `api.PubSubService` now includes `Subscribe` — custom services satisfying the old Publish-only shape must add it (#363).
 
 ### Fixed
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
