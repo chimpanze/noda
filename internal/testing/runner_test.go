@@ -65,7 +65,7 @@ func TestRunner_PassingTest(t *testing.T) {
 	}
 
 	coreNodeReg := buildCoreNodeReg(t)
-	results := RunTestSuite(suite, rc, coreNodeReg)
+	results := RunTestSuite(suite, rc, coreNodeReg, nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -99,7 +99,7 @@ func TestRunner_FailingExpectation(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	assert.False(t, results[0].Passed)
 	assert.Contains(t, results[0].Error, "Alice")
 }
@@ -132,7 +132,7 @@ func TestRunner_MockError(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	// The mock error gets caught by the error output of the mock executor
 	// Since there's no error edge, the error is stored as output data
 	// The workflow succeeds (error is handled internally)
@@ -175,7 +175,7 @@ func TestRunner_CoreNodesExecuteNormally(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -209,7 +209,7 @@ func TestRunner_UnmockedPluginNode(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	// The unmocked node is a db node (has error outputs). It returns an error
 	// with no error edge, so the workflow fails with status "error".
 	assert.False(t, results[0].Passed)
@@ -256,7 +256,7 @@ func TestRunner_AuthPassedThrough(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -302,7 +302,7 @@ func TestRunner_WorkflowWithEdges(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -353,7 +353,7 @@ func TestRunner_AssertsOnIntermediateNodeOutput(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -396,7 +396,7 @@ func TestRunner_ThreeNodeChain(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -455,7 +455,7 @@ func TestRunner_UnmockedResponseJSONDotPaths(t *testing.T) {
 
 	coreNodeReg := buildCoreNodeReg(t)
 	require.NoError(t, coreNodeReg.RegisterFromPlugin(&response.Plugin{}))
-	results := RunTestSuite(suite, rc, coreNodeReg)
+	results := RunTestSuite(suite, rc, coreNodeReg, nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 }
@@ -501,7 +501,7 @@ func TestRunTestCase_PopulatesTrace(t *testing.T) {
 		},
 	}
 
-	results := RunTestSuite(suite, rc, buildCoreNodeReg(t))
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), nil)
 	require.Len(t, results, 1)
 	assert.True(t, results[0].Passed, results[0].Error)
 	assert.NotEmpty(t, results[0].Trace, "trace should be populated")
@@ -550,9 +550,37 @@ func TestRunner_TestdataIntegration(t *testing.T) {
 
 	coreNodeReg := buildCoreNodeReg(t)
 	for _, suite := range suites {
-		results := RunTestSuite(suite, rc, coreNodeReg)
+		results := RunTestSuite(suite, rc, coreNodeReg, nil)
 		for _, r := range results {
 			assert.True(t, r.Passed, "suite=%s test=%q error=%s", suite.Workflow, r.CaseName, r.Error)
 		}
 	}
+}
+
+func TestRunner_SecretsAvailableInExpressions(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"workflows/wf.json": {
+				"id": "secret-wf",
+				"nodes": map[string]any{
+					"set": map[string]any{
+						"type":   "transform.set",
+						"config": map[string]any{"fields": map[string]any{"token": "{{ secrets.MY_TOKEN }}"}},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+	}
+	suite := TestSuite{
+		ID:       "test-secrets",
+		Workflow: "secret-wf",
+		Cases: []TestCase{{
+			Name:   "secrets resolve",
+			Expect: TestExpectation{Status: "success", Output: map[string]any{"set.token": "s3cret"}},
+		}},
+	}
+	results := RunTestSuite(suite, rc, buildCoreNodeReg(t), map[string]any{"MY_TOKEN": "s3cret"})
+	require.Len(t, results, 1)
+	assert.True(t, results[0].Passed, "got: %+v", results[0])
 }

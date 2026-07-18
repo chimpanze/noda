@@ -62,7 +62,7 @@ func TestRunner_WorkflowRunSubWorkflow(t *testing.T) {
 		}},
 	}
 
-	results := RunTestSuite(suite, rc, coreRegForSubWf(t))
+	results := RunTestSuite(suite, rc, coreRegForSubWf(t), nil)
 	require.Len(t, results, 1)
 	require.True(t, results[0].Passed, "expected pass, got: %s", results[0].Error)
 }

@@ -253,7 +253,7 @@ func newTestCmd() *cobra.Command {
 			var suiteResults []nodatesting.SuiteResult
 			anyFailed := false
 			for _, suite := range suites {
-				results := nodatesting.RunTestSuite(suite, rc, coreNodeReg)
+				results := nodatesting.RunTestSuite(suite, rc, coreNodeReg, sm.ExpressionContext())
 				suiteResults = append(suiteResults, nodatesting.SuiteResult{
 					Suite:   suite,
 					Results: results,
