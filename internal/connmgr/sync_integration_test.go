@@ -3,6 +3,7 @@ package connmgr
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -36,6 +37,7 @@ func TestSyncBridge_Integration_RealPubSub(t *testing.T) {
 
 	var muA, muB sync.Mutex
 	var receivedA, receivedB []byte
+	var countA atomic.Int32
 
 	require.NoError(t, mgrA.Register(&Conn{
 		ID: "a1", Channel: "room:1",
@@ -43,6 +45,7 @@ func TestSyncBridge_Integration_RealPubSub(t *testing.T) {
 			muA.Lock()
 			receivedA = data
 			muA.Unlock()
+			countA.Add(1)
 			return nil
 		},
 	}))
@@ -76,17 +79,21 @@ func TestSyncBridge_Integration_RealPubSub(t *testing.T) {
 	}, 5*time.Second, 5*time.Millisecond)
 
 	muB.Lock()
-	require.JSONEq(t, `{"n":1}`, string(receivedB))
+	require.Equal(t, []byte(`{"n":1}`), receivedB)
 	muB.Unlock()
 
 	// self-echo must be suppressed: instanceA subscribed too (bridgeA.Run is
 	// running) but must skip delivering its own envelope back into mgrA —
 	// mgrA already got the message via the direct local Send inside
-	// EndpointService.Send.
+	// EndpointService.Send. Assert the delivery count (not just a captured
+	// value, which a duplicate send would silently overwrite) is exactly 1:
+	// a self-echo regression would deliver it a second time, bumping this
+	// to 2.
 	time.Sleep(50 * time.Millisecond)
 	muA.Lock()
 	require.Equal(t, []byte(`{"n":1}`), receivedA)
 	muA.Unlock()
+	require.Equal(t, int32(1), countA.Load())
 }
 
 // TestSyncBridge_Integration_RealPubSub_SSE covers the SSE delivery path
@@ -111,6 +118,7 @@ func TestSyncBridge_Integration_RealPubSub_SSE(t *testing.T) {
 	var muA, muB sync.Mutex
 	var gotEvent, gotData, gotID string
 	var calledB, calledA bool
+	var countA atomic.Int32
 
 	require.NoError(t, mgrA.Register(&Conn{
 		ID: "a1", Channel: "feed:1",
@@ -118,6 +126,7 @@ func TestSyncBridge_Integration_RealPubSub_SSE(t *testing.T) {
 			muA.Lock()
 			calledA = true
 			muA.Unlock()
+			countA.Add(1)
 			return nil
 		},
 	}))
@@ -155,9 +164,13 @@ func TestSyncBridge_Integration_RealPubSub_SSE(t *testing.T) {
 	muB.Unlock()
 
 	// mgrA's own conn received exactly the local delivery, no duplicate via
-	// the bridge self-echo suppression.
+	// the bridge self-echo suppression. Assert the call count (not just the
+	// captured bool, which a duplicate call would silently leave at true)
+	// is exactly 1: a self-echo regression would call it a second time,
+	// bumping this to 2.
 	time.Sleep(50 * time.Millisecond)
 	muA.Lock()
 	require.True(t, calledA)
 	muA.Unlock()
+	require.Equal(t, int32(1), countA.Load())
 }
