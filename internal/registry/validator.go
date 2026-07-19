@@ -153,6 +153,38 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		configuredServices[name] = ds.Prefix
 	}
 
+	// Validate each service's config against its plugin's declared schema
+	// (#376): an un-bootable service config must fail validation, not boot.
+	if servicesMap, ok := rc.Root["services"].(map[string]any); ok {
+		for name, raw := range servicesMap {
+			cfg, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			pluginName, _ := cfg["plugin"].(string)
+			p, found := plugins.GetByName(pluginName)
+			if !found {
+				continue // unknown plugin is a crossref error already
+			}
+			schema := p.ServiceConfigSchema()
+			if schema == nil {
+				continue
+			}
+			compiled, err := compileServiceSchema(pluginName, schema)
+			if err != nil {
+				errs = append(errs, &ServiceConfigError{Service: name, Plugin: pluginName, Err: fmt.Errorf("invalid ServiceConfigSchema: %w", err)})
+				continue
+			}
+			svcCfg, _ := cfg["config"].(map[string]any)
+			if svcCfg == nil {
+				svcCfg = map[string]any{}
+			}
+			if err := validateAgainst(compiled, svcCfg); err != nil {
+				errs = append(errs, &ServiceConfigError{Service: name, Plugin: pluginName, Err: err})
+			}
+		}
+	}
+
 	for wfName, wf := range rc.Workflows {
 		wfNodes, ok := wf["nodes"].(map[string]any)
 		if !ok {
@@ -206,6 +238,61 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				if svcPrefix != dep.Prefix {
 					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q",
 						wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix))
+				}
+			}
+		}
+
+		// 4. Validate edge outputs against declared node outputs (#379): the
+		// compiler already rejects undeclared edge outputs at boot
+		// (internal/engine/compiler.go), so the dry-run check mirrors that
+		// logic to give validate/editor/MCP the same guarantee before deploy.
+		// Empty output defaults to "success"; outputs are resolved
+		// config-aware (control.switch's outputs depend on its "cases"
+		// config), matching the engine resolver exactly.
+		if edgesRaw, ok := wf["edges"].([]any); ok {
+			for _, rawEdge := range edgesRaw {
+				edgeMap, ok := rawEdge.(map[string]any)
+				if !ok {
+					continue
+				}
+				from, _ := edgeMap["from"].(string)
+				to, _ := edgeMap["to"].(string)
+				output, _ := edgeMap["output"].(string)
+
+				fromNodeRaw, ok := wfNodes[from]
+				if !ok {
+					errs = append(errs, fmt.Errorf("workflow %q: edge references unknown source node %q", wfName, from))
+					continue
+				}
+				if _, ok := wfNodes[to]; !ok {
+					errs = append(errs, fmt.Errorf("workflow %q: edge references unknown target node %q", wfName, to))
+					continue
+				}
+				fromNode, ok := fromNodeRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+				fromType, _ := fromNode["type"].(string)
+				if fromType == "" {
+					continue
+				}
+				if _, found := nodes.GetDescriptor(fromType); !found {
+					continue // unregistered node type: owned by check 2 above
+				}
+
+				fromCfg, _ := fromNode["config"].(map[string]any)
+				outputs, ok := nodes.OutputsForTypeWithConfig(fromType, fromCfg)
+				if !ok {
+					continue
+				}
+
+				wantOutput := output
+				if wantOutput == "" {
+					wantOutput = "success"
+				}
+				if !containsStr(outputs, wantOutput) {
+					errs = append(errs, fmt.Errorf("workflow %q: edge %q -> %q: output %q not among declared outputs [%s]",
+						wfName, from, to, wantOutput, strings.Join(outputs, " ")))
 				}
 			}
 		}
@@ -263,4 +350,14 @@ func extractPrefix(nodeType string) string {
 		return nodeType[:idx]
 	}
 	return nodeType
+}
+
+// containsStr reports whether s is present in slice.
+func containsStr(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

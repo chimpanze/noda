@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/plugin"
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -76,6 +77,24 @@ func TestPlugin_Shutdown_InvalidType(t *testing.T) {
 	err := p.Shutdown("not a db")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid service type")
+}
+
+// TestServiceConfigSchema_EmptyRequired_ConsistentWithCreateService pins
+// schema<->code agreement for db: driver-dependent requirements (url for
+// postgres, path for sqlite) mean nothing is unconditionally required, so
+// an empty config must pass schema validation while CreateService's own
+// (driver-dependent) error behavior stays unchanged by this task.
+func TestServiceConfigSchema_EmptyRequired_ConsistentWithCreateService(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	require.Empty(t, registry.CheckSchemaVocabulary(schema))
+	required, _ := schema["required"].([]any)
+	assert.Empty(t, required)
+	assert.Empty(t, registry.ValidateNodeConfig(schema, map[string]any{}), "empty config must pass schema validation")
+
+	_, err := p.CreateService(map[string]any{})
+	require.Error(t, err, "CreateService must still reject an empty config (default driver postgres requires url)")
+	assert.Contains(t, err.Error(), "missing connection 'url'")
 }
 
 func TestToInt(t *testing.T) {

@@ -11,6 +11,8 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+
+	"github.com/chimpanze/noda/internal/scaffold"
 )
 
 // templates/* excludes dotfiles; list them explicitly.
@@ -65,6 +67,10 @@ func scaffoldProject(name string, force bool) error {
 		if err != nil {
 			return fmt.Errorf("scaffold project: %w", err)
 		}
+		// .env is generated (not a template file), but must still be conflict-checked.
+		if _, statErr := os.Stat(filepath.Join(name, ".env")); statErr == nil {
+			conflicts = append(conflicts, filepath.Join(name, ".env"))
+		}
 		if len(conflicts) > 0 {
 			sort.Strings(conflicts)
 			return fmt.Errorf("refusing to overwrite existing files (use --force): %s", strings.Join(conflicts, ", "))
@@ -75,6 +81,8 @@ func scaffoldProject(name string, force bool) error {
 	if err := os.MkdirAll(filepath.Join(name, "migrations"), 0755); err != nil {
 		return fmt.Errorf("create migrations directory: %w", err)
 	}
+
+	var envExampleContent string
 
 	err := fs.WalkDir(templateFS, "templates", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -118,19 +126,36 @@ func scaffoldProject(name string, force bool) error {
 			return fmt.Errorf("create directory for %s: %w", outPath, err)
 		}
 
+		if relPath == ".env.example" {
+			envExampleContent = string(content)
+		}
+
 		return os.WriteFile(outPath, content, 0644)
 	})
 	if err != nil {
 		return fmt.Errorf("scaffold project: %w", err)
 	}
 
+	// Generate a real, ready-to-use .env alongside the committable .env.example
+	// so a fresh project has a compliant JWT_SECRET (>=32 bytes) from the start (#381).
+	if envExampleContent != "" {
+		secret, err := scaffold.GenerateJWTSecret()
+		if err != nil {
+			return fmt.Errorf("scaffold project: %w", err)
+		}
+		envContent := scaffold.ApplyJWTSecret(envExampleContent, secret)
+		if err := os.WriteFile(filepath.Join(name, ".env"), []byte(envContent), 0644); err != nil {
+			return fmt.Errorf("write .env: %w", err)
+		}
+	}
+
 	fmt.Printf("✓ Project %q created\n", filepath.Base(name))
 	fmt.Println()
 	fmt.Println("  Get started:")
 	fmt.Printf("    cd %s\n", filepath.Base(name))
-	fmt.Println("    cp .env.example .env")
 	fmt.Println("    docker compose up -d")
 	fmt.Println("    noda dev")
 	fmt.Println()
+	fmt.Println("  (.env was generated with a unique JWT_SECRET; .env.example is the committable template)")
 	return nil
 }

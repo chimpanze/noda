@@ -690,6 +690,7 @@ func (p *failingShutdownPlugin) Name() string                                   
 func (p *failingShutdownPlugin) Prefix() string                                   { return p.prefix }
 func (p *failingShutdownPlugin) Nodes() []api.NodeRegistration                    { return nil }
 func (p *failingShutdownPlugin) HasServices() bool                                { return true }
+func (p *failingShutdownPlugin) ServiceConfigSchema() map[string]any              { return nil }
 func (p *failingShutdownPlugin) CreateService(config map[string]any) (any, error) { return "inst", nil }
 func (p *failingShutdownPlugin) HealthCheck(service any) error                    { return nil }
 func (p *failingShutdownPlugin) Shutdown(service any) error {

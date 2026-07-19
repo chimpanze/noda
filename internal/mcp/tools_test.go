@@ -172,6 +172,87 @@ func TestGetConfigSchemaHandler(t *testing.T) {
 	})
 }
 
+func TestGetServiceSchemaHandler(t *testing.T) {
+	t.Run("auth plugin", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "auth"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "\"database\"")
+		assert.Contains(t, text, "\"required\"")
+	})
+
+	t.Run("db plugin resolved by prefix", func(t *testing.T) {
+		// noda.json's "plugin" field accepts either the plugin's Name()
+		// ("postgres") or its Prefix() ("db") — registry.GetByName falls back
+		// to prefix lookup (internal/registry/plugins.go). This tool must
+		// mirror that fallback so "db" (the prefix) resolves the same schema
+		// as "postgres" (the name).
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "db"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		data := parseTextResult(t, result)
+		assert.Equal(t, "postgres", data["name"], "response should name the canonical plugin name")
+		assert.Equal(t, "db", data["prefix"])
+		assert.NotNil(t, data["config_schema"])
+	})
+
+	t.Run("livekit plugin", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "livekit"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "\"api_secret\"")
+	})
+
+	t.Run("all plugins", func(t *testing.T) {
+		for _, args := range []map[string]any{nil, {"plugin": "all"}} {
+			req := makeCallToolRequest("noda_get_service_schema", args)
+			result, err := getServiceSchemaHandler(context.Background(), req)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			data := parseTextResult(t, result)
+			plugins := data["plugins"].([]any)
+			assert.GreaterOrEqual(t, len(plugins), 9, "expected at least 9 service-bearing plugins")
+			for _, p := range plugins {
+				entry := p.(map[string]any)
+				assert.NotEmpty(t, entry["name"], "entry missing name")
+				assert.NotEmpty(t, entry["prefix"], "entry missing prefix")
+				assert.NotNil(t, entry["config_schema"], "entry %v missing config_schema", entry["name"])
+			}
+		}
+	})
+
+	t.Run("unknown plugin lists valid names", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "nope"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "nope")
+		assert.Contains(t, text, "auth")
+		assert.Contains(t, text, "livekit")
+	})
+
+	t.Run("service-less plugin returns helpful error", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "core.control"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "no services")
+	})
+}
+
 func TestValidateExpressionHandler(t *testing.T) {
 	t.Run("valid expression", func(t *testing.T) {
 		req := makeCallToolRequest("noda_validate_expression", map[string]any{"expression": "{{ input.name }}"})
@@ -320,8 +401,9 @@ func TestGetExamplesHandler(t *testing.T) {
 	t.Run("every example config snippet is valid JSON", func(t *testing.T) {
 		for name, example := range examplePatterns {
 			for key, val := range example {
-				// "description" is prose; migration_* fields are raw SQL, not JSON.
-				if key == "description" || strings.HasPrefix(key, "migration") {
+				// "description"/"alternative_description" are prose; migration_*
+				// fields are raw SQL, not JSON.
+				if key == "description" || key == "alternative_description" || strings.HasPrefix(key, "migration") {
 					continue
 				}
 				var parsed any
@@ -467,6 +549,55 @@ func TestValidateConfigHandler(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "expected a 'missing required config field' error, got: %+v", errsRaw)
+	})
+
+	t.Run("catches service-only plugin schema errors (storage/stream/pubsub)", func(t *testing.T) {
+		// #376's ServiceConfigSchema audit runs during the startup dry-run.
+		// storage/stream/pubsub provide services but no node types, so they
+		// were previously registered in the CLI's dry-run plugin set but not
+		// the MCP tool's (corePlugins() only) — meaning a bad storage config
+		// validated as clean via MCP while `noda validate` correctly rejected
+		// it. Regression test for that parity gap.
+		tmpDir := t.TempDir()
+		projectPath := filepath.Join(tmpDir, "service-only-project")
+		scaffoldReq := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectPath})
+		_, err := scaffoldProjectHandler(context.Background(), scaffoldReq)
+		require.NoError(t, err)
+
+		nodaJSONPath := filepath.Join(projectPath, "noda.json")
+		raw, err := os.ReadFile(nodaJSONPath)
+		require.NoError(t, err)
+		var cfg map[string]any
+		require.NoError(t, json.Unmarshal(raw, &cfg))
+		cfg["services"] = map[string]any{
+			"badstorage": map[string]any{
+				"plugin": "storage",
+				"config": map[string]any{"backend": "s3"}, // not in enum [local memory]
+			},
+		}
+		updated, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(nodaJSONPath, updated, 0o644))
+
+		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": projectPath})
+		result, err := validateConfigHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.False(t, data["valid"].(bool))
+
+		errsRaw, ok := data["errors"].([]any)
+		require.True(t, ok, "errors should be a list of objects")
+		require.NotEmpty(t, errsRaw)
+
+		found := false
+		for _, raw := range errsRaw {
+			m := raw.(map[string]any)
+			if msg, _ := m["message"].(string); strings.Contains(msg, "badstorage") && strings.Contains(msg, "storage") {
+				found = true
+			}
+		}
+		assert.True(t, found, "expected a service-schema error naming the storage service, got: %+v", errsRaw)
 	})
 }
 
@@ -678,6 +809,48 @@ func TestScaffoldProjectHandler(t *testing.T) {
 	require.NoError(t, err)
 	vdata := parseTextResult(t, vres)
 	assert.True(t, vdata["valid"].(bool), "scaffolded project should validate")
+}
+
+func TestScaffoldProjectHandler_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectA := filepath.Join(tmpDir, "project-a")
+	projectB := filepath.Join(tmpDir, "project-b")
+
+	reqA := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectA})
+	_, err := scaffoldProjectHandler(context.Background(), reqA)
+	require.NoError(t, err)
+	reqB := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectB})
+	_, err = scaffoldProjectHandler(context.Background(), reqB)
+	require.NoError(t, err)
+
+	exampleData, err := os.ReadFile(filepath.Join(projectA, ".env.example"))
+	require.NoError(t, err)
+	assert.Contains(t, string(exampleData), "at least 32 bytes")
+	assert.Contains(t, string(exampleData), "replace-with-at-least-32-bytes")
+
+	envA, err := os.ReadFile(filepath.Join(projectA, ".env"))
+	require.NoError(t, err)
+	envB, err := os.ReadFile(filepath.Join(projectB, ".env"))
+	require.NoError(t, err)
+
+	secretA := extractJWTSecret(t, string(envA))
+	secretB := extractJWTSecret(t, string(envB))
+	assert.Len(t, secretA, 64)
+	assert.Len(t, secretB, 64)
+	assert.NotEqual(t, secretA, secretB, "each scaffold must generate a unique secret")
+	assert.NotContains(t, string(envA), "replace-with-at-least-32-bytes")
+	assert.Contains(t, string(envA), "DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable")
+}
+
+func extractJWTSecret(t *testing.T, envContent string) string {
+	t.Helper()
+	for _, line := range strings.Split(envContent, "\n") {
+		if strings.HasPrefix(line, "JWT_SECRET=") {
+			return strings.TrimPrefix(line, "JWT_SECRET=")
+		}
+	}
+	t.Fatal("JWT_SECRET= line not found in .env")
+	return ""
 }
 
 func TestScaffoldProjectHandler_RefusesOverwrite(t *testing.T) {

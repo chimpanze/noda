@@ -1,0 +1,13 @@
+{
+  "id": "hello",
+  "nodes": {
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "message": "Hello, World!" }
+      }
+    }
+  },
+  "edges": []
+}

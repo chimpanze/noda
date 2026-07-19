@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -327,6 +328,24 @@ func TestPlugin_HealthCheck_InvalidType(t *testing.T) {
 	err := p.HealthCheck("not a service")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid service type")
+}
+
+// TestServiceConfigSchema_EmptyRequired_ConsistentWithCreateService pins
+// schema<->code agreement for storage: "path" is only required for the
+// "local" backend (default), so nothing is unconditionally required at the
+// schema level. An empty config must pass schema validation while
+// CreateService's own (backend-dependent) error behavior stays unchanged.
+func TestServiceConfigSchema_EmptyRequired_ConsistentWithCreateService(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	require.Empty(t, registry.CheckSchemaVocabulary(schema))
+	required, _ := schema["required"].([]any)
+	assert.Empty(t, required)
+	assert.Empty(t, registry.ValidateNodeConfig(schema, map[string]any{}), "empty config must pass schema validation")
+
+	_, err := p.CreateService(map[string]any{})
+	require.Error(t, err, "CreateService must still reject an empty config (default backend local requires path)")
+	assert.Contains(t, err.Error(), "path")
 }
 
 func TestPlugin_CreateService_DefaultBackend(t *testing.T) {

@@ -87,6 +87,9 @@ func (c *compositePlugin) CreateService(config map[string]any) (any, error) {
 }
 func (c *compositePlugin) HealthCheck(service any) error { return c.services.HealthCheck(service) }
 func (c *compositePlugin) Shutdown(service any) error    { return c.services.Shutdown(service) }
+func (c *compositePlugin) ServiceConfigSchema() map[string]any {
+	return c.services.ServiceConfigSchema()
+}
 
 // Get looks up a plugin by prefix.
 func (r *PluginRegistry) Get(prefix string) (api.Plugin, bool) {

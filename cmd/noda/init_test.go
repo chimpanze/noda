@@ -36,6 +36,45 @@ func TestScaffoldProject_ForceOverwrites(t *testing.T) {
 	require.NotEqual(t, "{}", string(b)) // overwritten with the template
 }
 
+func TestScaffoldProject_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
+	dir := t.TempDir()
+	projA := filepath.Join(dir, "app-a")
+	projB := filepath.Join(dir, "app-b")
+	require.NoError(t, scaffoldProject(projA, false))
+	require.NoError(t, scaffoldProject(projB, false))
+
+	exampleB, err := os.ReadFile(filepath.Join(projA, ".env.example"))
+	require.NoError(t, err)
+	require.Contains(t, string(exampleB), "at least 32 bytes")
+	require.Contains(t, string(exampleB), "replace-with-at-least-32-bytes")
+
+	envA, err := os.ReadFile(filepath.Join(projA, ".env"))
+	require.NoError(t, err)
+	envB, err := os.ReadFile(filepath.Join(projB, ".env"))
+	require.NoError(t, err)
+
+	secretA := extractJWTSecret(t, string(envA))
+	secretB := extractJWTSecret(t, string(envB))
+	require.Len(t, secretA, 64)
+	require.Len(t, secretB, 64)
+	require.NotEqual(t, secretA, secretB, "each init must generate a unique secret")
+	require.NotContains(t, string(envA), "replace-with-at-least-32-bytes")
+
+	// Other lines from .env.example must survive untouched in .env.
+	require.Contains(t, string(envA), "DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable")
+}
+
+func extractJWTSecret(t *testing.T, envContent string) string {
+	t.Helper()
+	for _, line := range strings.Split(envContent, "\n") {
+		if strings.HasPrefix(line, "JWT_SECRET=") {
+			return strings.TrimPrefix(line, "JWT_SECRET=")
+		}
+	}
+	t.Fatal("JWT_SECRET= line not found in .env")
+	return ""
+}
+
 func TestScaffoldProject_ConflictsSorted(t *testing.T) {
 	dir := t.TempDir()
 	proj := filepath.Join(dir, "app")

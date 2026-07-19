@@ -26,6 +26,35 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	return &Service{client: client}, nil
 }
 
+// ServiceConfigSchema documents the stream service `config` block, read by
+// internal/plugin.NewRedisClient. additionalProperties is false: unknown
+// keys are silently ignored by NewRedisClient/redis.ParseURL.
+func (p *Plugin) ServiceConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"url": map[string]any{
+				"type":        "string",
+				"description": "Redis connection URL (redis://...); required — NewRedisClient errors without it",
+			},
+			"pool_size": map[string]any{
+				// plugin.ToInt accepts numeric strings too ($env() substitution
+				// always produces strings), so both types must validate.
+				"type":        []any{"string", "integer"},
+				"description": "Maximum number of Redis connections in the pool, as an integer or numeric string ($env() always produces strings)",
+			},
+			"min_idle": map[string]any{
+				// plugin.ToInt accepts numeric strings too ($env() substitution
+				// always produces strings), so both types must validate.
+				"type":        []any{"string", "integer"},
+				"description": "Minimum number of idle Redis connections to keep open, as an integer or numeric string ($env() always produces strings)",
+			},
+		},
+		"required":             []any{"url"},
+		"additionalProperties": false,
+	}
+}
+
 func (p *Plugin) HealthCheck(service any) error {
 	svc, ok := service.(*Service)
 	if !ok {

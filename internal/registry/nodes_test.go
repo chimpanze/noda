@@ -42,6 +42,7 @@ func (p *nodePlugin) Name() string                                     { return 
 func (p *nodePlugin) Prefix() string                                   { return p.prefix }
 func (p *nodePlugin) Nodes() []api.NodeRegistration                    { return p.nodes }
 func (p *nodePlugin) HasServices() bool                                { return false }
+func (p *nodePlugin) ServiceConfigSchema() map[string]any              { return nil }
 func (p *nodePlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
 func (p *nodePlugin) HealthCheck(service any) error                    { return nil }
 func (p *nodePlugin) Shutdown(service any) error                       { return nil }

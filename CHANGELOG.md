@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ServiceConfigSchema` on `api.Plugin` + `noda_get_service_schema` MCP tool — plugin service configs are declared, validated, and discoverable (#375 #376). **Upgrade note:** external `api.Plugin` implementations must add this method — return `nil` for plugins with no services.
 - livekit service accepts an optional `timeout` (per-API-call deadline); unset keeps unbounded calls (#368)
 - `auth.jwt` optional claim validation: `audience`, `issuer`, and `require_expiry` (all default off — when unset, behavior is unchanged)
 - Prometheus metrics endpoint (`/metrics`) with OTel metrics API
@@ -35,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
 
 ### Changed
+- Validation now rejects workflow edges whose `output` names an undeclared node output (boot already did; validate/editor/MCP now agree) (#379).
+- Service configs are now validated against each plugin's declared schema on every surface (validate/boot/editor/MCP/hot-reload) — was: `valid: true` for configs whose plugin would refuse to boot (#376).
 - Dev-mode hot reload now runs the same dry-run startup validation as boot/validate/editor and refuses the swap on failure (emits `file:error`) — was: node-config violations hot-reloaded "successfully" (#349). Editor per-file validation scopes dry-run errors to the saved file — was: unrelated workflows' errors shown with empty file attribution.
 - http.post/http.request `body` now deep-resolves nested expression templates like sse.send/ws.send/event.emit — was: maps/slices passed through verbatim with `{{ … }}` text unevaluated (#364).
 - Typed node errors (ValidationError, NotFoundError, …) now map to their HTTP statuses even when no error edge is wired — was: generic 500 INTERNAL_ERROR (#361).
@@ -62,6 +65,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `api.PubSubService` now includes `Subscribe` — custom services satisfying the old Publish-only shape must add it (#363).
 - `connections` `sync` block is now optional — was: schema-required while unused.
 - Multipart repeated form values now normalize to `[]any` like urlencoded — was: `[]string`, which broke `control.loop` and type-switched expressions (#350).
+- `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 23-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.

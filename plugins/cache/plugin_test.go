@@ -6,6 +6,7 @@ import (
 
 	"github.com/alicebob/miniredis/v2"
 	"github.com/chimpanze/noda/internal/plugin"
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -125,6 +126,43 @@ func TestPlugin_Shutdown_InvalidType(t *testing.T) {
 	err := p.Shutdown("not a service")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "invalid service type")
+}
+
+// TestServiceConfigSchema_RequiredMatchesCreateService pins schema<->code
+// agreement: a config missing "url" must fail BOTH schema validation and
+// CreateService (both delegate to internal/plugin.NewRedisClient).
+func TestServiceConfigSchema_RequiredMatchesCreateService(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	require.Empty(t, registry.CheckSchemaVocabulary(schema))
+	required, _ := schema["required"].([]any)
+	require.Equal(t, []any{"url"}, required)
+
+	cfg := map[string]any{}
+	assert.NotEmpty(t, registry.ValidateNodeConfig(schema, cfg), "schema must reject config missing \"url\"")
+	_, err := p.CreateService(cfg)
+	assert.Error(t, err, "CreateService must reject config missing \"url\"")
+}
+
+// TestServiceConfigSchema_PoolSizeAcceptsNumericString pins the fix for
+// pool_size/min_idle: plugin.ToInt accepts numeric strings (the $env()
+// substitution path always produces strings), so the schema must accept
+// them too — not just JSON integers.
+func TestServiceConfigSchema_PoolSizeAcceptsNumericString(t *testing.T) {
+	mr := miniredis.RunT(t)
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+
+	cfg := map[string]any{
+		"url":       "redis://" + mr.Addr(),
+		"pool_size": "20",
+	}
+	assert.Empty(t, registry.ValidateNodeConfig(schema, cfg), "schema must accept pool_size as a numeric string")
+
+	svc, err := p.CreateService(cfg)
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, 20, s.client.Options().PoolSize)
 }
 
 func TestToInt_Variants(t *testing.T) {

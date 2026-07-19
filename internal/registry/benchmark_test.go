@@ -35,6 +35,7 @@ func (p *benchPlugin) Name() string                                     { return
 func (p *benchPlugin) Prefix() string                                   { return p.prefix }
 func (p *benchPlugin) Nodes() []api.NodeRegistration                    { return p.nodes }
 func (p *benchPlugin) HasServices() bool                                { return false }
+func (p *benchPlugin) ServiceConfigSchema() map[string]any              { return nil }
 func (p *benchPlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
 func (p *benchPlugin) HealthCheck(service any) error                    { return nil }
 func (p *benchPlugin) Shutdown(service any) error                       { return nil }

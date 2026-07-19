@@ -267,6 +267,51 @@ SMTP email sender. Used by the `email.send` node.
 
 ---
 
+### Auth (`plugin: "auth"`)
+
+First-party email+password authentication (users, opaque sessions, single-use tokens). Used by the 8 `auth.*` nodes and the `auth.session` middleware. See the [Authentication guide](../04-guides/authentication.md#session-authentication-auth-plugin) for the full walkthrough and `noda auth init`.
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `database` | string | yes | -- | Name of the db service (`services.*`) the auth plugin stores its `auth_users`/`auth_sessions`/`auth_tokens` tables in |
+| `session.ttl` | string | no | `720h` | Session lifetime as a Go duration |
+| `session.cookie.name` | string | no | `noda_session` | Session cookie name |
+| `session.cookie.path` | string | no | `/` | Session cookie path |
+| `session.cookie.domain` | string | no | (empty = host-only) | Session cookie domain |
+| `session.cookie.same_site` | string | no | `Lax` | SameSite attribute; conventional values are `"Lax"`, `"Strict"`, `"None"` (passed through as-is) |
+| `session.cookie.secure` | boolean | no | `true` | Secure attribute |
+| `session.cookie.http_only` | boolean | no | `true` | HttpOnly attribute |
+| `argon2.memory_kib` | integer | no | library default | Argon2id memory cost in KiB |
+| `argon2.iterations` | integer | no | library default | Argon2id number of iterations |
+| `argon2.salt_len` | integer | no | library default | Argon2id salt length in bytes |
+| `argon2.key_len` | integer | no | library default | Argon2id derived key length in bytes |
+| `argon2.parallelism` | integer | no | library default | Argon2id degree of parallelism |
+| `tokens.verify_email_ttl` | string | no | `24h` | Email verification token TTL as a Go duration |
+| `tokens.reset_password_ttl` | string | no | `1h` | Password reset token TTL as a Go duration |
+
+```json
+{
+  "auth": {
+    "plugin": "auth",
+    "config": {
+      "database": "main-db",
+      "session": {
+        "ttl": "720h",
+        "cookie": { "name": "noda_session", "same_site": "Lax" }
+      },
+      "argon2": { "memory_kib": 65536, "iterations": 3, "parallelism": 2 },
+      "tokens": { "verify_email_ttl": "24h", "reset_password_ttl": "1h" }
+    }
+  }
+}
+```
+
+**Nodes:** `auth.create_user`, `auth.get_user`, `auth.verify_credentials`, `auth.create_session`, `auth.revoke_session`, `auth.create_token`, `auth.consume_token`, `auth.set_password`
+
+The machine-readable version of this table (and every other plugin's) is available via the `noda_get_service_schema` MCP tool.
+
+---
+
 ### LiveKit (`plugin: "livekit"`)
 
 LiveKit WebRTC server integration. Used by all `lk.*` nodes.
@@ -339,6 +384,7 @@ Different node families expect different slot names:
 | `client` | `http.*` nodes | `http` |
 | `mailer` | `email.send` | `email` |
 | `stream` | `event.emit`, workers | `stream` |
+| `auth` | `auth.*` nodes | `auth` |
 | `livekit` | `lk.*` nodes | `livekit` |
 | `connections` | `ws.send`, `sse.send` | A **connections endpoint name** (see below), not a `noda.json` service |
 | `runtime` | `wasm.send`, `wasm.query` | Wasm runtime (built-in) |
@@ -450,6 +496,7 @@ In your workflows, each node picks the instance it needs:
 | `client` | `http.*` | `http` | (none required) |
 | `mailer` | `email.send` | `email` | `host` |
 | `stream` | `event.emit`, workers | `stream` | `url` |
+| `auth` | `auth.*` | `auth` | `database` |
 | `livekit` | `lk.*` | `livekit` | `url`, `api_key`, `api_secret` |
 
 ---

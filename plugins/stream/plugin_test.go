@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/alicebob/miniredis/v2"
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
@@ -50,6 +51,22 @@ func TestPlugin_Shutdown(t *testing.T) {
 	svc, _ := p.CreateService(map[string]any{"url": "redis://" + mr.Addr()})
 	assert.NoError(t, p.Shutdown(svc))
 	assert.Error(t, p.Shutdown("wrong type"))
+}
+
+// TestServiceConfigSchema_RequiredMatchesCreateService pins schema<->code
+// agreement: a config missing "url" must fail BOTH schema validation and
+// CreateService (both delegate to internal/plugin.NewRedisClient).
+func TestServiceConfigSchema_RequiredMatchesCreateService(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	require.Empty(t, registry.CheckSchemaVocabulary(schema))
+	required, _ := schema["required"].([]any)
+	require.Equal(t, []any{"url"}, required)
+
+	cfg := map[string]any{}
+	assert.NotEmpty(t, registry.ValidateNodeConfig(schema, cfg), "schema must reject config missing \"url\"")
+	_, err := p.CreateService(cfg)
+	assert.Error(t, err, "CreateService must reject config missing \"url\"")
 }
 
 // --- Service tests ---

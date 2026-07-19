@@ -239,6 +239,7 @@ func (p *testPlugin) Name() string                                     { return 
 func (p *testPlugin) Prefix() string                                   { return p.prefix }
 func (p *testPlugin) Nodes() []api.NodeRegistration                    { return p.nodes }
 func (p *testPlugin) HasServices() bool                                { return false }
+func (p *testPlugin) ServiceConfigSchema() map[string]any              { return nil }
 func (p *testPlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
 func (p *testPlugin) HealthCheck(service any) error                    { return nil }
 func (p *testPlugin) Shutdown(service any) error                       { return nil }

@@ -20,6 +20,9 @@ import (
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
 	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
+	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
+	storageplugin "github.com/chimpanze/noda/plugins/storage"
+	streamplugin "github.com/chimpanze/noda/plugins/stream"
 )
 
 // optionalPlugins holds plugins registered via build-tagged init() functions.
@@ -50,4 +53,23 @@ func corePlugins() []api.Plugin {
 		&authplugin.Plugin{},
 	}
 	return append(plugins, optionalPlugins...)
+}
+
+// serviceOnlyPlugins returns plugins that provide services but no node
+// types (stream, pubsub, storage). This mirrors cmd/noda/main.go's
+// serviceOnlyPlugins() — these plugins aren't needed by the MCP node
+// registry, but noda_get_service_schema must still be able to describe
+// their service config blocks.
+func serviceOnlyPlugins() []api.Plugin {
+	return []api.Plugin{
+		&streamplugin.Plugin{},
+		&pubsubplugin.Plugin{},
+		&storageplugin.Plugin{},
+	}
+}
+
+// servicePlugins returns every plugin the MCP server knows about, for
+// enumerating service config schemas (noda_get_service_schema).
+func servicePlugins() []api.Plugin {
+	return append(corePlugins(), serviceOnlyPlugins()...)
 }

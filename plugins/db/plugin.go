@@ -82,6 +82,52 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	return db, nil
 }
 
+// ServiceConfigSchema documents the db service `config` block. driver
+// selects which of the two mutually-exclusive key sets (postgres' url,
+// sqlite's path) CreateService reads; neither is unconditionally required
+// at the schema level because the requirement is driver-dependent —
+// CreateService remains the arbiter of that conditional requirement.
+// additionalProperties is false: unknown keys are silently ignored by the
+// parser (plugin.ToInt returns !ok and the caller just skips the setter).
+func (p *Plugin) ServiceConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"driver": map[string]any{
+				"type":        "string",
+				"enum":        []any{"postgres", "sqlite"},
+				"description": "Database driver (default postgres)",
+			},
+			"url": map[string]any{
+				"type":        "string",
+				"description": "Postgres connection URL (required when driver is postgres)",
+			},
+			"path": map[string]any{
+				"type":        "string",
+				"description": "SQLite database file path (required when driver is sqlite)",
+			},
+			"max_open": map[string]any{
+				// plugin.ToInt accepts numeric strings too ($env() substitution
+				// always produces strings), so both types must validate.
+				"type":        []any{"string", "integer"},
+				"description": "Maximum open connections, as an integer or numeric string ($env() always produces strings) (postgres default 25; ignored for sqlite)",
+			},
+			"max_idle": map[string]any{
+				// plugin.ToInt accepts numeric strings too ($env() substitution
+				// always produces strings), so both types must validate.
+				"type":        []any{"string", "integer"},
+				"description": "Maximum idle connections, as an integer or numeric string ($env() always produces strings) (postgres default 5; ignored for sqlite)",
+			},
+			"conn_lifetime": map[string]any{
+				"type":        "string",
+				"description": "Maximum connection lifetime as a Go duration (postgres default 5m; ignored for sqlite)",
+			},
+		},
+		"required":             []any{},
+		"additionalProperties": false,
+	}
+}
+
 func openPostgres(config map[string]any, gormConfig *gorm.Config) (*gorm.DB, error) {
 	url, _ := config["url"].(string)
 	if url == "" {

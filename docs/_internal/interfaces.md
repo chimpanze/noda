@@ -48,6 +48,7 @@ Plugin
   CreateService(config)         → ServiceInstance, error
   HealthCheck(service)          → error
   Shutdown(service)             → error
+  ServiceConfigSchema()         → map[string]any
 ```
 
 **Name()** — the plugin's human-readable name. Used in logs, error messages, and the CLI. Examples: `"postgres"`, `"cache"`, `"stream"`, `"pubsub"`, `"core.control"`, `"internal.ws"`.
@@ -63,6 +64,8 @@ Plugin
 **HealthCheck(service)** — called periodically and at startup to verify a service instance is alive. Receives the service instance created by `CreateService`. Returns an error if the service is unreachable.
 
 **Shutdown(service)** — called during graceful shutdown. Closes connections, flushes buffers, releases resources. Called once per service instance.
+
+**ServiceConfigSchema()** — returns a JSON Schema (as a Go map, same conventions as `NodeDescriptor.ConfigSchema`) describing this plugin's service `config` block. Structural only: required keys, types, enums, descriptions — no value-content constraints, because values are frequently `$env()`-resolved and may be empty at validate time. Plugins without services return `nil`.
 
 ---
 

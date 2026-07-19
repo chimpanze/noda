@@ -3,6 +3,7 @@ package livekit
 import (
 	"testing"
 
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,6 +60,34 @@ func TestPlugin_CreateService_MissingAPISecret(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "api_secret")
+}
+
+// TestServiceConfigSchema_RequiredMatchesCreateService pins schema<->code
+// agreement: a config missing each schema-required field must fail BOTH
+// schema validation and CreateService.
+func TestServiceConfigSchema_RequiredMatchesCreateService(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	require.Empty(t, registry.CheckSchemaVocabulary(schema))
+	required, _ := schema["required"].([]any)
+	require.ElementsMatch(t, []any{"url", "api_key", "api_secret"}, required)
+
+	base := map[string]any{
+		"url":        "wss://example.livekit.cloud",
+		"api_key":    "key",
+		"api_secret": "secret",
+	}
+	for _, r := range required {
+		field := r.(string)
+		cfg := map[string]any{}
+		for k, v := range base {
+			cfg[k] = v
+		}
+		delete(cfg, field)
+		assert.NotEmpty(t, registry.ValidateNodeConfig(schema, cfg), "schema must reject config missing %q", field)
+		_, err := p.CreateService(cfg)
+		assert.Error(t, err, "CreateService must reject config missing %q", field)
+	}
 }
 
 func TestPlugin_HealthCheck_WrongType(t *testing.T) {

@@ -9,6 +9,8 @@ func (p *Plugin) Name() string      { return "core.wasm" }
 func (p *Plugin) Prefix() string    { return "wasm" }
 func (p *Plugin) HasServices() bool { return false }
 
+func (p *Plugin) ServiceConfigSchema() map[string]any { return nil }
+
 func (p *Plugin) Nodes() []api.NodeRegistration {
 	return []api.NodeRegistration{
 		{Descriptor: &sendDescriptor{}, Factory: newSendExecutor},

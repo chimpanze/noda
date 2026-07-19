@@ -4,9 +4,15 @@ A [Noda](https://github.com/chimpanze/noda) project.
 
 ## Getting Started
 
+This is a committed example, not a freshly scaffolded project, so it ships
+`.env.example` rather than a generated `.env` — copy it before running
+(`noda init`/`noda_scaffold_project` generate a ready `.env` with a unique
+`JWT_SECRET` for you automatically).
+
 ```bash
-# Start infrastructure
 cp .env.example .env
+
+# Start infrastructure
 docker compose up -d
 
 # Run in development mode
@@ -18,6 +24,8 @@ noda test
 # Validate config
 noda validate --verbose
 ```
+
+Edit `.env` to point at your own services.
 
 ## First request
 
