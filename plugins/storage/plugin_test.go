@@ -434,3 +434,12 @@ func TestPlugin_CreateService_AcceptsRealDir(t *testing.T) {
 	})
 	require.NoError(t, err)
 }
+
+// TestServiceConfigSchema_AcceptsEmptyBackend pins #386: CreateService treats
+// backend "" as "local", so the schema must accept an explicit "" too.
+func TestServiceConfigSchema_AcceptsEmptyBackend(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	assert.Empty(t, registry.ValidateNodeConfig(schema, map[string]any{"backend": "", "path": "/tmp/x"}),
+		`explicit "backend": "" must pass schema validation (parser defaults it to local)`)
+}
