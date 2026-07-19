@@ -69,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 23-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
+- Cross-instance connection sync no longer corrupts binary (non-UTF-8) WebSocket/SSE payloads: they ride a v2 envelope with base64 encoding and arrive byte-exact on remote instances (#372).
 - `noda validate` (and MCP/editor validation) now errors on `services.*` entries whose `plugin` name is unknown, even when no node references the service (#385).
 - db/storage service schemas accept an explicit empty `driver`/`backend` string, matching the parsers' treat-empty-as-default behavior (#386).
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
