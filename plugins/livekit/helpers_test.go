@@ -14,12 +14,12 @@ import (
 func TestApplyGrants_AllBoolFields(t *testing.T) {
 	vg := &auth.VideoGrant{}
 	grants := map[string]any{
-		"roomJoin":    true,
-		"room_create": true,
-		"room_list":   true,
-		"roomAdmin":   true,
-		"hidden":      true,
-		"recorder":    true,
+		"roomJoin":   true,
+		"roomCreate": true,
+		"roomList":   true,
+		"roomAdmin":  true,
+		"hidden":     true,
+		"recorder":   true,
 	}
 	require.NoError(t, applyGrants(grants, vg))
 

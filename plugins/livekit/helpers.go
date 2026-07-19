@@ -15,10 +15,10 @@ func applyGrants(grants map[string]any, vg *auth.VideoGrant) error {
 	if v, ok := grants["roomJoin"].(bool); ok {
 		vg.RoomJoin = v
 	}
-	if v, ok := grants["room_create"].(bool); ok {
+	if v, ok := grants["roomCreate"].(bool); ok {
 		vg.RoomCreate = v
 	}
-	if v, ok := grants["room_list"].(bool); ok {
+	if v, ok := grants["roomList"].(bool); ok {
 		vg.RoomList = v
 	}
 	if v, ok := grants["roomAdmin"].(bool); ok {
