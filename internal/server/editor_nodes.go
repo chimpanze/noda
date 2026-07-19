@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/routecfg"
 	"github.com/gofiber/fiber/v3"
 )
 
@@ -274,7 +275,7 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 			if len(d.ConfigFields) == 0 {
 				continue
 			}
-			cfg := extractMiddlewareConfig(d.Name, rc.Root)
+			cfg := routecfg.ExtractMiddlewareConfig(d.Name, rc.Root)
 			if cfg != nil {
 				mwConfig[d.Name] = cfg
 			}

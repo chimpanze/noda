@@ -10,6 +10,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/generate"
+	"github.com/chimpanze/noda/internal/routecfg"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/gofiber/fiber/v3"
 )
@@ -288,7 +289,7 @@ func (e *EditorAPI) openAPISpec(c fiber.Ctx) error {
 	// Build paths from routes
 	paths := make(map[string]any)
 	for _, routeData := range rc.Routes {
-		routes := normalizeRoutes(routeData)
+		routes := routecfg.NormalizeRoutes(routeData)
 		for _, route := range routes {
 			method, _ := route["method"].(string)
 			path, _ := route["path"].(string)
@@ -423,23 +424,6 @@ func (e *EditorAPI) openAPISpec(c fiber.Ctx) error {
 	}
 
 	return c.JSON(spec)
-}
-
-func normalizeRoutes(data map[string]any) []map[string]any {
-	// A route file can be a single route object or contain routes under keys
-	if _, hasMethod := data["method"]; hasMethod {
-		return []map[string]any{data}
-	}
-	// Check if it's a route group file with nested routes
-	var routes []map[string]any
-	for _, v := range data {
-		if rm, ok := v.(map[string]any); ok {
-			if _, hasMethod := rm["method"]; hasMethod {
-				routes = append(routes, rm)
-			}
-		}
-	}
-	return routes
 }
 
 func convertPath(path string) string {

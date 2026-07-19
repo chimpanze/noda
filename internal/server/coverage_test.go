@@ -25,67 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// --- Middleware: extractMiddlewareConfig branches ---
-
-func TestExtractMiddlewareConfig_MiddlewareSection(t *testing.T) {
-	root := map[string]any{
-		"middleware": map[string]any{
-			"limiter": map[string]any{"max": float64(100)},
-		},
-	}
-	cfg := extractMiddlewareConfig("limiter", root)
-	require.NotNil(t, cfg)
-	assert.Equal(t, float64(100), cfg["max"])
-}
-
-func TestExtractMiddlewareConfig_SecuritySection(t *testing.T) {
-	root := map[string]any{
-		"security": map[string]any{
-			"cors": map[string]any{"allow_origins": "*"},
-		},
-	}
-	cfg := extractMiddlewareConfig("security.cors", root)
-	require.NotNil(t, cfg)
-	assert.Equal(t, "*", cfg["allow_origins"])
-}
-
-func TestExtractMiddlewareConfig_AuthJWT(t *testing.T) {
-	root := map[string]any{
-		"security": map[string]any{
-			"jwt": map[string]any{"secret": "s3cr3t"},
-		},
-	}
-	cfg := extractMiddlewareConfig("auth.jwt", root)
-	require.NotNil(t, cfg)
-	assert.Equal(t, "s3cr3t", cfg["secret"])
-}
-
-func TestExtractMiddlewareConfig_CasbinEnforce(t *testing.T) {
-	root := map[string]any{
-		"security": map[string]any{
-			"casbin": map[string]any{"model": "test.conf"},
-		},
-	}
-	cfg := extractMiddlewareConfig("casbin.enforce", root)
-	require.NotNil(t, cfg)
-	assert.Equal(t, "test.conf", cfg["model"])
-}
-
-func TestExtractMiddlewareConfig_NilRoot(t *testing.T) {
-	cfg := extractMiddlewareConfig("limiter", nil)
-	assert.Nil(t, cfg)
-}
-
-func TestExtractMiddlewareConfig_NoMatch(t *testing.T) {
-	root := map[string]any{
-		"middleware": map[string]any{
-			"other": map[string]any{},
-		},
-	}
-	cfg := extractMiddlewareConfig("limiter", root)
-	assert.Nil(t, cfg)
-}
-
 // --- Middleware: individual factories ---
 
 func TestBuildMiddleware_Helmet(t *testing.T) {

@@ -12,28 +12,6 @@ import (
 
 // --- Pure helper tests ---
 
-func TestNormalizeRoutes_SingleRoute(t *testing.T) {
-	data := map[string]any{"method": "GET", "path": "/test"}
-	routes := normalizeRoutes(data)
-	require.Len(t, routes, 1)
-	assert.Equal(t, "GET", routes[0]["method"])
-}
-
-func TestNormalizeRoutes_GroupedRoutes(t *testing.T) {
-	data := map[string]any{
-		"getUsers": map[string]any{"method": "GET", "path": "/users"},
-		"addUser":  map[string]any{"method": "POST", "path": "/users"},
-		"meta":     "not a route",
-	}
-	routes := normalizeRoutes(data)
-	assert.Len(t, routes, 2)
-}
-
-func TestNormalizeRoutes_Empty(t *testing.T) {
-	routes := normalizeRoutes(map[string]any{})
-	assert.Empty(t, routes)
-}
-
 func TestConvertPath_WithParams(t *testing.T) {
 	assert.Equal(t, "/users/{id}", convertPath("/users/:id"))
 	assert.Equal(t, "/users/{id}/posts/{postId}", convertPath("/users/:id/posts/:postId"))

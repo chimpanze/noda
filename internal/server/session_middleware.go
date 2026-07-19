@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/chimpanze/noda/internal/routecfg"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 )
@@ -76,7 +77,7 @@ func (s *Server) buildMiddleware(name string) (fiber.Handler, error) {
 			return nil, fmt.Errorf("middleware instance %q not found in middleware_instances", name)
 		}
 	} else {
-		mwConfig = extractMiddlewareConfig(name, s.config.Root)
+		mwConfig = routecfg.ExtractMiddlewareConfig(name, s.config.Root)
 	}
 	return factory(mwConfig, s.config.Root)
 }
