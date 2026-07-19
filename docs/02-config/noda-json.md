@@ -14,7 +14,7 @@ The root config file. All fields are optional except where noted.
 }
 ```
 
-> **Note:** the root schema also accepts a top-level `connections` key, but it has no effect — connection endpoints are only read from `connections/*.json` files (see [connections.md](connections.md)). Don't put connection config in `noda.json`.
+> **Note:** a top-level `connections` key in `noda.json` is rejected by validation — connection endpoints are only read from `connections/*.json` files (see [connections.md](connections.md)).
 
 ## server
 

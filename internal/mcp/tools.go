@@ -50,7 +50,7 @@ func registerTools(s *server.MCPServer, nodeReg *registry.NodeRegistry) {
 			mcp.WithDescription("Get the JSON Schema for a Noda config file type. Use to understand the structure of config files. For services.*.config shapes, use noda_get_service_schema."),
 			mcp.WithString("config_type",
 				mcp.Required(),
-				mcp.Description("Config file type: root, route, workflow, worker, schedule, connections, or test"),
+				mcp.Description("Config file type: root, route, workflow, worker, schedule, connections, or test. connections config is discovered only from connections/*.json files (any filename), never from noda.json or a root-level connections.json"),
 			),
 		),
 		getConfigSchemaHandler,

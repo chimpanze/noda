@@ -42,6 +42,17 @@ func Validate(rc *RawConfig) []ValidationError {
 	// Validate root config
 	if rc.Root != nil {
 		errs = append(errs, validateAgainstSchema("root.json", "noda.json", rc.Root)...)
+		// #380: connection endpoints live ONLY in connections/*.json files
+		// (mirroring routes/ and workflows/). The root schema used to
+		// advertise an inline "connections" object that the runtime never
+		// read; reject it explicitly so the mistake can't be silent.
+		if _, ok := rc.Root["connections"]; ok {
+			errs = append(errs, ValidationError{
+				FilePath: "noda.json",
+				JSONPath: "/connections",
+				Message:  `"connections" is not read from noda.json — move connection endpoints to a file in the connections/ directory (e.g. connections/realtime.json)`,
+			})
+		}
 	}
 
 	// Validate routes

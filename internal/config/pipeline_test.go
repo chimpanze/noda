@@ -186,3 +186,59 @@ func TestValidateAll_EnvVarsResolved(t *testing.T) {
 	cfg := db["config"].(map[string]any)
 	assert.Equal(t, "postgres://resolved/test", cfg["url"])
 }
+
+// TestValidateAll_InlineConnectionsInRootRejected pins #380: connection
+// endpoints live ONLY in connections/*.json. The root schema used to
+// advertise an inline "connections" object that the runtime silently
+// ignored; validation must now reject it with a message that names the
+// connections/ directory convention.
+func TestValidateAll_InlineConnectionsInRootRejected(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{
+			"connections": {
+				"endpoints": {
+					"board": {"type": "websocket", "path": "/ws/board"}
+				}
+			}
+		}`,
+	})
+
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	_, errs := ValidateAll(dir, "", sm)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Message, `not read from noda.json`)
+	assert.Contains(t, errs[0].Message, "connections/")
+	assert.Equal(t, "/connections", errs[0].JSONPath)
+}
+
+// The same endpoints in a connections/*.json file remain fully valid and
+// satisfy a ws.send node's endpoint reference (#380).
+func TestValidateAll_ConnectionsDirIsTheOnlySource(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{}`,
+		"connections/realtime.json": `{
+			"endpoints": {
+				"board": {"type": "websocket", "path": "/ws/board"}
+			}
+		}`,
+		"workflows/notify.json": `{
+			"id": "notify",
+			"nodes": {
+				"send": {
+					"type": "ws.send",
+					"services": {"connections": "board"},
+					"config": {"channel": "b", "data": "hi"}
+				}
+			},
+			"edges": []
+		}`,
+	})
+
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "", sm)
+	require.Empty(t, errs)
+	require.NotNil(t, rc)
+	require.Len(t, rc.Connections, 1)
+}

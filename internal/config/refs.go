@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -43,6 +44,15 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 	for filePath, content := range schemas {
 		relDir := extractSchemasRelPath(filePath)
 
+		// A file that is itself a JSON Schema document registers whole
+		// under schemas/<filename-without-extension> (#373); otherwise
+		// each top-level key is a named schema definition.
+		if isBareSchema(content) {
+			base := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+			registry[relDir+"/"+base] = content
+			continue
+		}
+
 		for key, val := range content {
 			if schema, ok := val.(map[string]any); ok {
 				refName := relDir + "/" + key
@@ -52,6 +62,18 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 	}
 
 	return registry
+}
+
+// isBareSchema reports whether a schema file's content is itself a JSON
+// Schema document (identified by top-level schema keywords) rather than a
+// map of name → schema definitions.
+func isBareSchema(content map[string]any) bool {
+	for _, kw := range []string{"$schema", "type", "properties", "items", "enum", "oneOf", "anyOf", "allOf", "$ref"} {
+		if _, ok := content[kw]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // extractSchemasRelPath returns the directory path from the "schemas" segment onward,
@@ -118,8 +140,18 @@ func resolveRef(refName string, registry map[string]map[string]any, filePath str
 
 	schema, ok := registry[refName]
 	if !ok {
+		known := make([]string, 0, len(registry))
+		for k := range registry {
+			known = append(known, k)
+		}
+		sort.Strings(known)
+		knownList := "none"
+		if len(known) > 0 {
+			knownList = strings.Join(known, ", ")
+		}
 		return nil, []error{
-			fmt.Errorf("unresolved $ref %q in %s", refName, filePath),
+			fmt.Errorf("unresolved $ref %q in %s (known refs: %s — a schemas/ file maps each top-level key to a schema, registered as schemas/<Key>; a file that is itself a JSON Schema registers as schemas/<filename without .json>)",
+				refName, filePath, knownList),
 		}
 	}
 

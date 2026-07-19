@@ -44,7 +44,7 @@ Every node's `config` object is validated against the node's schema at two point
     "validate": {
       "type": "transform.validate",
       "config": {
-        "schema": { "$ref": "schemas/Order#CreateOrder" }
+        "schema": { "$ref": "schemas/CreateOrder" }
       }
     },
     "create": {
