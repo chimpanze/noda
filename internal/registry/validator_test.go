@@ -526,3 +526,196 @@ func TestValidateStartupDryRun_ServiceConfigSchema_ServiceLessPluginNeverValidat
 	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
 	assert.Empty(t, errs)
 }
+
+// setupEdgeValidation registers a "control" plugin whose two node types mimic
+// the real control.if (fixed [then, else, error]) and control.switch
+// (config-aware: [cases..., default, error]) output shapes so the edge-output
+// dry-run check can be exercised without pulling in plugins/core/control.
+func setupEdgeValidation(t *testing.T) (*PluginRegistry, *NodeRegistry) {
+	t.Helper()
+
+	plugins := NewPluginRegistry()
+	controlPlugin := pluginWithNodes("test-control", "control", []api.NodeRegistration{
+		{
+			Descriptor: &stubDescriptor{name: "if"},
+			Factory: func(map[string]any) api.NodeExecutor {
+				return &stubExecutor{outputs: []string{"then", "else", "error"}}
+			},
+		},
+		{
+			Descriptor: &stubDescriptor{name: "switch"},
+			Factory: func(cfg map[string]any) api.NodeExecutor {
+				outputs := []string{}
+				if cases, ok := cfg["cases"].([]any); ok {
+					for _, c := range cases {
+						if s, ok := c.(string); ok {
+							outputs = append(outputs, s)
+						}
+					}
+				}
+				outputs = append(outputs, "default", "error")
+				return &stubExecutor{outputs: outputs}
+			},
+		},
+	})
+	require.NoError(t, plugins.Register(controlPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(controlPlugin))
+
+	return plugins, nodes
+}
+
+func edgeWorkflowNode(nodeType string, cfg map[string]any) map[string]any {
+	n := map[string]any{"type": nodeType}
+	if cfg != nil {
+		n["config"] = cfg
+	}
+	return n
+}
+
+func edge(from, to, output string) map[string]any {
+	e := map[string]any{"from": from, "to": to}
+	if output != "" {
+		e["output"] = output
+	}
+	return e
+}
+
+func TestValidateStartupDryRun_EdgeOutput_ControlIfInvalidOutput(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"decide": edgeWorkflowNode("control.if", nil),
+					"next":   edgeWorkflowNode("control.if", nil),
+				},
+				// #378 bug class: "true" is not a declared control.if output.
+				"edges": []any{edge("decide", "next", "true")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `workflow "wf1": edge "decide" -> "next": output "true" not among declared outputs [then else error]`)
+}
+
+func TestValidateStartupDryRun_EdgeOutput_ControlIfValidOutput(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"decide": edgeWorkflowNode("control.if", nil),
+					"next":   edgeWorkflowNode("control.if", nil),
+				},
+				"edges": []any{edge("decide", "next", "then")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
+func TestValidateStartupDryRun_EdgeOutput_EmptyDefaultsToSuccess(t *testing.T) {
+	plugins := NewPluginRegistry()
+	successPlugin := pluginWithNodes("test-success", "control", []api.NodeRegistration{
+		{
+			Descriptor: &stubDescriptor{name: "noop"},
+			Factory: func(map[string]any) api.NodeExecutor {
+				return &stubExecutor{outputs: []string{"success", "error"}}
+			},
+		},
+	})
+	require.NoError(t, plugins.Register(successPlugin))
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(successPlugin))
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"step": edgeWorkflowNode("control.noop", nil),
+					"next": edgeWorkflowNode("control.noop", nil),
+				},
+				// no "output" key at all -> defaults to "success", which the
+				// [success, error] node declares.
+				"edges": []any{edge("step", "next", "")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
+func TestValidateStartupDryRun_EdgeOutput_SwitchConfigAware(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"route": edgeWorkflowNode("control.switch", map[string]any{
+						"cases": []any{"opened", "closed"},
+					}),
+					"next": edgeWorkflowNode("control.switch", nil),
+				},
+				"edges": []any{edge("route", "next", "opened")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
+func TestValidateStartupDryRun_EdgeOutput_SwitchConfigAwareInvalid(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"route": edgeWorkflowNode("control.switch", map[string]any{
+						"cases": []any{"opened", "closed"},
+					}),
+					"next": edgeWorkflowNode("control.switch", nil),
+				},
+				"edges": []any{edge("route", "next", "openedd")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `workflow "wf1": edge "route" -> "next": output "openedd" not among declared outputs [opened closed default error]`)
+}
+
+func TestValidateStartupDryRun_EdgeOutput_UnknownNodeTypeSkipsEdgeCheck(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"decide": edgeWorkflowNode("mystery.node", nil),
+					"next":   edgeWorkflowNode("control.if", nil),
+				},
+				// "mystery.node" has an unknown prefix; the node-type check
+				// already flags it. The edge check must not pile on with a
+				// second, misleading error about the (nonexistent) outputs.
+				"edges": []any{edge("decide", "next", "anything")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "unknown node type prefix")
+}

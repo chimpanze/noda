@@ -241,6 +241,56 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				}
 			}
 		}
+
+		// 4. Validate edge outputs against declared node outputs (#379): the
+		// compiler already rejects undeclared edge outputs at boot
+		// (internal/engine/compiler.go), so the dry-run check mirrors that
+		// logic to give validate/editor/MCP the same guarantee before deploy.
+		// Empty output defaults to "success"; outputs are resolved
+		// config-aware (control.switch's outputs depend on its "cases"
+		// config), matching the engine resolver exactly.
+		if edgesRaw, ok := wf["edges"].([]any); ok {
+			for _, rawEdge := range edgesRaw {
+				edgeMap, ok := rawEdge.(map[string]any)
+				if !ok {
+					continue
+				}
+				from, _ := edgeMap["from"].(string)
+				to, _ := edgeMap["to"].(string)
+				output, _ := edgeMap["output"].(string)
+
+				fromNodeRaw, ok := wfNodes[from]
+				if !ok {
+					continue // unknown source node: owned by another check
+				}
+				fromNode, ok := fromNodeRaw.(map[string]any)
+				if !ok {
+					continue
+				}
+				fromType, _ := fromNode["type"].(string)
+				if fromType == "" {
+					continue
+				}
+				if _, found := nodes.GetDescriptor(fromType); !found {
+					continue // unregistered node type: owned by check 2 above
+				}
+
+				fromCfg, _ := fromNode["config"].(map[string]any)
+				outputs, ok := nodes.OutputsForTypeWithConfig(fromType, fromCfg)
+				if !ok {
+					continue
+				}
+
+				wantOutput := output
+				if wantOutput == "" {
+					wantOutput = "success"
+				}
+				if !containsStr(outputs, wantOutput) {
+					errs = append(errs, fmt.Errorf("workflow %q: edge %q -> %q: output %q not among declared outputs [%s]",
+						wfName, from, to, wantOutput, strings.Join(outputs, " ")))
+				}
+			}
+		}
 	}
 
 	// Pre-compile all expressions and validate static fields
@@ -295,4 +345,14 @@ func extractPrefix(nodeType string) string {
 		return nodeType[:idx]
 	}
 	return nodeType
+}
+
+// containsStr reports whether s is present in slice.
+func containsStr(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
+		}
+	}
+	return false
 }

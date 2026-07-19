@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
 
 ### Changed
+- Validation now rejects workflow edges whose `output` names an undeclared node output (boot already did; validate/editor/MCP now agree) (#379).
 - Service configs are now validated against each plugin's declared schema on every surface (validate/boot/editor/MCP/hot-reload) — was: `valid: true` for configs whose plugin would refuse to boot (#376).
 - Dev-mode hot reload now runs the same dry-run startup validation as boot/validate/editor and refuses the swap on failure (emits `file:error`) — was: node-config violations hot-reloaded "successfully" (#349). Editor per-file validation scopes dry-run errors to the saved file — was: unrelated workflows' errors shown with empty file attribution.
 - http.post/http.request `body` now deep-resolves nested expression templates like sse.send/ws.send/event.emit — was: maps/slices passed through verbatim with `{{ … }}` text unevaluated (#364).
