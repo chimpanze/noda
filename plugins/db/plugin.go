@@ -107,12 +107,16 @@ func (p *Plugin) ServiceConfigSchema() map[string]any {
 				"description": "SQLite database file path (required when driver is sqlite)",
 			},
 			"max_open": map[string]any{
-				"type":        "integer",
-				"description": "Maximum open connections (postgres default 25; ignored for sqlite)",
+				// plugin.ToInt accepts numeric strings too ($env() substitution
+				// always produces strings), so both types must validate.
+				"type":        []any{"string", "integer"},
+				"description": "Maximum open connections, as an integer or numeric string ($env() always produces strings) (postgres default 25; ignored for sqlite)",
 			},
 			"max_idle": map[string]any{
-				"type":        "integer",
-				"description": "Maximum idle connections (postgres default 5; ignored for sqlite)",
+				// plugin.ToInt accepts numeric strings too ($env() substitution
+				// always produces strings), so both types must validate.
+				"type":        []any{"string", "integer"},
+				"description": "Maximum idle connections, as an integer or numeric string ($env() always produces strings) (postgres default 5; ignored for sqlite)",
 			},
 			"conn_lifetime": map[string]any{
 				"type":        "string",

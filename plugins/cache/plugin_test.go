@@ -144,6 +144,27 @@ func TestServiceConfigSchema_RequiredMatchesCreateService(t *testing.T) {
 	assert.Error(t, err, "CreateService must reject config missing \"url\"")
 }
 
+// TestServiceConfigSchema_PoolSizeAcceptsNumericString pins the fix for
+// pool_size/min_idle: plugin.ToInt accepts numeric strings (the $env()
+// substitution path always produces strings), so the schema must accept
+// them too — not just JSON integers.
+func TestServiceConfigSchema_PoolSizeAcceptsNumericString(t *testing.T) {
+	mr := miniredis.RunT(t)
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+
+	cfg := map[string]any{
+		"url":       "redis://" + mr.Addr(),
+		"pool_size": "20",
+	}
+	assert.Empty(t, registry.ValidateNodeConfig(schema, cfg), "schema must accept pool_size as a numeric string")
+
+	svc, err := p.CreateService(cfg)
+	require.NoError(t, err)
+	s := svc.(*Service)
+	assert.Equal(t, 20, s.client.Options().PoolSize)
+}
+
 func TestToInt_Variants(t *testing.T) {
 	tests := []struct {
 		input    any

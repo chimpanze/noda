@@ -57,7 +57,7 @@ func (p *Plugin) ServiceConfigSchema() map[string]any {
 							"name":      map[string]any{"type": "string", "description": "Cookie name (default noda_session)"},
 							"path":      map[string]any{"type": "string", "description": "Cookie path (default /)"},
 							"domain":    map[string]any{"type": "string", "description": "Cookie domain (default empty = host-only)"},
-							"same_site": map[string]any{"type": "string", "enum": []any{"Lax", "Strict", "None"}, "description": "SameSite attribute (default Lax)"},
+							"same_site": map[string]any{"type": "string", "description": "SameSite attribute; conventional values are \"Lax\", \"Strict\", \"None\" (passed through as-is to the cookie) (default Lax)"},
 							"secure":    map[string]any{"type": "boolean", "description": "Secure attribute (default true)"},
 							"http_only": map[string]any{"type": "boolean", "description": "HttpOnly attribute (default true)"},
 						},
