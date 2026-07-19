@@ -20,7 +20,7 @@ with no egress or ingress worker attached. That shapes what "verified"
 means per node:
 
 > **Why the egress steps still take ~5s in CI:** without a bound, the two
-> `egressStart*` calls (and `egress_list`) genuinely block ~20s while the
+> `egress_start_*` calls (and `egress_list`) genuinely block ~20s while the
 > server waits for a worker before returning its real `EGRESS_UNAVAILABLE`
 > error. This project's `noda.json` opts the `lk` service into the
 > service-level `timeout: "5s"` (see `docs/02-config/noda-json.md`), so
