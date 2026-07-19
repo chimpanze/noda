@@ -358,6 +358,6 @@ func TestResolveRefs_UnresolvedErrorListsKnownRefs(t *testing.T) {
 	require.Len(t, errs, 1)
 	msg := errs[0].Error()
 	assert.Contains(t, msg, `unresolved $ref "schemas/user"`)
-	assert.Contains(t, msg, "schemas/User")   // the known-refs list
+	assert.Contains(t, msg, "schemas/User")  // the known-refs list
 	assert.Contains(t, msg, "top-level key") // the convention hint
 }
