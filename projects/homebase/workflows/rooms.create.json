@@ -20,7 +20,7 @@
       }
     },
     "create": {
-      "type": "lk.roomCreate",
+      "type": "lk.room_create",
       "services": { "livekit": "lk" },
       "config": {
         "name": "{{ nodes.namer.room_name }}",
@@ -43,7 +43,7 @@
       }
     },
     "cleanup": {
-      "type": "lk.roomDelete",
+      "type": "lk.room_delete",
       "services": { "livekit": "lk" },
       "config": { "room": "{{ nodes.namer.room_name }}" }
     },

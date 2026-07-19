@@ -24,7 +24,7 @@
       "config": { "condition": "{{ nodes.find != nil }}" }
     },
     "exists": {
-      "type": "lk.roomList",
+      "type": "lk.room_list",
       "services": { "livekit": "lk" },
       "config": { "names": ["{{ nodes.find.room_name }}"] }
     },

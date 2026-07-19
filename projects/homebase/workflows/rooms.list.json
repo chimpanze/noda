@@ -3,7 +3,7 @@
   "name": "Rooms: List active rooms and links",
   "nodes": {
     "list": {
-      "type": "lk.roomList",
+      "type": "lk.room_list",
       "services": { "livekit": "lk" },
       "config": {}
     },
