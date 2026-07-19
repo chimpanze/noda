@@ -43,6 +43,15 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 	for filePath, content := range schemas {
 		relDir := extractSchemasRelPath(filePath)
 
+		// A file that is itself a JSON Schema document registers whole
+		// under schemas/<filename-without-extension> (#373); otherwise
+		// each top-level key is a named schema definition.
+		if isBareSchema(content) {
+			base := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+			registry[relDir+"/"+base] = content
+			continue
+		}
+
 		for key, val := range content {
 			if schema, ok := val.(map[string]any); ok {
 				refName := relDir + "/" + key
@@ -52,6 +61,18 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 	}
 
 	return registry
+}
+
+// isBareSchema reports whether a schema file's content is itself a JSON
+// Schema document (identified by top-level schema keywords) rather than a
+// map of name → schema definitions.
+func isBareSchema(content map[string]any) bool {
+	for _, kw := range []string{"$schema", "type", "properties", "items", "enum", "oneOf", "anyOf", "allOf", "$ref"} {
+		if _, ok := content[kw]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // extractSchemasRelPath returns the directory path from the "schemas" segment onward,
