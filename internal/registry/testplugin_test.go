@@ -18,6 +18,7 @@ type testKVPlugin struct{}
 func (p *testKVPlugin) Name() string      { return "test-kv" }
 func (p *testKVPlugin) Prefix() string    { return "kv" }
 func (p *testKVPlugin) HasServices() bool { return true }
+func (p *testKVPlugin) ServiceConfigSchema() map[string]any { return nil }
 
 func (p *testKVPlugin) CreateService(cfg map[string]any) (any, error) {
 	return make(map[string]any), nil

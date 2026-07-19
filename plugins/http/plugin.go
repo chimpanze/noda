@@ -148,6 +148,67 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	return svc, nil
 }
 
+// ServiceConfigSchema documents the http service `config` block. Every key
+// here is read either directly by CreateService or by
+// internal/breaker.ParseConfig (the nested circuit_breaker object).
+// additionalProperties is false at both levels: unknown keys are silently
+// ignored by both parsers.
+func (p *Plugin) ServiceConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"timeout": map[string]any{
+				"type":        []any{"string", "number"},
+				"description": "Default request timeout: a Go duration string, or a number of seconds (default 30s)",
+			},
+			"base_url": map[string]any{
+				"type":        "string",
+				"description": "Base URL prepended to relative request paths; must use http:// or https://",
+			},
+			"headers": map[string]any{
+				"type":                 "object",
+				"description":          "Default headers sent with every request from this service",
+				"additionalProperties": true,
+			},
+			"allow_private_networks": map[string]any{
+				"type":        "boolean",
+				"description": "Allow requests to private/loopback/link-local IPs (default false)",
+			},
+			"allowed_hosts": map[string]any{
+				"type":        "array",
+				"description": "Allowlist of bare hostnames this service may reach (no scheme, path, port, or IP literals)",
+				"items":       map[string]any{"type": "string"},
+			},
+			"redirects": map[string]any{
+				"type":        "string",
+				"enum":        []any{"none", "same_origin", "strip_auth"},
+				"description": "Redirect-following policy (default strip_auth)",
+			},
+			"max_redirects": map[string]any{
+				"type":        "integer",
+				"description": "Maximum redirects to follow, 0-50 (default 10)",
+			},
+			"name": map[string]any{
+				"type":        "string",
+				"description": "Circuit breaker name used in logs/metrics when circuit_breaker is set (default http)",
+			},
+			"circuit_breaker": map[string]any{
+				"type":        "object",
+				"description": "Enables a circuit breaker for this service's requests; omit to disable",
+				"properties": map[string]any{
+					"max_requests": map[string]any{"type": "integer", "description": "Max requests allowed through in the half-open state"},
+					"interval":     map[string]any{"type": "string", "description": "Closed-state counter reset interval, as a Go duration"},
+					"timeout":      map[string]any{"type": "string", "description": "Open-state duration before probing half-open, as a Go duration"},
+					"threshold":    map[string]any{"type": "integer", "description": "Consecutive failures required to trip the breaker"},
+				},
+				"additionalProperties": false,
+			},
+		},
+		"required":             []any{},
+		"additionalProperties": false,
+	}
+}
+
 func (p *Plugin) HealthCheck(service any) error {
 	_, ok := service.(*Service)
 	if !ok {

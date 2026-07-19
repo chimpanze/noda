@@ -193,6 +193,7 @@ func (p *mockPlugin) Name() string                              { return "mock" 
 func (p *mockPlugin) Prefix() string                            { return "mock" }
 func (p *mockPlugin) Nodes() []api.NodeRegistration             { return nil }
 func (p *mockPlugin) HasServices() bool                         { return false }
+func (p *mockPlugin) ServiceConfigSchema() map[string]any { return nil }
 func (p *mockPlugin) CreateService(map[string]any) (any, error) { return nil, nil }
 func (p *mockPlugin) HealthCheck(any) error                     { return nil }
 func (p *mockPlugin) Shutdown(any) error                        { return nil }

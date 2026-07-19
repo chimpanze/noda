@@ -95,6 +95,35 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	}, nil
 }
 
+// ServiceConfigSchema documents the livekit service `config` block. Every
+// key here is read by CreateService. additionalProperties is false: unknown
+// keys are silently ignored by CreateService.
+func (p *Plugin) ServiceConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"url": map[string]any{
+				"type":        "string",
+				"description": "LiveKit server URL (ws(s)://...); required",
+			},
+			"api_key": map[string]any{
+				"type":        "string",
+				"description": "LiveKit API key; required",
+			},
+			"api_secret": map[string]any{
+				"type":        "string",
+				"description": "LiveKit API secret; required",
+			},
+			"timeout": map[string]any{
+				"type":        "string",
+				"description": "Per-call timeout as a positive Go duration; unset means no timeout",
+			},
+		},
+		"required":             []any{"url", "api_key", "api_secret"},
+		"additionalProperties": false,
+	}
+}
+
 func (p *Plugin) HealthCheck(service any) error {
 	svc, ok := service.(*Service)
 	if !ok {

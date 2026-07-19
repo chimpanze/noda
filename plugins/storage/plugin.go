@@ -54,6 +54,30 @@ func (p *Plugin) CreateService(config map[string]any) (any, error) {
 	}
 }
 
+// ServiceConfigSchema documents the storage service `config` block.
+// additionalProperties is false: unknown keys are silently ignored by
+// CreateService. "path" is not marked schema-required because it is only
+// required for the "local" backend (default) — CreateService remains the
+// arbiter of that conditional requirement.
+func (p *Plugin) ServiceConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"backend": map[string]any{
+				"type":        "string",
+				"enum":        []any{"local", "memory"},
+				"description": "Storage backend (default local)",
+			},
+			"path": map[string]any{
+				"type":        "string",
+				"description": "Base directory on disk (required when backend is local; ignored for memory)",
+			},
+		},
+		"required":             []any{},
+		"additionalProperties": false,
+	}
+}
+
 func (p *Plugin) HealthCheck(service any) error {
 	_, ok := service.(*Service)
 	if !ok {

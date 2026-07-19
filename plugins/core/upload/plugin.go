@@ -10,6 +10,8 @@ func (p *Plugin) Prefix() string { return "upload" }
 
 func (p *Plugin) HasServices() bool { return false }
 
+func (p *Plugin) ServiceConfigSchema() map[string]any { return nil }
+
 func (p *Plugin) Nodes() []api.NodeRegistration {
 	return []api.NodeRegistration{
 		{Descriptor: &handleDescriptor{}, Factory: newHandleExecutor},

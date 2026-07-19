@@ -9,6 +9,8 @@ func (p *Plugin) Name() string   { return "core.event" }
 func (p *Plugin) Prefix() string { return "event" }
 
 func (p *Plugin) HasServices() bool { return false }
+
+func (p *Plugin) ServiceConfigSchema() map[string]any { return nil }
 func (p *Plugin) CreateService(_ map[string]any) (any, error) {
 	return nil, nil
 }

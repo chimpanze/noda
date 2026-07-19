@@ -742,6 +742,7 @@ func (f *fakePlugin) Name() string                                     { return 
 func (f *fakePlugin) Prefix() string                                   { return "fake" }
 func (f *fakePlugin) Nodes() []api.NodeRegistration                    { return nil }
 func (f *fakePlugin) HasServices() bool                                { return true }
+func (f *fakePlugin) ServiceConfigSchema() map[string]any { return nil }
 func (f *fakePlugin) CreateService(config map[string]any) (any, error) { return &fakeService{}, nil }
 func (f *fakePlugin) HealthCheck(service any) error                    { return nil }
 func (f *fakePlugin) Shutdown(service any) error                       { return nil }

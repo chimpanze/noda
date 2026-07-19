@@ -92,6 +92,43 @@ func parsePort(raw any) (int, error) {
 	return port, nil
 }
 
+// ServiceConfigSchema documents the email service `config` block. Every key
+// here is read by CreateService/parsePort. additionalProperties is false:
+// unknown keys are silently ignored by CreateService.
+func (p *Plugin) ServiceConfigSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"host": map[string]any{
+				"type":        "string",
+				"description": "SMTP server hostname; required — CreateService errors without it",
+			},
+			"port": map[string]any{
+				"type":        []any{"string", "number"},
+				"description": "SMTP port, as a number or numeric string ($env() always produces strings) (default 587)",
+			},
+			"username": map[string]any{
+				"type":        "string",
+				"description": "SMTP auth username",
+			},
+			"password": map[string]any{
+				"type":        "string",
+				"description": "SMTP auth password",
+			},
+			"from": map[string]any{
+				"type":        "string",
+				"description": "Default From address for outgoing mail",
+			},
+			"tls": map[string]any{
+				"type":        "boolean",
+				"description": "Use implicit TLS (SMTPS); defaults to true only when port is 465",
+			},
+		},
+		"required":             []any{"host"},
+		"additionalProperties": false,
+	}
+}
+
 func (p *Plugin) HealthCheck(service any) error {
 	svc, ok := service.(*Service)
 	if !ok {
