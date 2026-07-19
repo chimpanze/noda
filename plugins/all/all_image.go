@@ -1,11 +1,11 @@
 //go:build !noimage
 
-package main
+package all
 
 import (
 	imageplugin "github.com/chimpanze/noda/plugins/image"
 )
 
 func init() {
-	optionalPlugins = append(optionalPlugins, &imageplugin.Plugin{})
+	optional = append(optional, &imageplugin.Plugin{})
 }
