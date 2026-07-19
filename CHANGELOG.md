@@ -91,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 23-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
+- The `node error with no error edge` warning now includes the node's error text — previously the only server-side record of why such a workflow 500'd was an opaque INTERNAL_ERROR (#396).
 - Cross-instance connection sync no longer corrupts binary (non-UTF-8) WebSocket/SSE payloads: they ride base64-encoded in the envelope and arrive byte-exact on remote instances. All sync envelopes are now version 2; v1 envelopes are dropped, so all instances in a cluster must run the same Noda version (#372).
 - Docs described a `schemas/File#Key` `$ref` syntax that never resolved; corrected to the real `schemas/<Key>` rule across docs and the MCP crud example (#373).
 - A top-level `connections` key in `noda.json` is now rejected with a pointer to the `connections/*.json` convention; previously the root schema advertised it while the runtime silently ignored it. ws.send/sse.send endpoint crossref errors also state when no connections endpoints are defined anywhere (#380).

@@ -1,8 +1,10 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -170,6 +172,38 @@ func TestExecuteGraph_ErrorOutputNoErrorEdge(t *testing.T) {
 	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no error edge")
+}
+
+func TestExecuteGraph_ErrorOutputNoErrorEdge_WarnIncludesError(t *testing.T) {
+	// The no-error-edge WARN must carry the underlying node error text —
+	// it is the only server-side record of WHY the workflow 500'd (#396).
+	nodeReg, svcReg := setupIntegrationTest(t, map[string]api.NodeExecutor{
+		"fail": &mockFail{},
+		"next": &mockPass{},
+	})
+
+	wf := WorkflowConfig{
+		ID: "error-no-edge-log",
+		Nodes: map[string]NodeConfig{
+			"fail": {Type: "mock.fail", Config: map[string]any{"error": "room still has active egress"}},
+			"next": {Type: "mock.next"},
+		},
+		Edges: []EdgeConfig{
+			{From: "fail", To: "next"}, // success edge only
+		},
+	}
+
+	graph, err := Compile(wf, nil)
+	require.NoError(t, err)
+
+	var logBuf bytes.Buffer
+	execCtx := NewExecutionContext(WithLogger(slog.New(slog.NewTextHandler(&logBuf, nil))))
+	err = ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
+	require.Error(t, err)
+
+	logs := logBuf.String()
+	assert.Contains(t, logs, "node error with no error edge")
+	assert.Contains(t, logs, "room still has active egress", "WARN must include the node's error text")
 }
 
 func TestExecuteGraph_NodeFailCancelsParallelBranch(t *testing.T) {

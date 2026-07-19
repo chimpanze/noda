@@ -181,6 +181,7 @@ func ExecuteGraph(
 					}
 					execCtx.Log("warn", "node error with no error edge", map[string]any{
 						"node_id": nodeID,
+						"error":   nodeErr.Error(),
 					})
 					firstErr.set(nodeErr)
 					cancel()

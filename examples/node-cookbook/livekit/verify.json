@@ -252,8 +252,8 @@
       }
     },
     {
-      "name": "delete the second room",
-      "request": { "method": "DELETE", "path": "/api/rooms/cookbook-egress-room" },
+      "name": "delete the second room (retry: the two timed-out egress starts leave server-side EGRESS_STARTING orphans on this room until LiveKit's worker-wait gives up, and DeleteRoom 500s while one is pending — #396)",
+      "request": { "method": "DELETE", "path": "/api/rooms/cookbook-egress-room", "retry_timeout": "30s" },
       "expect": {
         "status": 200,
         "body": [
