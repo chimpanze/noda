@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -139,8 +140,18 @@ func resolveRef(refName string, registry map[string]map[string]any, filePath str
 
 	schema, ok := registry[refName]
 	if !ok {
+		known := make([]string, 0, len(registry))
+		for k := range registry {
+			known = append(known, k)
+		}
+		sort.Strings(known)
+		knownList := "none"
+		if len(known) > 0 {
+			knownList = strings.Join(known, ", ")
+		}
 		return nil, []error{
-			fmt.Errorf("unresolved $ref %q in %s", refName, filePath),
+			fmt.Errorf("unresolved $ref %q in %s (known refs: %s — a schemas/ file maps each top-level key to a schema, registered as schemas/<Key>; a file that is itself a JSON Schema registers as schemas/<filename without .json>)",
+				refName, filePath, knownList),
 		}
 	}
 

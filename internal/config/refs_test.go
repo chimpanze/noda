@@ -338,3 +338,26 @@ func TestResolveRefs_BareSchemaFileDoesNotRegisterKeywordKeys(t *testing.T) {
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "unresolved $ref")
 }
+
+// TestResolveRefs_UnresolvedErrorListsKnownRefs pins #373: the
+// unresolved-$ref error must teach the resolution rule and list what IS
+// registered, so a near-miss ref is self-diagnosing.
+func TestResolveRefs_UnresolvedErrorListsKnownRefs(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"project/schemas/User.json": {
+				"User": map[string]any{"type": "object"},
+			},
+		},
+		Routes: map[string]map[string]any{
+			"routes/a.json": {"schema": map[string]any{"$ref": "schemas/user"}},
+		},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	msg := errs[0].Error()
+	assert.Contains(t, msg, `unresolved $ref "schemas/user"`)
+	assert.Contains(t, msg, "schemas/User")   // the known-refs list
+	assert.Contains(t, msg, "top-level key") // the convention hint
+}
