@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -164,7 +165,12 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			pluginName, _ := cfg["plugin"].(string)
 			p, found := plugins.GetByName(pluginName)
 			if !found {
-				continue // unknown plugin is a crossref error already
+				// #385: crossrefs only catch this service when a node
+				// references it; an unreferenced entry would otherwise pass
+				// validate and fail at boot (lifecycle.go "unknown plugin").
+				errs = append(errs, &ServiceConfigError{Service: name, Plugin: pluginName,
+					Err: fmt.Errorf("unknown plugin %q (known plugins: %s)", pluginName, strings.Join(pluginNames(plugins), ", "))})
+				continue
 			}
 			schema := p.ServiceConfigSchema()
 			if schema == nil {
@@ -350,6 +356,18 @@ func extractPrefix(nodeType string) string {
 		return nodeType[:idx]
 	}
 	return nodeType
+}
+
+// pluginNames returns the sorted names of all registered plugins, for
+// unknown-plugin error messages.
+func pluginNames(plugins *PluginRegistry) []string {
+	all := plugins.All()
+	names := make([]string, 0, len(all))
+	for _, p := range all {
+		names = append(names, p.Name())
+	}
+	sort.Strings(names)
+	return names
 }
 
 // containsStr reports whether s is present in slice.
