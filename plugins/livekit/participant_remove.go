@@ -11,7 +11,7 @@ import (
 
 type participantRemoveDescriptor struct{}
 
-func (d *participantRemoveDescriptor) Name() string { return "participantRemove" }
+func (d *participantRemoveDescriptor) Name() string { return "participant_remove" }
 func (d *participantRemoveDescriptor) Description() string {
 	return "Removes a participant from a room"
 }
@@ -46,17 +46,17 @@ func (e *participantRemoveExecutor) Outputs() []string { return api.DefaultOutpu
 func (e *participantRemoveExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantRemove: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_remove: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantRemove: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_remove: %w", err)
 	}
 
 	identity, err := plugin.ResolveString(nCtx, config, "identity")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantRemove: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_remove: %w", err)
 	}
 
 	_, err = svc.Room.RemoveParticipant(ctx, &lkproto.RoomParticipantIdentity{
@@ -64,7 +64,7 @@ func (e *participantRemoveExecutor) Execute(ctx context.Context, nCtx api.Execut
 		Identity: identity,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantRemove: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_remove: %w", err)
 	}
 
 	return api.OutputSuccess, map[string]any{"removed": true}, nil

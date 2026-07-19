@@ -11,7 +11,7 @@ import (
 
 type participantGetDescriptor struct{}
 
-func (d *participantGetDescriptor) Name() string        { return "participantGet" }
+func (d *participantGetDescriptor) Name() string        { return "participant_get" }
 func (d *participantGetDescriptor) Description() string { return "Gets a participant by identity" }
 func (d *participantGetDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -44,17 +44,17 @@ func (e *participantGetExecutor) Outputs() []string { return api.DefaultOutputs(
 func (e *participantGetExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantGet: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_get: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantGet: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_get: %w", err)
 	}
 
 	identity, err := plugin.ResolveString(nCtx, config, "identity")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantGet: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_get: %w", err)
 	}
 
 	p, err := svc.Room.GetParticipant(ctx, &lkproto.RoomParticipantIdentity{
@@ -62,7 +62,7 @@ func (e *participantGetExecutor) Execute(ctx context.Context, nCtx api.Execution
 		Identity: identity,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantGet: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_get: %w", err)
 	}
 
 	return api.OutputSuccess, participantToMap(p), nil

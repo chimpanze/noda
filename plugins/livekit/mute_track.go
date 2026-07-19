@@ -11,7 +11,7 @@ import (
 
 type muteTrackDescriptor struct{}
 
-func (d *muteTrackDescriptor) Name() string        { return "muteTrack" }
+func (d *muteTrackDescriptor) Name() string        { return "mute_track" }
 func (d *muteTrackDescriptor) Description() string { return "Mutes or unmutes a published track" }
 func (d *muteTrackDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -44,31 +44,31 @@ func (e *muteTrackExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *muteTrackExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.muteTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.mute_track: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.muteTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.mute_track: %w", err)
 	}
 
 	identity, err := plugin.ResolveString(nCtx, config, "identity")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.muteTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.mute_track: %w", err)
 	}
 
 	trackSID, err := plugin.ResolveString(nCtx, config, "track_sid")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.muteTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.mute_track: %w", err)
 	}
 
 	mutedRaw, err := plugin.ResolveAny(nCtx, config, "muted")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.muteTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.mute_track: %w", err)
 	}
 	muted, ok := mutedRaw.(bool)
 	if !ok {
-		return "", nil, fmt.Errorf("lk.muteTrack: field \"muted\" must be a boolean")
+		return "", nil, fmt.Errorf("lk.mute_track: field \"muted\" must be a boolean")
 	}
 
 	resp, err := svc.Room.MutePublishedTrack(ctx, &lkproto.MuteRoomTrackRequest{
@@ -78,7 +78,7 @@ func (e *muteTrackExecutor) Execute(ctx context.Context, nCtx api.ExecutionConte
 		Muted:    muted,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.muteTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.mute_track: %w", err)
 	}
 
 	result := map[string]any{"muted": muted}

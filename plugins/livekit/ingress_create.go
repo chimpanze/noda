@@ -11,7 +11,7 @@ import (
 
 type ingressCreateDescriptor struct{}
 
-func (d *ingressCreateDescriptor) Name() string        { return "ingressCreate" }
+func (d *ingressCreateDescriptor) Name() string        { return "ingress_create" }
 func (d *ingressCreateDescriptor) Description() string { return "Creates a LiveKit ingress endpoint" }
 func (d *ingressCreateDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -45,12 +45,12 @@ func (e *ingressCreateExecutor) Outputs() []string { return api.DefaultOutputs()
 func (e *ingressCreateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	}
 
 	inputTypeStr, err := plugin.ResolveString(nCtx, config, "input_type")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	}
 
 	var inputType lkproto.IngressInput
@@ -62,17 +62,17 @@ func (e *ingressCreateExecutor) Execute(ctx context.Context, nCtx api.ExecutionC
 	case "url":
 		inputType = lkproto.IngressInput_URL_INPUT
 	default:
-		return "", nil, fmt.Errorf("lk.ingressCreate: unsupported input_type %q (use rtmp, whip, or url)", inputTypeStr)
+		return "", nil, fmt.Errorf("lk.ingress_create: unsupported input_type %q (use rtmp, whip, or url)", inputTypeStr)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	}
 
 	participantIdentity, err := plugin.ResolveString(nCtx, config, "participant_identity")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	}
 
 	req := &lkproto.CreateIngressRequest{
@@ -82,20 +82,20 @@ func (e *ingressCreateExecutor) Execute(ctx context.Context, nCtx api.ExecutionC
 	}
 
 	if name, ok, err := plugin.ResolveOptionalString(nCtx, config, "participant_name"); err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	} else if ok {
 		req.ParticipantName = name
 	}
 
 	if urlStr, ok, err := plugin.ResolveOptionalString(nCtx, config, "url"); err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	} else if ok {
 		req.Url = urlStr
 	}
 
 	info, err := svc.Ingress.CreateIngress(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_create: %w", err)
 	}
 
 	return api.OutputSuccess, ingressInfoToMap(info), nil

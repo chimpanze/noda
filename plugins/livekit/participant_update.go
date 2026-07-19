@@ -12,7 +12,7 @@ import (
 
 type participantUpdateDescriptor struct{}
 
-func (d *participantUpdateDescriptor) Name() string { return "participantUpdate" }
+func (d *participantUpdateDescriptor) Name() string { return "participant_update" }
 func (d *participantUpdateDescriptor) Description() string {
 	return "Updates a participant's metadata or permissions"
 }
@@ -49,17 +49,17 @@ func (e *participantUpdateExecutor) Outputs() []string { return api.DefaultOutpu
 func (e *participantUpdateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 	}
 
 	identity, err := plugin.ResolveString(nCtx, config, "identity")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 	}
 
 	req := &lkproto.UpdateParticipantRequest{
@@ -68,33 +68,33 @@ func (e *participantUpdateExecutor) Execute(ctx context.Context, nCtx api.Execut
 	}
 
 	if metadata, ok, err := plugin.ResolveOptionalString(nCtx, config, "metadata"); err != nil {
-		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 	} else if ok {
 		req.Metadata = metadata
 	}
 
 	if perms, err := plugin.ResolveOptionalMap(nCtx, config, "permissions"); err != nil {
-		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 	} else if len(perms) > 0 {
 		// empty {} would otherwise cost a GetParticipant + full-replace
 		// Permission send of unchanged values
 		perm, err := mergedPermissions(ctx, svc, room, identity, perms)
 		if err != nil {
-			return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+			return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 		}
 		req.Permission = perm
 	}
 
 	p, err := svc.Room.UpdateParticipant(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantUpdate: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_update: %w", err)
 	}
 
 	return api.OutputSuccess, participantToMap(p), nil
 }
 
 // permissionSetters is the single source of truth for the boolean permission
-// keys lk.participantUpdate accepts — validation and overlay both iterate it,
+// keys lk.participant_update accepts — validation and overlay both iterate it,
 // so a new key cannot be added to one and forgotten in the other.
 var permissionSetters = map[string]func(*lkproto.ParticipantPermission, bool){
 	"canPublish":     func(p *lkproto.ParticipantPermission, v bool) { p.CanPublish = v },

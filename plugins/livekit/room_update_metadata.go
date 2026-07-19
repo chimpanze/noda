@@ -11,7 +11,7 @@ import (
 
 type roomUpdateMetadataDescriptor struct{}
 
-func (d *roomUpdateMetadataDescriptor) Name() string { return "roomUpdateMetadata" }
+func (d *roomUpdateMetadataDescriptor) Name() string { return "room_update_metadata" }
 func (d *roomUpdateMetadataDescriptor) Description() string {
 	return "Updates metadata on a LiveKit room"
 }
@@ -46,17 +46,17 @@ func (e *roomUpdateMetadataExecutor) Outputs() []string { return api.DefaultOutp
 func (e *roomUpdateMetadataExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomUpdateMetadata: %w", err)
+		return "", nil, fmt.Errorf("lk.room_update_metadata: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomUpdateMetadata: %w", err)
+		return "", nil, fmt.Errorf("lk.room_update_metadata: %w", err)
 	}
 
 	metadata, err := plugin.ResolveString(nCtx, config, "metadata")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomUpdateMetadata: %w", err)
+		return "", nil, fmt.Errorf("lk.room_update_metadata: %w", err)
 	}
 
 	updated, err := svc.Room.UpdateRoomMetadata(ctx, &lkproto.UpdateRoomMetadataRequest{
@@ -64,7 +64,7 @@ func (e *roomUpdateMetadataExecutor) Execute(ctx context.Context, nCtx api.Execu
 		Metadata: metadata,
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomUpdateMetadata: %w", err)
+		return "", nil, fmt.Errorf("lk.room_update_metadata: %w", err)
 	}
 
 	return api.OutputSuccess, roomToMap(updated), nil

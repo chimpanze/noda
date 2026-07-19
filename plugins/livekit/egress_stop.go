@@ -11,7 +11,7 @@ import (
 
 type egressStopDescriptor struct{}
 
-func (d *egressStopDescriptor) Name() string        { return "egressStop" }
+func (d *egressStopDescriptor) Name() string        { return "egress_stop" }
 func (d *egressStopDescriptor) Description() string { return "Stops an active egress" }
 func (d *egressStopDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -41,17 +41,17 @@ func (e *egressStopExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *egressStopExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStop: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_stop: %w", err)
 	}
 
 	egressID, err := plugin.ResolveString(nCtx, config, "egress_id")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStop: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_stop: %w", err)
 	}
 
 	info, err := svc.Egress.StopEgress(ctx, &lkproto.StopEgressRequest{EgressId: egressID})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStop: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_stop: %w", err)
 	}
 
 	return api.OutputSuccess, egressInfoToMap(info), nil

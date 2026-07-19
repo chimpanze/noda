@@ -11,7 +11,7 @@ import (
 
 type roomCreateDescriptor struct{}
 
-func (d *roomCreateDescriptor) Name() string        { return "roomCreate" }
+func (d *roomCreateDescriptor) Name() string        { return "room_create" }
 func (d *roomCreateDescriptor) Description() string { return "Creates a LiveKit room" }
 func (d *roomCreateDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -44,37 +44,37 @@ func (e *roomCreateExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *roomCreateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.room_create: %w", err)
 	}
 
 	name, err := plugin.ResolveString(nCtx, config, "name")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.room_create: %w", err)
 	}
 
 	req := &lkproto.CreateRoomRequest{Name: name}
 
 	if v, ok, err := plugin.ResolveOptionalInt(nCtx, config, "empty_timeout"); err != nil {
-		return "", nil, fmt.Errorf("lk.roomCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.room_create: %w", err)
 	} else if ok {
 		req.EmptyTimeout = uint32(v)
 	}
 
 	if v, ok, err := plugin.ResolveOptionalInt(nCtx, config, "max_participants"); err != nil {
-		return "", nil, fmt.Errorf("lk.roomCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.room_create: %w", err)
 	} else if ok {
 		req.MaxParticipants = uint32(v)
 	}
 
 	if v, ok, err := plugin.ResolveOptionalString(nCtx, config, "metadata"); err != nil {
-		return "", nil, fmt.Errorf("lk.roomCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.room_create: %w", err)
 	} else if ok {
 		req.Metadata = v
 	}
 
 	room, err := svc.Room.CreateRoom(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomCreate: %w", err)
+		return "", nil, fmt.Errorf("lk.room_create: %w", err)
 	}
 
 	return api.OutputSuccess, roomToMap(room), nil

@@ -11,7 +11,7 @@ import (
 
 type participantListDescriptor struct{}
 
-func (d *participantListDescriptor) Name() string        { return "participantList" }
+func (d *participantListDescriptor) Name() string        { return "participant_list" }
 func (d *participantListDescriptor) Description() string { return "Lists participants in a room" }
 func (d *participantListDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -43,17 +43,17 @@ func (e *participantListExecutor) Outputs() []string { return api.DefaultOutputs
 func (e *participantListExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantList: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_list: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantList: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_list: %w", err)
 	}
 
 	resp, err := svc.Room.ListParticipants(ctx, &lkproto.ListParticipantsRequest{Room: room})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.participantList: %w", err)
+		return "", nil, fmt.Errorf("lk.participant_list: %w", err)
 	}
 
 	participants := make([]any, len(resp.Participants))

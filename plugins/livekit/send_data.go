@@ -12,7 +12,7 @@ import (
 
 type sendDataDescriptor struct{}
 
-func (d *sendDataDescriptor) Name() string        { return "sendData" }
+func (d *sendDataDescriptor) Name() string        { return "send_data" }
 func (d *sendDataDescriptor) Description() string { return "Sends data to participants in a room" }
 func (d *sendDataDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -46,17 +46,17 @@ func (e *sendDataExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *sendDataExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	}
 
 	dataRaw, err := plugin.ResolveAny(nCtx, config, "data")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	}
 
 	var dataBytes []byte
@@ -66,13 +66,13 @@ func (e *sendDataExecutor) Execute(ctx context.Context, nCtx api.ExecutionContex
 	default:
 		dataBytes, err = json.Marshal(v)
 		if err != nil {
-			return "", nil, fmt.Errorf("lk.sendData: marshal data: %w", err)
+			return "", nil, fmt.Errorf("lk.send_data: marshal data: %w", err)
 		}
 	}
 
 	kind := lkproto.DataPacket_RELIABLE
 	if kindStr, ok, err := plugin.ResolveOptionalString(nCtx, config, "kind"); err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	} else if ok && kindStr == "lossy" {
 		kind = lkproto.DataPacket_LOSSY
 	}
@@ -84,7 +84,7 @@ func (e *sendDataExecutor) Execute(ctx context.Context, nCtx api.ExecutionContex
 	}
 
 	if identities, err := plugin.ResolveOptionalArray(nCtx, config, "destination_identities"); err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	} else {
 		for _, id := range identities {
 			if s, ok := id.(string); ok {
@@ -94,14 +94,14 @@ func (e *sendDataExecutor) Execute(ctx context.Context, nCtx api.ExecutionContex
 	}
 
 	if topic, ok, err := plugin.ResolveOptionalString(nCtx, config, "topic"); err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	} else if ok {
 		req.Topic = &topic
 	}
 
 	_, err = svc.Room.SendData(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.sendData: %w", err)
+		return "", nil, fmt.Errorf("lk.send_data: %w", err)
 	}
 
 	return api.OutputSuccess, map[string]any{"sent": true}, nil

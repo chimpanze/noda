@@ -11,7 +11,7 @@ import (
 
 type ingressDeleteDescriptor struct{}
 
-func (d *ingressDeleteDescriptor) Name() string        { return "ingressDelete" }
+func (d *ingressDeleteDescriptor) Name() string        { return "ingress_delete" }
 func (d *ingressDeleteDescriptor) Description() string { return "Deletes an ingress endpoint" }
 func (d *ingressDeleteDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -41,17 +41,17 @@ func (e *ingressDeleteExecutor) Outputs() []string { return api.DefaultOutputs()
 func (e *ingressDeleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressDelete: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_delete: %w", err)
 	}
 
 	ingressID, err := plugin.ResolveString(nCtx, config, "ingress_id")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressDelete: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_delete: %w", err)
 	}
 
 	_, err = svc.Ingress.DeleteIngress(ctx, &lkproto.DeleteIngressRequest{IngressId: ingressID})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressDelete: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_delete: %w", err)
 	}
 
 	return api.OutputSuccess, map[string]any{"deleted": true}, nil

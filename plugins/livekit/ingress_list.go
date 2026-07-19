@@ -11,7 +11,7 @@ import (
 
 type ingressListDescriptor struct{}
 
-func (d *ingressListDescriptor) Name() string        { return "ingressList" }
+func (d *ingressListDescriptor) Name() string        { return "ingress_list" }
 func (d *ingressListDescriptor) Description() string { return "Lists ingress endpoints" }
 func (d *ingressListDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -40,20 +40,20 @@ func (e *ingressListExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *ingressListExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressList: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_list: %w", err)
 	}
 
 	req := &lkproto.ListIngressRequest{}
 
 	if room, ok, err := plugin.ResolveOptionalString(nCtx, config, "room"); err != nil {
-		return "", nil, fmt.Errorf("lk.ingressList: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_list: %w", err)
 	} else if ok {
 		req.RoomName = room
 	}
 
 	resp, err := svc.Ingress.ListIngress(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.ingressList: %w", err)
+		return "", nil, fmt.Errorf("lk.ingress_list: %w", err)
 	}
 
 	items := make([]any, len(resp.Items))
