@@ -12,7 +12,7 @@
       "config": { "table": "room_links", "where": { "room_name": "{{ input.name }}" } }
     },
     "exists": {
-      "type": "lk.roomList",
+      "type": "lk.room_list",
       "services": { "livekit": "lk" },
       "config": { "names": ["{{ input.name }}"] }
     },
@@ -21,7 +21,7 @@
       "config": { "condition": "{{ len(nodes.exists.rooms) > 0 }}" }
     },
     "del": {
-      "type": "lk.roomDelete",
+      "type": "lk.room_delete",
       "services": { "livekit": "lk" },
       "config": { "room": "{{ input.name }}" }
     },

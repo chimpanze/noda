@@ -7,7 +7,7 @@
       "config": { "condition": "{{ input.name matches '^hb-(meet|stream)-[a-z0-9]{8}$' }}" }
     },
     "exists": {
-      "type": "lk.roomList",
+      "type": "lk.room_list",
       "services": { "livekit": "lk" },
       "config": { "names": ["{{ input.name }}"] }
     },
