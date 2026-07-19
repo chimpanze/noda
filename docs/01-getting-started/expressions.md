@@ -9,11 +9,13 @@ All nodes have access to these variables in expressions:
 | Variable | Description |
 |----------|-------------|
 | `input` | Data passed to the workflow from the trigger |
-| `auth` | Auth data: `sub` (the authenticated user id), `roles`, `claims` |
+| `auth` | Auth data: `sub` (the authenticated user id, string), `roles` (`[]string`), `claims` (the raw claim map) |
 | `trigger` | Trigger metadata: `type`, `timestamp`, `trace_id`, `request_id`, `client_ip`, `user_agent` |
 | `nodes.<id>` | Output data from a previously executed node |
 | `secrets.<NAME>` | Secret value from configured providers (`.env` files by default) |
 | `$item`, `$index` | Loop iteration variables (inside `control.loop`) |
+
+`auth` is populated identically by either auth path: the `auth.jwt` middleware (hand-rolled JWT) and the `auth.session` middleware (built-in auth plugin's opaque sessions) both set the same three fields. On an unauthenticated request (no middleware configured, or the request never reached one), `auth` is absent — guard references with `auth.sub ?? ''` rather than assuming it exists.
 
 ## Built-in Functions
 

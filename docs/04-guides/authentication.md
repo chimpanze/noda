@@ -2,6 +2,17 @@
 
 This guide covers securing Noda APIs with JWT tokens, OIDC providers, Casbin authorization policies, and the first-party `auth` plugin's session-based email+password flows.
 
+## Choosing an auth pattern
+
+Noda gives you two ways to authenticate users, and they are **not** interchangeable — pick one per project before you write any auth code.
+
+- **Built-in `auth` plugin (recommended default).** A `services.auth` entry (`plugin: "auth"`) plus `noda auth init` scaffolds real, editable migrations/routes/workflows for you: opaque server-side sessions, argon2id password hashing, single-use email-verification/reset tokens, all backed by plugin-managed `auth_users`, `auth_sessions`, and `auth_tokens` tables. See [Session Authentication (`auth` plugin)](#session-authentication-auth-plugin) below for the full walkthrough, and the [service config reference](../01-getting-started/services.md#auth-plugin-auth) for every field.
+- **Hand-rolled JWT.** You own a `users` table (any shape you like), your own login/register workflows, and sign tokens yourself with `util.jwt_sign`. Full control, but you build and maintain the password hashing, token issuance, and revocation logic. See [JWT Authentication](#jwt-authentication) below.
+
+**The two are table-incompatible.** The `auth` plugin's nodes (`auth.create_user`, `auth.verify_credentials`, etc.) only ever read and write `auth_users`/`auth_sessions`/`auth_tokens` — they know nothing about a hand-rolled `users` table, and a hand-rolled login workflow querying `users` knows nothing about `auth_users`. Mixing the two in one project doesn't fail loudly: a query against the wrong table for the pattern you're not using simply returns empty (no user found, no session found), which looks like "the user doesn't exist" rather than "wrong auth system." Decide once, and keep every login/register/session-check workflow on the same table family.
+
+Both paths converge on the same `auth.*` expression context (`auth.sub`, `auth.roles`, `auth.claims`) once a request is authenticated, so downstream workflow logic, Casbin policies, and `{{ auth.sub }}` scoping work identically regardless of which pattern issued the identity — see [Accessing Auth Data in Workflows](#accessing-auth-data-in-workflows) below.
+
 ## JWT Authentication
 
 > **Using RS256, RS384, RS512, ES256, ES384, or ES512?** Skip to [Asymmetric keys (RSA / ECDSA)](#asymmetric-keys-rsa--ecdsa) below — Noda supports both inline (`public_key`) and file-based (`public_key_file`) keys.
@@ -98,14 +109,16 @@ Every route under `/api` now requires a valid JWT. Requests without a valid `Aut
 
 ### Accessing Auth Data in Workflows
 
-When `auth.jwt` (or `auth.oidc`) middleware validates a token, the following data is available in trigger input mappings and workflow expressions:
+When `auth.jwt` (or `auth.oidc`) middleware validates a token, the following data is available in trigger input mappings and workflow expressions. The `auth.session` middleware (the built-in `auth` plugin's opaque sessions, see [Session Authentication](#session-authentication-auth-plugin) below) populates the exact same three fields from the session row instead of a JWT, so this table applies unchanged to session-authenticated requests too:
 
 | Expression | Description |
 |-----------|-------------|
-| `auth.sub` | User ID from the `sub` claim |
-| `auth.roles` | Roles array from the `roles` claim |
-| `auth.claims` | All token claims as an object |
+| `auth.sub` | User ID (string) — from the `sub` claim (JWT/OIDC) or the session's user id (`auth.session`) |
+| `auth.roles` | Roles (`[]string`) — from the `roles` claim (JWT/OIDC) or the session's roles (`auth.session`) |
+| `auth.claims` | All claims as an object (JWT/OIDC) or the session's claim map (`auth.session`) |
 | `auth.claims.email` | Any specific claim by name |
+
+On an unauthenticated request (no auth middleware on the route, or authentication failed before reaching the workflow), `auth` is absent entirely — guard optional references with `auth.sub ?? ''` rather than assuming the key exists.
 
 Use these in trigger input mappings to pass auth context into workflows:
 
