@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"github.com/chimpanze/noda/internal/config"
@@ -10,8 +10,8 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// EditorAPI provides endpoints for the visual editor (dev mode only).
-type EditorAPI struct {
+// API provides endpoints for the visual editor (dev mode only).
+type API struct {
 	root     pathutil.Root
 	envFlag  string
 	reloader *devmode.Reloader
@@ -23,8 +23,8 @@ type EditorAPI struct {
 	secrets  *secrets.Manager
 }
 
-// NewEditorAPI creates the editor API handler for dev mode.
-func NewEditorAPI(
+// NewAPI creates the editor API handler for dev mode.
+func NewAPI(
 	root pathutil.Root,
 	envFlag string,
 	reloader *devmode.Reloader,
@@ -33,8 +33,8 @@ func NewEditorAPI(
 	services *registry.ServiceRegistry,
 	compiler *nodaexpr.Compiler,
 	sm *secrets.Manager,
-) *EditorAPI {
-	return &EditorAPI{
+) *API {
+	return &API{
 		root:     root,
 		envFlag:  envFlag,
 		reloader: reloader,
@@ -47,7 +47,7 @@ func NewEditorAPI(
 }
 
 // Register mounts all editor API routes on the Fiber app.
-func (e *EditorAPI) Register(app *fiber.App) {
+func (e *API) Register(app *fiber.App) {
 	api := app.Group("/_noda")
 
 	// File operations
@@ -98,7 +98,7 @@ func (e *EditorAPI) Register(app *fiber.App) {
 
 // resolvedConfig returns the current resolved config, preferring the
 // reloader's live config in dev mode, falling back to a static config.
-func (e *EditorAPI) resolvedConfig() *config.ResolvedConfig {
+func (e *API) resolvedConfig() *config.ResolvedConfig {
 	if e.reloader != nil {
 		return e.reloader.Config()
 	}

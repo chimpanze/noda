@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"encoding/json"
@@ -10,13 +10,14 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/generate"
+	"github.com/chimpanze/noda/internal/routecfg"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/gofiber/fiber/v3"
 )
 
 // runTests executes a test suite and returns results.
 // Only available in dev mode.
-func (e *EditorAPI) runTests(c fiber.Ctx) error {
+func (e *API) runTests(c fiber.Ctx) error {
 	var req struct {
 		Path string `json:"path"`
 	}
@@ -86,7 +87,7 @@ func (e *EditorAPI) runTests(c fiber.Ctx) error {
 }
 
 // listModels returns all parsed model definitions.
-func (e *EditorAPI) listModels(c fiber.Ctx) error {
+func (e *API) listModels(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
@@ -108,7 +109,7 @@ func (e *EditorAPI) listModels(c fiber.Ctx) error {
 }
 
 // generateMigration generates SQL migration from model definitions.
-func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
+func (e *API) generateMigration(c fiber.Ctx) error {
 	var req struct {
 		Confirm bool `json:"confirm"`
 	}
@@ -178,7 +179,7 @@ func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
 
 // detectDBDialect inspects the resolved config for a db service driver.
 // Returns "sqlite" if any db service uses the sqlite driver, otherwise "postgres".
-func (e *EditorAPI) detectDBDialect() string {
+func (e *API) detectDBDialect() string {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return "postgres"
@@ -202,7 +203,7 @@ func (e *EditorAPI) detectDBDialect() string {
 }
 
 // generateCRUD generates route, workflow, and schema files for a model.
-func (e *EditorAPI) generateCRUD(c fiber.Ctx) error {
+func (e *API) generateCRUD(c fiber.Ctx) error {
 	var req struct {
 		Model      string   `json:"model"`
 		Confirm    bool     `json:"confirm"`
@@ -271,7 +272,7 @@ func (e *EditorAPI) generateCRUD(c fiber.Ctx) error {
 }
 
 // openAPISpec generates an OpenAPI 3.0 spec from the resolved config.
-func (e *EditorAPI) openAPISpec(c fiber.Ctx) error {
+func (e *API) openAPISpec(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
@@ -288,7 +289,7 @@ func (e *EditorAPI) openAPISpec(c fiber.Ctx) error {
 	// Build paths from routes
 	paths := make(map[string]any)
 	for _, routeData := range rc.Routes {
-		routes := normalizeRoutes(routeData)
+		routes := routecfg.NormalizeRoutes(routeData)
 		for _, route := range routes {
 			method, _ := route["method"].(string)
 			path, _ := route["path"].(string)
@@ -423,23 +424,6 @@ func (e *EditorAPI) openAPISpec(c fiber.Ctx) error {
 	}
 
 	return c.JSON(spec)
-}
-
-func normalizeRoutes(data map[string]any) []map[string]any {
-	// A route file can be a single route object or contain routes under keys
-	if _, hasMethod := data["method"]; hasMethod {
-		return []map[string]any{data}
-	}
-	// Check if it's a route group file with nested routes
-	var routes []map[string]any
-	for _, v := range data {
-		if rm, ok := v.(map[string]any); ok {
-			if _, hasMethod := rm["method"]; hasMethod {
-				routes = append(routes, rm)
-			}
-		}
-	}
-	return routes
 }
 
 func convertPath(path string) string {

@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"encoding/json"
@@ -12,7 +12,7 @@ import (
 )
 
 // listFiles returns all config files grouped by category.
-func (e *EditorAPI) listFiles(c fiber.Ctx) error {
+func (e *API) listFiles(c fiber.Ctx) error {
 	discovered, err := config.Discover(e.root.String(), e.envFlag)
 	if err != nil {
 		return c.Status(500).JSON(map[string]any{"error": err.Error()})
@@ -43,7 +43,7 @@ func (e *EditorAPI) listFiles(c fiber.Ctx) error {
 }
 
 // readFile returns the raw JSON content of a config file.
-func (e *EditorAPI) readFile(c fiber.Ctx) error {
+func (e *API) readFile(c fiber.Ctx) error {
 	relPath, err := url.PathUnescape(c.Params("*"))
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid path"})
@@ -68,7 +68,7 @@ func (e *EditorAPI) readFile(c fiber.Ctx) error {
 
 // writeFile writes JSON content to a config file and triggers hot reload.
 // Only available in dev mode.
-func (e *EditorAPI) writeFile(c fiber.Ctx) error {
+func (e *API) writeFile(c fiber.Ctx) error {
 	relFilePath, err := url.PathUnescape(c.Params("*"))
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid path"})
@@ -112,7 +112,7 @@ func (e *EditorAPI) writeFile(c fiber.Ctx) error {
 
 // deleteFile removes a config file.
 // Only available in dev mode.
-func (e *EditorAPI) deleteFile(c fiber.Ctx) error {
+func (e *API) deleteFile(c fiber.Ctx) error {
 	relFilePath, err := url.PathUnescape(c.Params("*"))
 	if err != nil {
 		return c.Status(400).JSON(map[string]any{"error": "invalid path"})

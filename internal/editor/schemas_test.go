@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"encoding/json"
@@ -38,7 +38,7 @@ func setupSchemasApp(t *testing.T) *fiber.App {
 	}
 
 	reloader := devmode.NewReloader(tmpDir, "", rc, nil, slog.Default())
-	editorAPI := NewEditorAPI(root, "", reloader, pluginReg, nodeReg, svcReg, compiler, nil)
+	editorAPI := NewAPI(root, "", reloader, pluginReg, nodeReg, svcReg, compiler, nil)
 	editorAPI.rc = rc
 	editorAPI.Register(app)
 	return app

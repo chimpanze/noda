@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/routecfg"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gofiber/fiber/v3"
 )
@@ -62,8 +63,8 @@ func GenerateOpenAPI(rc *config.ResolvedConfig) (*openapi3.T, error) {
 
 	// Build paths from routes
 	for _, routeData := range rc.Routes {
-		// normalizeRoutes handles both single-route files and route group files
-		routes := normalizeRoutes(routeData)
+		// routecfg.NormalizeRoutes handles both single-route files and route group files
+		routes := routecfg.NormalizeRoutes(routeData)
 		for _, route := range routes {
 			method, _ := route["method"].(string)
 			path, _ := route["path"].(string)

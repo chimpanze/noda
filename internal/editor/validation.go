@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"errors"
@@ -12,9 +12,9 @@ import (
 // startupDryRunErrors runs the same node/service/expression startup checks
 // `noda validate` performs, but without live service connections. It only
 // runs when file-level validation was clean and the registries needed for
-// it (plugins, nodes, compiler) are available — dev-mode EditorAPI always
+// it (plugins, nodes, compiler) are available — dev-mode API always
 // has them, but tests may construct a bare instance.
-func (e *EditorAPI) startupDryRunErrors(rc *config.ResolvedConfig) []error {
+func (e *API) startupDryRunErrors(rc *config.ResolvedConfig) []error {
 	if rc == nil || e.plugins == nil || e.nodes == nil || e.compiler == nil {
 		return nil
 	}
@@ -24,7 +24,7 @@ func (e *EditorAPI) startupDryRunErrors(rc *config.ResolvedConfig) []error {
 }
 
 // validateFile validates a single JSON config against its schema.
-func (e *EditorAPI) validateFile(c fiber.Ctx) error {
+func (e *API) validateFile(c fiber.Ctx) error {
 	var req struct {
 		Path string `json:"path"`
 	}
@@ -94,7 +94,7 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 }
 
 // validateAll runs the full validation pipeline and returns all errors.
-func (e *EditorAPI) validateAll(c fiber.Ctx) error {
+func (e *API) validateAll(c fiber.Ctx) error {
 	sm, smErr := config.NewSecretsManager(e.root.String(), e.envFlag)
 	if smErr != nil {
 		return c.Status(500).JSON(map[string]any{"error": smErr.Error()})
@@ -127,7 +127,7 @@ func (e *EditorAPI) validateAll(c fiber.Ctx) error {
 }
 
 // validateExpression compiles an expression and returns any errors.
-func (e *EditorAPI) validateExpression(c fiber.Ctx) error {
+func (e *API) validateExpression(c fiber.Ctx) error {
 	var req struct {
 		Expression string `json:"expression"`
 	}

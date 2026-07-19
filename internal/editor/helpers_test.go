@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"testing"
@@ -11,28 +11,6 @@ import (
 )
 
 // --- Pure helper tests ---
-
-func TestNormalizeRoutes_SingleRoute(t *testing.T) {
-	data := map[string]any{"method": "GET", "path": "/test"}
-	routes := normalizeRoutes(data)
-	require.Len(t, routes, 1)
-	assert.Equal(t, "GET", routes[0]["method"])
-}
-
-func TestNormalizeRoutes_GroupedRoutes(t *testing.T) {
-	data := map[string]any{
-		"getUsers": map[string]any{"method": "GET", "path": "/users"},
-		"addUser":  map[string]any{"method": "POST", "path": "/users"},
-		"meta":     "not a route",
-	}
-	routes := normalizeRoutes(data)
-	assert.Len(t, routes, 2)
-}
-
-func TestNormalizeRoutes_Empty(t *testing.T) {
-	routes := normalizeRoutes(map[string]any{})
-	assert.Empty(t, routes)
-}
 
 func TestConvertPath_WithParams(t *testing.T) {
 	assert.Equal(t, "/users/{id}", convertPath("/users/:id"))
@@ -137,22 +115,7 @@ func TestNewEditorAPI_Constructor(t *testing.T) {
 	services := registry.NewServiceRegistry()
 	compiler := expr.NewCompiler()
 
-	api := NewEditorAPI(root, "", nil, plugins, nodes, services, compiler, nil)
+	api := NewAPI(root, "", nil, plugins, nodes, services, compiler, nil)
 	require.NotNil(t, api)
 	assert.NotEmpty(t, api.root.String())
-}
-
-// --- ServerOption tests ---
-
-func TestWithCompiler_Option(t *testing.T) {
-	s := &Server{}
-	c := expr.NewCompiler()
-	opt := WithCompiler(c)
-	opt(s)
-	assert.Equal(t, c, s.compiler)
-}
-
-func TestConnManagers_Nil(t *testing.T) {
-	s := &Server{}
-	assert.Nil(t, s.ConnManagers())
 }

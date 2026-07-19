@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"encoding/json"
@@ -53,7 +53,7 @@ func dryRunProjectFiles() map[string]string {
 	}
 }
 
-// setupValidationApp builds an EditorAPI + fiber app wired with a plugin
+// setupValidationApp builds an API + fiber app wired with a plugin
 // registry that has the response plugin registered (needed for
 // ValidateStartupDryRun's node-type-prefix and config-schema checks) and
 // writes the given files under a fresh temp root.
@@ -72,7 +72,7 @@ func setupValidationApp(t *testing.T, files map[string]string) *fiber.App {
 	require.NoError(t, err)
 	writeProjectFiles(t, root.String(), files)
 
-	editorAPI := NewEditorAPI(root, "", nil, pluginReg, nodeReg, svcReg, compiler, nil)
+	editorAPI := NewAPI(root, "", nil, pluginReg, nodeReg, svcReg, compiler, nil)
 	editorAPI.Register(app)
 	return app
 }

@@ -313,7 +313,7 @@ func TestCasbin_MissingModel(t *testing.T) {
 }
 
 func TestCasbin_BuildMiddleware_Integration(t *testing.T) {
-	// Test that casbin.enforce is registered and extractMiddlewareConfig works
+	// Test that casbin.enforce is registered and routecfg.ExtractMiddlewareConfig works
 	rootConfig := map[string]any{
 		"security": map[string]any{
 			"casbin": map[string]any{
