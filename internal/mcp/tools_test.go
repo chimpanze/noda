@@ -745,6 +745,48 @@ func TestScaffoldProjectHandler(t *testing.T) {
 	assert.True(t, vdata["valid"].(bool), "scaffolded project should validate")
 }
 
+func TestScaffoldProjectHandler_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectA := filepath.Join(tmpDir, "project-a")
+	projectB := filepath.Join(tmpDir, "project-b")
+
+	reqA := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectA})
+	_, err := scaffoldProjectHandler(context.Background(), reqA)
+	require.NoError(t, err)
+	reqB := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectB})
+	_, err = scaffoldProjectHandler(context.Background(), reqB)
+	require.NoError(t, err)
+
+	exampleData, err := os.ReadFile(filepath.Join(projectA, ".env.example"))
+	require.NoError(t, err)
+	assert.Contains(t, string(exampleData), "at least 32 bytes")
+	assert.Contains(t, string(exampleData), "replace-with-at-least-32-bytes")
+
+	envA, err := os.ReadFile(filepath.Join(projectA, ".env"))
+	require.NoError(t, err)
+	envB, err := os.ReadFile(filepath.Join(projectB, ".env"))
+	require.NoError(t, err)
+
+	secretA := extractJWTSecret(t, string(envA))
+	secretB := extractJWTSecret(t, string(envB))
+	assert.Len(t, secretA, 64)
+	assert.Len(t, secretB, 64)
+	assert.NotEqual(t, secretA, secretB, "each scaffold must generate a unique secret")
+	assert.NotContains(t, string(envA), "replace-with-at-least-32-bytes")
+	assert.Contains(t, string(envA), "DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable")
+}
+
+func extractJWTSecret(t *testing.T, envContent string) string {
+	t.Helper()
+	for _, line := range strings.Split(envContent, "\n") {
+		if strings.HasPrefix(line, "JWT_SECRET=") {
+			return strings.TrimPrefix(line, "JWT_SECRET=")
+		}
+	}
+	t.Fatal("JWT_SECRET= line not found in .env")
+	return ""
+}
+
 func TestScaffoldProjectHandler_RefusesOverwrite(t *testing.T) {
 	tmpDir := t.TempDir()
 	projectPath := filepath.Join(tmpDir, "test-project")

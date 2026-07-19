@@ -16,6 +16,7 @@ import (
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/scaffold"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -845,11 +846,17 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		}
 	}
 
+	jwtSecret, err := scaffold.GenerateJWTSecret()
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("failed to generate JWT secret: %v", err)), nil
+	}
+
 	files := map[string]string{
 		"noda.json": scaffoldNodaJSON,
-		// Write a working .env (matching docker-compose defaults) so the project
-		// validates and runs immediately; .env.example is the committable template.
-		".env":                  scaffoldEnvExample,
+		// Write a working .env (matching docker-compose defaults, with a generated
+		// JWT_SECRET) so the project validates and runs immediately; .env.example
+		// is the committable template with a placeholder secret (#381).
+		".env":                  scaffold.ApplyJWTSecret(scaffoldEnvExample, jwtSecret),
 		".env.example":          scaffoldEnvExample,
 		"docker-compose.yml":    scaffoldDockerCompose,
 		"routes/api.json":       scaffoldSampleRoute,
@@ -1048,7 +1055,8 @@ DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable
 REDIS_URL=redis://localhost:6379/0
 
 # JWT
-JWT_SECRET=change-me-in-production
+# auth.jwt requires a secret of at least 32 bytes; a generated one is written to .env
+JWT_SECRET=replace-with-at-least-32-bytes
 `
 
 const scaffoldDockerCompose = `services:

@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `api.PubSubService` now includes `Subscribe` — custom services satisfying the old Publish-only shape must add it (#363).
 - `connections` `sync` block is now optional — was: schema-required while unused.
 - Multipart repeated form values now normalize to `[]any` like urlencoded — was: `[]string`, which broke `control.loop` and type-switched expressions (#350).
+- `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 25-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
