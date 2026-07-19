@@ -291,8 +291,10 @@ func getServiceSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 	var serviceful []api.Plugin
 	byName := make(map[string]api.Plugin)
+	byPrefix := make(map[string]api.Plugin)
 	for _, p := range servicePlugins() {
 		byName[p.Name()] = p
+		byPrefix[p.Prefix()] = p
 		if p.HasServices() {
 			serviceful = append(serviceful, p)
 		}
@@ -314,6 +316,14 @@ func getServiceSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp
 	}
 
 	p, ok := byName[plugin]
+	if !ok {
+		// Fall back to prefix lookup, mirroring registry.PluginRegistry.GetByName
+		// (internal/registry/plugins.go): noda.json's "plugin" field accepts
+		// either the plugin's Name() or its Prefix() (e.g. "db" for "postgres"),
+		// so this tool must resolve the same way or it rejects configs the
+		// runtime happily boots.
+		p, ok = byPrefix[plugin]
+	}
 	if !ok {
 		names := make([]string, 0, len(serviceful))
 		for _, sp := range serviceful {
@@ -782,7 +792,7 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	// connections) so the MCP tool catches what schema validation alone
 	// cannot (e.g. a node config missing a field its plugin requires).
 	plugins := registry.NewPluginRegistry()
-	for _, p := range corePlugins() {
+	for _, p := range servicePlugins() {
 		if err := plugins.Register(p); err != nil {
 			return mcp.NewToolResultError("registering plugin " + p.Name() + ": " + err.Error()), nil
 		}

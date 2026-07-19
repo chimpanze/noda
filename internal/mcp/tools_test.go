@@ -184,6 +184,23 @@ func TestGetServiceSchemaHandler(t *testing.T) {
 		assert.Contains(t, text, "\"required\"")
 	})
 
+	t.Run("db plugin resolved by prefix", func(t *testing.T) {
+		// noda.json's "plugin" field accepts either the plugin's Name()
+		// ("postgres") or its Prefix() ("db") — registry.GetByName falls back
+		// to prefix lookup (internal/registry/plugins.go). This tool must
+		// mirror that fallback so "db" (the prefix) resolves the same schema
+		// as "postgres" (the name).
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "db"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		data := parseTextResult(t, result)
+		assert.Equal(t, "postgres", data["name"], "response should name the canonical plugin name")
+		assert.Equal(t, "db", data["prefix"])
+		assert.NotNil(t, data["config_schema"])
+	})
+
 	t.Run("livekit plugin", func(t *testing.T) {
 		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "livekit"})
 		result, err := getServiceSchemaHandler(context.Background(), req)
@@ -532,6 +549,55 @@ func TestValidateConfigHandler(t *testing.T) {
 			}
 		}
 		assert.True(t, found, "expected a 'missing required config field' error, got: %+v", errsRaw)
+	})
+
+	t.Run("catches service-only plugin schema errors (storage/stream/pubsub)", func(t *testing.T) {
+		// #376's ServiceConfigSchema audit runs during the startup dry-run.
+		// storage/stream/pubsub provide services but no node types, so they
+		// were previously registered in the CLI's dry-run plugin set but not
+		// the MCP tool's (corePlugins() only) — meaning a bad storage config
+		// validated as clean via MCP while `noda validate` correctly rejected
+		// it. Regression test for that parity gap.
+		tmpDir := t.TempDir()
+		projectPath := filepath.Join(tmpDir, "service-only-project")
+		scaffoldReq := makeCallToolRequest("noda_scaffold_project", map[string]any{"path": projectPath})
+		_, err := scaffoldProjectHandler(context.Background(), scaffoldReq)
+		require.NoError(t, err)
+
+		nodaJSONPath := filepath.Join(projectPath, "noda.json")
+		raw, err := os.ReadFile(nodaJSONPath)
+		require.NoError(t, err)
+		var cfg map[string]any
+		require.NoError(t, json.Unmarshal(raw, &cfg))
+		cfg["services"] = map[string]any{
+			"badstorage": map[string]any{
+				"plugin": "storage",
+				"config": map[string]any{"backend": "s3"}, // not in enum [local memory]
+			},
+		}
+		updated, err := json.Marshal(cfg)
+		require.NoError(t, err)
+		require.NoError(t, os.WriteFile(nodaJSONPath, updated, 0o644))
+
+		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": projectPath})
+		result, err := validateConfigHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		assert.False(t, data["valid"].(bool))
+
+		errsRaw, ok := data["errors"].([]any)
+		require.True(t, ok, "errors should be a list of objects")
+		require.NotEmpty(t, errsRaw)
+
+		found := false
+		for _, raw := range errsRaw {
+			m := raw.(map[string]any)
+			if msg, _ := m["message"].(string); strings.Contains(msg, "badstorage") && strings.Contains(msg, "storage") {
+				found = true
+			}
+		}
+		assert.True(t, found, "expected a service-schema error naming the storage service, got: %+v", errsRaw)
 	})
 }
 

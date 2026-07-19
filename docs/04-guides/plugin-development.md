@@ -35,6 +35,14 @@ type Plugin interface {
 
     // Shutdown cleans up a service instance.
     Shutdown(service any) error
+
+    // ServiceConfigSchema returns a JSON Schema (as a Go map, same
+    // conventions as NodeDescriptor.ConfigSchema) describing this plugin's
+    // service `config` block. Structural only: required keys, types,
+    // enums, descriptions — no value-content constraints, because values
+    // are frequently $env()-resolved and may be empty at validate time.
+    // Plugins without services return nil.
+    ServiceConfigSchema() map[string]any
 }
 ```
 
@@ -60,6 +68,7 @@ func (p *Plugin) HasServices() bool                          { return false }
 func (p *Plugin) CreateService(config map[string]any) (any, error) { return nil, nil }
 func (p *Plugin) HealthCheck(service any) error              { return nil }
 func (p *Plugin) Shutdown(service any) error                 { return nil }
+func (p *Plugin) ServiceConfigSchema() map[string]any        { return nil }
 
 func (p *Plugin) Nodes() []api.NodeRegistration {
     return []api.NodeRegistration{

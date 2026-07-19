@@ -719,3 +719,50 @@ func TestValidateStartupDryRun_EdgeOutput_UnknownNodeTypeSkipsEdgeCheck(t *testi
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "unknown node type prefix")
 }
+
+// TestValidateStartupDryRun_EdgeUnknownSourceNode guards against I4 (final
+// review): the edge check used to skip edges whose "from" node was missing
+// with a comment claiming another check owned that case, but no such check
+// existed — so a config referencing a nonexistent source node validated as
+// clean via `noda validate`/MCP/editor while engine.Compile
+// (internal/engine/compiler.go) rejects the same config at boot.
+func TestValidateStartupDryRun_EdgeUnknownSourceNode(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"next": edgeWorkflowNode("control.if", nil),
+				},
+				"edges": []any{edge("missing", "next", "then")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `workflow "wf1": edge references unknown source node "missing"`)
+}
+
+// TestValidateStartupDryRun_EdgeUnknownTargetNode is I4's "to" counterpart:
+// engine.Compile rejects an edge whose target node doesn't exist, but the
+// dry-run edge check never looked at "to" at all.
+func TestValidateStartupDryRun_EdgeUnknownTargetNode(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"decide": edgeWorkflowNode("control.if", nil),
+				},
+				"edges": []any{edge("decide", "missing", "then")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `workflow "wf1": edge references unknown target node "missing"`)
+}

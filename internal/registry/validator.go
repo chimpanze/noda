@@ -172,7 +172,7 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			}
 			compiled, err := compileServiceSchema(pluginName, schema)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("service %q (plugin %q): invalid ServiceConfigSchema: %w", name, pluginName, err))
+				errs = append(errs, &ServiceConfigError{Service: name, Plugin: pluginName, Err: fmt.Errorf("invalid ServiceConfigSchema: %w", err)})
 				continue
 			}
 			svcCfg, _ := cfg["config"].(map[string]any)
@@ -180,7 +180,7 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				svcCfg = map[string]any{}
 			}
 			if err := validateAgainst(compiled, svcCfg); err != nil {
-				errs = append(errs, fmt.Errorf("service %q (plugin %q): %s", name, pluginName, err))
+				errs = append(errs, &ServiceConfigError{Service: name, Plugin: pluginName, Err: err})
 			}
 		}
 	}
@@ -261,7 +261,12 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 
 				fromNodeRaw, ok := wfNodes[from]
 				if !ok {
-					continue // unknown source node: owned by another check
+					errs = append(errs, fmt.Errorf("workflow %q: edge references unknown source node %q", wfName, from))
+					continue
+				}
+				if _, ok := wfNodes[to]; !ok {
+					errs = append(errs, fmt.Errorf("workflow %q: edge references unknown target node %q", wfName, to))
+					continue
 				}
 				fromNode, ok := fromNodeRaw.(map[string]any)
 				if !ok {

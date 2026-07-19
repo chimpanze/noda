@@ -13,6 +13,7 @@ import (
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/plugins/core/response"
+	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,6 +64,7 @@ func setupValidationApp(t *testing.T, files map[string]string) *fiber.App {
 	nodeReg := buildTestNodeRegistry()
 	pluginReg := registry.NewPluginRegistry()
 	require.NoError(t, pluginReg.Register(&response.Plugin{}))
+	require.NoError(t, pluginReg.Register(&storageplugin.Plugin{}))
 	svcReg := registry.NewServiceRegistry()
 	compiler := expr.NewCompilerWithFunctions()
 
@@ -243,4 +245,119 @@ func TestValidateAll_ValidProjectStillPasses(t *testing.T) {
 	var result map[string]any
 	require.NoError(t, json.Unmarshal(body, &result))
 	assert.True(t, result["valid"].(bool), "expected valid:true, got %+v", result)
+}
+
+// badServiceConfigProjectFiles has a fully clean workflow file, but noda.json
+// declares a storage service with an invalid "backend" (not in the plugin's
+// declared enum ["local", "memory"]) — a #376 service-schema violation.
+func badServiceConfigProjectFiles() map[string]string {
+	return map[string]string{
+		"noda.json": `{
+  "services": {
+    "badstorage": {
+      "plugin": "storage",
+      "config": { "backend": "s3" }
+    }
+  }
+}`,
+		"routes/hello.json": `{
+  "id": "hello",
+  "method": "GET",
+  "path": "/hello",
+  "trigger": { "workflow": "hello" }
+}`,
+		"workflows/hello.json": `{
+  "id": "hello",
+  "nodes": {
+    "ok": { "type": "response.error", "config": { "code": "NOT_FOUND", "message": "nope" } }
+  },
+  "edges": []
+}`,
+	}
+}
+
+// TestValidateFile_ServiceSchemaErrorDoesNotLeakOntoUnrelatedFile guards
+// against I2 (final review): the service-schema dry-run check always reads
+// rc.Root (services are project-wide, not per-file), so without attribution
+// filtering, saving a clean workflow file while noda.json has a bad service
+// config would incorrectly report that workflow file as invalid.
+func TestValidateFile_ServiceSchemaErrorDoesNotLeakOntoUnrelatedFile(t *testing.T) {
+	app := setupValidationApp(t, badServiceConfigProjectFiles())
+
+	body := strings.NewReader(`{"path":"workflows/hello.json"}`)
+	req := httptest.NewRequest("POST", "/_noda/validate", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result))
+	assert.True(t, result["valid"].(bool), "expected the clean workflow file to be valid despite noda.json's bad service config, got %+v", result)
+}
+
+// TestValidateFile_ServiceSchemaErrorAttributedToRootConfig is I2's
+// complementary case: validating noda.json itself must surface the
+// service-schema error, since that IS the file where the bad config lives.
+func TestValidateFile_ServiceSchemaErrorAttributedToRootConfig(t *testing.T) {
+	app := setupValidationApp(t, badServiceConfigProjectFiles())
+
+	body := strings.NewReader(`{"path":"noda.json"}`)
+	req := httptest.NewRequest("POST", "/_noda/validate", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(respBody, &result))
+	assert.False(t, result["valid"].(bool), "expected noda.json to be reported invalid, got %+v", result)
+
+	errs, ok := result["errors"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, errs)
+
+	found := false
+	for _, raw := range errs {
+		m := raw.(map[string]any)
+		if msg, _ := m["message"].(string); strings.Contains(msg, "badstorage") {
+			found = true
+			assert.True(t, strings.HasSuffix(m["file"].(string), "noda.json"),
+				"expected error attributed to noda.json, got %+v", m)
+		}
+	}
+	assert.True(t, found, "expected a service-schema error naming 'badstorage', got: %+v", errs)
+}
+
+// TestValidateAll_ServiceSchemaErrorAlwaysReported: validateAll must keep
+// reporting the service-schema error regardless of per-file attribution
+// (only validateFile scopes by requested file).
+func TestValidateAll_ServiceSchemaErrorAlwaysReported(t *testing.T) {
+	app := setupValidationApp(t, badServiceConfigProjectFiles())
+
+	req := httptest.NewRequest("POST", "/_noda/validate/all", nil)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 200, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]any
+	require.NoError(t, json.Unmarshal(body, &result))
+	assert.False(t, result["valid"].(bool), "expected valid:false, got %+v", result)
+
+	errs, ok := result["errors"].([]any)
+	require.True(t, ok)
+	require.NotEmpty(t, errs)
+
+	found := false
+	for _, raw := range errs {
+		m := raw.(map[string]any)
+		if msg, _ := m["message"].(string); strings.Contains(msg, "badstorage") {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected a service-schema error naming 'badstorage', got: %+v", errs)
 }

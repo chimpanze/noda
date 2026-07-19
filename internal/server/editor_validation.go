@@ -1,6 +1,8 @@
 package server
 
 import (
+	"errors"
+
 	"github.com/chimpanze/noda/internal/config"
 	nodaexpr "github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/registry"
@@ -63,7 +65,20 @@ func (e *EditorAPI) validateFile(c fiber.Ctx) error {
 		} else {
 			scoped.Workflows = nil // non-workflow file: workflow dry-run errors are unrelated here
 		}
+
+		// Service-schema errors (registry.ServiceConfigError) always
+		// originate from rc.Root — services are declared project-wide, not
+		// per-file — so scoping workflows to this file doesn't scope them.
+		// Attribute them to this file only when the requested file *is* the
+		// root config (noda.json); otherwise they belong to a different
+		// file than the one being saved and would be misleading here.
+		// validateAll (below) still reports them unconditionally.
+		isRootConfig := absPath == e.root.Join("noda.json")
 		for _, dErr := range e.startupDryRunErrors(&scoped) {
+			var svcErr *registry.ServiceConfigError
+			if errors.As(dErr, &svcErr) && !isRootConfig {
+				continue
+			}
 			filtered = append(filtered, map[string]any{
 				"file":    absPath,
 				"path":    "",

@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `ServiceConfigSchema` on `api.Plugin` + `noda_get_service_schema` MCP tool — plugin service configs are declared, validated, and discoverable (#374 #375)
+- `ServiceConfigSchema` on `api.Plugin` + `noda_get_service_schema` MCP tool — plugin service configs are declared, validated, and discoverable (#375 #376). **Upgrade note:** external `api.Plugin` implementations must add this method — return `nil` for plugins with no services.
 - livekit service accepts an optional `timeout` (per-API-call deadline); unset keeps unbounded calls (#368)
 - `auth.jwt` optional claim validation: `audience`, `issuer`, and `require_expiry` (all default off — when unset, behavior is unchanged)
 - Prometheus metrics endpoint (`/metrics`) with OTel metrics API

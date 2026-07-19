@@ -1,6 +1,8 @@
 package registry
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"strings"
 	"sync"
@@ -9,14 +11,36 @@ import (
 	"github.com/santhosh-tekuri/jsonschema/v6"
 )
 
-// serviceSchemaCache caches compiled service-config schemas by plugin name,
-// mirroring internal/config/validator.go's schemaCache: schemas are compiled
-// once and reused across every dry-run validation call (validate/boot/editor/
-// MCP/hot-reload all funnel through ValidateStartupDryRun).
+// serviceSchemaCache caches compiled service-config schemas keyed by plugin
+// name plus a content hash of the schema itself, mirroring internal/config/
+// validator.go's schemaCache: schemas are compiled once and reused across
+// every dry-run validation call (validate/boot/editor/MCP/hot-reload all
+// funnel through ValidateStartupDryRun).
+//
+// The content hash matters because plugin name alone is not a stable cache
+// key across process lifetimes within the same test binary: registry's own
+// tests register throwaway plugins named "auth" with different (often
+// minimal/incomplete) ServiceConfigSchemas to exercise validation edge cases.
+// Without the hash, whichever test ran first "wins" the cache slot for
+// "auth" and every later caller — including the real auth plugin's own
+// service_schema_audit_test.go — silently gets that stale compiled schema
+// back instead of its own, weakening the audit's compile gate without any
+// visible error.
 var (
 	serviceSchemaCacheMu sync.RWMutex
 	serviceSchemaCache   = make(map[string]*jsonschema.Schema)
 )
+
+// serviceSchemaCacheKey combines the plugin name with a hash of the
+// already-marshaled schema JSON so that two different schemas registered
+// under the same plugin name never collide in the cache.
+func serviceSchemaCacheKey(pluginName string, raw []byte) string {
+	sum := sha256.Sum256(raw)
+	// Not "#": the resource name is also used verbatim as the compiled
+	// schema's resource URI (below), and jsonschema treats a "#" suffix as a
+	// URI fragment/anchor reference rather than part of the resource name.
+	return pluginName + "@" + hex.EncodeToString(sum[:])
+}
 
 // compileServiceSchema compiles a plugin's ServiceConfigSchema (a
 // map[string]any authored the same way as NodeDescriptor.ConfigSchema) into a
@@ -34,23 +58,26 @@ var (
 // internal/config/validator.go's getCompiledSchema reads its embedded schemas
 // as raw JSON bytes rather than passing Go structs to the compiler directly.
 func compileServiceSchema(pluginName string, schema map[string]any) (*jsonschema.Schema, error) {
+	raw, err := json.Marshal(schema)
+	if err != nil {
+		return nil, fmt.Errorf("marshal service schema: %w", err)
+	}
+
+	cacheKey := serviceSchemaCacheKey(pluginName, raw)
+
 	serviceSchemaCacheMu.RLock()
-	if s, ok := serviceSchemaCache[pluginName]; ok {
+	if s, ok := serviceSchemaCache[cacheKey]; ok {
 		serviceSchemaCacheMu.RUnlock()
 		return s, nil
 	}
 	serviceSchemaCacheMu.RUnlock()
 
-	raw, err := json.Marshal(schema)
-	if err != nil {
-		return nil, fmt.Errorf("marshal service schema: %w", err)
-	}
 	var doc any
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return nil, fmt.Errorf("unmarshal service schema: %w", err)
 	}
 
-	resourceName := "service-schema://" + pluginName
+	resourceName := "service-schema://" + cacheKey
 	compiler := jsonschema.NewCompiler()
 	if err := compiler.AddResource(resourceName, doc); err != nil {
 		return nil, fmt.Errorf("add service schema resource: %w", err)
@@ -61,7 +88,7 @@ func compileServiceSchema(pluginName string, schema map[string]any) (*jsonschema
 	}
 
 	serviceSchemaCacheMu.Lock()
-	serviceSchemaCache[pluginName] = compiled
+	serviceSchemaCache[cacheKey] = compiled
 	serviceSchemaCacheMu.Unlock()
 
 	return compiled, nil
