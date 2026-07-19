@@ -19,7 +19,7 @@ func (m *mockPlugin) Name() string                                { return "test
 func (m *mockPlugin) Prefix() string                              { return "test" }
 func (m *mockPlugin) Nodes() []api.NodeRegistration               { return nil }
 func (m *mockPlugin) HasServices() bool                           { return false }
-func (m *mockPlugin) ServiceConfigSchema() map[string]any { return nil }
+func (m *mockPlugin) ServiceConfigSchema() map[string]any         { return nil }
 func (m *mockPlugin) CreateService(_ map[string]any) (any, error) { return nil, nil }
 func (m *mockPlugin) HealthCheck(_ any) error                     { return nil }
 func (m *mockPlugin) Shutdown(_ any) error                        { return nil }

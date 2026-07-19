@@ -18,9 +18,9 @@ func (p *Plugin) Nodes() []api.NodeRegistration {
 	}
 }
 
-func (p *Plugin) HasServices() bool                                { return false }
+func (p *Plugin) HasServices() bool { return false }
 
-func (p *Plugin) ServiceConfigSchema() map[string]any { return nil }
+func (p *Plugin) ServiceConfigSchema() map[string]any              { return nil }
 func (p *Plugin) CreateService(config map[string]any) (any, error) { return nil, nil }
 func (p *Plugin) HealthCheck(service any) error                    { return nil }
 func (p *Plugin) Shutdown(service any) error                       { return nil }

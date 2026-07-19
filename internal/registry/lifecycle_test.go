@@ -21,10 +21,10 @@ type servicePlugin struct {
 	shutdownLog *[]string
 }
 
-func (p *servicePlugin) Name() string                  { return p.name }
-func (p *servicePlugin) Prefix() string                { return p.prefix }
-func (p *servicePlugin) Nodes() []api.NodeRegistration { return nil }
-func (p *servicePlugin) HasServices() bool             { return true }
+func (p *servicePlugin) Name() string                        { return p.name }
+func (p *servicePlugin) Prefix() string                      { return p.prefix }
+func (p *servicePlugin) Nodes() []api.NodeRegistration       { return nil }
+func (p *servicePlugin) HasServices() bool                   { return true }
 func (p *servicePlugin) ServiceConfigSchema() map[string]any { return nil }
 func (p *servicePlugin) CreateService(config map[string]any) (any, error) {
 	if p.createFunc != nil {
@@ -174,13 +174,13 @@ type hungPlugin struct {
 	released chan struct{}
 }
 
-func (p *hungPlugin) Name() string                  { return "hungplugin" }
-func (p *hungPlugin) Prefix() string                { return "hungplugin" }
-func (p *hungPlugin) HasServices() bool             { return true }
+func (p *hungPlugin) Name() string                        { return "hungplugin" }
+func (p *hungPlugin) Prefix() string                      { return "hungplugin" }
+func (p *hungPlugin) HasServices() bool                   { return true }
 func (p *hungPlugin) ServiceConfigSchema() map[string]any { return nil }
-func (p *hungPlugin) Nodes() []api.NodeRegistration { return nil }
-func (p *hungPlugin) HealthCheck(_ any) error       { return nil }
-func (p *hungPlugin) Shutdown(_ any) error          { return nil }
+func (p *hungPlugin) Nodes() []api.NodeRegistration       { return nil }
+func (p *hungPlugin) HealthCheck(_ any) error             { return nil }
+func (p *hungPlugin) Shutdown(_ any) error                { return nil }
 func (p *hungPlugin) CreateService(_ map[string]any) (any, error) {
 	<-p.released
 	return struct{}{}, nil

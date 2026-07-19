@@ -18,7 +18,7 @@ func (p *stubPlugin) Name() string                                     { return 
 func (p *stubPlugin) Prefix() string                                   { return p.prefix }
 func (p *stubPlugin) Nodes() []api.NodeRegistration                    { return nil }
 func (p *stubPlugin) HasServices() bool                                { return false }
-func (p *stubPlugin) ServiceConfigSchema() map[string]any { return nil }
+func (p *stubPlugin) ServiceConfigSchema() map[string]any              { return nil }
 func (p *stubPlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
 func (p *stubPlugin) HealthCheck(service any) error                    { return nil }
 func (p *stubPlugin) Shutdown(service any) error                       { return nil }
