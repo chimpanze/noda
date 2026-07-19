@@ -2,9 +2,11 @@ package connmgr
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"log/slog"
 	"time"
+	"unicode/utf8"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -15,12 +17,20 @@ const syncChannelPrefix = "noda:sync:"
 // Envelope is the versioned cross-instance sync message. Payload carries the
 // pre-marshaled bytes the local manager delivered, so every instance emits
 // byte-identical frames and no JSON round-trip mangling occurs.
+//
+// v1: Payload is the raw payload string (valid UTF-8 only — json.Marshal
+// would silently replace invalid bytes with U+FFFD).
+// v2: Enc is "b64" and Payload is the base64 (StdEncoding) of the raw
+// payload bytes; chosen automatically when the payload is not valid UTF-8
+// (#372). v1 stays the wire format for UTF-8 payloads so pre-v2 instances
+// keep delivering normal traffic during a mixed-version rollover.
 type Envelope struct {
 	V        int    `json:"v"`
 	Instance string `json:"instance"`
 	Kind     string `json:"kind"` // "ws" or "sse"
 	Channel  string `json:"channel"`
 	Payload  string `json:"payload"`
+	Enc      string `json:"enc,omitempty"`   // "" = plain string; "b64" = base64-encoded bytes
 	Event    string `json:"event,omitempty"` // SSE only
 	ID       string `json:"id,omitempty"`    // SSE only
 }
@@ -45,7 +55,16 @@ func NewSyncBridge(pubsub api.PubSubService, instanceID string, logger *slog.Log
 // the caller: with sync configured, a lost publish means remote users silently
 // miss messages, so the sending node fails loudly.
 func (b *SyncBridge) Publish(ctx context.Context, endpoint string, env Envelope) error {
-	env.V = 1
+	if utf8.ValidString(env.Payload) {
+		env.V = 1
+	} else {
+		// Non-UTF-8 payloads would be silently mangled by json.Marshal
+		// (invalid bytes → U+FFFD); ship them base64-encoded in a v2
+		// envelope instead (#372).
+		env.V = 2
+		env.Enc = "b64"
+		env.Payload = base64.StdEncoding.EncodeToString([]byte(env.Payload))
+	}
 	env.Instance = b.instanceID
 	return b.pubsub.Publish(ctx, syncChannelPrefix+endpoint, env)
 }
@@ -86,17 +105,28 @@ func (b *SyncBridge) deliver(ctx context.Context, endpoint string, mgr *Manager,
 	if env.Instance == b.instanceID {
 		return // Redis echoes to the publisher; local delivery already happened
 	}
-	if env.V != 1 {
+	if env.V != 1 && env.V != 2 {
 		b.logger.Warn("connection sync: unknown envelope version dropped", "endpoint", endpoint, "v", env.V)
 		return
 	}
+	// marshalData/marshalDataString pass []byte through untouched, so a
+	// decoded b64 payload is delivered byte-exact (#372).
+	var data any = env.Payload
+	if env.Enc == "b64" {
+		raw, err := base64.StdEncoding.DecodeString(env.Payload)
+		if err != nil {
+			b.logger.Warn("connection sync: undecodable b64 payload dropped", "endpoint", endpoint, "error", err)
+			return
+		}
+		data = raw
+	}
 	switch env.Kind {
 	case "ws":
-		if err := mgr.Send(ctx, env.Channel, env.Payload); err != nil {
+		if err := mgr.Send(ctx, env.Channel, data); err != nil {
 			b.logger.Debug("connection sync: remote ws delivery failed", "channel", env.Channel, "error", err)
 		}
 	case "sse":
-		if err := mgr.SendSSE(ctx, env.Channel, env.Event, env.Payload, env.ID); err != nil {
+		if err := mgr.SendSSE(ctx, env.Channel, env.Event, data, env.ID); err != nil {
 			b.logger.Debug("connection sync: remote sse delivery failed", "channel", env.Channel, "error", err)
 		}
 	default:

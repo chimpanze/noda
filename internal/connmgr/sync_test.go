@@ -543,3 +543,147 @@ func TestSyncBridge_CtxCancelReturns(t *testing.T) {
 		t.Fatal("Run did not return after ctx cancel")
 	}
 }
+
+// --- Envelope v2: binary payloads (#372) ---
+
+// TestSyncBridge_BinaryPayloadRoundTripsByteExact pins #372: a non-UTF-8
+// payload (e.g. a msgpack frame pushed by a wasm guest through
+// ConnectionService.Send) must survive the JSON sync envelope byte-exactly.
+// json.Marshal replaces invalid UTF-8 with U+FFFD, so raw binary must ride
+// base64 in a v2 envelope.
+func TestSyncBridge_BinaryPayloadRoundTripsByteExact(t *testing.T) {
+	binary := []byte{0x82, 0xa3, 0xfe, 0xff, 0x00, 0x01} // invalid UTF-8
+	bus := newFakeBus()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mgrA := NewManager()
+	mgrB := NewManager()
+	bridgeA := NewSyncBridge(bus, "instanceA", nil)
+	bridgeB := NewSyncBridge(bus, "instanceB", nil)
+
+	var mu sync.Mutex
+	var receivedB []byte
+	require.NoError(t, mgrB.Register(&Conn{
+		ID: "b1", Channel: "room:1",
+		SendFn: func(data []byte) error {
+			mu.Lock()
+			receivedB = append([]byte(nil), data...)
+			mu.Unlock()
+			return nil
+		},
+	}))
+
+	go bridgeB.Run(ctx, "ws-chat", mgrB)
+	waitFor(t, time.Second, func() bool {
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		return len(bus.subscribers[syncChannelPrefix+"ws-chat"]) == 1
+	})
+
+	svcA := NewEndpointService(mgrA, "ws-chat", bridgeA)
+	require.NoError(t, svcA.Send(ctx, "room:1", binary))
+
+	waitFor(t, time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return receivedB != nil
+	})
+	mu.Lock()
+	require.Equal(t, binary, receivedB, "remote delivery must be byte-exact")
+	mu.Unlock()
+}
+
+// TestSyncBridge_UTF8PayloadStaysV1 pins the rollover contract (#372): a
+// valid-UTF-8 payload keeps publishing the v1 plain-string envelope, so
+// pre-v2 instances still deliver normal traffic during a mixed-version
+// rolling deploy.
+func TestSyncBridge_UTF8PayloadStaysV1(t *testing.T) {
+	bus := newFakeBus()
+	bridge := NewSyncBridge(bus, "instanceA", nil)
+
+	var published Envelope
+	var publishedRaw string
+	sub := make(chan struct{})
+	go func() {
+		_ = bus.Subscribe(context.Background(), syncChannelPrefix+"ws-chat", func(payload any) error {
+			raw, _ := json.Marshal(payload)
+			publishedRaw = string(raw)
+			_ = json.Unmarshal(raw, &published)
+			close(sub)
+			return errors.New("stop")
+		})
+	}()
+	waitFor(t, time.Second, func() bool {
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		return len(bus.subscribers[syncChannelPrefix+"ws-chat"]) == 1
+	})
+
+	require.NoError(t, bridge.Publish(context.Background(), "ws-chat", Envelope{
+		Kind: "ws", Channel: "room:1", Payload: `{"a":1}`,
+	}))
+	waitFor(t, time.Second, func() bool {
+		select {
+		case <-sub:
+			return true
+		default:
+			return false
+		}
+	})
+
+	require.Equal(t, 1, published.V)
+	require.Equal(t, `{"a":1}`, published.Payload)
+	require.NotContains(t, publishedRaw, `"enc"`, "v1 envelopes must not carry an enc field")
+}
+
+// TestSyncBridge_MalformedBase64Dropped: a v2 envelope whose payload fails
+// base64 decoding is dropped (with the subscription loop intact), never
+// delivered corrupted.
+func TestSyncBridge_MalformedBase64Dropped(t *testing.T) {
+	bus := newFakeBus()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	mgrB := NewManager()
+	bridgeA := NewSyncBridge(bus, "instanceA", nil)
+	bridgeB := NewSyncBridge(bus, "instanceB", nil)
+
+	var mu sync.Mutex
+	var received []byte
+	require.NoError(t, mgrB.Register(&Conn{
+		ID: "b1", Channel: "room:1",
+		SendFn: func(data []byte) error {
+			mu.Lock()
+			received = data
+			mu.Unlock()
+			return nil
+		},
+	}))
+
+	go bridgeB.Run(ctx, "ws-chat", mgrB)
+	waitFor(t, time.Second, func() bool {
+		bus.mu.Lock()
+		defer bus.mu.Unlock()
+		return len(bus.subscribers[syncChannelPrefix+"ws-chat"]) == 1
+	})
+
+	require.NoError(t, bus.Publish(ctx, syncChannelPrefix+"ws-chat", Envelope{
+		V: 2, Enc: "b64", Instance: "instanceA", Kind: "ws", Channel: "room:1", Payload: "!!!not-base64!!!",
+	}))
+
+	time.Sleep(20 * time.Millisecond)
+	mu.Lock()
+	require.Nil(t, received)
+	mu.Unlock()
+
+	// the loop must still be alive: the next good envelope is delivered.
+	require.NoError(t, bridgeA.Publish(ctx, "ws-chat", Envelope{
+		Kind: "ws", Channel: "room:1", Payload: "hello",
+	}))
+	waitFor(t, time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return received != nil
+	})
+}
