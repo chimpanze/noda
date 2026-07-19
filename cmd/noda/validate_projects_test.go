@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -80,4 +81,31 @@ func TestInvalidProjectStillFails(t *testing.T) {
 	require.NoError(t, err)
 	_, errs := config.ValidateAll(dir, "", sm)
 	require.NotEmpty(t, errs, "invalid-project must keep failing validation")
+}
+
+// TestValidate_Harness04AuthRegression: the 2026-07-19 harness built a
+// project that validated but could not boot (auth service without
+// "database"). It must now fail validation (#376).
+func TestValidate_Harness04AuthRegression(t *testing.T) {
+	dir := "../../testdata/harness-04-auth-regression"
+
+	sm, err := config.NewSecretsManager(dir, "")
+	require.NoError(t, err)
+	rc, errs := config.ValidateAll(dir, "", sm)
+	require.Empty(t, errs, "the project must be otherwise valid (only the service schema check should fail it)")
+
+	plugins := registry.NewPluginRegistry()
+	require.NoError(t, registerCorePlugins(plugins))
+	_, bootErrs := registry.Bootstrap(context.Background(), rc, plugins,
+		registry.BootstrapOptions{DryRun: true})
+
+	require.NotEmpty(t, bootErrs, "auth service missing \"database\" must fail dry-run validation")
+	found := false
+	for _, e := range bootErrs {
+		if strings.Contains(e.Error(), `service "auth"`) {
+			found = true
+			break
+		}
+	}
+	require.True(t, found, "expected an error naming service \"auth\", got: %v", bootErrs)
 }

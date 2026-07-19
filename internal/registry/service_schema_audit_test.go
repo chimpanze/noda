@@ -75,17 +75,6 @@ func allRegisteredPlugins() []api.Plugin {
 	}
 }
 
-// compileServiceSchema checks a service schema stays within the vocabulary
-// ValidateNodeConfig implements (there is no Task 3 helper yet; this is the
-// same check the per-node schema_audit_test.go files run via
-// registry.CheckSchemaVocabulary).
-func compileServiceSchema(pluginName string, schema map[string]any) (struct{}, error) {
-	if errs := registry.CheckSchemaVocabulary(schema); len(errs) > 0 {
-		return struct{}{}, errs[0]
-	}
-	return struct{}{}, nil
-}
-
 func TestServiceConfigSchemaAudit(t *testing.T) {
 	plugins := allRegisteredPlugins()
 	for _, p := range plugins {
@@ -97,7 +86,14 @@ func TestServiceConfigSchemaAudit(t *testing.T) {
 			}
 			require.NotNil(t, schema, "plugin %q has services and must declare a ServiceConfigSchema", p.Name())
 			assert.Equal(t, "object", schema["type"], "plugin %q schema root must be type object", p.Name())
-			_, err := compileServiceSchema(p.Name(), schema)
+			// registry.CompileServiceSchema is the real (#376) dry-run helper
+			// (ValidateStartupDryRun calls its unexported twin,
+			// compileServiceSchema, directly) — compiling here with the real
+			// santhosh-tekuri/jsonschema library catches malformed schemas
+			// (unknown keywords, wrong-shaped "required"/"type" values, etc.)
+			// the same way the per-node schema_audit_test.go files use
+			// registry.CheckSchemaVocabulary for node ConfigSchemas.
+			_, err := registry.CompileServiceSchema(p.Name(), schema)
 			require.NoError(t, err, "plugin %q schema must compile", p.Name())
 		})
 	}

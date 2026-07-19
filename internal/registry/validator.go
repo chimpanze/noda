@@ -153,6 +153,38 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		configuredServices[name] = ds.Prefix
 	}
 
+	// Validate each service's config against its plugin's declared schema
+	// (#376): an un-bootable service config must fail validation, not boot.
+	if servicesMap, ok := rc.Root["services"].(map[string]any); ok {
+		for name, raw := range servicesMap {
+			cfg, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			pluginName, _ := cfg["plugin"].(string)
+			p, found := plugins.GetByName(pluginName)
+			if !found {
+				continue // unknown plugin is a crossref error already
+			}
+			schema := p.ServiceConfigSchema()
+			if schema == nil {
+				continue
+			}
+			compiled, err := compileServiceSchema(pluginName, schema)
+			if err != nil {
+				errs = append(errs, fmt.Errorf("service %q (plugin %q): invalid ServiceConfigSchema: %w", name, pluginName, err))
+				continue
+			}
+			svcCfg, _ := cfg["config"].(map[string]any)
+			if svcCfg == nil {
+				svcCfg = map[string]any{}
+			}
+			if err := validateAgainst(compiled, svcCfg); err != nil {
+				errs = append(errs, fmt.Errorf("service %q (plugin %q): %s", name, pluginName, err))
+			}
+		}
+	}
+
 	for wfName, wf := range rc.Workflows {
 		wfNodes, ok := wf["nodes"].(map[string]any)
 		if !ok {

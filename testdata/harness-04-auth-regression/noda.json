@@ -1,0 +1,15 @@
+{
+  "services": {
+    "auth": {
+      "config": {},
+      "plugin": "auth"
+    },
+    "main-db": {
+      "config": {
+        "driver": "sqlite",
+        "path": "data/harness-04.db"
+      },
+      "plugin": "db"
+    }
+  }
+}

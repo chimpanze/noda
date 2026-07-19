@@ -380,3 +380,149 @@ func TestValidateStartup_NodeConfigSchemaEnforced(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "write-wf")
 	assert.Contains(t, errs[0].Error(), "write")
 }
+
+// schemaOnlyPlugin is a service-only plugin stub whose ServiceConfigSchema is
+// configurable per test, exercising ValidateStartupDryRun's #376
+// service-config-schema enforcement without any node registrations.
+type schemaOnlyPlugin struct {
+	name        string
+	prefix      string
+	hasServices bool
+	schema      map[string]any
+}
+
+func (p *schemaOnlyPlugin) Name() string                                     { return p.name }
+func (p *schemaOnlyPlugin) Prefix() string                                   { return p.prefix }
+func (p *schemaOnlyPlugin) Nodes() []api.NodeRegistration                    { return nil }
+func (p *schemaOnlyPlugin) HasServices() bool                                { return p.hasServices }
+func (p *schemaOnlyPlugin) ServiceConfigSchema() map[string]any              { return p.schema }
+func (p *schemaOnlyPlugin) CreateService(config map[string]any) (any, error) { return nil, nil }
+func (p *schemaOnlyPlugin) HealthCheck(service any) error                    { return nil }
+func (p *schemaOnlyPlugin) Shutdown(service any) error                       { return nil }
+
+func authLikeSchema() map[string]any {
+	return map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"database": map[string]any{"type": "string"},
+		},
+		"required":             []any{"database"},
+		"additionalProperties": false,
+	}
+}
+
+func TestValidateStartupDryRun_ServiceConfigSchema_MissingRequiredField(t *testing.T) {
+	plugins := NewPluginRegistry()
+	authPlugin := &schemaOnlyPlugin{name: "auth", prefix: "auth", hasServices: true, schema: authLikeSchema()}
+	require.NoError(t, plugins.Register(authPlugin))
+
+	nodes := NewNodeRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"auth": map[string]any{
+					"plugin": "auth",
+					"config": map[string]any{}, // missing required "database"
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `service "auth" (plugin "auth")`)
+}
+
+func TestValidateStartupDryRun_ServiceConfigSchema_ValidConfigPasses(t *testing.T) {
+	plugins := NewPluginRegistry()
+	authPlugin := &schemaOnlyPlugin{name: "auth", prefix: "auth", hasServices: true, schema: authLikeSchema()}
+	require.NoError(t, plugins.Register(authPlugin))
+
+	nodes := NewNodeRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"auth": map[string]any{
+					"plugin": "auth",
+					"config": map[string]any{"database": "main-db"},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
+func TestValidateStartupDryRun_ServiceConfigSchema_UnknownPluginSkipped(t *testing.T) {
+	plugins := NewPluginRegistry()
+	nodes := NewNodeRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"auth": map[string]any{
+					"plugin": "does-not-exist",
+					"config": map[string]any{},
+				},
+			},
+		},
+	}
+
+	// Unknown plugin name: dry-run skips service-schema validation for it
+	// (crossref validation elsewhere is responsible for flagging it).
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
+func TestValidateStartupDryRun_ServiceConfigSchema_ExtraKeyRejected(t *testing.T) {
+	plugins := NewPluginRegistry()
+	authPlugin := &schemaOnlyPlugin{name: "auth", prefix: "auth", hasServices: true, schema: authLikeSchema()}
+	require.NoError(t, plugins.Register(authPlugin))
+
+	nodes := NewNodeRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"auth": map[string]any{
+					"plugin": "auth",
+					"config": map[string]any{
+						"database": "main-db",
+						"databse":  "typo", // additionalProperties: false
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `service "auth" (plugin "auth")`)
+}
+
+func TestValidateStartupDryRun_ServiceConfigSchema_ServiceLessPluginNeverValidated(t *testing.T) {
+	plugins := NewPluginRegistry()
+	// HasServices=false, no schema — must never be run through service
+	// schema validation even if a "services" entry incorrectly names it.
+	noServicePlugin := &schemaOnlyPlugin{name: "control", prefix: "control", hasServices: false, schema: nil}
+	require.NoError(t, plugins.Register(noServicePlugin))
+
+	nodes := NewNodeRegistry()
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"ctrl": map[string]any{
+					"plugin": "control",
+					"config": map[string]any{"anything": "goes"},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
