@@ -64,7 +64,7 @@ func (p *mockPlugin) CreateService(map[string]any) (any, error) { return nil, ni
 func (p *mockPlugin) HealthCheck(any) error                     { return nil }
 func (p *mockPlugin) Shutdown(any) error                        { return nil }
 
-// --- editor.go: findUpstreamNodes ---
+// --- api.go: findUpstreamNodes ---
 
 func TestFindUpstreamNodes(t *testing.T) {
 	e := &API{}
@@ -124,7 +124,7 @@ func TestFindUpstreamNodes_StartNode(t *testing.T) {
 	assert.Empty(t, result) // a has no upstream
 }
 
-// --- editor.go: resolvedConfig ---
+// --- api.go: resolvedConfig ---
 
 func TestEditorAPI_ResolvedConfig_WithReloader(t *testing.T) {
 	// Without reloader, should return rc
@@ -136,7 +136,7 @@ func TestEditorAPI_ResolvedConfig_WithReloader(t *testing.T) {
 	assert.Equal(t, "test", rc.Root["name"])
 }
 
-// --- editor.go: findUpstreamNodes with nil edges ---
+// --- api.go: findUpstreamNodes with nil edges ---
 
 func TestFindUpstreamNodes_NilEdges(t *testing.T) {
 	e := &API{}
@@ -176,7 +176,7 @@ func TestFindUpstreamNodes_CyclicGraph(t *testing.T) {
 	assert.Len(t, result, 1) // only "a"
 }
 
-// --- editor_static.go: RegisterEditorUI (no embedded FS) ---
+// --- static.go: RegisterUI (no embedded FS) ---
 
 func TestRegisterUI_NoEmbeddedFS(t *testing.T) {
 	app := fiber.New()
@@ -199,7 +199,7 @@ func TestRegisterUI_NoEmbeddedFS(t *testing.T) {
 	assert.Contains(t, string(body), "Editor not embedded")
 }
 
-// --- EditorAPI handler tests ---
+// --- API handler tests ---
 
 func setupEditorApp(t *testing.T) *fiber.App {
 	t.Helper()

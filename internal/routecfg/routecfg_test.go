@@ -31,7 +31,7 @@ func TestNormalizeRoutes_Empty(t *testing.T) {
 	assert.Empty(t, routes)
 }
 
-// --- Middleware: extractMiddlewareConfig branches ---
+// --- Middleware: ExtractMiddlewareConfig branches ---
 
 func TestExtractMiddlewareConfig_MiddlewareSection(t *testing.T) {
 	root := map[string]any{
