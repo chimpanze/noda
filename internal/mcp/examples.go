@@ -11,7 +11,7 @@ import (
 
 var examplePatterns = map[string]map[string]string{
 	"crud": {
-		"description": "Basic CRUD API with database operations. The users table must exist first — create it with a migration (see noda://docs/migrations). The migration_up/migration_down fields below are SQL (migrations/<timestamp>_create_users.up.sql / .down.sql), not Noda config.",
+		"description": "Basic CRUD API with database operations. The users table must exist first — create it with a migration (see noda://docs/migrations). The migration_up/migration_down fields below are SQL (migrations/<timestamp>_create_users.up.sql / .down.sql), not Noda config. $ref note: {\"$ref\": \"schemas/User\"} resolves by definition name, never by filename#key — it works because a file under schemas/ defines a top-level \"User\" key (e.g. schemas/User.json = {\"User\": {...}}), or because schemas/User.json is itself a bare JSON Schema document (top level has \"type\"/\"properties\"), which registers under its filename.",
 		// SQL migration files (not config). Filename: migrations/<YYYYMMDDHHMMSS>_create_users.up.sql / .down.sql
 		"migration_up": `CREATE TABLE users (
   id         UUID PRIMARY KEY,
