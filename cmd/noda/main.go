@@ -14,6 +14,7 @@ import (
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/devmode"
+	"github.com/chimpanze/noda/internal/editor"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/lifecycle"
@@ -433,7 +434,7 @@ func newDevCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("resolving config directory: %w", err)
 			}
-			editorAPI := server.NewEditorAPI(root, envFlag, reloader, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Compiler, rtCtx.SecretsManager)
+			editorAPI := editor.NewAPI(root, envFlag, reloader, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Services, rtCtx.Bootstrap.Compiler, rtCtx.SecretsManager)
 			editorAPI.Register(srv.App())
 
 			// Serve editor static files: prefer local dist (for live dev),
@@ -452,7 +453,7 @@ func newDevCmd() *cobra.Command {
 					return c.SendFile(absPath)
 				})
 			} else {
-				srv.RegisterEditorUI()
+				editor.RegisterUI(srv.App(), rtCtx.Logger)
 			}
 
 			// Set up file watcher

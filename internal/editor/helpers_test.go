@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"testing"
@@ -115,22 +115,7 @@ func TestNewEditorAPI_Constructor(t *testing.T) {
 	services := registry.NewServiceRegistry()
 	compiler := expr.NewCompiler()
 
-	api := NewEditorAPI(root, "", nil, plugins, nodes, services, compiler, nil)
+	api := NewAPI(root, "", nil, plugins, nodes, services, compiler, nil)
 	require.NotNil(t, api)
 	assert.NotEmpty(t, api.root.String())
-}
-
-// --- ServerOption tests ---
-
-func TestWithCompiler_Option(t *testing.T) {
-	s := &Server{}
-	c := expr.NewCompiler()
-	opt := WithCompiler(c)
-	opt(s)
-	assert.Equal(t, c, s.compiler)
-}
-
-func TestConnManagers_Nil(t *testing.T) {
-	s := &Server{}
-	assert.Nil(t, s.ConnManagers())
 }

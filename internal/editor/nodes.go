@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 )
 
 // listNodes returns all registered node types with their descriptors.
-func (e *EditorAPI) listNodes(c fiber.Ctx) error {
+func (e *API) listNodes(c fiber.Ctx) error {
 	types := e.nodes.AllTypes()
 	sort.Strings(types)
 
@@ -54,7 +54,7 @@ func (e *EditorAPI) listNodes(c fiber.Ctx) error {
 }
 
 // getNodeSchema returns the JSON Schema for a node type's config.
-func (e *EditorAPI) getNodeSchema(c fiber.Ctx) error {
+func (e *API) getNodeSchema(c fiber.Ctx) error {
 	nodeType := c.Params("type")
 	desc, ok := e.nodes.GetDescriptor(nodeType)
 	if !ok {
@@ -69,7 +69,7 @@ func (e *EditorAPI) getNodeSchema(c fiber.Ctx) error {
 }
 
 // computeOutputs creates a temporary executor and returns its outputs.
-func (e *EditorAPI) computeOutputs(c fiber.Ctx) error {
+func (e *API) computeOutputs(c fiber.Ctx) error {
 	nodeType := c.Params("type")
 	factory, ok := e.nodes.GetFactory(nodeType)
 	if !ok {
@@ -86,7 +86,7 @@ func (e *EditorAPI) computeOutputs(c fiber.Ctx) error {
 }
 
 // listServices returns all configured service instances.
-func (e *EditorAPI) listServices(c fiber.Ctx) error {
+func (e *API) listServices(c fiber.Ctx) error {
 	all := e.services.All()
 	services := make([]map[string]any, 0, len(all))
 
@@ -133,7 +133,7 @@ var pluginDescriptions = map[string]string{
 }
 
 // listPlugins returns all loaded plugins with their prefixes and node counts.
-func (e *EditorAPI) listPlugins(c fiber.Ctx) error {
+func (e *API) listPlugins(c fiber.Ctx) error {
 	all := e.plugins.All()
 	plugins := make([]map[string]any, 0, len(all))
 
@@ -158,7 +158,7 @@ func (e *EditorAPI) listPlugins(c fiber.Ctx) error {
 }
 
 // listSchemas returns all shared schema definitions.
-func (e *EditorAPI) listSchemas(c fiber.Ctx) error {
+func (e *API) listSchemas(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
@@ -180,7 +180,7 @@ func (e *EditorAPI) listSchemas(c fiber.Ctx) error {
 }
 
 // listMiddleware returns middleware metadata, presets, and current config.
-func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
+func (e *API) listMiddleware(c fiber.Ctx) error {
 	type configField struct {
 		Key         string   `json:"key"`
 		Type        string   `json:"type"`
@@ -299,7 +299,7 @@ func (e *EditorAPI) listMiddleware(c fiber.Ctx) error {
 }
 
 // listEnvVars scans all config for $env() references and returns their status.
-func (e *EditorAPI) listEnvVars(c fiber.Ctx) error {
+func (e *API) listEnvVars(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
@@ -360,7 +360,7 @@ func (e *EditorAPI) listEnvVars(c fiber.Ctx) error {
 }
 
 // listVars scans all config for $var() references and returns variable info with usages.
-func (e *EditorAPI) listVars(c fiber.Ctx) error {
+func (e *API) listVars(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
@@ -513,7 +513,7 @@ func findEnvRefs(v any) []string {
 }
 
 // expressionContext returns available variables for a node's position in a workflow.
-func (e *EditorAPI) expressionContext(c fiber.Ctx) error {
+func (e *API) expressionContext(c fiber.Ctx) error {
 	workflowName := c.Query("workflow")
 	nodeID := c.Query("node")
 
@@ -583,7 +583,7 @@ func (e *EditorAPI) expressionContext(c fiber.Ctx) error {
 
 // findUpstreamNodes walks the workflow graph backwards from the given node
 // and returns all upstream node IDs with their types.
-func (e *EditorAPI) findUpstreamNodes(wfConfig map[string]any, targetNodeID string) []map[string]any {
+func (e *API) findUpstreamNodes(wfConfig map[string]any, targetNodeID string) []map[string]any {
 	// Parse edges
 	rawEdges, _ := wfConfig["edges"].([]any)
 	type edge struct{ from, output, to string }

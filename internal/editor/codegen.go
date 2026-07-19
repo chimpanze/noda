@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"encoding/json"
@@ -17,7 +17,7 @@ import (
 
 // runTests executes a test suite and returns results.
 // Only available in dev mode.
-func (e *EditorAPI) runTests(c fiber.Ctx) error {
+func (e *API) runTests(c fiber.Ctx) error {
 	var req struct {
 		Path string `json:"path"`
 	}
@@ -87,7 +87,7 @@ func (e *EditorAPI) runTests(c fiber.Ctx) error {
 }
 
 // listModels returns all parsed model definitions.
-func (e *EditorAPI) listModels(c fiber.Ctx) error {
+func (e *API) listModels(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
@@ -109,7 +109,7 @@ func (e *EditorAPI) listModels(c fiber.Ctx) error {
 }
 
 // generateMigration generates SQL migration from model definitions.
-func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
+func (e *API) generateMigration(c fiber.Ctx) error {
 	var req struct {
 		Confirm bool `json:"confirm"`
 	}
@@ -179,7 +179,7 @@ func (e *EditorAPI) generateMigration(c fiber.Ctx) error {
 
 // detectDBDialect inspects the resolved config for a db service driver.
 // Returns "sqlite" if any db service uses the sqlite driver, otherwise "postgres".
-func (e *EditorAPI) detectDBDialect() string {
+func (e *API) detectDBDialect() string {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return "postgres"
@@ -203,7 +203,7 @@ func (e *EditorAPI) detectDBDialect() string {
 }
 
 // generateCRUD generates route, workflow, and schema files for a model.
-func (e *EditorAPI) generateCRUD(c fiber.Ctx) error {
+func (e *API) generateCRUD(c fiber.Ctx) error {
 	var req struct {
 		Model      string   `json:"model"`
 		Confirm    bool     `json:"confirm"`
@@ -272,7 +272,7 @@ func (e *EditorAPI) generateCRUD(c fiber.Ctx) error {
 }
 
 // openAPISpec generates an OpenAPI 3.0 spec from the resolved config.
-func (e *EditorAPI) openAPISpec(c fiber.Ctx) error {
+func (e *API) openAPISpec(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})

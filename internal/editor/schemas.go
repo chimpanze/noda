@@ -1,11 +1,11 @@
-package server
+package editor
 
 import (
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 )
 
-func (e *EditorAPI) listOutputSchemas(c fiber.Ctx) error {
+func (e *API) listOutputSchemas(c fiber.Ctx) error {
 	types := e.nodes.AllTypes()
 	schemas := make(map[string]any, len(types))
 
