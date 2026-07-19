@@ -294,9 +294,13 @@ func TestSyncBridge_UnknownVersionOrKindDropped(t *testing.T) {
 	require.NoError(t, bus.Publish(ctx, syncChannelPrefix+"ws-chat", Envelope{
 		V: 99, Instance: "instanceA", Kind: "ws", Channel: "room:1", Payload: "v99",
 	}))
+	// v1 is no longer accepted: only v2 envelopes are delivered.
+	require.NoError(t, bus.Publish(ctx, syncChannelPrefix+"ws-chat", Envelope{
+		V: 1, Instance: "instanceA", Kind: "ws", Channel: "room:1", Payload: "v1",
+	}))
 	// unknown kind.
 	require.NoError(t, bus.Publish(ctx, syncChannelPrefix+"ws-chat", Envelope{
-		V: 1, Instance: "instanceA", Kind: "carrier-pigeon", Channel: "room:1", Payload: "cp",
+		V: 2, Instance: "instanceA", Kind: "carrier-pigeon", Channel: "room:1", Payload: "cp",
 	}))
 
 	time.Sleep(20 * time.Millisecond)
@@ -594,11 +598,11 @@ func TestSyncBridge_BinaryPayloadRoundTripsByteExact(t *testing.T) {
 	mu.Unlock()
 }
 
-// TestSyncBridge_UTF8PayloadStaysV1 pins the rollover contract (#372): a
-// valid-UTF-8 payload keeps publishing the v1 plain-string envelope, so
-// pre-v2 instances still deliver normal traffic during a mixed-version
-// rolling deploy.
-func TestSyncBridge_UTF8PayloadStaysV1(t *testing.T) {
+// TestSyncBridge_UTF8PayloadPlainEncoding pins the encoding rule (#372): a
+// valid-UTF-8 payload publishes as a plain string (no enc field) inside
+// the v2 envelope, avoiding base64 size overhead for normal text/JSON
+// traffic.
+func TestSyncBridge_UTF8PayloadPlainEncoding(t *testing.T) {
 	bus := newFakeBus()
 	bridge := NewSyncBridge(bus, "instanceA", nil)
 
@@ -632,9 +636,9 @@ func TestSyncBridge_UTF8PayloadStaysV1(t *testing.T) {
 		}
 	})
 
-	require.Equal(t, 1, published.V)
+	require.Equal(t, 2, published.V)
 	require.Equal(t, `{"a":1}`, published.Payload)
-	require.NotContains(t, publishedRaw, `"enc"`, "v1 envelopes must not carry an enc field")
+	require.NotContains(t, publishedRaw, `"enc"`, "plain-string envelopes must not carry an enc field")
 }
 
 // TestSyncBridge_MalformedBase64Dropped: a v2 envelope whose payload fails

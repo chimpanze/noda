@@ -14,16 +14,15 @@ import (
 // syncChannelPrefix namespaces cross-instance sync traffic in the pubsub service.
 const syncChannelPrefix = "noda:sync:"
 
-// Envelope is the versioned cross-instance sync message. Payload carries the
-// pre-marshaled bytes the local manager delivered, so every instance emits
-// byte-identical frames and no JSON round-trip mangling occurs.
+// Envelope is the versioned cross-instance sync message (current version:
+// 2, the only version accepted). Payload carries the pre-marshaled bytes
+// the local manager delivered, so every instance emits byte-identical
+// frames and no JSON round-trip mangling occurs.
 //
-// v1: Payload is the raw payload string (valid UTF-8 only — json.Marshal
-// would silently replace invalid bytes with U+FFFD).
-// v2: Enc is "b64" and Payload is the base64 (StdEncoding) of the raw
-// payload bytes; chosen automatically when the payload is not valid UTF-8
-// (#372). v1 stays the wire format for UTF-8 payloads so pre-v2 instances
-// keep delivering normal traffic during a mixed-version rollover.
+// Enc selects the payload encoding: "" means Payload is the raw string
+// (valid UTF-8), "b64" means Payload is the base64 (StdEncoding) of the
+// raw bytes — chosen automatically for non-UTF-8 payloads, which
+// json.Marshal would otherwise silently mangle into U+FFFD (#372).
 type Envelope struct {
 	V        int    `json:"v"`
 	Instance string `json:"instance"`
@@ -55,13 +54,11 @@ func NewSyncBridge(pubsub api.PubSubService, instanceID string, logger *slog.Log
 // the caller: with sync configured, a lost publish means remote users silently
 // miss messages, so the sending node fails loudly.
 func (b *SyncBridge) Publish(ctx context.Context, endpoint string, env Envelope) error {
-	if utf8.ValidString(env.Payload) {
-		env.V = 1
-	} else {
+	env.V = 2
+	if !utf8.ValidString(env.Payload) {
 		// Non-UTF-8 payloads would be silently mangled by json.Marshal
-		// (invalid bytes → U+FFFD); ship them base64-encoded in a v2
-		// envelope instead (#372).
-		env.V = 2
+		// (invalid bytes → U+FFFD); ship them base64-encoded instead.
+		// UTF-8 payloads stay plain to avoid the base64 size overhead (#372).
 		env.Enc = "b64"
 		env.Payload = base64.StdEncoding.EncodeToString([]byte(env.Payload))
 	}
@@ -105,7 +102,7 @@ func (b *SyncBridge) deliver(ctx context.Context, endpoint string, mgr *Manager,
 	if env.Instance == b.instanceID {
 		return // Redis echoes to the publisher; local delivery already happened
 	}
-	if env.V != 1 && env.V != 2 {
+	if env.V != 2 {
 		b.logger.Warn("connection sync: unknown envelope version dropped", "endpoint", endpoint, "v", env.V)
 		return
 	}
