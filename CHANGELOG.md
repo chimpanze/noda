@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
 
 ### Changed
+- Built-in plugin list consolidated into `plugins/all`; runtime, MCP server, and the ServiceConfigSchema audit consume one source (#384).
 - Validation now rejects workflow edges whose `output` names an undeclared node output (boot already did; validate/editor/MCP now agree) (#379).
 - Service configs are now validated against each plugin's declared schema on every surface (validate/boot/editor/MCP/hot-reload) — was: `valid: true` for configs whose plugin would refuse to boot (#376).
 - Dev-mode hot reload now runs the same dry-run startup validation as boot/validate/editor and refuses the swap on failure (emits `file:error`) — was: node-config violations hot-reloaded "successfully" (#349). Editor per-file validation scopes dry-run errors to the saved file — was: unrelated workflows' errors shown with empty file attribution.
@@ -68,6 +69,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 23-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
+- `noda validate` (and MCP/editor validation) now errors on `services.*` entries whose `plugin` name is unknown, even when no node references the service (#385).
+- db/storage service schemas accept an explicit empty `driver`/`backend` string, matching the parsers' treat-empty-as-default behavior (#386).
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.
 - Trigger bodies with non-lowercase multipart Content-Type (e.g. MULTIPART/FORM-DATA) now parse via a manual fallback; previously they fell through to a raw string (#339).
 - Trigger inputs sourced from JSON bodies keep their JSON types; numeric coercion now applies only to bare references into string-typed transports (path params, query, headers, form bodies) (#331).

@@ -64,9 +64,11 @@ func (p *Plugin) ServiceConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"backend": map[string]any{
-				"type":        "string",
-				"enum":        []any{"local", "memory"},
-				"description": "Storage backend (default local)",
+				"type": "string",
+				// "" is accepted because CreateService treats empty as the
+				// default (local) — schema and parser must agree (#386).
+				"enum":        []any{"local", "memory", ""},
+				"description": "Storage backend (default local; empty string means default)",
 			},
 			"path": map[string]any{
 				"type":        "string",
