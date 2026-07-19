@@ -5,8 +5,7 @@ A [Noda](https://github.com/chimpanze/noda) project.
 ## Getting Started
 
 ```bash
-# Start infrastructure
-cp .env.example .env
+# Start infrastructure (a ready .env with generated JWT_SECRET was created)
 docker compose up -d
 
 # Run in development mode
@@ -18,6 +17,8 @@ noda test
 # Validate config
 noda validate --verbose
 ```
+
+Edit `.env` to point at your own services.
 
 ## First request
 

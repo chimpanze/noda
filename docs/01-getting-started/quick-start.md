@@ -64,10 +64,9 @@ Create `workflows/hello.json`:
 
 ## 4. Start the Server
 
-First create your `.env` — the scaffolded `noda.json` reads `DATABASE_URL` and `REDIS_URL` via `$env()`, and `noda start`/`noda validate`/`noda test` all fail with a `missing environment variable` error until they're set:
+The scaffolded project includes a ready `.env` with a generated `JWT_SECRET`. The scaffolded `noda.json` reads `DATABASE_URL` and `REDIS_URL` via `$env()`, and `noda start`/`noda validate`/`noda test` all fail with a `missing environment variable` error until they're set. Edit `.env` to point at your services:
 
 ```bash
-cp .env.example .env   # the example values work with the scaffolded docker compose stack
 noda start
 ```
 

@@ -31,13 +31,14 @@ A configuration-driven API runtime for Go. Build production-grade REST APIs, bac
 noda init my-api
 cd my-api
 
-# Start with Docker Compose (PostgreSQL + Redis included)
-cp .env.example .env   # required — compose reads env_file: .env
+# Start with Docker Compose (PostgreSQL + Redis included — a ready .env with generated JWT_SECRET was created)
 docker compose up --build
 
 # Or run locally
 noda dev
 ```
+
+Edit `.env` to point at your own services.
 
 See the [Getting Started Guide](docs/01-getting-started/quick-start.md) for a full tutorial.
 
