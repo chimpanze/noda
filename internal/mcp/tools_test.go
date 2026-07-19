@@ -172,6 +172,70 @@ func TestGetConfigSchemaHandler(t *testing.T) {
 	})
 }
 
+func TestGetServiceSchemaHandler(t *testing.T) {
+	t.Run("auth plugin", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "auth"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "\"database\"")
+		assert.Contains(t, text, "\"required\"")
+	})
+
+	t.Run("livekit plugin", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "livekit"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.False(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "\"api_secret\"")
+	})
+
+	t.Run("all plugins", func(t *testing.T) {
+		for _, args := range []map[string]any{nil, {"plugin": "all"}} {
+			req := makeCallToolRequest("noda_get_service_schema", args)
+			result, err := getServiceSchemaHandler(context.Background(), req)
+			require.NoError(t, err)
+			require.False(t, result.IsError)
+
+			data := parseTextResult(t, result)
+			plugins := data["plugins"].([]any)
+			assert.GreaterOrEqual(t, len(plugins), 9, "expected at least 9 service-bearing plugins")
+			for _, p := range plugins {
+				entry := p.(map[string]any)
+				assert.NotEmpty(t, entry["name"], "entry missing name")
+				assert.NotEmpty(t, entry["prefix"], "entry missing prefix")
+				assert.NotNil(t, entry["config_schema"], "entry %v missing config_schema", entry["name"])
+			}
+		}
+	})
+
+	t.Run("unknown plugin lists valid names", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "nope"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "nope")
+		assert.Contains(t, text, "auth")
+		assert.Contains(t, text, "livekit")
+	})
+
+	t.Run("service-less plugin returns helpful error", func(t *testing.T) {
+		req := makeCallToolRequest("noda_get_service_schema", map[string]any{"plugin": "core.control"})
+		result, err := getServiceSchemaHandler(context.Background(), req)
+		require.NoError(t, err)
+		require.True(t, result.IsError)
+
+		text := result.Content[0].(mcp.TextContent).Text
+		assert.Contains(t, text, "no services")
+	})
+}
+
 func TestValidateExpressionHandler(t *testing.T) {
 	t.Run("valid expression", func(t *testing.T) {
 		req := makeCallToolRequest("noda_validate_expression", map[string]any{"expression": "{{ input.name }}"})

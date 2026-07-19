@@ -16,6 +16,7 @@ import (
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/pkg/api"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -45,13 +46,21 @@ func registerTools(s *server.MCPServer, nodeReg *registry.NodeRegistry) {
 
 	s.AddTool(
 		mcp.NewTool("noda_get_config_schema",
-			mcp.WithDescription("Get the JSON Schema for a Noda config file type. Use to understand the structure of config files."),
+			mcp.WithDescription("Get the JSON Schema for a Noda config file type. Use to understand the structure of config files. For services.*.config shapes, use noda_get_service_schema."),
 			mcp.WithString("config_type",
 				mcp.Required(),
 				mcp.Description("Config file type: root, route, workflow, worker, schedule, connections, or test"),
 			),
 		),
 		getConfigSchemaHandler,
+	)
+
+	s.AddTool(
+		mcp.NewTool("noda_get_service_schema",
+			mcp.WithDescription("Get the JSON Schema for a plugin's service config block (services.*.config in noda.json). Omit plugin (or pass \"all\") to list every service-bearing plugin with its schema."),
+			mcp.WithString("plugin", mcp.Description("Plugin name, e.g. auth, postgres, cache, livekit. Omit or \"all\" for all.")),
+		),
+		getServiceSchemaHandler,
 	)
 
 	s.AddTool(
@@ -273,6 +282,55 @@ func getConfigSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	return jsonResult(map[string]any{
 		"config_type": configType,
 		"schema":      schema,
+	})
+}
+
+func getServiceSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	plugin := req.GetString("plugin", "all")
+
+	var serviceful []api.Plugin
+	byName := make(map[string]api.Plugin)
+	for _, p := range servicePlugins() {
+		byName[p.Name()] = p
+		if p.HasServices() {
+			serviceful = append(serviceful, p)
+		}
+	}
+
+	if plugin == "" || plugin == "all" {
+		sort.Slice(serviceful, func(i, j int) bool { return serviceful[i].Name() < serviceful[j].Name() })
+
+		entries := make([]map[string]any, len(serviceful))
+		for i, p := range serviceful {
+			entries[i] = map[string]any{
+				"name":          p.Name(),
+				"prefix":        p.Prefix(),
+				"config_schema": p.ServiceConfigSchema(),
+			}
+		}
+
+		return jsonResult(map[string]any{"plugins": entries, "count": len(entries)})
+	}
+
+	p, ok := byName[plugin]
+	if !ok {
+		names := make([]string, 0, len(serviceful))
+		for _, sp := range serviceful {
+			names = append(names, sp.Name())
+		}
+		sort.Strings(names)
+		return mcp.NewToolResultError(fmt.Sprintf("unknown plugin %q, valid service-bearing plugins: %s",
+			plugin, strings.Join(names, ", "))), nil
+	}
+
+	if !p.HasServices() {
+		return mcp.NewToolResultError(fmt.Sprintf("plugin %q has no services (no services.*.config block to describe)", plugin)), nil
+	}
+
+	return jsonResult(map[string]any{
+		"name":          p.Name(),
+		"prefix":        p.Prefix(),
+		"config_schema": p.ServiceConfigSchema(),
 	})
 }
 
