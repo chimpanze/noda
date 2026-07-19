@@ -1,24 +1,23 @@
-# lk.participantList
+# lk.participant_remove
 
-Lists participants in a LiveKit room.
+Removes a participant from a LiveKit room.
 
 ## Config
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `room` | string (expr) | yes | Room name |
+| `identity` | string (expr) | yes | Participant identity |
 
 ## Outputs
 
 `success`, `error`
 
-Output: `{participants: [...]}`
-
-Each participant object contains `sid`, `identity`, `name`, `metadata`, `state`, `joined_at`, `region`.
+Output: `{removed: true}`
 
 ## Behavior
 
-Retrieves all participants currently connected to the specified room. Fires `success` with the participants array.
+Disconnects the specified participant from the room. The participant's client receives a disconnection event. Fires `success` on completion.
 
 ## Service Dependencies
 
@@ -30,17 +29,18 @@ Retrieves all participants currently connected to the specified room. Fires `suc
 
 ```json
 {
-  "type": "lk.participantList",
+  "type": "lk.participant_remove",
   "services": { "livekit": "lk" },
   "config": {
-    "room": "{{ input.room_name }}"
+    "room": "{{ input.room_name }}",
+    "identity": "{{ input.user_id }}"
   }
 }
 ```
 
 ### With data flow
 
-A meeting details endpoint fetches the room from the database, then lists all connected participants.
+A kick-participant endpoint looks up the room from the database, removes the user, and logs the action.
 
 ```json
 {
@@ -53,22 +53,29 @@ A meeting details endpoint fetches the room from the database, then lists all co
       "required": true
     }
   },
-  "list_participants": {
-    "type": "lk.participantList",
+  "kick": {
+    "type": "lk.participant_remove",
     "services": { "livekit": "lk" },
     "config": {
-      "room": "{{ nodes.get_meeting.room_name }}"
+      "room": "{{ nodes.get_meeting.room_name }}",
+      "identity": "{{ input.user_id }}"
+    }
+  },
+  "log_action": {
+    "type": "util.log",
+    "config": {
+      "message": "{{ 'Removed ' + input.user_id + ' from ' + nodes.get_meeting.room_name }}"
     }
   }
 }
 ```
 
-Output stored as `nodes.list_participants`:
+Output stored as `nodes.kick`:
 ```json
-{ "participants": [{ "sid": "PA_abc", "identity": "usr_42", "name": "Jane", "state": "ACTIVE", "joined_at": 1717200000 }] }
+{ "removed": true }
 ```
 
-Downstream nodes access the list via `nodes.list_participants.participants`.
+Downstream nodes can check `nodes.kick.removed` to confirm the participant was disconnected.
 
 ## Runnable example
 

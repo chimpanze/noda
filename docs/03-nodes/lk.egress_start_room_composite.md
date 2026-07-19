@@ -1,4 +1,4 @@
-# lk.egressStartRoomComposite
+# lk.egress_start_room_composite
 
 Starts a room composite egress (recording).
 
@@ -35,7 +35,7 @@ Output: egress info with `egress_id`, `room_id`, `room_name`, `status`, `started
 
 ## Behavior
 
-Starts recording all audio/video tracks in the room as a composite layout. The recording is uploaded to the specified storage backend. Use `lk.egressStop` to stop the recording. Fires `success` with egress info including the `egress_id` needed to stop it.
+Starts recording all audio/video tracks in the room as a composite layout. The recording is uploaded to the specified storage backend. Use `lk.egress_stop` to stop the recording. Fires `success` with egress info including the `egress_id` needed to stop it.
 
 ## Service Dependencies
 
@@ -47,7 +47,7 @@ Starts recording all audio/video tracks in the room as a composite layout. The r
 
 ```json
 {
-  "type": "lk.egressStartRoomComposite",
+  "type": "lk.egress_start_room_composite",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -78,7 +78,7 @@ A start-recording endpoint looks up the meeting, starts a room composite egress,
     }
   },
   "start_recording": {
-    "type": "lk.egressStartRoomComposite",
+    "type": "lk.egress_start_room_composite",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ nodes.get_meeting.room_name }}",

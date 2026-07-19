@@ -2,7 +2,7 @@
   "id": "egress-start-room",
   "method": "POST",
   "path": "/api/egress/room-composite",
-  "summary": "lk.egressStartRoomComposite — start a room composite recording (dev server has no egress worker)",
+  "summary": "lk.egress_start_room_composite — start a room composite recording (dev server has no egress worker)",
   "tags": ["livekit"],
   "trigger": {
     "workflow": "egress-start-room",

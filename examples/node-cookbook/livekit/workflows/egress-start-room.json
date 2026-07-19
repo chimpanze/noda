@@ -3,7 +3,7 @@
   "name": "Start Room Composite Egress",
   "nodes": {
     "start": {
-      "type": "lk.egressStartRoomComposite",
+      "type": "lk.egress_start_room_composite",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

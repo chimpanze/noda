@@ -24,7 +24,7 @@ project's `verify.json`.
 | [wasm](wasm/) | `wasm.send`, `wasm.query` |
 | [auth](auth/) | `auth.create_user`, `auth.verify_credentials`, `auth.create_session`, `auth.create_token`, `auth.consume_token`, `auth.get_user`, `auth.set_password`, `auth.revoke_session` |
 | [oidc](oidc/) | `oidc.auth_url`, `oidc.exchange`, `oidc.refresh` |
-| [livekit](livekit/) | `lk.token`, `lk.roomCreate`, `lk.roomList`, `lk.roomDelete`, `lk.roomUpdateMetadata`, `lk.participantList`, `lk.participantGet`, `lk.participantUpdate`, `lk.participantRemove`, `lk.muteTrack`, `lk.sendData`, `lk.egressStartRoomComposite`, `lk.egressStartTrack`, `lk.egressList`, `lk.egressStop`, `lk.ingressCreate`, `lk.ingressList`, `lk.ingressDelete` (18 nodes; egress/ingress covered at the API level against the real dev-server — see the family README for the clearly-marked subset this exercises)
+| [livekit](livekit/) | `lk.token`, `lk.room_create`, `lk.room_list`, `lk.room_delete`, `lk.room_update_metadata`, `lk.participant_list`, `lk.participant_get`, `lk.participant_update`, `lk.participant_remove`, `lk.mute_track`, `lk.send_data`, `lk.egress_start_room_composite`, `lk.egress_start_track`, `lk.egress_list`, `lk.egress_stop`, `lk.ingress_create`, `lk.ingress_list`, `lk.ingress_delete` (18 nodes; egress/ingress covered at the API level against the real dev-server — see the family README for the clearly-marked subset this exercises)
 
 Coverage: 81/81 — enforced by `TestCookbookCoverage`.
 

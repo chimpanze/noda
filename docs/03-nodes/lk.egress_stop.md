@@ -1,4 +1,4 @@
-# lk.egressStop
+# lk.egress_stop
 
 Stops an active egress (recording).
 
@@ -28,7 +28,7 @@ Stops an active egress recording. The final output file is uploaded to the confi
 
 ```json
 {
-  "type": "lk.egressStop",
+  "type": "lk.egress_stop",
   "services": { "livekit": "lk" },
   "config": {
     "egress_id": "{{ input.egress_id }}"
@@ -52,7 +52,7 @@ A stop-recording endpoint reads the stored egress ID from the meeting record and
     }
   },
   "stop_recording": {
-    "type": "lk.egressStop",
+    "type": "lk.egress_stop",
     "services": { "livekit": "lk" },
     "config": {
       "egress_id": "{{ nodes.get_meeting.egress_id }}"

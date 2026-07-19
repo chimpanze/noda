@@ -2,7 +2,7 @@
   "id": "ingress-list",
   "method": "GET",
   "path": "/api/ingress",
-  "summary": "lk.ingressList — list ingress endpoints",
+  "summary": "lk.ingress_list — list ingress endpoints",
   "tags": ["livekit"],
   "trigger": {
     "workflow": "ingress-list",

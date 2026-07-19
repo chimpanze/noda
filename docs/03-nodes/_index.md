@@ -23,7 +23,7 @@ Noda provides 81 built-in node types organized by plugin. Every node returns a n
 | HTTP | `http` | request, get, post |
 | Email | `email` | send |
 | Image | `image` | resize, crop, watermark, convert, thumbnail |
-| LiveKit | `lk` | token, roomCreate, roomList, roomDelete, roomUpdateMetadata, sendData, participantList, participantGet, participantRemove, participantUpdate, muteTrack, egressStartRoomComposite, egressStartTrack, egressStop, egressList, ingressCreate, ingressList, ingressDelete |
+| LiveKit | `lk` | token, room_create, room_list, room_delete, room_update_metadata, send_data, participant_list, participant_get, participant_remove, participant_update, mute_track, egress_start_room_composite, egress_start_track, egress_stop, egress_list, ingress_create, ingress_list, ingress_delete |
 | OIDC | `oidc` | auth_url, exchange, refresh |
 
 ## Error Handling

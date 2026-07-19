@@ -1,4 +1,4 @@
-# lk.roomCreate
+# lk.room_create
 
 Creates a LiveKit room.
 
@@ -31,7 +31,7 @@ Creates a new room on the LiveKit server. If a room with the same name already e
 
 ```json
 {
-  "type": "lk.roomCreate",
+  "type": "lk.room_create",
   "services": { "livekit": "lk" },
   "config": {
     "name": "{{ input.room_name }}",
@@ -49,7 +49,7 @@ A meeting creation endpoint creates a LiveKit room and stores the room SID in th
 ```json
 {
   "create_room": {
-    "type": "lk.roomCreate",
+    "type": "lk.room_create",
     "services": { "livekit": "lk" },
     "config": {
       "name": "{{ 'meeting-' + $uuid() }}",

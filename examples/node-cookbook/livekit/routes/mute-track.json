@@ -2,7 +2,7 @@
   "id": "mute-track",
   "method": "POST",
   "path": "/api/rooms/:room/participants/:identity/tracks/:track_sid/mute",
-  "summary": "lk.muteTrack — mute/unmute a participant's track (404 demo: no live participant exists)",
+  "summary": "lk.mute_track — mute/unmute a participant's track (404 demo: no live participant exists)",
   "tags": ["livekit"],
   "trigger": {
     "workflow": "mute-track",

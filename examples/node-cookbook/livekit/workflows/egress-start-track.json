@@ -3,7 +3,7 @@
   "name": "Start Track Egress",
   "nodes": {
     "start": {
-      "type": "lk.egressStartTrack",
+      "type": "lk.egress_start_track",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

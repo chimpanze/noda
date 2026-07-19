@@ -3,7 +3,7 @@
   "name": "List Participants",
   "nodes": {
     "list": {
-      "type": "lk.participantList",
+      "type": "lk.participant_list",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}"

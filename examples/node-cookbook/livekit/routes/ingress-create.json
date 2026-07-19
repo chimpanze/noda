@@ -2,7 +2,7 @@
   "id": "ingress-create",
   "method": "POST",
   "path": "/api/ingress",
-  "summary": "lk.ingressCreate — create an ingress endpoint for streaming into a room",
+  "summary": "lk.ingress_create — create an ingress endpoint for streaming into a room",
   "tags": ["livekit"],
   "trigger": {
     "workflow": "ingress-create",

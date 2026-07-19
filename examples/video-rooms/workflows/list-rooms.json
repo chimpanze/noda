@@ -12,7 +12,7 @@
       "services": {
         "livekit": "lk"
       },
-      "type": "lk.roomList"
+      "type": "lk.room_list"
     },
     "respond": {
       "config": {

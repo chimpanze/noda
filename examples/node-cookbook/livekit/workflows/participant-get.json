@@ -3,7 +3,7 @@
   "name": "Get Participant",
   "nodes": {
     "get": {
-      "type": "lk.participantGet",
+      "type": "lk.participant_get",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

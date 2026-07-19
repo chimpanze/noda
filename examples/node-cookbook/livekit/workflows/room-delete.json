@@ -3,7 +3,7 @@
   "name": "Delete Room",
   "nodes": {
     "delete": {
-      "type": "lk.roomDelete",
+      "type": "lk.room_delete",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}"

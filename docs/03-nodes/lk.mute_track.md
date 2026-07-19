@@ -1,4 +1,4 @@
-# lk.muteTrack
+# lk.mute_track
 
 Mutes or unmutes a published track.
 
@@ -31,7 +31,7 @@ Server-side mutes or unmutes a participant's published track. The participant an
 
 ```json
 {
-  "type": "lk.muteTrack",
+  "type": "lk.mute_track",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -49,7 +49,7 @@ A moderation endpoint fetches a participant, then mutes their audio track.
 ```json
 {
   "get_participant": {
-    "type": "lk.participantGet",
+    "type": "lk.participant_get",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",
@@ -57,7 +57,7 @@ A moderation endpoint fetches a participant, then mutes their audio track.
     }
   },
   "mute_audio": {
-    "type": "lk.muteTrack",
+    "type": "lk.mute_track",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",

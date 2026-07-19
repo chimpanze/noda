@@ -1,4 +1,4 @@
-# lk.ingressList
+# lk.ingress_list
 
 Lists ingress endpoints.
 
@@ -30,7 +30,7 @@ Lists all ingress endpoints. If `room` is provided, only ingress endpoints for t
 
 ```json
 {
-  "type": "lk.ingressList",
+  "type": "lk.ingress_list",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}"
@@ -45,7 +45,7 @@ A stream management endpoint lists all ingress endpoints for a room and returns 
 ```json
 {
   "list_ingress": {
-    "type": "lk.ingressList",
+    "type": "lk.ingress_list",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}"
