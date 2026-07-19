@@ -1,4 +1,4 @@
-# lk.egressStartTrack
+# lk.egress_start_track
 
 Starts a single track egress (recording).
 
@@ -8,7 +8,7 @@ Starts a single track egress (recording).
 |-------|------|----------|-------------|
 | `room` | string (expr) | yes | Room name |
 | `track_sid` | string (expr) | yes | Track SID to record |
-| `output` | object | yes | Output storage configuration (same format as `lk.egressStartRoomComposite`) |
+| `output` | object | yes | Output storage configuration (same format as `lk.egress_start_room_composite`) |
 
 ## Outputs
 
@@ -18,7 +18,7 @@ Output: egress info with `egress_id`, `room_id`, `room_name`, `status`, `started
 
 ## Behavior
 
-Records a single audio or video track to the specified storage backend. Useful for recording individual participants or specific tracks. Use `lk.egressStop` to stop. Fires `success` with egress info.
+Records a single audio or video track to the specified storage backend. Useful for recording individual participants or specific tracks. Use `lk.egress_stop` to stop. Fires `success` with egress info.
 
 ## Service Dependencies
 
@@ -30,7 +30,7 @@ Records a single audio or video track to the specified storage backend. Useful f
 
 ```json
 {
-  "type": "lk.egressStartTrack",
+  "type": "lk.egress_start_track",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -51,7 +51,7 @@ A record-track endpoint fetches a participant to verify they exist, then starts 
 ```json
 {
   "get_participant": {
-    "type": "lk.participantGet",
+    "type": "lk.participant_get",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",
@@ -59,7 +59,7 @@ A record-track endpoint fetches a participant to verify they exist, then starts 
     }
   },
   "record_track": {
-    "type": "lk.egressStartTrack",
+    "type": "lk.egress_start_track",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",

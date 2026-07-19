@@ -3,7 +3,7 @@
   "name": "Create Room",
   "nodes": {
     "create": {
-      "type": "lk.roomCreate",
+      "type": "lk.room_create",
       "services": { "livekit": "lk" },
       "config": {
         "name": "{{ input.name }}",

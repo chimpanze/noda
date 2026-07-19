@@ -3,7 +3,7 @@
   "name": "Create Ingress",
   "nodes": {
     "create": {
-      "type": "lk.ingressCreate",
+      "type": "lk.ingress_create",
       "services": { "livekit": "lk" },
       "config": {
         "input_type": "{{ input.input_type }}",

@@ -3,7 +3,7 @@
   "name": "Stop Egress",
   "nodes": {
     "stop": {
-      "type": "lk.egressStop",
+      "type": "lk.egress_stop",
       "services": { "livekit": "lk" },
       "config": {
         "egress_id": "{{ input.egress_id }}"

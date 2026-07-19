@@ -1,4 +1,4 @@
-# lk.roomUpdateMetadata
+# lk.room_update_metadata
 
 Updates metadata on a LiveKit room.
 
@@ -29,7 +29,7 @@ Replaces the metadata on the specified room. All participants receive a metadata
 
 ```json
 {
-  "type": "lk.roomUpdateMetadata",
+  "type": "lk.room_update_metadata",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -54,7 +54,7 @@ A room settings update endpoint merges new settings into the existing metadata a
     }
   },
   "update_meta": {
-    "type": "lk.roomUpdateMetadata",
+    "type": "lk.room_update_metadata",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ nodes.get_meeting.room_name }}",

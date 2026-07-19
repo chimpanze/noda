@@ -337,7 +337,7 @@ LiveKit WebRTC server integration. Used by all `lk.*` nodes.
 }
 ```
 
-**Nodes:** `lk.token`, `lk.roomCreate`, `lk.roomList`, `lk.roomDelete`, `lk.roomUpdateMetadata`, `lk.sendData`, `lk.participantList`, `lk.participantGet`, `lk.participantRemove`, `lk.participantUpdate`, `lk.muteTrack`, `lk.egressStartRoomComposite`, `lk.egressStartTrack`, `lk.egressStop`, `lk.egressList`, `lk.ingressCreate`, `lk.ingressList`, `lk.ingressDelete`
+**Nodes:** `lk.token`, `lk.room_create`, `lk.room_list`, `lk.room_delete`, `lk.room_update_metadata`, `lk.send_data`, `lk.participant_list`, `lk.participant_get`, `lk.participant_remove`, `lk.participant_update`, `lk.mute_track`, `lk.egress_start_room_composite`, `lk.egress_start_track`, `lk.egress_stop`, `lk.egress_list`, `lk.ingress_create`, `lk.ingress_list`, `lk.ingress_delete`
 
 ---
 

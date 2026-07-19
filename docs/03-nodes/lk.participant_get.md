@@ -1,4 +1,4 @@
-# lk.participantGet
+# lk.participant_get
 
 Gets a participant by identity from a LiveKit room.
 
@@ -29,7 +29,7 @@ Retrieves a single participant from the room by identity. Fires `success` with t
 
 ```json
 {
-  "type": "lk.participantGet",
+  "type": "lk.participant_get",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -45,7 +45,7 @@ A participant status endpoint fetches a participant from the room and returns th
 ```json
 {
   "get_participant": {
-    "type": "lk.participantGet",
+    "type": "lk.participant_get",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",

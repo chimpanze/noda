@@ -1,24 +1,22 @@
-# lk.egressList
+# lk.room_delete
 
-Lists egress recordings.
+Deletes a LiveKit room.
 
 ## Config
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `room` | string (expr) | no | Optional room name filter |
+| `room` | string (expr) | yes | Room name to delete |
 
 ## Outputs
 
 `success`, `error`
 
-Output: `{items: [...]}`
-
-Each item contains `egress_id`, `room_id`, `room_name`, `status`, `started_at`, `ended_at`.
+Output: `{deleted: true}`
 
 ## Behavior
 
-Lists all egress recordings. If `room` is provided, only egress recordings for that room are returned. Fires `success` with the items array.
+Deletes the specified room. All participants are disconnected and any active egress is stopped. Fires `success` on completion.
 
 ## Service Dependencies
 
@@ -30,7 +28,7 @@ Lists all egress recordings. If `room` is provided, only egress recordings for t
 
 ```json
 {
-  "type": "lk.egressList",
+  "type": "lk.room_delete",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}"
@@ -40,7 +38,7 @@ Lists all egress recordings. If `room` is provided, only egress recordings for t
 
 ### With data flow
 
-A recordings dashboard endpoint lists all egress recordings for a specific meeting room.
+An end-meeting endpoint looks up the room name from the database, deletes the LiveKit room, then marks the meeting as ended.
 
 ```json
 {
@@ -53,22 +51,31 @@ A recordings dashboard endpoint lists all egress recordings for a specific meeti
       "required": true
     }
   },
-  "list_recordings": {
-    "type": "lk.egressList",
+  "delete_room": {
+    "type": "lk.room_delete",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ nodes.get_meeting.room_name }}"
+    }
+  },
+  "mark_ended": {
+    "type": "db.update",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "meetings",
+      "where": { "id": "{{ input.meeting_id }}" },
+      "data": { "ended_at": "{{ $timestamp() }}" }
     }
   }
 }
 ```
 
-Output stored as `nodes.list_recordings`:
+Output stored as `nodes.delete_room`:
 ```json
-{ "items": [{ "egress_id": "EG_abc", "room_name": "meeting-1", "status": "EGRESS_COMPLETE", "started_at": 1717200000, "ended_at": 1717203600 }] }
+{ "deleted": true }
 ```
 
-Downstream nodes access the recordings via `nodes.list_recordings.items`.
+Downstream nodes can check `nodes.delete_room.deleted` to confirm the room was removed.
 
 ## Runnable example
 

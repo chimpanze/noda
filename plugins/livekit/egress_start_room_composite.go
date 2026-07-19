@@ -11,7 +11,7 @@ import (
 
 type egressStartRoomCompositeDescriptor struct{}
 
-func (d *egressStartRoomCompositeDescriptor) Name() string { return "egressStartRoomComposite" }
+func (d *egressStartRoomCompositeDescriptor) Name() string { return "egress_start_room_composite" }
 func (d *egressStartRoomCompositeDescriptor) Description() string {
 	return "Starts a room composite egress (recording)"
 }
@@ -48,22 +48,22 @@ func (e *egressStartRoomCompositeExecutor) Outputs() []string { return api.Defau
 func (e *egressStartRoomCompositeExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartRoomComposite: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_room_composite: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartRoomComposite: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_room_composite: %w", err)
 	}
 
 	fileOutput, err := buildFileOutput(nCtx, config)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartRoomComposite: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_room_composite: %w", err)
 	}
 
 	layout := "speaker-dark"
 	if v, ok, err := plugin.ResolveOptionalString(nCtx, config, "layout"); err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartRoomComposite: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_room_composite: %w", err)
 	} else if ok {
 		layout = v
 	}
@@ -77,7 +77,7 @@ func (e *egressStartRoomCompositeExecutor) Execute(ctx context.Context, nCtx api
 	}
 
 	if audioOnlyRaw, ok, err := plugin.ResolveOptionalAny(nCtx, config, "audio_only"); err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartRoomComposite: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_room_composite: %w", err)
 	} else if ok {
 		if v, ok := audioOnlyRaw.(bool); ok {
 			req.AudioOnly = v
@@ -86,7 +86,7 @@ func (e *egressStartRoomCompositeExecutor) Execute(ctx context.Context, nCtx api
 
 	info, err := svc.Egress.StartRoomCompositeEgress(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartRoomComposite: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_room_composite: %w", err)
 	}
 
 	return api.OutputSuccess, egressInfoToMap(info), nil

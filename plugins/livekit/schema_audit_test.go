@@ -19,71 +19,71 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 			map[string]any{"identity": "usr_1", "room": "room-1"}, false,
 			map[string]any{"room": "room-1"}},
 
-		{"lk.roomCreate", (&roomCreateDescriptor{}).ConfigSchema(),
+		{"lk.room_create", (&roomCreateDescriptor{}).ConfigSchema(),
 			map[string]any{"name": "room-1"}, false,
 			map[string]any{"name": true}},
 
-		{"lk.roomList", (&roomListDescriptor{}).ConfigSchema(),
+		{"lk.room_list", (&roomListDescriptor{}).ConfigSchema(),
 			map[string]any{}, true,
 			map[string]any{"names": "not-an-array"}},
 
-		{"lk.roomDelete", (&roomDeleteDescriptor{}).ConfigSchema(),
+		{"lk.room_delete", (&roomDeleteDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1"}, false,
 			map[string]any{"room": 42}},
 
-		{"lk.roomUpdateMetadata", (&roomUpdateMetadataDescriptor{}).ConfigSchema(),
+		{"lk.room_update_metadata", (&roomUpdateMetadataDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "metadata": "m"}, false,
 			map[string]any{"room": "room-1"}},
 
-		{"lk.sendData", (&sendDataDescriptor{}).ConfigSchema(),
+		{"lk.send_data", (&sendDataDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "data": "hello"}, false,
 			map[string]any{"data": "hello"}},
 
-		{"lk.participantList", (&participantListDescriptor{}).ConfigSchema(),
+		{"lk.participant_list", (&participantListDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1"}, false,
 			map[string]any{"room": 42}},
 
-		{"lk.participantGet", (&participantGetDescriptor{}).ConfigSchema(),
+		{"lk.participant_get", (&participantGetDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "identity": "usr_1"}, false,
 			map[string]any{"room": "room-1"}},
 
-		{"lk.participantRemove", (&participantRemoveDescriptor{}).ConfigSchema(),
+		{"lk.participant_remove", (&participantRemoveDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "identity": "usr_1"}, false,
 			map[string]any{"room": "room-1"}},
 
-		{"lk.participantUpdate", (&participantUpdateDescriptor{}).ConfigSchema(),
+		{"lk.participant_update", (&participantUpdateDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "identity": "usr_1"}, false,
 			map[string]any{"identity": "usr_1"}},
 
-		{"lk.muteTrack", (&muteTrackDescriptor{}).ConfigSchema(),
+		{"lk.mute_track", (&muteTrackDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "identity": "usr_1", "track_sid": "TR_1", "muted": true}, false,
 			map[string]any{"room": "room-1", "identity": "usr_1", "track_sid": "TR_1"}},
 
-		{"lk.egressStartRoomComposite", (&egressStartRoomCompositeDescriptor{}).ConfigSchema(),
+		{"lk.egress_start_room_composite", (&egressStartRoomCompositeDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "output": map[string]any{"type": "file", "filepath": "/tmp/out.mp4"}}, false,
 			map[string]any{"room": "room-1"}},
 
-		{"lk.egressStartTrack", (&egressStartTrackDescriptor{}).ConfigSchema(),
+		{"lk.egress_start_track", (&egressStartTrackDescriptor{}).ConfigSchema(),
 			map[string]any{"room": "room-1", "track_sid": "TR_1", "output": map[string]any{"filepath": "/tmp/out.mp4"}}, false,
 			map[string]any{"room": "room-1", "track_sid": "TR_1"}},
 
-		{"lk.egressStop", (&egressStopDescriptor{}).ConfigSchema(),
+		{"lk.egress_stop", (&egressStopDescriptor{}).ConfigSchema(),
 			map[string]any{"egress_id": "EG_1"}, false,
 			map[string]any{"egress_id": 42}},
 
-		{"lk.egressList", (&egressListDescriptor{}).ConfigSchema(),
+		{"lk.egress_list", (&egressListDescriptor{}).ConfigSchema(),
 			map[string]any{}, true,
 			map[string]any{"room": 123}},
 
-		{"lk.ingressCreate", (&ingressCreateDescriptor{}).ConfigSchema(),
+		{"lk.ingress_create", (&ingressCreateDescriptor{}).ConfigSchema(),
 			map[string]any{"input_type": "rtmp", "room": "room-1", "participant_identity": "usr_1"}, false,
 			map[string]any{"room": "room-1", "participant_identity": "usr_1"}},
 
-		{"lk.ingressList", (&ingressListDescriptor{}).ConfigSchema(),
+		{"lk.ingress_list", (&ingressListDescriptor{}).ConfigSchema(),
 			map[string]any{}, true,
 			map[string]any{"room": true}},
 
-		{"lk.ingressDelete", (&ingressDeleteDescriptor{}).ConfigSchema(),
+		{"lk.ingress_delete", (&ingressDeleteDescriptor{}).ConfigSchema(),
 			map[string]any{"ingress_id": "IN_1"}, false,
 			map[string]any{"ingress_id": 42}},
 	}

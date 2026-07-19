@@ -1,4 +1,4 @@
-# lk.sendData
+# lk.send_data
 
 Sends data to participants in a LiveKit room.
 
@@ -32,7 +32,7 @@ Sends a data message to participants in the room via LiveKit's data channel. Use
 
 ```json
 {
-  "type": "lk.sendData",
+  "type": "lk.send_data",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -66,7 +66,7 @@ A chat message endpoint saves the message to the database, then broadcasts it to
     }
   },
   "broadcast": {
-    "type": "lk.sendData",
+    "type": "lk.send_data",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",

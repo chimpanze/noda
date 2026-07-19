@@ -189,7 +189,7 @@ The client receives the token and the LiveKit URL, then connects directly to Liv
   "id": "create-room",
   "nodes": {
     "create": {
-      "type": "lk.roomCreate",
+      "type": "lk.room_create",
       "services": { "livekit": "lk" },
       "config": {
         "name": "{{ input.name }}",
@@ -210,7 +210,7 @@ The client receives the token and the LiveKit URL, then connects directly to Liv
 }
 ```
 
-`list-rooms` (`lk.roomList` → `response.json`) and `list-participants` (`lk.participantList` → `response.json`) follow the same two-node shape.
+`list-rooms` (`lk.room_list` → `response.json`) and `list-participants` (`lk.participant_list` → `response.json`) follow the same two-node shape.
 
 ---
 
@@ -227,7 +227,7 @@ The client receives the token and the LiveKit URL, then connects directly to Liv
   "id": "start-recording",
   "nodes": {
     "record": {
-      "type": "lk.egressStartRoomComposite",
+      "type": "lk.egress_start_room_composite",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room_name }}",
@@ -271,7 +271,7 @@ The client receives the token and the LiveKit URL, then connects directly to Liv
 }
 ```
 
-The `egress_id` is saved to the database. Use it later to stop the recording with `lk.egressStop`.
+The `egress_id` is saved to the database. Use it later to stop the recording with `lk.egress_stop`.
 
 ### Handle LiveKit Webhooks
 
@@ -432,7 +432,7 @@ Allow users to stream from OBS or similar tools into a LiveKit room:
 ```json
 {
   "id": "create-ingress",
-  "type": "lk.ingressCreate",
+  "type": "lk.ingress_create",
   "services": { "livekit": "lk" },
   "config": {
     "input_type": "rtmp",
@@ -488,7 +488,7 @@ Validated by the `examples/video-rooms` project itself:
 
 | Feature | How it's used |
 |---|---|
-| LiveKit service | Room management and token generation (`lk.roomCreate`, `lk.roomList`, `lk.participantList`, `lk.token`) |
+| LiveKit service | Room management and token generation (`lk.room_create`, `lk.room_list`, `lk.participant_list`, `lk.token`) |
 | Expression engine | `$uuid()` identities, dynamic token grants |
 | Secrets | `LIVEKIT_URL` read via `secrets.*` in a workflow; credentials via `$env()` in `noda.json` |
 | Middleware presets + route groups | CORS applied to all `/api` routes via the `public` preset |

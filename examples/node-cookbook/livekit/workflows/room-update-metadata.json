@@ -3,7 +3,7 @@
   "name": "Update Room Metadata",
   "nodes": {
     "update": {
-      "type": "lk.roomUpdateMetadata",
+      "type": "lk.room_update_metadata",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

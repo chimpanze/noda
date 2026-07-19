@@ -3,7 +3,7 @@
   "name": "Remove Participant",
   "nodes": {
     "remove": {
-      "type": "lk.participantRemove",
+      "type": "lk.participant_remove",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

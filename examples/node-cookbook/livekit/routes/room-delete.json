@@ -2,7 +2,7 @@
   "id": "room-delete",
   "method": "DELETE",
   "path": "/api/rooms/:room",
-  "summary": "lk.roomDelete — delete a LiveKit room",
+  "summary": "lk.room_delete — delete a LiveKit room",
   "tags": ["livekit"],
   "trigger": {
     "workflow": "room-delete",

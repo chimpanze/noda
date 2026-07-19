@@ -1,4 +1,4 @@
-# lk.ingressDelete
+# lk.ingress_delete
 
 Deletes an ingress endpoint.
 
@@ -28,7 +28,7 @@ Deletes the specified ingress endpoint. Any active stream using this ingress is 
 
 ```json
 {
-  "type": "lk.ingressDelete",
+  "type": "lk.ingress_delete",
   "services": { "livekit": "lk" },
   "config": {
     "ingress_id": "{{ input.ingress_id }}"
@@ -52,7 +52,7 @@ A stop-stream endpoint looks up the ingress ID from the database and deletes the
     }
   },
   "delete_ingress": {
-    "type": "lk.ingressDelete",
+    "type": "lk.ingress_delete",
     "services": { "livekit": "lk" },
     "config": {
       "ingress_id": "{{ nodes.get_stream.ingress_id }}"

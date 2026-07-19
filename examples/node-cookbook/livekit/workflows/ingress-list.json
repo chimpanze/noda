@@ -3,7 +3,7 @@
   "name": "List Ingress Endpoints",
   "nodes": {
     "list": {
-      "type": "lk.ingressList",
+      "type": "lk.ingress_list",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}"

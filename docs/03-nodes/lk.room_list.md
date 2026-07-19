@@ -1,4 +1,4 @@
-# lk.roomList
+# lk.room_list
 
 Lists LiveKit rooms.
 
@@ -28,7 +28,7 @@ Lists all active rooms on the LiveKit server. If `names` is provided, only rooms
 
 ```json
 {
-  "type": "lk.roomList",
+  "type": "lk.room_list",
   "services": { "livekit": "lk" },
   "config": {}
 }
@@ -41,7 +41,7 @@ An admin dashboard endpoint lists all active rooms and returns them with partici
 ```json
 {
   "list_rooms": {
-    "type": "lk.roomList",
+    "type": "lk.room_list",
     "services": { "livekit": "lk" },
     "config": {}
   },

@@ -3,7 +3,7 @@
   "name": "List Egress Recordings",
   "nodes": {
     "list": {
-      "type": "lk.egressList",
+      "type": "lk.egress_list",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}"

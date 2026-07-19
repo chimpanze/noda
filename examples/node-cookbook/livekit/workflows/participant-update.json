@@ -3,7 +3,7 @@
   "name": "Update Participant",
   "nodes": {
     "update": {
-      "type": "lk.participantUpdate",
+      "type": "lk.participant_update",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

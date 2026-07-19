@@ -1,4 +1,4 @@
-# lk.ingressCreate
+# lk.ingress_create
 
 Creates a LiveKit ingress endpoint for streaming into a room.
 
@@ -32,7 +32,7 @@ Creates an ingress endpoint that allows external sources to stream media into a 
 
 ```json
 {
-  "type": "lk.ingressCreate",
+  "type": "lk.ingress_create",
   "services": { "livekit": "lk" },
   "config": {
     "input_type": "rtmp",
@@ -50,7 +50,7 @@ A start-stream endpoint creates a LiveKit room, then sets up an RTMP ingress and
 ```json
 {
   "create_room": {
-    "type": "lk.roomCreate",
+    "type": "lk.room_create",
     "services": { "livekit": "lk" },
     "config": {
       "name": "{{ 'stream-' + $uuid() }}",
@@ -58,7 +58,7 @@ A start-stream endpoint creates a LiveKit room, then sets up an RTMP ingress and
     }
   },
   "create_ingress": {
-    "type": "lk.ingressCreate",
+    "type": "lk.ingress_create",
     "services": { "livekit": "lk" },
     "config": {
       "input_type": "rtmp",

@@ -1,4 +1,4 @@
-# lk.participantUpdate
+# lk.participant_update
 
 Updates a participant's metadata or permissions.
 
@@ -51,7 +51,7 @@ it). Fires `success` with the updated participant object.
 
 ```json
 {
-  "type": "lk.participantUpdate",
+  "type": "lk.participant_update",
   "services": { "livekit": "lk" },
   "config": {
     "room": "{{ input.room_name }}",
@@ -72,7 +72,7 @@ A promote-to-speaker endpoint fetches the participant's current info, then grant
 ```json
 {
   "get_participant": {
-    "type": "lk.participantGet",
+    "type": "lk.participant_get",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",
@@ -80,7 +80,7 @@ A promote-to-speaker endpoint fetches the participant's current info, then grant
     }
   },
   "promote": {
-    "type": "lk.participantUpdate",
+    "type": "lk.participant_update",
     "services": { "livekit": "lk" },
     "config": {
       "room": "{{ input.room_name }}",

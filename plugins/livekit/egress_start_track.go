@@ -11,7 +11,7 @@ import (
 
 type egressStartTrackDescriptor struct{}
 
-func (d *egressStartTrackDescriptor) Name() string        { return "egressStartTrack" }
+func (d *egressStartTrackDescriptor) Name() string        { return "egress_start_track" }
 func (d *egressStartTrackDescriptor) Description() string { return "Starts a single track egress" }
 func (d *egressStartTrackDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -45,22 +45,22 @@ func (e *egressStartTrackExecutor) Outputs() []string { return api.DefaultOutput
 func (e *egressStartTrackExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_track: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_track: %w", err)
 	}
 
 	trackSID, err := plugin.ResolveString(nCtx, config, "track_sid")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_track: %w", err)
 	}
 
 	fileOutput, err := buildFileOutput(nCtx, config)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_track: %w", err)
 	}
 
 	req := &lkproto.TrackEgressRequest{
@@ -78,7 +78,7 @@ func (e *egressStartTrackExecutor) Execute(ctx context.Context, nCtx api.Executi
 	if fileOutput.Output != nil {
 		fileOut, ok := req.Output.(*lkproto.TrackEgressRequest_File)
 		if !ok || fileOut == nil {
-			return "", nil, fmt.Errorf("lk.egressStartTrack: unexpected output type")
+			return "", nil, fmt.Errorf("lk.egress_start_track: unexpected output type")
 		}
 		directOut := fileOut.File
 		switch v := fileOutput.Output.(type) {
@@ -93,7 +93,7 @@ func (e *egressStartTrackExecutor) Execute(ctx context.Context, nCtx api.Executi
 
 	info, err := svc.Egress.StartTrackEgress(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.egressStartTrack: %w", err)
+		return "", nil, fmt.Errorf("lk.egress_start_track: %w", err)
 	}
 
 	return api.OutputSuccess, egressInfoToMap(info), nil

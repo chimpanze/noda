@@ -37,6 +37,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `$ref` resolves bare JSON Schema files under `schemas/` by filename (`schemas/greeting.json` → `schemas/greeting`), alongside the existing named-definitions convention; unresolved-`$ref` errors now list every registered ref and the naming rule (#373).
 
 ### Changed
+- **Breaking:** livekit node types renamed to snake_case for consistency with every other plugin (`lk` prefix unchanged, `lk.token` unchanged). There are no aliases — old names now fail validation as unknown node types. Full mapping:
+
+  | Old | New |
+  |---|---|
+  | `lk.roomCreate` | `lk.room_create` |
+  | `lk.roomList` | `lk.room_list` |
+  | `lk.roomDelete` | `lk.room_delete` |
+  | `lk.roomUpdateMetadata` | `lk.room_update_metadata` |
+  | `lk.participantGet` | `lk.participant_get` |
+  | `lk.participantList` | `lk.participant_list` |
+  | `lk.participantRemove` | `lk.participant_remove` |
+  | `lk.participantUpdate` | `lk.participant_update` |
+  | `lk.muteTrack` | `lk.mute_track` |
+  | `lk.sendData` | `lk.send_data` |
+  | `lk.ingressCreate` | `lk.ingress_create` |
+  | `lk.ingressDelete` | `lk.ingress_delete` |
+  | `lk.ingressList` | `lk.ingress_list` |
+  | `lk.egressStartRoomComposite` | `lk.egress_start_room_composite` |
+  | `lk.egressStartTrack` | `lk.egress_start_track` |
+  | `lk.egressStop` | `lk.egress_stop` |
+  | `lk.egressList` | `lk.egress_list` |
 - Built-in plugin list consolidated into `plugins/all`; runtime, MCP server, and the ServiceConfigSchema audit consume one source (#384).
 - Validation now rejects workflow edges whose `output` names an undeclared node output (boot already did; validate/editor/MCP now agree) (#379).
 - Service configs are now validated against each plugin's declared schema on every surface (validate/boot/editor/MCP/hot-reload) — was: `valid: true` for configs whose plugin would refuse to boot (#376).

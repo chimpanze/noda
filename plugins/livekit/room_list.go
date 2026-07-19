@@ -11,7 +11,7 @@ import (
 
 type roomListDescriptor struct{}
 
-func (d *roomListDescriptor) Name() string        { return "roomList" }
+func (d *roomListDescriptor) Name() string        { return "room_list" }
 func (d *roomListDescriptor) Description() string { return "Lists LiveKit rooms" }
 func (d *roomListDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -40,13 +40,13 @@ func (e *roomListExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *roomListExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomList: %w", err)
+		return "", nil, fmt.Errorf("lk.room_list: %w", err)
 	}
 
 	req := &lkproto.ListRoomsRequest{}
 
 	if names, err := plugin.ResolveOptionalArray(nCtx, config, "names"); err != nil {
-		return "", nil, fmt.Errorf("lk.roomList: %w", err)
+		return "", nil, fmt.Errorf("lk.room_list: %w", err)
 	} else {
 		for _, n := range names {
 			if s, ok := n.(string); ok {
@@ -57,7 +57,7 @@ func (e *roomListExecutor) Execute(ctx context.Context, nCtx api.ExecutionContex
 
 	resp, err := svc.Room.ListRooms(ctx, req)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomList: %w", err)
+		return "", nil, fmt.Errorf("lk.room_list: %w", err)
 	}
 
 	rooms := make([]any, len(resp.Rooms))

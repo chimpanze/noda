@@ -3,7 +3,7 @@
   "name": "Send Data",
   "nodes": {
     "send": {
-      "type": "lk.sendData",
+      "type": "lk.send_data",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

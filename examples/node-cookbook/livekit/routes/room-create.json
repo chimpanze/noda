@@ -2,7 +2,7 @@
   "id": "room-create",
   "method": "POST",
   "path": "/api/rooms",
-  "summary": "lk.roomCreate — create a LiveKit room",
+  "summary": "lk.room_create — create a LiveKit room",
   "tags": ["livekit"],
   "trigger": {
     "workflow": "room-create",

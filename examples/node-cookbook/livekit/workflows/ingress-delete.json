@@ -3,7 +3,7 @@
   "name": "Delete Ingress",
   "nodes": {
     "delete": {
-      "type": "lk.ingressDelete",
+      "type": "lk.ingress_delete",
       "services": { "livekit": "lk" },
       "config": {
         "ingress_id": "{{ input.ingress_id }}"

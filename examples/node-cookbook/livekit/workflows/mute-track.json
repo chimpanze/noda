@@ -3,7 +3,7 @@
   "name": "Mute Track",
   "nodes": {
     "mute": {
-      "type": "lk.muteTrack",
+      "type": "lk.mute_track",
       "services": { "livekit": "lk" },
       "config": {
         "room": "{{ input.room }}",

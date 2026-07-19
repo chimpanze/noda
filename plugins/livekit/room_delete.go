@@ -11,7 +11,7 @@ import (
 
 type roomDeleteDescriptor struct{}
 
-func (d *roomDeleteDescriptor) Name() string        { return "roomDelete" }
+func (d *roomDeleteDescriptor) Name() string        { return "room_delete" }
 func (d *roomDeleteDescriptor) Description() string { return "Deletes a LiveKit room" }
 func (d *roomDeleteDescriptor) ServiceDeps() map[string]api.ServiceDep {
 	return map[string]api.ServiceDep{serviceDep: {Prefix: "lk", Required: true}}
@@ -41,17 +41,17 @@ func (e *roomDeleteExecutor) Outputs() []string { return api.DefaultOutputs() }
 func (e *roomDeleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	svc, err := plugin.GetService[*Service](services, serviceDep)
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomDelete: %w", err)
+		return "", nil, fmt.Errorf("lk.room_delete: %w", err)
 	}
 
 	room, err := plugin.ResolveString(nCtx, config, "room")
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomDelete: %w", err)
+		return "", nil, fmt.Errorf("lk.room_delete: %w", err)
 	}
 
 	_, err = svc.Room.DeleteRoom(ctx, &lkproto.DeleteRoomRequest{Room: room})
 	if err != nil {
-		return "", nil, fmt.Errorf("lk.roomDelete: %w", err)
+		return "", nil, fmt.Errorf("lk.room_delete: %w", err)
 	}
 
 	return api.OutputSuccess, map[string]any{"deleted": true}, nil
