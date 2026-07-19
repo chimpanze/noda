@@ -57,7 +57,7 @@ means per node:
 **What full verification would need:**
 - A live WebRTC participant (browser/SDK client, e.g. `examples/video-rooms`
   or the LiveKit CLI) actually joined to `cookbook-room`, to exercise the
-  success paths of `lk.participant_get/Update/Remove` and `lk.mute_track`,
+  success paths of `lk.participant_get`/`lk.participant_update`/`lk.participant_remove` and `lk.mute_track`,
   and to make `lk.token`'s issued JWT actually redeemable.
 - A running `livekit-egress` worker (with Redis message bus configured on
   the server) to exercise the success paths of `lk.egress_start_room_composite`,
