@@ -1,4 +1,4 @@
-package server
+package editor
 
 import (
 	"encoding/json"
@@ -65,7 +65,7 @@ func setupCodegenApp(t *testing.T) (*fiber.App, string) {
 
 	root, _ := pathutil.NewRoot(tmpDir)
 	reloader := devmode.NewReloader(tmpDir, "", rc, nil, slog.Default())
-	editorAPI := NewEditorAPI(root, "", reloader, pluginReg, nodeReg, svcReg, compiler, nil)
+	editorAPI := NewAPI(root, "", reloader, pluginReg, nodeReg, svcReg, compiler, nil)
 	editorAPI.rc = rc
 	editorAPI.Register(app)
 	return app, tmpDir

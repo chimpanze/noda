@@ -17,19 +17,21 @@ cmd/noda/                              ← CLI entry point
 pkg/api/                               ← public interfaces (plugin author contract)
 internal/
   config/                              ← config loading, merging, validation
+  connmgr/                             ← WebSocket/SSE connection manager
+  devmode/                             ← dev mode with hot reload
+  editor/                              ← visual editor dev-mode API (/_noda endpoints)
   engine/                              ← workflow engine
   expr/                                ← expression parser, compiler, evaluator
-  registry/                            ← plugin, service, node registries
-  server/                              ← Fiber HTTP server
-  worker/                              ← worker runtime
-  scheduler/                           ← scheduler runtime
-  connmgr/                             ← WebSocket/SSE connection manager
-  wasm/                                ← Wasm runtime (Extism)
-  trace/                               ← tracing, dev mode trace WebSocket
-  testing/                             ← workflow test runner
-  migrate/                             ← database migration management
   lifecycle/                           ← startup/shutdown lifecycle manager
-  devmode/                             ← dev mode with hot reload
+  migrate/                             ← database migration management
+  registry/                            ← plugin, service, node registries
+  routecfg/                            ← route/middleware config helpers (leaf)
+  scheduler/                           ← scheduler runtime
+  server/                              ← Fiber HTTP server
+  testing/                             ← workflow test runner
+  trace/                               ← tracing, dev mode trace WebSocket
+  wasm/                                ← Wasm runtime (Extism)
+  worker/                              ← worker runtime
 plugins/
   db/                                  ← PostgreSQL plugin
   cache/                               ← Redis cache plugin

@@ -1,7 +1,8 @@
-package server
+package editor
 
 import (
 	"io/fs"
+	"log/slog"
 	"mime"
 	"path/filepath"
 	"strings"
@@ -11,17 +12,17 @@ import (
 	"github.com/gofiber/fiber/v3"
 )
 
-// RegisterEditorUI serves the embedded editor SPA at /editor/.
+// RegisterUI serves the embedded editor SPA at /editor/.
 // If the binary was built without the embed_editor tag, a placeholder is shown.
 // In production mode a no-op trace WebSocket is registered so the editor
 // connects without errors; in dev mode the real trace endpoint is registered
 // separately via trace.RegisterTraceWebSocket.
-func (s *Server) RegisterEditorUI() {
+func RegisterUI(app *fiber.App, logger *slog.Logger) {
 	if editorfs.FS == nil {
-		s.app.Get("/editor", func(c fiber.Ctx) error {
+		app.Get("/editor", func(c fiber.Ctx) error {
 			return c.Status(fiber.StatusOK).SendString("Editor not embedded. Build with: go build -tags embed_editor")
 		})
-		s.app.Get("/editor/*", func(c fiber.Ctx) error {
+		app.Get("/editor/*", func(c fiber.Ctx) error {
 			return c.Status(fiber.StatusOK).SendString("Editor not embedded. Build with: go build -tags embed_editor")
 		})
 		return
@@ -30,17 +31,17 @@ func (s *Server) RegisterEditorUI() {
 	// Read index.html once at startup for SPA fallback
 	indexHTML, err := fs.ReadFile(editorfs.FS, "index.html")
 	if err != nil {
-		s.logger.Warn("editor index.html not found in embedded assets", "error", err.Error())
+		logger.Warn("editor index.html not found in embedded assets", "error", err.Error())
 		return
 	}
 
-	s.app.Get("/editor", func(c fiber.Ctx) error {
+	app.Get("/editor", func(c fiber.Ctx) error {
 		c.Set("Content-Type", "text/html; charset=utf-8")
 		c.Set("Cache-Control", "no-cache")
 		return c.Send(indexHTML)
 	})
 
-	s.app.Get("/editor/*", func(c fiber.Ctx) error {
+	app.Get("/editor/*", func(c fiber.Ctx) error {
 		path := c.Params("*")
 		if path == "" || path == "/" {
 			c.Set("Content-Type", "text/html; charset=utf-8")
@@ -77,7 +78,7 @@ func (s *Server) RegisterEditorUI() {
 	// Register a no-op /ws/trace so the editor can connect without errors.
 	// In dev mode this is overridden by trace.RegisterTraceWebSocket which
 	// streams real execution events.
-	trace.RegisterNoOpTraceWebSocket(s.app)
+	trace.RegisterNoOpTraceWebSocket(app)
 
-	s.logger.Info("editor UI registered at /editor/")
+	logger.Info("editor UI registered at /editor/")
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/routecfg"
 )
 
 // ValidateMiddlewareBuilds builds every middleware referenced by
@@ -114,5 +115,5 @@ func (s *Server) middlewareConfigFor(name string) (map[string]any, error) {
 		}
 		return cfg, nil
 	}
-	return extractMiddlewareConfig(name, s.config.Root), nil
+	return routecfg.ExtractMiddlewareConfig(name, s.config.Root), nil
 }

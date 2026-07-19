@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/metrics"
+	"github.com/chimpanze/noda/internal/routecfg"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/gofiber/fiber/v3"
 	"github.com/gofiber/fiber/v3/middleware/compress"
@@ -89,47 +90,10 @@ func BuildMiddleware(name string, rootConfig map[string]any) (fiber.Handler, err
 			return nil, fmt.Errorf("middleware instance %q not found in middleware_instances", name)
 		}
 	} else {
-		mwConfig = extractMiddlewareConfig(name, rootConfig)
+		mwConfig = routecfg.ExtractMiddlewareConfig(name, rootConfig)
 	}
 
 	return factory(mwConfig, rootConfig)
-}
-
-// middlewareConfigPaths maps middleware names to alternative config lookup paths.
-// Each path is a sequence of nested keys in the root config.
-// The "middleware" section is always checked first for all middleware.
-var middlewareConfigPaths = map[string][]string{
-	"security.cors":    {"security", "cors"},
-	"security.headers": {"security", "headers"},
-	"security.csrf":    {"security", "csrf"},
-	"auth.jwt":         {"security", "jwt"},
-	"auth.oidc":        {"security", "oidc"},
-	"auth.session":     {"security", "session"},
-	"casbin.enforce":   {"security", "casbin"},
-	"livekit.webhook":  {"security", "livekit"},
-}
-
-// extractMiddlewareConfig extracts the config block for a specific middleware.
-func extractMiddlewareConfig(name string, rootConfig map[string]any) map[string]any {
-	// Try middleware section first
-	if mw, ok := rootConfig["middleware"].(map[string]any); ok {
-		if cfg, ok := mw[name].(map[string]any); ok {
-			return cfg
-		}
-	}
-	// Try alternative config path
-	if path, ok := middlewareConfigPaths[name]; ok {
-		cfg := rootConfig
-		for _, key := range path {
-			next, ok := cfg[key].(map[string]any)
-			if !ok {
-				return nil
-			}
-			cfg = next
-		}
-		return cfg
-	}
-	return nil
 }
 
 func newRecoverMiddleware(_ map[string]any, rootConfig map[string]any) (fiber.Handler, error) {
