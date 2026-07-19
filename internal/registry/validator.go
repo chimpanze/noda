@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -164,7 +165,12 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			pluginName, _ := cfg["plugin"].(string)
 			p, found := plugins.GetByName(pluginName)
 			if !found {
-				continue // unknown plugin is a crossref error already
+				// #385: crossrefs only catch this service when a node
+				// references it; an unreferenced entry would otherwise pass
+				// validate and fail at boot (lifecycle.go "unknown plugin").
+				errs = append(errs, &ServiceConfigError{Service: name, Plugin: pluginName,
+					Err: fmt.Errorf("unknown plugin %q (known plugins: %s)", pluginName, strings.Join(pluginNames(plugins), ", "))})
+				continue
 			}
 			schema := p.ServiceConfigSchema()
 			if schema == nil {
@@ -250,6 +256,13 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		// config-aware (control.switch's outputs depend on its "cases"
 		// config), matching the engine resolver exactly.
 		if edgesRaw, ok := wf["edges"].([]any); ok {
+			// #386: resolve each source node's outputs once, not once per
+			// edge — engine.Compile computes per node and reuses; mirror it.
+			type outputsResult struct {
+				outputs []string
+				ok      bool
+			}
+			outputsByNode := make(map[string]outputsResult)
 			for _, rawEdge := range edgesRaw {
 				edgeMap, ok := rawEdge.(map[string]any)
 				if !ok {
@@ -280,11 +293,16 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 					continue // unregistered node type: owned by check 2 above
 				}
 
-				fromCfg, _ := fromNode["config"].(map[string]any)
-				outputs, ok := nodes.OutputsForTypeWithConfig(fromType, fromCfg)
-				if !ok {
+				res, cached := outputsByNode[from]
+				if !cached {
+					fromCfg, _ := fromNode["config"].(map[string]any)
+					res.outputs, res.ok = nodes.OutputsForTypeWithConfig(fromType, fromCfg)
+					outputsByNode[from] = res
+				}
+				if !res.ok {
 					continue
 				}
+				outputs := res.outputs
 
 				wantOutput := output
 				if wantOutput == "" {
@@ -350,6 +368,18 @@ func extractPrefix(nodeType string) string {
 		return nodeType[:idx]
 	}
 	return nodeType
+}
+
+// pluginNames returns the sorted names of all registered plugins, for
+// unknown-plugin error messages.
+func pluginNames(plugins *PluginRegistry) []string {
+	all := plugins.All()
+	names := make([]string, 0, len(all))
+	for _, p := range all {
+		names = append(names, p.Name())
+	}
+	sort.Strings(names)
+	return names
 }
 
 // containsStr reports whether s is present in slice.

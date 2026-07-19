@@ -248,6 +248,10 @@ func TestValidateStartupDryRun_WrongPrefix(t *testing.T) {
 		},
 	})
 	require.NoError(t, plugins.Register(dbPlugin))
+	// The cache plugin must be registered: since #385 an unknown plugin name
+	// is its own dry-run error, and this test targets only the prefix check.
+	cachePlugin := pluginWithNodes("cache", "cache", nil)
+	require.NoError(t, plugins.Register(cachePlugin))
 
 	nodes := NewNodeRegistry()
 	require.NoError(t, nodes.RegisterFromPlugin(dbPlugin))
@@ -456,14 +460,16 @@ func TestValidateStartupDryRun_ServiceConfigSchema_ValidConfigPasses(t *testing.
 	assert.Empty(t, errs)
 }
 
-func TestValidateStartupDryRun_ServiceConfigSchema_UnknownPluginSkipped(t *testing.T) {
+func TestValidateStartupDryRun_ServiceConfigSchema_UnknownPluginErrors(t *testing.T) {
 	plugins := NewPluginRegistry()
+	authPlugin := &schemaOnlyPlugin{name: "auth", prefix: "auth", hasServices: true, schema: authLikeSchema()}
+	require.NoError(t, plugins.Register(authPlugin))
 	nodes := NewNodeRegistry()
 
 	rc := &config.ResolvedConfig{
 		Root: map[string]any{
 			"services": map[string]any{
-				"auth": map[string]any{
+				"mystery": map[string]any{
 					"plugin": "does-not-exist",
 					"config": map[string]any{},
 				},
@@ -471,10 +477,14 @@ func TestValidateStartupDryRun_ServiceConfigSchema_UnknownPluginSkipped(t *testi
 		},
 	}
 
-	// Unknown plugin name: dry-run skips service-schema validation for it
-	// (crossref validation elsewhere is responsible for flagging it).
+	// #385: crossrefs only flag an unknown plugin when a node references the
+	// service — an unreferenced entry must still fail the dry run instead of
+	// passing validate and erroring at boot.
 	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
-	assert.Empty(t, errs)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `unknown plugin "does-not-exist"`)
+	assert.Contains(t, errs[0].Error(), "mystery")
+	assert.Contains(t, errs[0].Error(), "known plugins: auth")
 }
 
 func TestValidateStartupDryRun_ServiceConfigSchema_ExtraKeyRejected(t *testing.T) {

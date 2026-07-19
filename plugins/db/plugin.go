@@ -94,9 +94,11 @@ func (p *Plugin) ServiceConfigSchema() map[string]any {
 		"type": "object",
 		"properties": map[string]any{
 			"driver": map[string]any{
-				"type":        "string",
-				"enum":        []any{"postgres", "sqlite"},
-				"description": "Database driver (default postgres)",
+				"type": "string",
+				// "" is accepted because CreateService treats empty as the
+				// default (postgres) — schema and parser must agree (#386).
+				"enum":        []any{"postgres", "sqlite", ""},
+				"description": "Database driver (default postgres; empty string means default)",
 			},
 			"url": map[string]any{
 				"type":        "string",

@@ -117,3 +117,13 @@ func TestToInt(t *testing.T) {
 		}
 	}
 }
+
+// TestServiceConfigSchema_AcceptsEmptyDriver pins #386: CreateService treats
+// driver "" as "postgres", so the schema must accept an explicit "" too —
+// schema and parser agree on every representable input.
+func TestServiceConfigSchema_AcceptsEmptyDriver(t *testing.T) {
+	p := &Plugin{}
+	schema := p.ServiceConfigSchema()
+	assert.Empty(t, registry.ValidateNodeConfig(schema, map[string]any{"driver": "", "url": "postgres://x"}),
+		`explicit "driver": "" must pass schema validation (parser defaults it to postgres)`)
+}

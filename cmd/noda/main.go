@@ -28,37 +28,14 @@ import (
 	"github.com/chimpanze/noda/internal/wasm"
 	"github.com/chimpanze/noda/internal/worker"
 	"github.com/chimpanze/noda/pkg/api"
-	authplugin "github.com/chimpanze/noda/plugins/auth"
-	cacheplugin "github.com/chimpanze/noda/plugins/cache"
-	"github.com/chimpanze/noda/plugins/core/control"
-	"github.com/chimpanze/noda/plugins/core/event"
-	coreoidc "github.com/chimpanze/noda/plugins/core/oidc"
-	"github.com/chimpanze/noda/plugins/core/response"
-	coresse "github.com/chimpanze/noda/plugins/core/sse"
-	corestorage "github.com/chimpanze/noda/plugins/core/storage"
-	"github.com/chimpanze/noda/plugins/core/transform"
-	"github.com/chimpanze/noda/plugins/core/upload"
-	"github.com/chimpanze/noda/plugins/core/util"
-	corewasm "github.com/chimpanze/noda/plugins/core/wasm"
-	"github.com/chimpanze/noda/plugins/core/workflow"
-	corews "github.com/chimpanze/noda/plugins/core/ws"
+	"github.com/chimpanze/noda/plugins/all"
 	dbplugin "github.com/chimpanze/noda/plugins/db"
-	emailplugin "github.com/chimpanze/noda/plugins/email"
-	httpplugin "github.com/chimpanze/noda/plugins/http"
-	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
-	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
-	storageplugin "github.com/chimpanze/noda/plugins/storage"
-	streamplugin "github.com/chimpanze/noda/plugins/stream"
 	"github.com/gofiber/fiber/v3"
 	"github.com/google/uuid"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 	"github.com/spf13/cobra"
 	"gorm.io/gorm"
 )
-
-// optionalPlugins holds plugins registered via build-tagged init() functions.
-// The image plugin is added here when built without the noimage tag.
-var optionalPlugins []api.Plugin
 
 // Build info set at build time via -ldflags.
 var (
@@ -751,43 +728,16 @@ func getDBFromConfig(cmd *cobra.Command) (*gorm.DB, string, func(), error) {
 	return db, configDir, cleanup, nil
 }
 
-// corePlugins returns all built-in plugins. Used by both buildCoreNodeRegistry
-// (for the test runner, which only needs nodes) and registerCorePlugins
-// (for the full runtime, which also needs service-only plugins).
-func corePlugins() []api.Plugin {
-	plugins := []api.Plugin{
-		&control.Plugin{},
-		&transform.Plugin{},
-		&util.Plugin{},
-		&workflow.Plugin{},
-		&response.Plugin{},
-		&dbplugin.Plugin{},
-		&cacheplugin.Plugin{},
-		&event.Plugin{},
-		&corestorage.Plugin{},
-		&upload.Plugin{},
-		&httpplugin.Plugin{},
-		&emailplugin.Plugin{},
-		&corews.Plugin{},
-		&coresse.Plugin{},
-		&corewasm.Plugin{},
-		&coreoidc.Plugin{},
-		&livekitplugin.Plugin{},
-		&authplugin.Plugin{},
-	}
-	return append(plugins, optionalPlugins...)
-}
+// corePlugins returns all built-in node-bearing plugins. Used by both
+// buildCoreNodeRegistry (for the test runner, which only needs nodes) and
+// registerCorePlugins (for the full runtime, which also needs service-only
+// plugins). The list itself lives in plugins/all (#384).
+func corePlugins() []api.Plugin { return all.Core() }
 
 // serviceOnlyPlugins returns plugins that provide services but no nodes
 // used by workflows (stream, pubsub, storage). These are registered in the
 // full runtime but not needed for the test runner's node registry.
-func serviceOnlyPlugins() []api.Plugin {
-	return []api.Plugin{
-		&streamplugin.Plugin{},
-		&pubsubplugin.Plugin{},
-		&storageplugin.Plugin{},
-	}
-}
+func serviceOnlyPlugins() []api.Plugin { return all.ServiceOnly() }
 
 func buildCoreNodeRegistry() (*registry.NodeRegistry, error) {
 	nodeReg := registry.NewNodeRegistry()
