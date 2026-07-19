@@ -451,3 +451,28 @@ func TestCrossrefs_RouteTriggerFilesInputMapping(t *testing.T) {
 		assert.Empty(t, filesErrs(errs))
 	})
 }
+
+// TestCrossRefs_WsSendNoEndpointsDefinedAnywhere pins #380: when NO
+// connections endpoints are defined, the error must say so — a bare
+// "references non-existent endpoint" is indistinguishable from a typo and
+// hides the connections/*.json (or inline noda.json) placement convention.
+func TestCrossRefs_WsSendNoEndpointsDefinedAnywhere(t *testing.T) {
+	rc := makeBaseRC()
+	rc.Workflows["workflows/broadcast.json"] = map[string]any{
+		"id": "broadcast",
+		"nodes": map[string]any{
+			"send": map[string]any{
+				"type":     "ws.send",
+				"services": map[string]any{"connections": "board"},
+				"config":   map[string]any{"channel": "board.1", "data": map[string]any{}},
+			},
+		},
+		"edges": []any{},
+	}
+
+	errs := ValidateCrossRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Message, `references non-existent connections endpoint "board"`)
+	assert.Contains(t, errs[0].Message, "no connections endpoints are defined")
+	assert.Contains(t, errs[0].Message, "connections/")
+}

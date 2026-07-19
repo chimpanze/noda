@@ -25,19 +25,19 @@ Files in `schemas/*.json`. Each file contains named JSON Schema definitions.
 Referenced from routes and nodes with `$ref`:
 
 ```json
-{ "$ref": "schemas/Task#CreateTask" }
+{ "$ref": "schemas/CreateTask" }
 ```
 
 ## How `$ref` Resolution Works
 
-Schema references use the format `schemas/<filename_without_extension>#<key>`. Given a file `schemas/Task.json` containing keys `Task` and `CreateTask`, the available refs are:
+Refs are resolved from the schema **definition names**, not filenames. Two file shapes are supported:
 
-- `schemas/Task#Task`
-- `schemas/Task#CreateTask`
+- **Named-definitions file** (shown above): each top-level key is a schema, registered as `schemas/<Key>`. `schemas/Task.json` containing keys `Task` and `CreateTask` registers `schemas/Task` and `schemas/CreateTask`. The filename itself does not matter.
+- **Bare schema file**: a file that is itself a JSON Schema document (top level has `type`, `properties`, etc.) registers under its filename -- `schemas/greeting.json` registers `schemas/greeting`.
 
-For schemas in subdirectories (e.g. `schemas/validation/User.json` with key `CreateUser`), the ref is `schemas/validation/User#CreateUser`.
+For files in subdirectories the directory path is part of the ref: `schemas/validation/User.json` with key `CreateUser` registers `schemas/validation/CreateUser`; a bare `schemas/validation/greeting.json` registers `schemas/validation/greeting`.
 
-During config loading, all `$ref` values are resolved and inlined before workflows or routes run. This means refs work in routes, workflows, workers, schedules, and connections -- anywhere a schema is expected.
+During config loading, all `$ref` values are resolved and inlined before workflows or routes run. This means refs work in routes, workflows, workers, schedules, and connections -- anywhere a schema is expected. An unresolved ref fails validation with an error that lists every registered ref.
 
 ## Request Body Validation
 
@@ -50,7 +50,7 @@ Define a `body.schema` on a route to validate incoming request bodies before the
   "path": "/api/users",
   "body": {
     "validate": true,
-    "schema": { "$ref": "schemas/User#CreateUser" }
+    "schema": { "$ref": "schemas/CreateUser" }
   },
   "trigger": {
     "workflow": "create-user",
@@ -231,7 +231,7 @@ Define schemas once in `schemas/` files and reference them across multiple route
   "method": "GET",
   "path": "/api/users",
   "query": {
-    "schema": { "$ref": "schemas/Pagination#PaginationQuery" }
+    "schema": { "$ref": "schemas/PaginationQuery" }
   },
   "trigger": {
     "workflow": "list-users",
@@ -336,7 +336,7 @@ The `transform.validate` node validates data inside a workflow using the same JS
     "type": "transform.validate",
     "config": {
       "data": "{{ input.data }}",
-      "schema": { "$ref": "schemas/EditOperation#EditOperation" }
+      "schema": { "$ref": "schemas/EditOperation" }
     }
   }
 }

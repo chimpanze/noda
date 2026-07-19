@@ -33,7 +33,10 @@
     "body": {
       "type": "object",
       "properties": {
-        "schema": { "type": "object" },
+        "schema": {
+          "type": "object",
+          "description": "Inline JSON Schema or {\"$ref\": \"schemas/<Name>\"} — <Name> is a top-level key in a schemas/*.json definitions file, or the filename of a bare-schema file. See docs/02-config/schemas.md."
+        },
         "content_type": { "type": "string" },
         "validate": { "type": "boolean" }
       }

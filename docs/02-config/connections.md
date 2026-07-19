@@ -2,6 +2,8 @@
 
 Files in `connections/*.json`. Defines WebSocket and SSE endpoints.
 
+Connection config is discovered **only** from the `connections/` directory (any filename, mirroring `routes/` and `workflows/`). A top-level `connections` key in `noda.json` is rejected by validation, and a `connections.json` file at the project root is not discovered — move it into the `connections/` directory instead.
+
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `sync` | object | no | Cross-instance sync service. Absent means local-only delivery (single-instance mode) |

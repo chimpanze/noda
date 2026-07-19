@@ -173,10 +173,17 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 					if nodeType == "ws.send" || nodeType == "sse.send" {
 						if svcs, ok := node["services"].(map[string]any); ok {
 							if epName, ok := svcs["connections"].(string); ok && !endpoints[epName] {
+								msg := fmt.Sprintf("references non-existent connections endpoint %q", epName)
+								if len(endpoints) == 0 {
+									// #380: distinguish "typo" from "the config
+									// was never discovered" — endpoints are only
+									// read from the connections/ directory.
+									msg += " (no connections endpoints are defined anywhere — define them in a connections/*.json file, e.g. connections/realtime.json)"
+								}
 								errs = append(errs, ValidationError{
 									FilePath: filePath,
 									JSONPath: fmt.Sprintf("/nodes/%s/services/connections", nodeID),
-									Message:  fmt.Sprintf("references non-existent connections endpoint %q", epName),
+									Message:  msg,
 								})
 							}
 						}

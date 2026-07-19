@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Node cookbook tranche 4: auth and oidc families (11 node types) verified against real Postgres and a [Dex](https://dexidp.io/) OIDC provider container, including a real authorization-code exchange (`oidc.exchange`) (cumulative 63/81 node types covered).
 - Node cookbook tranche 5 (final): livekit family (18 node types) verified against a real LiveKit dev-server container; Runnable-example links added to all 81 node docs pages; CI coverage gate (`TestCookbookCoverage`) enforces every node type ships a cookbook example. Node cookbook complete at 81/81 node types covered.
 - Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
+- `$ref` resolves bare JSON Schema files under `schemas/` by filename (`schemas/greeting.json` → `schemas/greeting`), alongside the existing named-definitions convention; unresolved-`$ref` errors now list every registered ref and the naming rule (#373).
 
 ### Changed
 - Built-in plugin list consolidated into `plugins/all`; runtime, MCP server, and the ServiceConfigSchema audit consume one source (#384).
@@ -69,6 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 23-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
+- Docs described a `schemas/File#Key` `$ref` syntax that never resolved; corrected to the real `schemas/<Key>` rule across docs and the MCP crud example (#373).
+- A top-level `connections` key in `noda.json` is now rejected with a pointer to the `connections/*.json` convention; previously the root schema advertised it while the runtime silently ignored it. ws.send/sse.send endpoint crossref errors also state when no connections endpoints are defined anywhere (#380).
 - `noda validate` (and MCP/editor validation) now errors on `services.*` entries whose `plugin` name is unknown, even when no node references the service (#385).
 - db/storage service schemas accept an explicit empty `driver`/`backend` string, matching the parsers' treat-empty-as-default behavior (#386).
 - `response.file` now accepts a string `data` value (sent as-is), matching its documented contract; previously only `[]byte` was accepted and strings errored.

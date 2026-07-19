@@ -267,3 +267,97 @@ func TestExtractSchemasRelPath(t *testing.T) {
 		})
 	}
 }
+
+// TestResolveRefs_BareSchemaFileRegistersUnderFilename pins #373: a schema
+// file that is itself a JSON Schema document (has "type"/"properties"/...
+// at top level, rather than name→schema wrapper keys) registers under
+// schemas/<filename-without-extension>.
+func TestResolveRefs_BareSchemaFileRegistersUnderFilename(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"project/schemas/greeting.json": {
+				"type": "object",
+				"properties": map[string]any{
+					"message": map[string]any{"type": "string"},
+				},
+				"required": []any{"message"},
+			},
+		},
+		Routes: map[string]map[string]any{
+			"routes/greet.json": {
+				"body": map[string]any{"schema": map[string]any{"$ref": "schemas/greeting"}},
+			},
+		},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Empty(t, errs)
+
+	body := rc.Routes["routes/greet.json"]["body"].(map[string]any)
+	schema := body["schema"].(map[string]any)
+	assert.Equal(t, "object", schema["type"])
+	props := schema["properties"].(map[string]any)
+	assert.Contains(t, props, "message")
+}
+
+// TestResolveRefs_BareSchemaFileSubdir: a bare schema file in a
+// subdirectory registers under its directory path + filename (#373).
+func TestResolveRefs_BareSchemaFileSubdir(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"project/schemas/validation/greeting.json": {
+				"type": "object",
+			},
+		},
+		Routes: map[string]map[string]any{
+			"routes/a.json": {"schema": map[string]any{"$ref": "schemas/validation/greeting"}},
+		},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Empty(t, errs)
+}
+
+// TestResolveRefs_BareSchemaFileDoesNotRegisterKeywordKeys: a bare schema
+// file must NOT leak wrapper-style refs from its own keyword keys
+// (e.g. "schemas/properties") (#373).
+func TestResolveRefs_BareSchemaFileDoesNotRegisterKeywordKeys(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"project/schemas/greeting.json": {
+				"type":       "object",
+				"properties": map[string]any{"message": map[string]any{"type": "string"}},
+			},
+		},
+		Routes: map[string]map[string]any{
+			"routes/a.json": {"schema": map[string]any{"$ref": "schemas/properties"}},
+		},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), "unresolved $ref")
+}
+
+// TestResolveRefs_UnresolvedErrorListsKnownRefs pins #373: the
+// unresolved-$ref error must teach the resolution rule and list what IS
+// registered, so a near-miss ref is self-diagnosing.
+func TestResolveRefs_UnresolvedErrorListsKnownRefs(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"project/schemas/User.json": {
+				"User": map[string]any{"type": "object"},
+			},
+		},
+		Routes: map[string]map[string]any{
+			"routes/a.json": {"schema": map[string]any{"$ref": "schemas/user"}},
+		},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	msg := errs[0].Error()
+	assert.Contains(t, msg, `unresolved $ref "schemas/user"`)
+	assert.Contains(t, msg, "schemas/User")  // the known-refs list
+	assert.Contains(t, msg, "top-level key") // the convention hint
+}

@@ -57,7 +57,7 @@ Response schemas are keyed by HTTP status code. Only responses from workflow res
   "tags": ["tasks"],
   "middleware": ["auth.jwt"],
   "body": {
-    "schema": { "$ref": "schemas/Task#UpdateTask" }
+    "schema": { "$ref": "schemas/UpdateTask" }
   },
   "trigger": {
     "workflow": "update-task",
