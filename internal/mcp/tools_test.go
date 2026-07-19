@@ -384,8 +384,9 @@ func TestGetExamplesHandler(t *testing.T) {
 	t.Run("every example config snippet is valid JSON", func(t *testing.T) {
 		for name, example := range examplePatterns {
 			for key, val := range example {
-				// "description" is prose; migration_* fields are raw SQL, not JSON.
-				if key == "description" || strings.HasPrefix(key, "migration") {
+				// "description"/"alternative_description" are prose; migration_*
+				// fields are raw SQL, not JSON.
+				if key == "description" || key == "alternative_description" || strings.HasPrefix(key, "migration") {
 					continue
 				}
 				var parsed any

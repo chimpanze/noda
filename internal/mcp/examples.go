@@ -77,18 +77,11 @@ var examplePatterns = map[string]map[string]string{
 }`,
 	},
 	"auth": {
-		"description": "JWT authentication with login endpoint",
-		"root_config": `{
-  "security": {
-    "jwt": {
-      "secret": "{{ $env('JWT_SECRET') }}",
-      "algorithm": "HS256",
-      "token_lookup": "header:Authorization"
-    }
-  },
-  "middleware_presets": {
-    "authenticated": ["auth.jwt"],
-    "public": []
+		"description": "Authentication with the built-in auth plugin. Add `services.auth` = `{\"plugin\": \"auth\", \"config\": {\"database\": \"<your db service name>\"}}` to noda.json, then run `noda auth init` to scaffold the flows and the `auth_users` migration this plugin requires. The two workflows below (login, register) show the same shape those scaffolded flows use, built from the plugin's own nodes (`auth.verify_credentials`, `auth.create_session`, `auth.create_user`) — see docs/03-nodes/auth.*.md and docs/04-guides/authentication.md for the full node/output contracts and the anti-enumeration patterns `noda auth init` bakes in. An ALTERNATIVE hand-rolled variant is included below for reference only; the two are incompatible (#377) — pick one.",
+		"service_config": `{
+  "services": {
+    "main-db": { "plugin": "postgres", "config": { "url": "{{ $env('DATABASE_URL') }}" } },
+    "auth": { "plugin": "auth", "config": { "database": "main-db" } }
   }
 }`,
 		"route": `{
@@ -104,6 +97,116 @@ var examplePatterns = map[string]map[string]string{
   }
 }`,
 		"workflow": `{
+  "id": "login",
+  "nodes": {
+    "verify": {
+      "type": "auth.verify_credentials",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": {
+        "email": "{{ input.email }}",
+        "password": "{{ input.password }}"
+      }
+    },
+    "session": {
+      "type": "auth.create_session",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": {
+        "user_id": "{{ nodes.verify.id }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": "{{ nodes.session }}"
+      }
+    },
+    "rejected": {
+      "type": "response.error",
+      "config": {
+        "status": 401,
+        "code": "INVALID_CREDENTIALS",
+        "message": "invalid email or password"
+      }
+    }
+  },
+  "edges": [
+    { "from": "verify", "to": "session", "output": "success" },
+    { "from": "verify", "to": "rejected", "output": "invalid" },
+    { "from": "session", "to": "respond", "output": "success" }
+  ]
+}`,
+		"register_route": `{
+  "id": "register",
+  "method": "POST",
+  "path": "/api/auth/register",
+  "trigger": {
+    "workflow": "register",
+    "input": {
+      "email": "{{ body.email }}",
+      "password": "{{ body.password }}"
+    }
+  }
+}`,
+		"register_workflow": `{
+  "id": "register",
+  "nodes": {
+    "create": {
+      "type": "auth.create_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": {
+        "email": "{{ input.email }}",
+        "password": "{{ input.password }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.create }}"
+      }
+    },
+    "conflict": {
+      "type": "response.error",
+      "config": {
+        "status": 409,
+        "code": "EMAIL_TAKEN",
+        "message": "email already registered"
+      }
+    }
+  },
+  "edges": [
+    { "from": "create", "to": "respond", "output": "success" },
+    { "from": "create", "to": "conflict", "output": "exists" }
+  ]
+}`,
+		"alternative_description": "ALTERNATIVE — hand-rolled JWT with your own users table, incompatible with the auth plugin's `auth_users` tables: choose one pattern (#377).",
+		"alternative_root_config": `{
+  "security": {
+    "jwt": {
+      "secret": "{{ $env('JWT_SECRET') }}",
+      "algorithm": "HS256",
+      "token_lookup": "header:Authorization"
+    }
+  },
+  "middleware_presets": {
+    "authenticated": ["auth.jwt"],
+    "public": []
+  }
+}`,
+		"alternative_route": `{
+  "id": "login",
+  "method": "POST",
+  "path": "/api/auth/login",
+  "trigger": {
+    "workflow": "login",
+    "input": {
+      "email": "{{ body.email }}",
+      "password": "{{ body.password }}"
+    }
+  }
+}`,
+		"alternative_workflow": `{
   "id": "login",
   "nodes": {
     "lookup": {
@@ -170,15 +273,15 @@ var examplePatterns = map[string]map[string]string{
   },
   "edges": [
     { "from": "lookup", "to": "check_user", "output": "success" },
-    { "from": "check_user", "to": "verify", "output": "true" },
-    { "from": "check_user", "to": "not_found", "output": "false" },
+    { "from": "check_user", "to": "verify", "output": "then" },
+    { "from": "check_user", "to": "not_found", "output": "else" },
     { "from": "verify", "to": "check_password", "output": "success" },
-    { "from": "check_password", "to": "sign_token", "output": "true" },
-    { "from": "check_password", "to": "wrong_password", "output": "false" },
+    { "from": "check_password", "to": "sign_token", "output": "then" },
+    { "from": "check_password", "to": "wrong_password", "output": "else" },
     { "from": "sign_token", "to": "respond", "output": "success" }
   ]
 }`,
-		"register_route": `{
+		"alternative_register_route": `{
   "id": "register",
   "method": "POST",
   "path": "/api/auth/register",
@@ -191,7 +294,7 @@ var examplePatterns = map[string]map[string]string{
     }
   }
 }`,
-		"register_workflow": `{
+		"alternative_register_workflow": `{
   "id": "register",
   "nodes": {
     "hash": {
