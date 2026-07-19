@@ -256,6 +256,13 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		// config-aware (control.switch's outputs depend on its "cases"
 		// config), matching the engine resolver exactly.
 		if edgesRaw, ok := wf["edges"].([]any); ok {
+			// #386: resolve each source node's outputs once, not once per
+			// edge — engine.Compile computes per node and reuses; mirror it.
+			type outputsResult struct {
+				outputs []string
+				ok      bool
+			}
+			outputsByNode := make(map[string]outputsResult)
 			for _, rawEdge := range edgesRaw {
 				edgeMap, ok := rawEdge.(map[string]any)
 				if !ok {
@@ -286,11 +293,16 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 					continue // unregistered node type: owned by check 2 above
 				}
 
-				fromCfg, _ := fromNode["config"].(map[string]any)
-				outputs, ok := nodes.OutputsForTypeWithConfig(fromType, fromCfg)
-				if !ok {
+				res, cached := outputsByNode[from]
+				if !cached {
+					fromCfg, _ := fromNode["config"].(map[string]any)
+					res.outputs, res.ok = nodes.OutputsForTypeWithConfig(fromType, fromCfg)
+					outputsByNode[from] = res
+				}
+				if !res.ok {
 					continue
 				}
+				outputs := res.outputs
 
 				wantOutput := output
 				if wantOutput == "" {
