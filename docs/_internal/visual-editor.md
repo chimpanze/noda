@@ -74,24 +74,41 @@ The editor runs as a single-page application served by Noda's dev server.
 
 ### 3.1 Editor API
 
-The Noda dev server exposes an HTTP API for the editor:
+The Noda dev server exposes an HTTP API for the editor, mounted under `/_noda`
+(registered in `internal/editor/api.go`, `(*API).Register`). The whole API is
+only registered by `noda dev` — it does not exist in production builds.
 
 | Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/editor/files` | GET | List all config files by type |
-| `/api/editor/files/:path` | GET | Read a config file |
-| `/api/editor/files/:path` | PUT | Write a config file |
-| `/api/editor/files/:path` | DELETE | Delete a config file |
-| `/api/editor/validate` | POST | Validate a config file against its schema |
-| `/api/editor/validate/all` | POST | Validate all config files, return all errors |
-| `/api/editor/nodes` | GET | List all registered node types with their descriptors |
-| `/api/editor/nodes/:type/schema` | GET | Get a node type's config JSON Schema |
-| `/api/editor/nodes/:type/outputs` | POST | Compute outputs for a node given its config (calls the factory) |
-| `/api/editor/services` | GET | List all configured service instances with their types |
-| `/api/editor/plugins` | GET | List all loaded plugins with their prefixes |
-| `/api/editor/schemas` | GET | List all shared schema definitions |
-| `/api/editor/expressions/validate` | POST | Validate an expression string |
-| `/api/editor/expressions/context` | GET | Get available expression context variables for a given workflow/node |
+| `/_noda/files` | GET | List all config files by type |
+| `/_noda/files/*` | GET | Read a config file |
+| `/_noda/files/*` | PUT | Write a config file, triggering hot reload (dev mode only) |
+| `/_noda/files/*` | DELETE | Delete a config file, triggering hot reload (dev mode only) |
+| `/_noda/validate` | POST | Validate a single config file (schema + cross-reference + dry-run checks scoped to that file) |
+| `/_noda/validate/all` | POST | Validate all config files, return all errors |
+| `/_noda/nodes` | GET | List all registered node types with their descriptors |
+| `/_noda/nodes/:type/schema` | GET | Get a node type's config JSON Schema |
+| `/_noda/nodes/:type/outputs` | POST | Compute outputs for a node given its config (calls the factory) |
+| `/_noda/expressions/validate` | POST | Validate an expression string |
+| `/_noda/expressions/context` | GET | Available expression context variables for a workflow/node |
+| `/_noda/models` | GET | List parsed data model definitions |
+| `/_noda/models/generate-migration` | POST | Generate (or preview) a SQL migration from model definitions (dev mode only) |
+| `/_noda/models/generate-crud` | POST | Generate (or preview) CRUD routes/workflows/schemas from a model (dev mode only) |
+| `/_noda/tests/run` | POST | Run a single test suite file and return per-case results (dev mode only) |
+| `/_noda/services` | GET | List configured service instances with their prefix and health status |
+| `/_noda/plugins` | GET | List all loaded plugins with their prefix, node count, and description |
+| `/_noda/schemas` | GET | List all shared schema definitions |
+| `/_noda/schemas/output` | GET | List each node type's output JSON Schema (for types that declare one) |
+| `/_noda/middleware` | GET | List available middleware types with their config fields, presets, and current values from the resolved config |
+| `/_noda/env` | GET | List `$env()` references found in config, with defined status and source files |
+| `/_noda/vars` | GET | List `$var()` references and defined vars, with values and usage locations |
+| `/_noda/openapi` | GET | Generate an OpenAPI 3.0 spec from the resolved config's routes and schemas |
+
+Write and codegen endpoints (`PUT`/`DELETE /_noda/files/*`, `/_noda/models/generate-*`,
+`/_noda/tests/run`) are registered only when the dev-mode reloader is present
+(`if e.reloader != nil` in `Register`); in the `noda dev` process that is
+always true, so in practice these are absent only for embedders that
+construct a bare `API` without a reloader.
 
 ### 3.2 Trace WebSocket
 
@@ -149,7 +166,7 @@ Each node type has a custom React Flow node component:
 
 A searchable sidebar listing all available node types, grouped by category (Control, Transform, Response, Database, Cache, etc.). Drag a node from the palette onto the canvas to add it.
 
-The palette is populated from the `/api/editor/nodes` endpoint — it always reflects the currently loaded plugins and their nodes.
+The palette is populated from the `/_noda/nodes` endpoint — it always reflects the currently loaded plugins and their nodes.
 
 **Node configuration panel:**
 
@@ -456,7 +473,7 @@ The editor and Noda dev server maintain file consistency:
 When the user makes a change in the editor (add a node, change config, draw an edge), the editor:
 1. Updates its in-memory state immediately (optimistic UI)
 2. Serializes the changed file to JSON
-3. Sends a PUT to `/api/editor/files/:path`
+3. Sends a PUT to `/_noda/files/*`
 4. Noda writes the file to disk
 5. File watcher triggers hot reload
 6. If hot reload finds validation errors, they arrive via the trace WebSocket
@@ -467,7 +484,7 @@ When a file changes on disk (from git pull, manual edit, or another tool):
 1. Noda's file watcher detects the change
 2. Hot reload processes the change
 3. Noda sends a `file:changed` event over the trace WebSocket with the file path
-4. The editor re-reads the file via GET `/api/editor/files/:path`
+4. The editor re-reads the file via GET `/_noda/files/*`
 5. The editor updates its in-memory state
 
 If the editor has unsaved changes to the same file (conflict), it shows a diff dialog: "File changed on disk. Keep your version, load disk version, or merge?"
