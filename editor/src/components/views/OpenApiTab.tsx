@@ -73,7 +73,11 @@ export function OpenApiTab({
           </div>
         ) : (
           <div className="text-sm text-gray-400">
-            Failed to load OpenAPI spec.
+            OpenAPI is disabled. Set{" "}
+            <code className="px-1 bg-gray-100 rounded">
+              server.openapi.enabled: true
+            </code>{" "}
+            in your config to preview the spec.
           </div>
         )}
       </div>

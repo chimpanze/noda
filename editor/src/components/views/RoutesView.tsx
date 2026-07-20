@@ -375,7 +375,11 @@ export function RoutesView() {
                   setOpenApiLoading(true);
                   try {
                     const spec = await api.getOpenAPISpec();
-                    setOpenApiSpec(JSON.stringify(spec, null, 2));
+                    if (spec && spec.enabled === false) {
+                      setOpenApiSpec(null);
+                    } else {
+                      setOpenApiSpec(JSON.stringify(spec, null, 2));
+                    }
                   } catch (err) {
                     showToast({
                       type: "error",
