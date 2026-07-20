@@ -386,6 +386,71 @@ func TestResolveRefs_UnresolvedErrorListsKnownRefs(t *testing.T) {
 	assert.Contains(t, msg, "top-level key") // the convention hint
 }
 
+func TestClassifySchemaFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		content map[string]any
+		want    schemaFileKind
+	}{
+		{"type as string is the keyword", map[string]any{"type": "object"}, schemaFileBare},
+		{"type as array is the keyword", map[string]any{"type": []any{"string", "null"}}, schemaFileBare},
+		{"$schema string", map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema"}, schemaFileBare},
+		{"$ref string", map[string]any{"$ref": "schemas/Other"}, schemaFileBare},
+		{"oneOf array", map[string]any{"oneOf": []any{}}, schemaFileBare},
+		{"enum array", map[string]any{"enum": []any{"a"}}, schemaFileBare},
+		{"bare with type and properties", map[string]any{"type": "object", "properties": map[string]any{}}, schemaFileBare},
+
+		{"capitalized definition names", map[string]any{"User": map[string]any{}}, schemaFileKeyed},
+		{
+			"type as object is a definition name",
+			map[string]any{"type": map[string]any{"type": "string"}, "Other": map[string]any{}},
+			schemaFileKeyed,
+		},
+		{
+			"oneOf as object is a definition name",
+			map[string]any{"oneOf": map[string]any{"type": "string"}},
+			schemaFileKeyed,
+		},
+
+		{"properties alone is undecidable", map[string]any{"properties": map[string]any{}}, schemaFileAmbiguous},
+		{"items alone is undecidable", map[string]any{"items": map[string]any{}}, schemaFileAmbiguous},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classifySchemaFile(tt.content))
+		})
+	}
+}
+
+func TestBuildSchemaRegistry_LowercaseKeywordDefinitionNames(t *testing.T) {
+	// Previously misclassified as a bare schema, silently losing both definitions.
+	registry, errs := buildSchemaRegistry(map[string]map[string]any{
+		"/p/schemas/domain.json": {
+			"type":  map[string]any{"type": "string"},
+			"items": map[string]any{"type": "array"},
+		},
+	})
+
+	assert.Empty(t, errs)
+	assert.Len(t, registry, 2)
+	assert.Contains(t, registry, "schemas/type")
+	assert.Contains(t, registry, "schemas/items")
+	assert.NotContains(t, registry, "schemas/domain")
+}
+
+func TestBuildSchemaRegistry_AmbiguousFileIsAnError(t *testing.T) {
+	registry, errs := buildSchemaRegistry(map[string]map[string]any{
+		"/p/schemas/thing.json": {"properties": map[string]any{"name": map[string]any{}}},
+	})
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "/p/schemas/thing.json", errs[0].FilePath)
+	assert.Contains(t, errs[0].Message, "cannot tell")
+	assert.Contains(t, errs[0].Message, `"type"`)
+	assert.Empty(t, registry, "an unclassifiable file must not register anything")
+}
+
 func TestBuildSchemaRegistry_CollisionKeyedVsKeyed(t *testing.T) {
 	schemas := map[string]map[string]any{
 		"/p/schemas/a.json": {"User": map[string]any{"marker": "FROM_A"}},
