@@ -123,6 +123,15 @@
             "private": { "type": "boolean" },
             "header": { "type": "string" }
           }
+        },
+        "openapi": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "docs": { "type": "boolean" },
+            "path": { "type": "string" },
+            "docs_path": { "type": "string" }
+          }
         }
       }
     },

@@ -141,9 +141,13 @@ func ServerOpenAPI(root map[string]any) (*OpenAPISettings, error) {
 	if !ok {
 		return s, nil
 	}
-	oa, ok := m["openapi"].(map[string]any)
+	raw, ok := m["openapi"]
 	if !ok {
 		return s, nil
+	}
+	oa, ok := raw.(map[string]any)
+	if !ok {
+		return s, fmt.Errorf("server.openapi: expected object, got %T", raw)
 	}
 	if v, ok := oa["enabled"].(bool); ok {
 		s.Enabled = v

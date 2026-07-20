@@ -157,3 +157,8 @@ func TestServerOpenAPI_InvalidPaths(t *testing.T) {
 	}}})
 	require.Error(t, err)
 }
+
+func TestServerOpenAPI_WrongType(t *testing.T) {
+	_, err := ServerOpenAPI(map[string]any{"server": map[string]any{"openapi": "yes"}})
+	require.Error(t, err)
+}
