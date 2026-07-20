@@ -739,3 +739,36 @@ func TestEditorAPI_OpenAPISpec(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 200, resp.StatusCode)
 }
+
+func TestEditorOpenAPI_DisabledNotice(t *testing.T) {
+	e := &API{rc: &config.ResolvedConfig{Root: map[string]any{}}}
+	app := fiber.New()
+	app.Get("/_noda/openapi", e.openAPISpec)
+
+	resp, err := app.Test(httptest.NewRequest("GET", "/_noda/openapi", nil))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(body, &out))
+	assert.Equal(t, false, out["enabled"])
+}
+
+func TestEditorOpenAPI_EnabledReturnsSpec(t *testing.T) {
+	e := &API{rc: &config.ResolvedConfig{
+		Root: map[string]any{"server": map[string]any{"openapi": map[string]any{"enabled": true}}},
+		Routes: map[string]map[string]any{
+			"hello": {"id": "hello", "method": "GET", "path": "/hello"},
+		},
+	}}
+	app := fiber.New()
+	app.Get("/_noda/openapi", e.openAPISpec)
+
+	resp, err := app.Test(httptest.NewRequest("GET", "/_noda/openapi", nil))
+	require.NoError(t, err)
+	require.Equal(t, 200, resp.StatusCode)
+	body, _ := io.ReadAll(resp.Body)
+	var out map[string]any
+	require.NoError(t, json.Unmarshal(body, &out))
+	assert.Equal(t, "3.1.0", out["openapi"])
+}

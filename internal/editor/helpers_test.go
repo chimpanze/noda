@@ -11,33 +11,10 @@ import (
 )
 
 // --- Pure helper tests ---
-
-func TestConvertPath_WithParams(t *testing.T) {
-	assert.Equal(t, "/users/{id}", convertPath("/users/:id"))
-	assert.Equal(t, "/users/{id}/posts/{postId}", convertPath("/users/:id/posts/:postId"))
-}
-
-func TestConvertPath_NoParams(t *testing.T) {
-	assert.Equal(t, "/static/path", convertPath("/static/path"))
-}
-
-func TestExtractPathParams_WithParams(t *testing.T) {
-	params := extractPathParams("/users/:id/posts/:postId")
-	require.Len(t, params, 2)
-
-	p1 := params[0].(map[string]any)
-	assert.Equal(t, "id", p1["name"])
-	assert.Equal(t, "path", p1["in"])
-	assert.Equal(t, true, p1["required"])
-
-	p2 := params[1].(map[string]any)
-	assert.Equal(t, "postId", p2["name"])
-}
-
-func TestExtractPathParams_NoParams(t *testing.T) {
-	params := extractPathParams("/users/list")
-	assert.Nil(t, params)
-}
+//
+// convertPath and extractPathParams were removed when openAPISpec was unified
+// onto internal/openapi.Generate (see codegen.go); their equivalent behavior
+// is now covered by internal/openapi's own tests.
 
 func TestFindVarRefs_String(t *testing.T) {
 	refs := findVarRefs("use {{ $var('myVar') }} and {{ $var('other') }}")
