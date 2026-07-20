@@ -25,13 +25,13 @@ Files in `routes/*.json`. Each file defines one route.
 | `trigger.workflow` | string | yes | Workflow ID |
 | `trigger.input` | object | no | Input mapping (expressions) |
 | `trigger.files` | array of strings | no | Input keys to treat as uploaded file streams (multipart fields); each entry must have a matching `trigger.input` key |
-| `trigger.coerce` | boolean | no | Numeric coercion of string-typed trigger inputs (default `true`). Set `false` to keep numeric-looking path/query/header/form values as strings. |
+| `trigger.coerce` | boolean | no | Lossless numeric coercion of string-typed trigger inputs (default `true`). Set `false` to keep numeric-looking path/query/header/form values as strings. |
 
 **Trigger input sources:** `body.*`, `params.*`, `query.*`, `headers.*`, `auth.*`, `raw_body` (when `trigger.raw_body: true`).
 
 Header keys are **lowercase** (`{{ headers['x-github-event'] }}`). Constant keys written in any case are normalized at compile time, so `{{ headers['X-GitHub-Event'] }}` also works — but dynamic keys (`{{ headers[input.name] }}`) must already be lowercase. This compile-time normalization applies to constant keys on *any* map reference named `headers`, not just the trigger's own — e.g. `body.headers['X-Key']` would also be lowercased — so avoid naming unrelated maps `headers` if they carry mixed-case keys.
 
-**Numeric coercion:** inputs that are a single bare reference to a string-typed transport — `params.*`, `query.*`, `headers.*`, or `body.*` for form-encoded requests (plus `request.*` aliases) — are converted to numbers when they parse as one (`{{ query.limit }}` → `10`). JSON body values keep their JSON types, and computed expressions and literal values are never coerced. Set `"coerce": false` on the trigger when IDs like `"0042"` must stay strings.
+**Numeric coercion:** inputs that are a single bare reference to a string-typed transport — `params.*`, `query.*`, `headers.*`, or `body.*` for form-encoded requests (plus `request.*` aliases) — are converted to numbers **only when the conversion is lossless**: `{{ query.limit }}` with value `"10"` becomes `10`, but `"007"`, `"1.50"`, and 64-digit tokens stay strings because a number cannot round-trip them. JSON body values keep their JSON types, and computed expressions and literal values are never coerced. Set `"coerce": false` on the trigger to disable conversion entirely.
 
 The `request.*` namespace provides aliases to these same fields: `request.body`, `request.params`, `request.query`, `request.headers`, `request.auth`, and `request.raw_body` (when enabled).
 

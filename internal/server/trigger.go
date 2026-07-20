@@ -324,15 +324,23 @@ func shouldCoerce(exprStr string, bodyStringTyped bool) bool {
 // HTTP query parameters and route params are always strings, but downstream
 // expressions often need numeric types for arithmetic. Applied only to bare
 // transport references — see shouldCoerce.
+//
+// Conversion is lossless-only (#398): the parsed number must re-format to the
+// exact original string, otherwise the string is returned untouched. This keeps
+// "42" → 42 while preserving "007", 64-digit tokens, and "1.50" — values whose
+// string form carries meaning that float64 cannot round-trip. Without this
+// check, an all-digit path param bound against a text column produced an
+// opaque 500.
 func coerceNumeric(v any) any {
 	s, ok := v.(string)
 	if !ok {
 		return v
 	}
-	if i, err := strconv.Atoi(s); err == nil {
+	if i, err := strconv.Atoi(s); err == nil && strconv.Itoa(i) == s {
 		return i
 	}
-	if f, err := strconv.ParseFloat(s, 64); err == nil {
+	if f, err := strconv.ParseFloat(s, 64); err == nil &&
+		strconv.FormatFloat(f, 'f', -1, 64) == s {
 		return f
 	}
 	return v

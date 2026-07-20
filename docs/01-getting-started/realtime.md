@@ -129,7 +129,7 @@ A REST route persists a message, then broadcasts it to everyone subscribed to th
 }
 ```
 
-> **Numeric-string coercion:** path params are string-typed transport, so `/api/board/42/messages` delivers `input.room_id` as the number `42` by default. If `room_id` must stay a string (TEXT column, leading zeros), set `"coerce": false` on the route trigger, or convert explicitly with `{{ string(input.room_id) }}`. JSON body values always keep their JSON types.
+> **Numeric-string coercion:** path params are string-typed transport. Bare references like `{{ params.room_id }}` are converted to numbers only when the conversion is lossless — `{{ params.id }}` with `/board/42` delivers `42`, but `{{ params.room_id }}` with `/board/007` stays `"007"` because the string cannot round-trip through a number. If you need ALL numeric-looking values to stay strings (including legitimate numbers like `"42"`), set `"coerce": false` on the route trigger. JSON body values always keep their JSON types.
 
 `workflows/post-message.json`:
 

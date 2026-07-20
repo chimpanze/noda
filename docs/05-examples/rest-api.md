@@ -83,7 +83,7 @@ Both queries run in parallel (no dependency between them). The response node wai
 
 **Features exercised:** Implicit parallelism, expression defaults (`??` operator), config-level pagination (`limit`/`offset`), response composition from multiple upstream nodes.
 
-Note: a computed default like `{{ query.page ?? '1' }}` is not a bare transport reference, so it arrives as-typed (a string here) rather than being numerically coerced. Numeric consumers of such inputs — like `db.find`'s `limit` config field (a hard-typed int) and the offset arithmetic above — need `toInt(...)`, or the route should map a bare reference (`{{ query.page }}`) instead.
+Note: a computed default like `{{ query.page ?? '1' }}` is not a bare transport reference, so numeric coercion does not apply — it arrives as a string. Numeric consumers of such inputs — like `db.find`'s `limit` config field (a hard-typed int) and the offset arithmetic above — need `toInt(...)`, or the route should map a bare reference (`{{ query.page }}`) instead, which coerces losslessly (e.g., `"20"` → `20`).
 
 ### Get Single Task
 

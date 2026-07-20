@@ -437,7 +437,7 @@ func TestMapTrigger_FormBodyPartialParseLeniency(t *testing.T) {
 }
 
 func TestMapTrigger_TransportRefsStillCoerced(t *testing.T) {
-	result := triggerTest(t, "GET", "/test/0042?page=2", nil, map[string]string{
+	result := triggerTest(t, "GET", "/test/42?page=2", nil, map[string]string{
 		"X-Page-Size": "50",
 	}, map[string]any{
 		"input": map[string]any{
@@ -465,6 +465,8 @@ func TestMapTrigger_ComputedAndLiteralNotCoerced(t *testing.T) {
 }
 
 func TestMapTrigger_CoerceOptOut(t *testing.T) {
+	// NOTE: since #398 "0042" would survive coercion anyway; this test pins the
+	// coerce:false opt-out wiring, not the leading-zero behavior.
 	result := triggerTest(t, "GET", "/test/0042?page=2", nil, nil, map[string]any{
 		"coerce": false,
 		"input": map[string]any{
@@ -531,4 +533,49 @@ func TestParseHeadersLowercasesKeys(t *testing.T) {
 	assert.Equal(t, "application/json", got["content-type"])
 	_, canonical := got["X-Github-Event"]
 	assert.False(t, canonical, "canonical-case key must not be present")
+}
+
+func TestCoerceNumeric_LosslessOnly(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want any
+	}{
+		{"plain int coerces", "42", 42},
+		{"zero coerces", "0", 0},
+		{"negative int coerces", "-7", -7},
+		{"plain float coerces", "3.14", 3.14},
+		{"leading zeros preserved", "007", "007"},
+		{"single leading zero preserved", "0042", "0042"},
+		{"64 zeros preserved", strings.Repeat("0", 64), strings.Repeat("0", 64)},
+		{"64 nines preserved", strings.Repeat("9", 64), strings.Repeat("9", 64)},
+		{"exponent notation preserved", "1e5", "1e5"},
+		{"trailing zero decimal preserved", "1.50", "1.50"},
+		{"plus prefix preserved", "+5", "+5"},
+		{"non-numeric untouched", "deadbeef", "deadbeef"},
+		{"empty string untouched", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, coerceNumeric(tt.in))
+		})
+	}
+}
+
+func TestCoerceNumeric_NonStringPassthrough(t *testing.T) {
+	assert.Equal(t, 42, coerceNumeric(42))
+	assert.Equal(t, true, coerceNumeric(true))
+	assert.Nil(t, coerceNumeric(nil))
+}
+
+func TestMapTrigger_AllDigitTokenStaysString(t *testing.T) {
+	token := strings.Repeat("0", 64)
+	result := triggerTest(t, "GET", "/test/"+token, nil, nil, map[string]any{
+		"input": map[string]any{
+			"token": "{{ params.id }}",
+		},
+	})
+	// A 64-digit share token must reach the workflow as a string so it binds
+	// against a text column (#398).
+	assert.Equal(t, token, result.Input["token"])
 }
