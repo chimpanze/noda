@@ -12,7 +12,8 @@ import (
 // produces refs "schemas/User" and "schemas/Pagination".
 func ResolveRefs(rc *RawConfig) []ValidationError {
 	// Build schema registry
-	registry, errs := buildSchemaRegistry(rc.Schemas)
+	registry, errs := BuildSchemaRegistry(rc.Schemas)
+	rc.SchemaRegistry = registry
 
 	// Resolve refs in all config sections
 	sections := []map[string]map[string]any{
@@ -50,7 +51,11 @@ func (s schemaSource) describe() string {
 	return fmt.Sprintf("%s (key %q)", s.FilePath, s.Key)
 }
 
-func buildSchemaRegistry(schemas map[string]map[string]any) (map[string]map[string]any, []ValidationError) {
+// BuildSchemaRegistry maps every schema $ref name to its definition, and
+// reports files that cannot be classified and ref names claimed more than
+// once. Ref names are "<reldir>/<key>", e.g. "schemas/User" or
+// "schemas/validation/Task" — the exact strings configs write in "$ref".
+func BuildSchemaRegistry(schemas map[string]map[string]any) (map[string]map[string]any, []ValidationError) {
 	registry := make(map[string]map[string]any)
 	sources := make(map[string][]schemaSource)
 	var ambiguous []ValidationError

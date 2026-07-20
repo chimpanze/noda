@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,21 @@ func TestValidateAll_ValidProject(t *testing.T) {
 	assert.Len(t, rc.Routes, 1)
 	assert.Len(t, rc.Workflows, 1)
 	assert.Equal(t, 3, rc.FileCount)
+}
+
+func TestValidateAll_PopulatesSchemaRegistry(t *testing.T) {
+	dir := setupValidProject(t)
+
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "development", sm)
+	require.Empty(t, errs)
+	require.NotNil(t, rc)
+
+	for name := range rc.SchemaRegistry {
+		assert.True(t, strings.HasPrefix(name, "schemas/"),
+			"registry key %q should be a $ref name, not a file path", name)
+	}
 }
 
 func TestValidateAll_BrokenJSON(t *testing.T) {

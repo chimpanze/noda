@@ -425,7 +425,7 @@ func TestClassifySchemaFile(t *testing.T) {
 
 func TestBuildSchemaRegistry_LowercaseKeywordDefinitionNames(t *testing.T) {
 	// Previously misclassified as a bare schema, silently losing both definitions.
-	registry, errs := buildSchemaRegistry(map[string]map[string]any{
+	registry, errs := BuildSchemaRegistry(map[string]map[string]any{
 		"/p/schemas/domain.json": {
 			"type":  map[string]any{"type": "string"},
 			"items": map[string]any{"type": "array"},
@@ -440,7 +440,7 @@ func TestBuildSchemaRegistry_LowercaseKeywordDefinitionNames(t *testing.T) {
 }
 
 func TestBuildSchemaRegistry_AmbiguousFileIsAnError(t *testing.T) {
-	registry, errs := buildSchemaRegistry(map[string]map[string]any{
+	registry, errs := BuildSchemaRegistry(map[string]map[string]any{
 		"/p/schemas/thing.json": {"properties": map[string]any{"name": map[string]any{}}},
 	})
 
@@ -460,7 +460,7 @@ func TestBuildSchemaRegistry_CollisionKeyedVsKeyed(t *testing.T) {
 	// Map iteration is randomized; the collision must be reported on every build.
 	var first string
 	for i := 0; i < 200; i++ {
-		_, errs := buildSchemaRegistry(schemas)
+		_, errs := BuildSchemaRegistry(schemas)
 		require.Len(t, errs, 1, "collision must be detected on build %d", i)
 		if i == 0 {
 			first = errs[0].Error()
@@ -481,17 +481,17 @@ func TestBuildSchemaRegistry_CollisionBareVsKeyed(t *testing.T) {
 	}
 
 	for i := 0; i < 200; i++ {
-		_, errs := buildSchemaRegistry(schemas)
+		_, errs := BuildSchemaRegistry(schemas)
 		require.Len(t, errs, 1, "collision must be detected on build %d", i)
 	}
 
-	_, errs := buildSchemaRegistry(schemas)
+	_, errs := BuildSchemaRegistry(schemas)
 	assert.Contains(t, errs[0].Error(), "/p/schemas/User.json (whole file)")
 	assert.Contains(t, errs[0].Error(), `/p/schemas/other.json (key "User")`)
 }
 
 func TestBuildSchemaRegistry_NoCollisionAcrossDirectories(t *testing.T) {
-	registry, errs := buildSchemaRegistry(map[string]map[string]any{
+	registry, errs := BuildSchemaRegistry(map[string]map[string]any{
 		"/p/schemas/billing/Invoice.json": {"Invoice": map[string]any{"marker": "billing"}},
 		"/p/schemas/orders/Invoice.json":  {"Invoice": map[string]any{"marker": "orders"}},
 	})
@@ -520,4 +520,28 @@ func TestResolveRefs_ReportsCollision(t *testing.T) {
 	require.Len(t, errs, 1)
 	assert.Equal(t, "/p/schemas/a.json", errs[0].FilePath)
 	assert.Equal(t, "/User", errs[0].JSONPath)
+}
+
+func TestResolveRefs_PublishesRegistry(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"/p/schemas/User.json":            {"User": map[string]any{"type": "object"}},
+			"/p/schemas/validation/Task.json": {"Task": map[string]any{"type": "object"}},
+		},
+		Routes:      map[string]map[string]any{},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+		Models:      map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Empty(t, errs)
+
+	// Keyed by ref name — the same string a config's "$ref" uses — not by file path.
+	assert.Len(t, rc.SchemaRegistry, 2)
+	assert.Contains(t, rc.SchemaRegistry, "schemas/User")
+	assert.Contains(t, rc.SchemaRegistry, "schemas/validation/Task")
 }

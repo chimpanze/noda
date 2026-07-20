@@ -10,17 +10,20 @@ import (
 
 // RawConfig holds the raw parsed JSON from all config files.
 type RawConfig struct {
-	Root        map[string]any
-	Overlay     map[string]any            // nil if no overlay
-	Vars        map[string]string         // from vars.json (optional)
-	Schemas     map[string]map[string]any // keyed by file path
-	Routes      map[string]map[string]any
-	Workflows   map[string]map[string]any
-	Workers     map[string]map[string]any
-	Schedules   map[string]map[string]any
-	Connections map[string]map[string]any
-	Tests       map[string]map[string]any
-	Models      map[string]map[string]any
+	Root    map[string]any
+	Overlay map[string]any            // nil if no overlay
+	Vars    map[string]string         // from vars.json (optional)
+	Schemas map[string]map[string]any // keyed by file path
+	// SchemaRegistry maps $ref names ("schemas/User") to schema definitions.
+	// Populated by ResolveRefs; the authoritative schema naming (#405).
+	SchemaRegistry map[string]map[string]any
+	Routes         map[string]map[string]any
+	Workflows      map[string]map[string]any
+	Workers        map[string]map[string]any
+	Schedules      map[string]map[string]any
+	Connections    map[string]map[string]any
+	Tests          map[string]map[string]any
+	Models         map[string]map[string]any
 }
 
 // LoadAll loads all discovered JSON files into a RawConfig, collecting all errors.
