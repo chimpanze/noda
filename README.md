@@ -75,7 +75,8 @@ docs/               Documentation
 |---|---|
 | [Getting Started](docs/01-getting-started/quick-start.md) | Installation, quick start, tutorial |
 | [Config Reference](docs/02-config/overview.md) | All config file formats and fields |
-| [Node Reference](docs/03-nodes/_index.md) | All 72 node types with examples |
+| [Node Reference](docs/03-nodes/_index.md) | All 81 node types with examples |
+| [MCP & AI Agents](docs/04-guides/mcp-and-ai-agents.md) | Building Noda projects with AI agents — client setup, tools, resources |
 | [Plugin Author Guide](docs/04-guides/plugin-development.md) | Building custom plugins |
 | [Wasm Developer Guide](docs/04-guides/wasm-development.md) | Building Wasm modules |
 | [Deployment Guide](docs/04-guides/deployment.md) | Production deployment, scaling, observability |
@@ -88,7 +89,7 @@ docs/               Documentation
 | [Public API Interfaces](docs/_internal/interfaces.md) | Go interfaces for plugin authors |
 | [Wasm Host API](docs/_internal/wasm-host-api.md) | Contract for Wasm module developers |
 | [Config Conventions](docs/_internal/config-conventions.md) | Field naming rules, value formats, structural patterns |
-| [Node Reference](docs/03-nodes/_index.md) | All 72 nodes — config, outputs, behavior |
+| [Node Reference](docs/03-nodes/_index.md) | All 81 nodes — config, outputs, behavior |
 | [Visual Editor](docs/_internal/visual-editor.md) | Editor design — React Flow, tech stack, features |
 
 ### Examples

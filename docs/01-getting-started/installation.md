@@ -61,7 +61,7 @@ docker pull ghcr.io/chimpanze/noda:latest
 | `noda generate openapi` | Generate OpenAPI 3.1 specification |
 | `noda schedule status` | Show configured scheduled jobs |
 | `noda plugin list` | List all registered plugins and node counts |
-| `noda mcp` | Start MCP server for AI agent integration |
+| `noda mcp` | Start MCP server for AI agent integration (see [MCP & AI Agents](../04-guides/mcp-and-ai-agents.md)) |
 | `noda version` | Print version and build info |
 | `noda completion <shell>` | Generate shell completions |
 

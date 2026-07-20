@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Node cookbook tranche 5 (final): livekit family (18 node types) verified against a real LiveKit dev-server container; Runnable-example links added to all 81 node docs pages; CI coverage gate (`TestCookbookCoverage`) enforces every node type ships a cookbook example. Node cookbook complete at 81/81 node types covered.
 - Cross-instance WebSocket/SSE delivery via `sync.pubsub` is now implemented (#363).
 - `$ref` resolves bare JSON Schema files under `schemas/` by filename (`schemas/greeting.json` → `schemas/greeting`), alongside the existing named-definitions convention; unresolved-`$ref` errors now list every registered ref and the naming rule (#373).
+- MCP & AI Agents guide (`docs/04-guides/mcp-and-ai-agents.md`) — client setup for Claude Code and other MCP clients, all 12 tools with parameters, the 10 doc resources and 2 URI templates, a recommended tool-ordering loop, and the limitations that bite (no MCP tool runs tests; schemas come from the compiled binary).
+- `noda init` now scaffolds `.mcp.json`, wiring the Noda MCP server into new projects out of the box.
 
 ### Changed
 - **Breaking:** livekit node types renamed to snake_case for consistency with every other plugin (`lk` prefix unchanged, `lk.token` unchanged). There are no aliases — old names now fail validation as unknown node types. Full mapping:
@@ -91,6 +93,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `noda init` and `noda_scaffold_project` now generate a unique 32-byte `JWT_SECRET` into `.env` — was: a shared 23-byte placeholder that failed auth.jwt's own minimum at boot (#381).
 
 ### Fixed
+- `noda init` declared the MCP server in `.claude/settings.json`, which has no `mcpServers` key — the config was inert, so scaffolded projects silently started with no Noda MCP server. The server is now declared in `.mcp.json` at the project root (the only project-scoped location Claude Code reads), and `.claude/settings.json` carries `enableAllProjectMcpServers` to auto-approve it.
 - The `node error with no error edge` warning now includes the node's error text — previously the only server-side record of why such a workflow 500'd was an opaque INTERNAL_ERROR (#396).
 - Cross-instance connection sync no longer corrupts binary (non-UTF-8) WebSocket/SSE payloads: they ride base64-encoded in the envelope and arrive byte-exact on remote instances. All sync envelopes are now version 2; v1 envelopes are dropped, so all instances in a cluster must run the same Noda version (#372).
 - Docs described a `schemas/File#Key` `$ref` syntax that never resolved; corrected to the real `schemas/<Key>` rule across docs and the MCP crud example (#373).
