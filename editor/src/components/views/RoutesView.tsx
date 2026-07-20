@@ -53,6 +53,7 @@ export function RoutesView() {
   // OpenAPI state
   const [openApiSpec, setOpenApiSpec] = useState<string | null>(null);
   const [openApiLoading, setOpenApiLoading] = useState(false);
+  const [openApiError, setOpenApiError] = useState(false);
 
   // Tree expansion state
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -373,6 +374,7 @@ export function RoutesView() {
                   setEditGroup(null);
                   setActiveTab("openapi");
                   setOpenApiLoading(true);
+                  setOpenApiError(false);
                   try {
                     const spec = await api.getOpenAPISpec();
                     if (spec && spec.enabled === false) {
@@ -385,6 +387,8 @@ export function RoutesView() {
                       type: "error",
                       message: `Failed to load OpenAPI spec: ${err}`,
                     });
+                    setOpenApiError(true);
+                    setOpenApiSpec(null);
                   } finally {
                     setOpenApiLoading(false);
                   }
@@ -452,7 +456,11 @@ export function RoutesView() {
         {/* Route editor / Group editor / OpenAPI */}
         <div className="flex-1 flex flex-col min-h-0">
           {activeTab === "openapi" ? (
-            <OpenApiTab spec={openApiSpec} loading={openApiLoading} />
+            <OpenApiTab
+              spec={openApiSpec}
+              loading={openApiLoading}
+              error={openApiError}
+            />
           ) : selectedGroup !== null && editGroup ? (
             <div className="flex-1 overflow-y-auto p-6">
               <RouteGroupFormPanel
