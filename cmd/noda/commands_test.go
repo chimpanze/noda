@@ -173,6 +173,8 @@ func TestInitCmd_Scaffolds(t *testing.T) {
 	assert.NoError(t, err)
 	_, err = os.Stat(dir + "/.claude/settings.json")
 	assert.NoError(t, err)
+	_, err = os.Stat(dir + "/.mcp.json")
+	assert.NoError(t, err)
 }
 
 // --- plugin command ---

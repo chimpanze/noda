@@ -99,12 +99,34 @@ func TestScaffoldProject_AIAssistance(t *testing.T) {
 	assert.Contains(t, string(data), "Noda project")
 	assert.Contains(t, string(data), "MCP Tools")
 
-	// .claude/settings.json should exist with MCP config
+	// The MCP server must be declared in .mcp.json at the project root —
+	// that is the only project-scoped location Claude Code reads servers from.
+	// settings.json has no "mcpServers" key, so declaring it there is inert.
+	data, err = os.ReadFile(filepath.Join(dir, ".mcp.json"))
+	require.NoError(t, err)
+
+	var mcpCfg struct {
+		MCPServers map[string]struct {
+			Command string   `json:"command"`
+			Args    []string `json:"args"`
+		} `json:"mcpServers"`
+	}
+	require.NoError(t, json.Unmarshal(data, &mcpCfg))
+	noda, ok := mcpCfg.MCPServers["noda"]
+	require.True(t, ok, "expected a \"noda\" server in .mcp.json")
+	assert.Equal(t, "noda", noda.Command)
+	assert.Equal(t, []string{"mcp"}, noda.Args)
+
+	// .claude/settings.json auto-approves the .mcp.json server so the project
+	// works on first run without an approval prompt.
 	data, err = os.ReadFile(filepath.Join(dir, ".claude", "settings.json"))
 	require.NoError(t, err)
-	assert.Contains(t, string(data), `"noda"`)
-	assert.Contains(t, string(data), `"command"`)
-	assert.Contains(t, string(data), `"mcp"`)
+
+	var settings map[string]any
+	require.NoError(t, json.Unmarshal(data, &settings))
+	assert.Equal(t, true, settings["enableAllProjectMcpServers"])
+	assert.NotContains(t, settings, "mcpServers",
+		"mcpServers is not a valid settings.json key — it belongs in .mcp.json")
 }
 
 func TestScaffoldProject_NodaJSONHasDefaultGlobalMiddleware(t *testing.T) {
