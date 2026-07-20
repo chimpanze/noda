@@ -339,6 +339,30 @@ func TestResolveRefs_BareSchemaFileDoesNotRegisterKeywordKeys(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "unresolved $ref")
 }
 
+func TestResolveRefs_ErrorCarriesFilePath(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{},
+		Routes: map[string]map[string]any{
+			"routes/test.json": {
+				"response": map[string]any{"$ref": "schemas/Missing"},
+			},
+		},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+		Models:      map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "routes/test.json", errs[0].FilePath)
+	assert.Contains(t, errs[0].Message, `unresolved $ref "schemas/Missing"`)
+	// The path lives in FilePath now, not doubled into the message.
+	assert.NotContains(t, errs[0].Message, "routes/test.json")
+}
+
 // TestResolveRefs_UnresolvedErrorListsKnownRefs pins #373: the
 // unresolved-$ref error must teach the resolution rule and list what IS
 // registered, so a near-miss ref is self-diagnosing.

@@ -87,11 +87,7 @@ func ValidateAll(rootPath string, envFlag string, sm *secrets.Manager) (*Resolve
 	// 6. Resolve $ref
 	refErrs := ResolveRefs(raw)
 	if len(refErrs) > 0 {
-		var valErrs []ValidationError
-		for _, e := range refErrs {
-			valErrs = append(valErrs, ValidationError{Message: e.Error()})
-		}
-		return nil, valErrs
+		return nil, refErrs
 	}
 
 	// 7. Validate schemas

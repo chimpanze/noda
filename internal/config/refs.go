@@ -10,11 +10,11 @@ import (
 // ResolveRefs resolves all $ref references in the config, inlining shared schema definitions.
 // Schema files can contain multiple top-level keys: schemas/User.json with {"User": {...}, "Pagination": {...}}
 // produces refs "schemas/User" and "schemas/Pagination".
-func ResolveRefs(rc *RawConfig) []error {
+func ResolveRefs(rc *RawConfig) []ValidationError {
 	// Build schema registry
 	registry := buildSchemaRegistry(rc.Schemas)
 
-	var errs []error
+	var errs []ValidationError
 
 	// Resolve refs in all config sections
 	sections := []map[string]map[string]any{
@@ -89,7 +89,7 @@ func extractSchemasRelPath(filePath string) string {
 	return "schemas"
 }
 
-func resolveRefsInValue(v any, registry map[string]map[string]any, filePath string, seen []string) (any, []error) {
+func resolveRefsInValue(v any, registry map[string]map[string]any, filePath string, seen []string) (any, []ValidationError) {
 	switch val := v.(type) {
 	case map[string]any:
 		// Check if this is a $ref object
@@ -101,7 +101,7 @@ func resolveRefsInValue(v any, registry map[string]map[string]any, filePath stri
 		}
 
 		// Recurse into object
-		var errs []error
+		var errs []ValidationError
 		result := make(map[string]any, len(val))
 		for k, child := range val {
 			resolved, childErrs := resolveRefsInValue(child, registry, filePath, seen)
@@ -111,7 +111,7 @@ func resolveRefsInValue(v any, registry map[string]map[string]any, filePath stri
 		return result, errs
 
 	case []any:
-		var errs []error
+		var errs []ValidationError
 		result := make([]any, len(val))
 		for i, item := range val {
 			resolved, itemErrs := resolveRefsInValue(item, registry, filePath, seen)
@@ -125,16 +125,17 @@ func resolveRefsInValue(v any, registry map[string]map[string]any, filePath stri
 	}
 }
 
-func resolveRef(refName string, registry map[string]map[string]any, filePath string, seen []string) (any, []error) {
+func resolveRef(refName string, registry map[string]map[string]any, filePath string, seen []string) (any, []ValidationError) {
 	// Check for circular reference
 	for _, s := range seen {
 		if s == refName {
 			cycle := make([]string, len(seen)+1)
 			copy(cycle, seen)
 			cycle[len(seen)] = refName
-			return nil, []error{
-				fmt.Errorf("circular $ref detected: %s (in %s)", strings.Join(cycle, " → "), filePath),
-			}
+			return nil, []ValidationError{{
+				FilePath: filePath,
+				Message:  fmt.Sprintf("circular $ref detected: %s", strings.Join(cycle, " → ")),
+			}}
 		}
 	}
 
@@ -149,10 +150,11 @@ func resolveRef(refName string, registry map[string]map[string]any, filePath str
 		if len(known) > 0 {
 			knownList = strings.Join(known, ", ")
 		}
-		return nil, []error{
-			fmt.Errorf("unresolved $ref %q in %s (known refs: %s — a schemas/ file maps each top-level key to a schema, registered as schemas/<Key>; a file that is itself a JSON Schema registers as schemas/<filename without .json>)",
-				refName, filePath, knownList),
-		}
+		return nil, []ValidationError{{
+			FilePath: filePath,
+			Message: fmt.Sprintf("unresolved $ref %q (known refs: %s — a schemas/ file maps each top-level key to a schema, registered as schemas/<Key>; a file that is itself a JSON Schema registers as schemas/<filename without .json>)",
+				refName, knownList),
+		}}
 	}
 
 	// Resolve nested refs within the schema
