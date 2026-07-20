@@ -6,7 +6,8 @@ Noda is a configuration-driven API runtime for Go. JSON config files define rout
 
 ## Project Status
 
-**Complete.** All 29 milestones implemented. 80.8% test coverage. All 6 use cases working.
+**Complete.** All 29 milestones implemented. 81.5% test coverage (2026-07-20; CI gates
+at ≥75% — `make test-coverage` prints the current figure). All 6 use cases working.
 
 All 81 node types have a runnable, CI-verified example in `examples/node-cookbook`; the
 `TestCookbookCoverage` gate (run with `-tags integration`) keeps that at 81/81.

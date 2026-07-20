@@ -11,6 +11,10 @@ linters:
     - unused
     - misspell
   exclusions:
+    paths:
+      # Go code vendored inside npm packages (the `flatted` package ships a Go
+      # implementation under the module root). Third-party, not ours to lint.
+      - editor/node_modules
     rules:
       # G101: false positives on example/test credential strings
       - linters: [gosec]
