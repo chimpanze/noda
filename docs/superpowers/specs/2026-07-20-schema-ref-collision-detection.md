@@ -93,13 +93,21 @@ Replace presence checks with a three-way classification:
    in a schema document*: `$schema`/`$ref` string, `type` string or array,
    `enum`/`oneOf`/`anyOf`/`allOf` array. A `type` whose value is an object is a schema
    *named* `type`, not the `type` keyword.
-2. **Ambiguous** — no decidable evidence, but `properties` or `items` is present at top
-   level. Both take object values in a real schema *and* as a definition name, so shape
+2. **Decidably keyed** — a keyword is present with the *wrong* shape. This is positive
+   proof, not merely absence of evidence: a top-level `"type": {...}` cannot be the
+   `type` keyword in any valid schema document, so the file cannot be a bare schema at
+   all, and that conclusion holds regardless of what else the file contains.
+   *(Corrected during implementation — the original design treated a wrong-shaped
+   keyword as neutral, which classified `{"type": {...}, "properties": {...}}` as
+   ambiguous even though it is fully decidable, reintroducing exactly the
+   definitions-silently-lost bug this change exists to fix.)*
+3. **Ambiguous** — no `bareSchemaKeywords` key present at all, but `properties` or
+   `items` is present at top level. Both take object values in a real schema *and* as a definition name, so shape
    cannot separate them. This is exactly the "bind silently to an arbitrary
    interpretation" outcome the issue condemns, so it becomes a `ValidationError` asking
    the author to disambiguate (add `"type"` for a bare schema; rename the definition
    otherwise).
-3. **Keyed** — everything else.
+4. **Keyed** — everything else.
 
 **Verified behavior-preserving:** all 20 in-repo schema files classify identically under
 the old presence rule and the new decidable rule, and **0** fall into the new ambiguous

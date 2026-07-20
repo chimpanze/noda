@@ -513,13 +513,29 @@ func isJSONArray(v any) bool {
 }
 
 // classifySchemaFile decides how to read a schemas/ file's top level.
-// Iteration order over bareSchemaKeywords does not matter: the result is a
-// boolean OR over independent checks.
+//
+// A bareSchemaKeywords key present with the *wrong* shape (e.g. "type"
+// holding an object) is not neutral: it proves that key cannot be the
+// keyword, so it must be a definition name, so the file cannot be a bare
+// schema at all — that proof holds regardless of what else is in the file
+// (e.g. an "items" that would otherwise be ambiguous on its own). Iteration
+// order over bareSchemaKeywords does not matter for either the immediate
+// "found a correctly-shaped keyword" return or the accumulated
+// wrong-shape proof: both are order-independent boolean reductions.
 func classifySchemaFile(content map[string]any) schemaFileKind {
+	sawWrongShapedKeyword := false
 	for kw, hasKeywordShape := range bareSchemaKeywords {
-		if v, ok := content[kw]; ok && hasKeywordShape(v) {
+		v, ok := content[kw]
+		if !ok {
+			continue
+		}
+		if hasKeywordShape(v) {
 			return schemaFileBare
 		}
+		sawWrongShapedKeyword = true
+	}
+	if sawWrongShapedKeyword {
+		return schemaFileKeyed
 	}
 
 	for _, kw := range ambiguousSchemaKeywords {
