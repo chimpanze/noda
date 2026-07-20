@@ -30,6 +30,7 @@ The root config file. All fields are optional except where noted.
 | `trust_proxy` | object | disabled | Trusted proxy configuration (see subsection below). Off by default. |
 | `response_timeout` | string | -- | Default per-request timeout for route handlers (duration). Individual routes can override it with their own `response_timeout`. |
 | `shutdown_deadline` | string | -- | How long graceful shutdown waits for in-flight work before forcing exit (duration). |
+| `openapi` | object | disabled | OpenAPI spec/docs exposure (see subsection below). Off by default. |
 
 ```json
 {
@@ -87,6 +88,48 @@ hop that can reach noda's port is your own proxy.
 > noda's, and don't raise `body_limit` beyond what uploads actually need.
 
 **Prometheus metrics** are served on the same port at `/metrics` when enabled via `observability.metrics.enabled`. See [Observability](../04-guides/observability.md) for the metric list and scrape config.
+
+### OpenAPI exposure (`server.openapi`)
+
+> **Breaking change:** `/openapi.json` and `/docs` used to be served
+> unconditionally. They are now **off by default** — add `server.openapi`
+> with `"enabled": true` to restore them.
+
+```json
+{
+  "server": {
+    "openapi": {
+      "enabled": true,
+      "docs": true,
+      "path": "/openapi.json",
+      "docs_path": "/docs"
+    }
+  }
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `enabled` | boolean | `false` | Master switch. When `false`, neither the spec endpoint nor the docs UI is served, no matter what the other fields say. |
+| `docs` | boolean | `true` | Serves the Scalar docs UI at `docs_path`. Only takes effect when `enabled` is `true`; set to `false` to serve the raw spec without the human-readable UI. |
+| `path` | string | `"/openapi.json"` | Path the generated OpenAPI 3.1.0 spec is served at. Must start with `/` and must differ from `docs_path`. |
+| `docs_path` | string | `"/docs"` | Path the Scalar docs UI is served at. Must start with `/` and must differ from `path`. |
+
+If the `openapi` block is omitted entirely, both endpoints are off — this is
+the default for new and existing projects alike. Semantics:
+
+| `enabled` | `docs` | Result |
+|---|---|---|
+| omitted or `false` | (any) | Neither `path` nor `docs_path` is served. |
+| `true` | omitted or `true` | Spec and docs UI both served. |
+| `true` | `false` | Spec served at `path`; docs UI not served. |
+
+Boot-time validation rejects the config if `path` or `docs_path` doesn't
+start with `/`, or if `path` and `docs_path` are equal.
+
+The runtime and the editor's OpenAPI tab share one spec generator (OpenAPI
+3.1.0); when exposure is off, the editor's OpenAPI tab shows a notice instead
+of the live spec/docs links.
 
 ## services
 

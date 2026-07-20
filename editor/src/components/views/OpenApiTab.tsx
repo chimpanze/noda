@@ -5,9 +5,11 @@ import { showToast } from "@/utils/toast";
 export function OpenApiTab({
   spec,
   loading,
+  error,
 }: {
   spec: string | null;
   loading: boolean;
+  error: boolean;
 }) {
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -71,9 +73,17 @@ export function OpenApiTab({
               }}
             />
           </div>
-        ) : (
+        ) : error ? (
           <div className="text-sm text-gray-400">
             Failed to load OpenAPI spec.
+          </div>
+        ) : (
+          <div className="text-sm text-gray-400">
+            OpenAPI is disabled. Set{" "}
+            <code className="px-1 bg-gray-100 rounded">
+              server.openapi.enabled: true
+            </code>{" "}
+            in your config to preview the spec.
           </div>
         )}
       </div>

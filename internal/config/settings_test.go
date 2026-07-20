@@ -121,3 +121,44 @@ func TestServerTrustProxy(t *testing.T) {
 		require.Error(t, err)
 	})
 }
+
+func TestServerOpenAPI_Defaults(t *testing.T) {
+	// Block absent -> disabled, defaults materialized.
+	s, err := ServerOpenAPI(map[string]any{})
+	require.NoError(t, err)
+	assert.False(t, s.Enabled)
+	assert.True(t, s.Docs)
+	assert.Equal(t, "/openapi.json", s.Path)
+	assert.Equal(t, "/docs", s.DocsPath)
+}
+
+func TestServerOpenAPI_Enabled(t *testing.T) {
+	root := map[string]any{"server": map[string]any{"openapi": map[string]any{
+		"enabled": true, "docs": false, "path": "/spec.json", "docs_path": "/api-docs",
+	}}}
+	s, err := ServerOpenAPI(root)
+	require.NoError(t, err)
+	assert.True(t, s.Enabled)
+	assert.False(t, s.Docs)
+	assert.Equal(t, "/spec.json", s.Path)
+	assert.Equal(t, "/api-docs", s.DocsPath)
+}
+
+func TestServerOpenAPI_InvalidPaths(t *testing.T) {
+	// Non-absolute path.
+	_, err := ServerOpenAPI(map[string]any{"server": map[string]any{"openapi": map[string]any{
+		"enabled": true, "path": "openapi.json",
+	}}})
+	require.Error(t, err)
+
+	// path == docs_path.
+	_, err = ServerOpenAPI(map[string]any{"server": map[string]any{"openapi": map[string]any{
+		"enabled": true, "path": "/x", "docs_path": "/x",
+	}}})
+	require.Error(t, err)
+}
+
+func TestServerOpenAPI_WrongType(t *testing.T) {
+	_, err := ServerOpenAPI(map[string]any{"server": map[string]any{"openapi": "yes"}})
+	require.Error(t, err)
+}

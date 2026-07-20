@@ -6,11 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/generate"
-	"github.com/chimpanze/noda/internal/routecfg"
+	"github.com/chimpanze/noda/internal/openapi"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/gofiber/fiber/v3"
 )
@@ -271,184 +270,20 @@ func (e *API) generateCRUD(c fiber.Ctx) error {
 	return c.JSON(map[string]any{"status": "created", "files": result.Files})
 }
 
-// openAPISpec generates an OpenAPI 3.0 spec from the resolved config.
+// openAPISpec generates the OpenAPI spec via the unified generator. It mirrors
+// public exposure: when server.openapi.enabled is false it returns
+// {"enabled": false} so the editor tab can show a disabled notice.
 func (e *API) openAPISpec(c fiber.Ctx) error {
 	rc := e.resolvedConfig()
 	if rc == nil {
 		return c.Status(500).JSON(map[string]any{"error": "no config available"})
 	}
-
-	spec := map[string]any{
-		"openapi": "3.0.3",
-		"info": map[string]any{
-			"title":   "Noda API",
-			"version": "1.0.0",
-		},
+	if !rc.OpenAPIConfig().Enabled {
+		return c.JSON(map[string]any{"enabled": false})
 	}
-
-	// Build paths from routes
-	paths := make(map[string]any)
-	for _, routeData := range rc.Routes {
-		routes := routecfg.NormalizeRoutes(routeData)
-		for _, route := range routes {
-			method, _ := route["method"].(string)
-			path, _ := route["path"].(string)
-			if method == "" || path == "" {
-				continue
-			}
-
-			// Convert :param to {param} for OpenAPI
-			oaPath := convertPath(path)
-			method = strings.ToLower(method)
-
-			op := map[string]any{}
-
-			if summary, ok := route["summary"].(string); ok && summary != "" {
-				op["summary"] = summary
-			}
-			if tags, ok := route["tags"].([]any); ok && len(tags) > 0 {
-				op["tags"] = tags
-			}
-
-			// Parameters from path
-			params := extractPathParams(path)
-
-			// Params schema
-			if paramsObj, ok := route["params"].(map[string]any); ok {
-				if schema, ok := paramsObj["schema"].(map[string]any); ok {
-					for _, p := range params {
-						pm := p.(map[string]any)
-						pm["schema"] = schema
-					}
-				}
-			}
-
-			// Query schema
-			if queryObj, ok := route["query"].(map[string]any); ok {
-				if schema, ok := queryObj["schema"].(map[string]any); ok {
-					params = append(params, map[string]any{
-						"name":     "query",
-						"in":       "query",
-						"schema":   schema,
-						"required": false,
-					})
-				}
-			}
-
-			if len(params) > 0 {
-				op["parameters"] = params
-			}
-
-			// Request body
-			if body, ok := route["body"].(map[string]any); ok {
-				contentType := "application/json"
-				if ct, ok := body["content_type"].(string); ok && ct != "" {
-					contentType = ct
-				}
-				reqBody := map[string]any{
-					"content": map[string]any{
-						contentType: map[string]any{},
-					},
-				}
-				if schema, ok := body["schema"]; ok {
-					reqBody["content"].(map[string]any)[contentType] = map[string]any{
-						"schema": schema,
-					}
-				}
-				op["requestBody"] = reqBody
-			}
-
-			// Responses
-			responses := map[string]any{}
-			if resp, ok := route["response"].(map[string]any); ok {
-				if statuses, ok := resp["statuses"].(map[string]any); ok {
-					for code, entry := range statuses {
-						statusEntry := map[string]any{"description": ""}
-						if em, ok := entry.(map[string]any); ok {
-							if desc, ok := em["description"].(string); ok {
-								statusEntry["description"] = desc
-							}
-							if schema, ok := em["schema"]; ok {
-								statusEntry["content"] = map[string]any{
-									"application/json": map[string]any{
-										"schema": schema,
-									},
-								}
-							}
-						}
-						responses[code] = statusEntry
-					}
-				}
-			}
-			if len(responses) == 0 {
-				responses["200"] = map[string]any{"description": "OK"}
-			}
-			op["responses"] = responses
-
-			// Security from middleware
-			if mw, ok := route["middleware"].([]any); ok {
-				for _, m := range mw {
-					if ms, ok := m.(string); ok && (ms == "auth.jwt" || strings.HasPrefix(ms, "auth.")) {
-						op["security"] = []any{map[string]any{"bearerAuth": []any{}}}
-						break
-					}
-				}
-			}
-
-			if _, exists := paths[oaPath]; !exists {
-				paths[oaPath] = map[string]any{}
-			}
-			paths[oaPath].(map[string]any)[method] = op
-		}
+	doc, err := openapi.Generate(rc)
+	if err != nil {
+		return c.Status(500).JSON(map[string]any{"error": err.Error()})
 	}
-	spec["paths"] = paths
-
-	// Components/schemas
-	if len(rc.Schemas) > 0 {
-		schemas := make(map[string]any)
-		for path, schema := range rc.Schemas {
-			name := filepath.Base(path)
-			name = strings.TrimSuffix(name, filepath.Ext(name))
-			schemas[name] = schema
-		}
-		spec["components"] = map[string]any{
-			"schemas": schemas,
-			"securitySchemes": map[string]any{
-				"bearerAuth": map[string]any{
-					"type":         "http",
-					"scheme":       "bearer",
-					"bearerFormat": "JWT",
-				},
-			},
-		}
-	}
-
-	return c.JSON(spec)
-}
-
-func convertPath(path string) string {
-	parts := strings.Split(path, "/")
-	for i, p := range parts {
-		if strings.HasPrefix(p, ":") {
-			name := strings.TrimSuffix(p[1:], "?")
-			parts[i] = "{" + name + "}"
-		}
-	}
-	return strings.Join(parts, "/")
-}
-
-func extractPathParams(path string) []any {
-	var params []any
-	for _, part := range strings.Split(path, "/") {
-		if strings.HasPrefix(part, ":") {
-			name := strings.TrimSuffix(part[1:], "?")
-			params = append(params, map[string]any{
-				"name":     name,
-				"in":       "path",
-				"required": true,
-				"schema":   map[string]any{"type": "string"},
-			})
-		}
-	}
-	return params
+	return c.JSON(doc)
 }

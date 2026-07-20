@@ -20,6 +20,7 @@ import (
 	"github.com/chimpanze/noda/internal/lifecycle"
 	nodamcp "github.com/chimpanze/noda/internal/mcp"
 	"github.com/chimpanze/noda/internal/migrate"
+	"github.com/chimpanze/noda/internal/openapi"
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
@@ -523,7 +524,7 @@ func newGenerateCmd() *cobra.Command {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
-			doc, err := server.GenerateOpenAPI(rc)
+			doc, err := openapi.Generate(rc)
 			if err != nil {
 				return fmt.Errorf("generating OpenAPI spec: %w", err)
 			}

@@ -476,3 +476,18 @@ func TestCrossRefs_WsSendNoEndpointsDefinedAnywhere(t *testing.T) {
 	assert.Contains(t, errs[0].Message, "no connections endpoints are defined")
 	assert.Contains(t, errs[0].Message, "connections/")
 }
+
+func TestValidateCrossRefs_OpenAPIBadPath(t *testing.T) {
+	rc := &RawConfig{Root: map[string]any{"server": map[string]any{
+		"openapi": map[string]any{"enabled": true, "path": "openapi.json"},
+	}}}
+	errs := ValidateCrossRefs(rc)
+	require.NotEmpty(t, errs)
+	found := false
+	for _, e := range errs {
+		if e.JSONPath == "/server/openapi" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected a /server/openapi validation error")
+}
