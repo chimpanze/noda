@@ -302,6 +302,13 @@ func ValidateCrossRefs(rc *RawConfig) []ValidationError {
 					Message:  err.Error(),
 				})
 			}
+			if _, err := ServerOpenAPI(rc.Root); err != nil {
+				errs = append(errs, ValidationError{
+					FilePath: "noda.json",
+					JSONPath: "/server/openapi",
+					Message:  err.Error(),
+				})
+			}
 		}
 	}
 

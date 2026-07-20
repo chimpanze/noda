@@ -122,3 +122,57 @@ func ServerTrustProxy(root map[string]any) (*TrustProxy, error) {
 	}
 	return tp, nil
 }
+
+// OpenAPISettings is the parsed server.openapi block.
+type OpenAPISettings struct {
+	Enabled  bool
+	Docs     bool
+	Path     string
+	DocsPath string
+}
+
+// ServerOpenAPI parses and validates server.openapi. It always returns a
+// fully-defaulted *OpenAPISettings (never nil); err is non-nil only when a
+// path is malformed. When the block is absent, Enabled is false and the rest
+// carry defaults (Docs true, Path "/openapi.json", DocsPath "/docs").
+func ServerOpenAPI(root map[string]any) (*OpenAPISettings, error) {
+	s := &OpenAPISettings{Enabled: false, Docs: true, Path: "/openapi.json", DocsPath: "/docs"}
+	m, ok := serverSection(root)
+	if !ok {
+		return s, nil
+	}
+	oa, ok := m["openapi"].(map[string]any)
+	if !ok {
+		return s, nil
+	}
+	if v, ok := oa["enabled"].(bool); ok {
+		s.Enabled = v
+	}
+	if v, ok := oa["docs"].(bool); ok {
+		s.Docs = v
+	}
+	if v, ok := oa["path"].(string); ok && v != "" {
+		s.Path = v
+	}
+	if v, ok := oa["docs_path"].(string); ok && v != "" {
+		s.DocsPath = v
+	}
+	if !strings.HasPrefix(s.Path, "/") {
+		return s, fmt.Errorf("server.openapi.path: %q must start with \"/\"", s.Path)
+	}
+	if !strings.HasPrefix(s.DocsPath, "/") {
+		return s, fmt.Errorf("server.openapi.docs_path: %q must start with \"/\"", s.DocsPath)
+	}
+	if s.Path == s.DocsPath {
+		return s, fmt.Errorf("server.openapi: path and docs_path must differ (both %q)", s.Path)
+	}
+	return s, nil
+}
+
+// OpenAPIConfig returns the parsed server.openapi settings with defaults
+// materialized. Boot validation (ValidateCrossRefs) already rejected malformed
+// configs, so any parse error here is ignored and the defaulted settings win.
+func (rc *ResolvedConfig) OpenAPIConfig() *OpenAPISettings {
+	s, _ := ServerOpenAPI(rc.Root)
+	return s
+}
