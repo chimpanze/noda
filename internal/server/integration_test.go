@@ -401,6 +401,7 @@ func TestE2E_OpenAPIEndpoint(t *testing.T) {
 		Root: map[string]any{
 			"name":    "E2E API",
 			"version": "1.0.0",
+			"server":  map[string]any{"openapi": map[string]any{"enabled": true}},
 		},
 		Routes: map[string]map[string]any{
 			"hello": {
@@ -440,7 +441,6 @@ func TestE2E_OpenAPIEndpoint(t *testing.T) {
 	srv, err := NewServer(rc, registry.NewServiceRegistry(), buildTestNodeRegistry())
 	require.NoError(t, err)
 	require.NoError(t, srv.Setup())
-	require.NoError(t, srv.RegisterOpenAPIRoutes())
 
 	req := httptest.NewRequest("GET", "/openapi.json", nil)
 	resp, err := srv.App().Test(req)

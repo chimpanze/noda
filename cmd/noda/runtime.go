@@ -265,9 +265,6 @@ func createServer(rtCtx *runtimeContext, metricsOpt server.ServerOption, extraOp
 	if err := srv.Setup(); err != nil {
 		return nil, fmt.Errorf("setting up server: %w", err)
 	}
-	if err := srv.RegisterOpenAPIRoutes(); err != nil {
-		rtCtx.Logger.Warn("OpenAPI generation failed", "error", err.Error())
-	}
 	return srv, nil
 }
 
