@@ -12,9 +12,7 @@ import (
 // produces refs "schemas/User" and "schemas/Pagination".
 func ResolveRefs(rc *RawConfig) []ValidationError {
 	// Build schema registry
-	registry := buildSchemaRegistry(rc.Schemas)
-
-	var errs []ValidationError
+	registry, errs := buildSchemaRegistry(rc.Schemas)
 
 	// Resolve refs in all config sections
 	sections := []map[string]map[string]any{
@@ -38,8 +36,23 @@ func ResolveRefs(rc *RawConfig) []ValidationError {
 	return errs
 }
 
-func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[string]any {
+// schemaSource records which file contributed a ref name, and how. An empty
+// Key means the file is itself a JSON Schema document and registered whole.
+type schemaSource struct {
+	FilePath string
+	Key      string
+}
+
+func (s schemaSource) describe() string {
+	if s.Key == "" {
+		return s.FilePath + " (whole file)"
+	}
+	return fmt.Sprintf("%s (key %q)", s.FilePath, s.Key)
+}
+
+func buildSchemaRegistry(schemas map[string]map[string]any) (map[string]map[string]any, []ValidationError) {
 	registry := make(map[string]map[string]any)
+	sources := make(map[string][]schemaSource)
 
 	for filePath, content := range schemas {
 		relDir := extractSchemasRelPath(filePath)
@@ -49,7 +62,9 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 		// each top-level key is a named schema definition.
 		if isBareSchema(content) {
 			base := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
-			registry[relDir+"/"+base] = content
+			refName := relDir + "/" + base
+			registry[refName] = content
+			sources[refName] = append(sources[refName], schemaSource{FilePath: filePath})
 			continue
 		}
 
@@ -57,11 +72,60 @@ func buildSchemaRegistry(schemas map[string]map[string]any) map[string]map[strin
 			if schema, ok := val.(map[string]any); ok {
 				refName := relDir + "/" + key
 				registry[refName] = schema
+				sources[refName] = append(sources[refName], schemaSource{FilePath: filePath, Key: key})
 			}
 		}
 	}
 
-	return registry
+	return registry, collisionErrors(sources)
+}
+
+// collisionErrors reports every ref name claimed by more than one source (#405).
+// Without this the registry silently keeps whichever definition Go's randomized
+// map iteration happened to write last, so the same config can validate against
+// a different schema on the next boot.
+//
+// Everything here is sorted: the input is derived from a map, and a
+// nondeterministic message would defeat the purpose.
+func collisionErrors(sources map[string][]schemaSource) []ValidationError {
+	names := make([]string, 0, len(sources))
+	for name, srcs := range sources {
+		if len(srcs) > 1 {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+
+	var errs []ValidationError
+	for _, name := range names {
+		srcs := sources[name]
+		sort.Slice(srcs, func(i, j int) bool {
+			if srcs[i].FilePath != srcs[j].FilePath {
+				return srcs[i].FilePath < srcs[j].FilePath
+			}
+			return srcs[i].Key < srcs[j].Key
+		})
+
+		described := make([]string, len(srcs))
+		for i, s := range srcs {
+			described[i] = s.describe()
+		}
+
+		jsonPath := ""
+		if srcs[0].Key != "" {
+			jsonPath = "/" + srcs[0].Key
+		}
+
+		errs = append(errs, ValidationError{
+			FilePath: srcs[0].FilePath,
+			JSONPath: jsonPath,
+			Message: fmt.Sprintf(
+				"duplicate schema ref %q defined %d times: %s — ref names must be unique; rename one definition, or move one file into a schemas/ subdirectory (the directory is part of the ref name)",
+				name, len(srcs), strings.Join(described, ", ")),
+		})
+	}
+
+	return errs
 }
 
 // isBareSchema reports whether a schema file's content is itself a JSON

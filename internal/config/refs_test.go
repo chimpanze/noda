@@ -385,3 +385,74 @@ func TestResolveRefs_UnresolvedErrorListsKnownRefs(t *testing.T) {
 	assert.Contains(t, msg, "schemas/User")  // the known-refs list
 	assert.Contains(t, msg, "top-level key") // the convention hint
 }
+
+func TestBuildSchemaRegistry_CollisionKeyedVsKeyed(t *testing.T) {
+	schemas := map[string]map[string]any{
+		"/p/schemas/a.json": {"User": map[string]any{"marker": "FROM_A"}},
+		"/p/schemas/b.json": {"User": map[string]any{"marker": "FROM_B"}},
+	}
+
+	// Map iteration is randomized; the collision must be reported on every build.
+	var first string
+	for i := 0; i < 200; i++ {
+		_, errs := buildSchemaRegistry(schemas)
+		require.Len(t, errs, 1, "collision must be detected on build %d", i)
+		if i == 0 {
+			first = errs[0].Error()
+			continue
+		}
+		assert.Equal(t, first, errs[0].Error(), "error text must be deterministic (build %d)", i)
+	}
+
+	assert.Contains(t, first, `"schemas/User"`)
+	assert.Contains(t, first, "/p/schemas/a.json")
+	assert.Contains(t, first, "/p/schemas/b.json")
+}
+
+func TestBuildSchemaRegistry_CollisionBareVsKeyed(t *testing.T) {
+	schemas := map[string]map[string]any{
+		"/p/schemas/User.json":  {"type": "object"},
+		"/p/schemas/other.json": {"User": map[string]any{"marker": "KEYED"}},
+	}
+
+	for i := 0; i < 200; i++ {
+		_, errs := buildSchemaRegistry(schemas)
+		require.Len(t, errs, 1, "collision must be detected on build %d", i)
+	}
+
+	_, errs := buildSchemaRegistry(schemas)
+	assert.Contains(t, errs[0].Error(), "/p/schemas/User.json (whole file)")
+	assert.Contains(t, errs[0].Error(), `/p/schemas/other.json (key "User")`)
+}
+
+func TestBuildSchemaRegistry_NoCollisionAcrossDirectories(t *testing.T) {
+	registry, errs := buildSchemaRegistry(map[string]map[string]any{
+		"/p/schemas/billing/Invoice.json": {"Invoice": map[string]any{"marker": "billing"}},
+		"/p/schemas/orders/Invoice.json":  {"Invoice": map[string]any{"marker": "orders"}},
+	})
+
+	assert.Empty(t, errs)
+	assert.Equal(t, "billing", registry["schemas/billing/Invoice"]["marker"])
+	assert.Equal(t, "orders", registry["schemas/orders/Invoice"]["marker"])
+}
+
+func TestResolveRefs_ReportsCollision(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"/p/schemas/a.json": {"User": map[string]any{"type": "object"}},
+			"/p/schemas/b.json": {"User": map[string]any{"type": "string"}},
+		},
+		Routes:      map[string]map[string]any{},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+		Models:      map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "/p/schemas/a.json", errs[0].FilePath)
+	assert.Equal(t, "/User", errs[0].JSONPath)
+}
