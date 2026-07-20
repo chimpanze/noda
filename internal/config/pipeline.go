@@ -18,14 +18,18 @@ type ResolvedConfig struct {
 	Root        map[string]any
 	Vars        map[string]string
 	Schemas     map[string]map[string]any
-	Routes      map[string]map[string]any
-	Workflows   map[string]map[string]any
-	Workers     map[string]map[string]any
-	Schedules   map[string]map[string]any
-	Connections map[string]map[string]any
-	Tests       map[string]map[string]any
-	Models      map[string]map[string]any
-	FileCount   int
+	// SchemaRegistry maps $ref names ("schemas/User") to schema definitions.
+	// Schemas above is keyed by file path; consumers that need to resolve a
+	// "$ref" string want this one.
+	SchemaRegistry map[string]map[string]any
+	Routes         map[string]map[string]any
+	Workflows      map[string]map[string]any
+	Workers        map[string]map[string]any
+	Schedules      map[string]map[string]any
+	Connections    map[string]map[string]any
+	Tests          map[string]map[string]any
+	Models         map[string]map[string]any
+	FileCount      int
 }
 
 // ValidateAll runs the full config loading and validation pipeline.
@@ -87,11 +91,7 @@ func ValidateAll(rootPath string, envFlag string, sm *secrets.Manager) (*Resolve
 	// 6. Resolve $ref
 	refErrs := ResolveRefs(raw)
 	if len(refErrs) > 0 {
-		var valErrs []ValidationError
-		for _, e := range refErrs {
-			valErrs = append(valErrs, ValidationError{Message: e.Error()})
-		}
-		return nil, valErrs
+		return nil, refErrs
 	}
 
 	// 7. Validate schemas
@@ -124,18 +124,19 @@ func ValidateAll(rootPath string, envFlag string, sm *secrets.Manager) (*Resolve
 	}
 
 	return &ResolvedConfig{
-		Environment: env,
-		Root:        raw.Root,
-		Vars:        raw.Vars,
-		Schemas:     raw.Schemas,
-		Routes:      raw.Routes,
-		Workflows:   raw.Workflows,
-		Workers:     raw.Workers,
-		Schedules:   raw.Schedules,
-		Connections: raw.Connections,
-		Tests:       raw.Tests,
-		Models:      raw.Models,
-		FileCount:   fileCount,
+		Environment:    env,
+		Root:           raw.Root,
+		Vars:           raw.Vars,
+		Schemas:        raw.Schemas,
+		SchemaRegistry: raw.SchemaRegistry,
+		Routes:         raw.Routes,
+		Workflows:      raw.Workflows,
+		Workers:        raw.Workers,
+		Schedules:      raw.Schedules,
+		Connections:    raw.Connections,
+		Tests:          raw.Tests,
+		Models:         raw.Models,
+		FileCount:      fileCount,
 	}, nil
 }
 

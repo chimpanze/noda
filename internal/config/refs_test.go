@@ -339,6 +339,30 @@ func TestResolveRefs_BareSchemaFileDoesNotRegisterKeywordKeys(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "unresolved $ref")
 }
 
+func TestResolveRefs_ErrorCarriesFilePath(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{},
+		Routes: map[string]map[string]any{
+			"routes/test.json": {
+				"response": map[string]any{"$ref": "schemas/Missing"},
+			},
+		},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+		Models:      map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "routes/test.json", errs[0].FilePath)
+	assert.Contains(t, errs[0].Message, `unresolved $ref "schemas/Missing"`)
+	// The path lives in FilePath now, not doubled into the message.
+	assert.NotContains(t, errs[0].Message, "routes/test.json")
+}
+
 // TestResolveRefs_UnresolvedErrorListsKnownRefs pins #373: the
 // unresolved-$ref error must teach the resolution rule and list what IS
 // registered, so a near-miss ref is self-diagnosing.
@@ -360,4 +384,170 @@ func TestResolveRefs_UnresolvedErrorListsKnownRefs(t *testing.T) {
 	assert.Contains(t, msg, `unresolved $ref "schemas/user"`)
 	assert.Contains(t, msg, "schemas/User")  // the known-refs list
 	assert.Contains(t, msg, "top-level key") // the convention hint
+}
+
+func TestClassifySchemaFile(t *testing.T) {
+	tests := []struct {
+		name    string
+		content map[string]any
+		want    schemaFileKind
+	}{
+		{"type as string is the keyword", map[string]any{"type": "object"}, schemaFileBare},
+		{"type as array is the keyword", map[string]any{"type": []any{"string", "null"}}, schemaFileBare},
+		{"$schema string", map[string]any{"$schema": "https://json-schema.org/draft/2020-12/schema"}, schemaFileBare},
+		{"$ref string", map[string]any{"$ref": "schemas/Other"}, schemaFileBare},
+		{"oneOf array", map[string]any{"oneOf": []any{}}, schemaFileBare},
+		{"enum array", map[string]any{"enum": []any{"a"}}, schemaFileBare},
+		{"bare with type and properties", map[string]any{"type": "object", "properties": map[string]any{}}, schemaFileBare},
+
+		{"capitalized definition names", map[string]any{"User": map[string]any{}}, schemaFileKeyed},
+		{
+			"type as object is a definition name",
+			map[string]any{"type": map[string]any{"type": "string"}, "Other": map[string]any{}},
+			schemaFileKeyed,
+		},
+		{
+			"oneOf as object is a definition name",
+			map[string]any{"oneOf": map[string]any{"type": "string"}},
+			schemaFileKeyed,
+		},
+
+		{"properties alone is undecidable", map[string]any{"properties": map[string]any{}}, schemaFileAmbiguous},
+		{"items alone is undecidable", map[string]any{"items": map[string]any{}}, schemaFileAmbiguous},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, classifySchemaFile(tt.content))
+		})
+	}
+}
+
+func TestBuildSchemaRegistry_LowercaseKeywordDefinitionNames(t *testing.T) {
+	// Previously misclassified as a bare schema, silently losing both definitions.
+	registry, errs := BuildSchemaRegistry(map[string]map[string]any{
+		"/p/schemas/domain.json": {
+			"type":  map[string]any{"type": "string"},
+			"items": map[string]any{"type": "array"},
+		},
+	})
+
+	assert.Empty(t, errs)
+	assert.Len(t, registry, 2)
+	assert.Contains(t, registry, "schemas/type")
+	assert.Contains(t, registry, "schemas/items")
+	assert.NotContains(t, registry, "schemas/domain")
+}
+
+func TestBuildSchemaRegistry_AmbiguousFileIsAnError(t *testing.T) {
+	registry, errs := BuildSchemaRegistry(map[string]map[string]any{
+		"/p/schemas/thing.json": {"properties": map[string]any{"name": map[string]any{}}},
+	})
+
+	require.Len(t, errs, 1)
+	assert.Equal(t, "/p/schemas/thing.json", errs[0].FilePath)
+	assert.Contains(t, errs[0].Message, "cannot tell")
+	assert.Contains(t, errs[0].Message, `"type"`)
+	assert.Empty(t, registry, "an unclassifiable file must not register anything")
+}
+
+func TestBuildSchemaRegistry_CollisionKeyedVsKeyed(t *testing.T) {
+	schemas := map[string]map[string]any{
+		"/p/schemas/a.json": {"User": map[string]any{"marker": "FROM_A"}},
+		"/p/schemas/b.json": {"User": map[string]any{"marker": "FROM_B"}},
+	}
+
+	// Map iteration is randomized; the collision must be reported on every build.
+	var first string
+	for i := 0; i < 200; i++ {
+		_, errs := BuildSchemaRegistry(schemas)
+		require.Len(t, errs, 1, "collision must be detected on build %d", i)
+		if i == 0 {
+			first = errs[0].Error()
+			continue
+		}
+		assert.Equal(t, first, errs[0].Error(), "error text must be deterministic (build %d)", i)
+	}
+
+	assert.Contains(t, first, `"schemas/User"`)
+	assert.Contains(t, first, "/p/schemas/a.json")
+	assert.Contains(t, first, "/p/schemas/b.json")
+}
+
+func TestBuildSchemaRegistry_CollisionBareVsKeyed(t *testing.T) {
+	schemas := map[string]map[string]any{
+		"/p/schemas/User.json":  {"type": "object"},
+		"/p/schemas/other.json": {"User": map[string]any{"marker": "KEYED"}},
+	}
+
+	// Map iteration is randomized; the collision must be reported on every build.
+	var first string
+	for i := 0; i < 200; i++ {
+		_, errs := BuildSchemaRegistry(schemas)
+		require.Len(t, errs, 1, "collision must be detected on build %d", i)
+		if i == 0 {
+			first = errs[0].Error()
+			continue
+		}
+		assert.Equal(t, first, errs[0].Error(), "error text must be deterministic (build %d)", i)
+	}
+
+	assert.Contains(t, first, "/p/schemas/User.json (whole file)")
+	assert.Contains(t, first, `/p/schemas/other.json (key "User")`)
+}
+
+func TestBuildSchemaRegistry_NoCollisionAcrossDirectories(t *testing.T) {
+	registry, errs := BuildSchemaRegistry(map[string]map[string]any{
+		"/p/schemas/billing/Invoice.json": {"Invoice": map[string]any{"marker": "billing"}},
+		"/p/schemas/orders/Invoice.json":  {"Invoice": map[string]any{"marker": "orders"}},
+	})
+
+	assert.Empty(t, errs)
+	assert.Equal(t, "billing", registry["schemas/billing/Invoice"]["marker"])
+	assert.Equal(t, "orders", registry["schemas/orders/Invoice"]["marker"])
+}
+
+func TestResolveRefs_ReportsCollision(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"/p/schemas/a.json": {"User": map[string]any{"type": "object"}},
+			"/p/schemas/b.json": {"User": map[string]any{"type": "string"}},
+		},
+		Routes:      map[string]map[string]any{},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+		Models:      map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Len(t, errs, 1)
+	assert.Equal(t, "/p/schemas/a.json", errs[0].FilePath)
+	assert.Equal(t, "/User", errs[0].JSONPath)
+}
+
+func TestResolveRefs_PublishesRegistry(t *testing.T) {
+	rc := &RawConfig{
+		Schemas: map[string]map[string]any{
+			"/p/schemas/User.json":            {"User": map[string]any{"type": "object"}},
+			"/p/schemas/validation/Task.json": {"Task": map[string]any{"type": "object"}},
+		},
+		Routes:      map[string]map[string]any{},
+		Workflows:   map[string]map[string]any{},
+		Workers:     map[string]map[string]any{},
+		Schedules:   map[string]map[string]any{},
+		Connections: map[string]map[string]any{},
+		Tests:       map[string]map[string]any{},
+		Models:      map[string]map[string]any{},
+	}
+
+	errs := ResolveRefs(rc)
+	require.Empty(t, errs)
+
+	// Keyed by ref name — the same string a config's "$ref" uses — not by file path.
+	assert.Len(t, rc.SchemaRegistry, 2)
+	assert.Contains(t, rc.SchemaRegistry, "schemas/User")
+	assert.Contains(t, rc.SchemaRegistry, "schemas/validation/Task")
 }

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -48,6 +49,66 @@ func TestValidateAll_ValidProject(t *testing.T) {
 	assert.Len(t, rc.Routes, 1)
 	assert.Len(t, rc.Workflows, 1)
 	assert.Equal(t, 3, rc.FileCount)
+}
+
+// TestValidateAll_PopulatesSchemaRegistry proves the $ref registry survives
+// the full pipeline and lands on ResolvedConfig.SchemaRegistry keyed by ref
+// name ("schemas/User", "schemas/validation/Task") rather than by the file
+// path used for ResolvedConfig.Schemas ("<dir>/schemas/User.json"). The
+// subdirectory schema is what proves directory qualification survives the
+// pipeline, not just flat schemas/ files.
+func TestValidateAll_PopulatesSchemaRegistry(t *testing.T) {
+	dir := setupTestProject(t, map[string]string{
+		"noda.json": `{
+			"services": {
+				"main-db": {"plugin": "postgres", "config": {"url": "postgres://localhost/test"}}
+			}
+		}`,
+		"routes/tasks.json": `{
+			"id": "list-tasks",
+			"method": "GET",
+			"path": "/api/tasks",
+			"trigger": {"workflow": "list-tasks"}
+		}`,
+		"workflows/list-tasks.json": `{
+			"id": "list-tasks",
+			"nodes": {
+				"query": {"type": "db.query", "services": {"database": "main-db"}}
+			},
+			"edges": []
+		}`,
+		"schemas/User.json": `{
+			"User": {"type": "object", "properties": {"id": {"type": "string"}}},
+			"Pagination": {"type": "object", "properties": {"page": {"type": "integer"}}}
+		}`,
+		"schemas/validation/Task.json": `{
+			"Task": {"type": "object", "properties": {"title": {"type": "string"}}}
+		}`,
+	})
+
+	sm := secrets.New()
+	_ = sm.Load(context.Background())
+	rc, errs := ValidateAll(dir, "development", sm)
+	require.Empty(t, errs)
+	require.NotNil(t, rc)
+
+	require.NotEmpty(t, rc.SchemaRegistry)
+
+	expectedRefs := []string{"schemas/User", "schemas/Pagination", "schemas/validation/Task"}
+	for _, ref := range expectedRefs {
+		assert.Contains(t, rc.SchemaRegistry, ref, "expected ref %q to be registered", ref)
+	}
+	assert.Len(t, rc.SchemaRegistry, len(expectedRefs),
+		"registry should contain exactly the expected refs, no more")
+
+	// Registry keys are ref names, never the file paths ResolvedConfig.Schemas
+	// uses — a leaked file path is the exact failure mode #405 pinned down.
+	for name := range rc.SchemaRegistry {
+		assert.True(t, strings.HasPrefix(name, "schemas/"),
+			"registry key %q should be a $ref name, not a file path", name)
+		assert.False(t, strings.HasSuffix(name, ".json"),
+			"registry key %q looks like a file path, not a $ref name", name)
+	}
 }
 
 func TestValidateAll_BrokenJSON(t *testing.T) {
