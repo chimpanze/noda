@@ -480,14 +480,20 @@ func TestBuildSchemaRegistry_CollisionBareVsKeyed(t *testing.T) {
 		"/p/schemas/other.json": {"User": map[string]any{"marker": "KEYED"}},
 	}
 
+	// Map iteration is randomized; the collision must be reported on every build.
+	var first string
 	for i := 0; i < 200; i++ {
 		_, errs := BuildSchemaRegistry(schemas)
 		require.Len(t, errs, 1, "collision must be detected on build %d", i)
+		if i == 0 {
+			first = errs[0].Error()
+			continue
+		}
+		assert.Equal(t, first, errs[0].Error(), "error text must be deterministic (build %d)", i)
 	}
 
-	_, errs := BuildSchemaRegistry(schemas)
-	assert.Contains(t, errs[0].Error(), "/p/schemas/User.json (whole file)")
-	assert.Contains(t, errs[0].Error(), `/p/schemas/other.json (key "User")`)
+	assert.Contains(t, first, "/p/schemas/User.json (whole file)")
+	assert.Contains(t, first, `/p/schemas/other.json (key "User")`)
 }
 
 func TestBuildSchemaRegistry_NoCollisionAcrossDirectories(t *testing.T) {

@@ -55,6 +55,10 @@ func (s schemaSource) describe() string {
 // reports files that cannot be classified and ref names claimed more than
 // once. Ref names are "<reldir>/<key>", e.g. "schemas/User" or
 // "schemas/validation/Task" — the exact strings configs write in "$ref".
+//
+// The returned registry is only meaningful when the returned error slice is
+// empty; if there are any errors, the registry is nil rather than a
+// partially- or arbitrarily-populated map.
 func BuildSchemaRegistry(schemas map[string]map[string]any) (map[string]map[string]any, []ValidationError) {
 	registry := make(map[string]map[string]any)
 	sources := make(map[string][]schemaSource)
@@ -94,7 +98,11 @@ func BuildSchemaRegistry(schemas map[string]map[string]any) (map[string]map[stri
 	// Sorted by FilePath so the message order does not depend on map iteration.
 	sort.Slice(ambiguous, func(i, j int) bool { return ambiguous[i].FilePath < ambiguous[j].FilePath })
 
-	return registry, append(ambiguous, collisionErrors(sources)...)
+	errs := append(ambiguous, collisionErrors(sources)...)
+	if len(errs) > 0 {
+		return nil, errs
+	}
+	return registry, errs
 }
 
 // collisionErrors reports every ref name claimed by more than one source (#405).
