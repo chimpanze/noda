@@ -33,9 +33,13 @@ Referenced from routes and nodes with `$ref`:
 Refs are resolved from the schema **definition names**, not filenames. Two file shapes are supported:
 
 - **Named-definitions file** (shown above): each top-level key is a schema, registered as `schemas/<Key>`. `schemas/Task.json` containing keys `Task` and `CreateTask` registers `schemas/Task` and `schemas/CreateTask`. The filename itself does not matter.
-- **Bare schema file**: a file that is itself a JSON Schema document (top level has `type`, `properties`, etc.) registers under its filename -- `schemas/greeting.json` registers `schemas/greeting`.
+- **Bare schema file**: a file that is itself a JSON Schema document registers under its filename -- `schemas/greeting.json` registers `schemas/greeting`. A file counts as a bare schema when a top-level JSON Schema keyword carries the value shape that keyword really takes: `type` as a string or array, `$schema`/`$ref` as a string, or `enum`/`oneOf`/`anyOf`/`allOf` as an array. A top-level `type` holding an *object* is a schema named `type`, not the keyword.
 
 For files in subdirectories the directory path is part of the ref: `schemas/validation/User.json` with key `CreateUser` registers `schemas/validation/CreateUser`; a bare `schemas/validation/greeting.json` registers `schemas/validation/greeting`.
+
+**Ref names must be unique.** Two definitions that register the same name -- two files in one directory sharing a top-level key, or a bare `schemas/User.json` alongside another file's `User` key -- are rejected by `noda validate` and at boot. Rename one definition, or move one file into a subdirectory, since the directory is part of the name.
+
+**Give a bare schema a `type`.** A file whose top level has `properties` or `items` but none of `type`, `$schema`, `$ref`, `enum`, `oneOf`, `anyOf`, or `allOf` at all is ambiguous -- it could be read either way -- and is rejected rather than guessed at. Adding `"type": "object"` resolves it.
 
 During config loading, all `$ref` values are resolved and inlined before workflows or routes run. This means refs work in routes, workflows, workers, schedules, and connections -- anywhere a schema is expected. An unresolved ref fails validation with an error that lists every registered ref.
 
