@@ -46,7 +46,11 @@ jobs:
           # during SSA/callgraph analysis of generic code. v1.3.0 is the latest
           # release without the crash. Revert to @latest once x/vuln ships a fix.
           go install golang.org/x/vuln/cmd/govulncheck@v1.3.0
-          govulncheck ./...
+          # Exclude Go code vendored inside npm packages (the `flatted` package ships
+          # a Go implementation under the module root) — third-party, not ours to scan.
+          # This step currently runs before `make build` triggers `npm install`, so the
+          # directory is usually absent; filter anyway rather than depend on ordering.
+          govulncheck $(go list ./... | grep -v '/node_modules/')
 
       - name: Build
         run: make build
