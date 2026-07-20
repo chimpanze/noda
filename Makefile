@@ -27,14 +27,21 @@ install: build
 		echo "Installed to $(HOME)/.local/bin/noda"; \
 	fi
 
+# Go packages, excluding any vendored inside editor/node_modules: the npm package
+# `flatted` ships a Go implementation, and it lives under the module root, so a bare
+# ./... sweeps third-party 0%-covered code into the build. CI only avoids this by
+# accident of ordering (test-coverage runs before `make build` triggers npm install),
+# so a bare ./... reports ~0.9pp lower locally than in CI once the editor is built.
+GO_PKGS := $(shell go list ./... | grep -v '/node_modules/')
+
 test:
-	go test ./... -race -count=1
+	go test $(GO_PKGS) -race -count=1
 
 test-race:
 	go test -race -count=1 ./internal/engine/ ./internal/connmgr/ ./internal/wasm/ ./internal/worker/ ./internal/scheduler/
 
 test-coverage:
-	go test ./... -race -coverprofile=coverage.out
+	go test $(GO_PKGS) -race -coverprofile=coverage.out
 	go tool cover -html=coverage.out -o coverage.html
 
 lint:
