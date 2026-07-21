@@ -40,11 +40,16 @@ The `error` port fires if the Redis connection fails. The error output contains:
 
 ```json
 {
+  "code": "INTERNAL_ERROR",
   "error": "cache.exists: connection refused",
   "node_id": "check_rate_limit",
   "node_type": "cache.exists"
 }
 ```
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
 
 ## Examples
 

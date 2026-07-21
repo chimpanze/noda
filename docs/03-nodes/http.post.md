@@ -54,11 +54,16 @@ The `error` port fires on connection errors, DNS failures, or timeouts. It does 
 
 ```json
 {
+  "code": "INTERNAL_ERROR",
   "error": "http.request: Post \"https://api.example.com/orders\": dial tcp: connection refused",
   "node_id": "create_order",
   "node_type": "http.post"
 }
 ```
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
 
 For timeouts, the error message is: `"timeout: HTTP POST https://api.example.com/orders"`.
 

@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A node's `error`-edge output now carries a `code` field — `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `SERVICE_UNAVAILABLE`, `TIMEOUT`, or `INTERNAL_ERROR` — so a workflow can branch on the cause of a failure without reading the raw `error` string (#417). The `error` string is unchanged and remains a diagnostic field: it may carry driver, network, or filesystem detail and should not be forwarded to clients. The same vocabulary is used by the HTTP error body, now derived from one shared `api.ErrorCode` so the two surfaces cannot drift.
 - `ServiceConfigSchema` on `api.Plugin` + `noda_get_service_schema` MCP tool — plugin service configs are declared, validated, and discoverable (#375 #376). **Upgrade note:** external `api.Plugin` implementations must add this method — return `nil` for plugins with no services.
 - livekit service accepts an optional `timeout` (per-API-call deadline); unset keeps unbounded calls (#368)
 - `auth.jwt` optional claim validation: `audience`, `issuer`, and `require_expiry` (all default off — when unset, behavior is unchanged)
