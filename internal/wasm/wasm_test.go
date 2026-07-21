@@ -3721,7 +3721,7 @@ func TestNoRaceOnShutdownCtx(t *testing.T) {
 
 	// Fire 20 async calls that block on release
 	var wg sync.WaitGroup
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -3872,11 +3872,11 @@ func TestModule_SendCommand_ConcurrentWithStop(t *testing.T) {
 	m.Start()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			for j := 0; j < 50; j++ {
+			for j := range 50 {
 				m.SendCommand(map[string]any{"n": j})
 			}
 		}()
@@ -3899,7 +3899,7 @@ func TestModule_TryAddOutstanding_NoAddAfterStop(t *testing.T) {
 
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
-	for i := 0; i < 8; i++ {
+	for range 8 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

@@ -906,7 +906,7 @@ func TestJSONExecutor_StatusNonIntString(t *testing.T) {
 func TestResolveDeep_DepthLimit(t *testing.T) {
 	// Build a nested structure deeper than maxResolveDepth
 	var nested any = "leaf"
-	for i := 0; i < maxResolveDepth+10; i++ {
+	for i := range maxResolveDepth + 10 {
 		nested = map[string]any{fmt.Sprintf("level_%d", i): nested}
 	}
 

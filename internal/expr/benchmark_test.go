@@ -206,7 +206,7 @@ func BenchmarkResolveMap_20Fields(b *testing.B) {
 	ctx := benchContext()
 	r := NewResolver(c, ctx)
 	config := make(map[string]any, 20)
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		switch i % 5 {
 		case 0:
 			config[fmt.Sprintf("field_%d", i)] = "{{ input.name }}"

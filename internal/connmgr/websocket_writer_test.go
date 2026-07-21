@@ -15,9 +15,9 @@ import (
 // dropped rather than blocking the whole channel.
 func TestWSWriter_NonBlockingAndDropsOnFull(t *testing.T) {
 	release := make(chan struct{})
-	var writes int32
+	var writes atomic.Int32
 	write := func(_ []byte) error {
-		atomic.AddInt32(&writes, 1)
+		writes.Add(1)
 		<-release // simulate a stuck (non-reading) client
 		return nil
 	}
@@ -29,19 +29,19 @@ func TestWSWriter_NonBlockingAndDropsOnFull(t *testing.T) {
 	// wait until write() has picked it up. Without this, a late-scheduled pop
 	// can free a buffer slot mid-fill and let the final send sneak in.
 	require.NoError(t, w.send([]byte("primer")))
-	require.Eventually(t, func() bool { return atomic.LoadInt32(&writes) == 1 },
+	require.Eventually(t, func() bool { return writes.Load() == 1 },
 		2*time.Second, time.Millisecond, "writer goroutine never picked up the primer frame")
 
 	// The writer is stuck in write() and the buffer is empty; the next
 	// wsOutboundBuffer sends fill it and exactly the 10 past that must drop.
 	// Every send must return promptly — none may block.
 	done := make(chan error, 1)
-	var dropped int32
+	var dropped atomic.Int32
 	go func() {
 		var lastErr error
-		for i := 0; i < wsOutboundBuffer+10; i++ {
+		for range wsOutboundBuffer + 10 {
 			if err := w.send([]byte("x")); err != nil {
-				atomic.AddInt32(&dropped, 1)
+				dropped.Add(1)
 				lastErr = err
 			}
 		}
@@ -52,7 +52,7 @@ func TestWSWriter_NonBlockingAndDropsOnFull(t *testing.T) {
 	case err := <-done:
 		require.Error(t, err, "sends past the buffer must drop (return error), not block")
 		assert.Contains(t, err.Error(), "buffer full")
-		assert.EqualValues(t, 10, atomic.LoadInt32(&dropped), "exactly the overflow sends must drop")
+		assert.EqualValues(t, 10, dropped.Load(), "exactly the overflow sends must drop")
 	case <-time.After(2 * time.Second):
 		t.Fatal("w.send blocked — head-of-line blocking not fixed")
 	}

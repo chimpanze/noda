@@ -284,7 +284,7 @@ func TestBuildMiddleware_Limiter(t *testing.T) {
 	})
 
 	// First two requests should succeed
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)
@@ -323,7 +323,7 @@ func TestBuildMiddleware_Limiter_RedisStorage(t *testing.T) {
 	})
 
 	// First two requests should succeed
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		req := httptest.NewRequest("GET", "/test", nil)
 		resp, err := app.Test(req)
 		require.NoError(t, err)

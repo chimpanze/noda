@@ -15,8 +15,6 @@ func doc(t *testing.T, s string) any {
 	return v
 }
 
-func boolPtr(b bool) *bool { return &b }
-
 func TestLookupPath(t *testing.T) {
 	d := doc(t, `{"a": {"b": [{"c": 7}]}, "s": "x"}`)
 
@@ -48,9 +46,9 @@ func TestCheckAssertion(t *testing.T) {
 	assert.Error(t, CheckAssertion(d, BodyAssertion{Path: "id", Regex: `^zzz`}))
 
 	// exists
-	assert.NoError(t, CheckAssertion(d, BodyAssertion{Path: "id", Exists: boolPtr(true)}))
-	assert.NoError(t, CheckAssertion(d, BodyAssertion{Path: "gone", Exists: boolPtr(false)}))
-	assert.Error(t, CheckAssertion(d, BodyAssertion{Path: "gone", Exists: boolPtr(true)}))
+	assert.NoError(t, CheckAssertion(d, BodyAssertion{Path: "id", Exists: new(true)}))
+	assert.NoError(t, CheckAssertion(d, BodyAssertion{Path: "gone", Exists: new(false)}))
+	assert.Error(t, CheckAssertion(d, BodyAssertion{Path: "gone", Exists: new(true)}))
 
 	// type
 	assert.NoError(t, CheckAssertion(d, BodyAssertion{Path: "n", Type: "number"}))

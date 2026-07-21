@@ -71,7 +71,7 @@ func TestCircuitBreaker_TripsAfterThreshold(t *testing.T) {
 	errFail := errors.New("fail")
 
 	// Execute 3 failing calls to trip the breaker
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		_, err := cb.Execute(func() (any, error) {
 			return nil, errFail
 		})

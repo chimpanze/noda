@@ -844,9 +844,9 @@ func TestScaffoldProjectHandler_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
 
 func extractJWTSecret(t *testing.T, envContent string) string {
 	t.Helper()
-	for _, line := range strings.Split(envContent, "\n") {
-		if strings.HasPrefix(line, "JWT_SECRET=") {
-			return strings.TrimPrefix(line, "JWT_SECRET=")
+	for line := range strings.SplitSeq(envContent, "\n") {
+		if after, ok := strings.CutPrefix(line, "JWT_SECRET="); ok {
+			return after
 		}
 	}
 	t.Fatal("JWT_SECRET= line not found in .env")

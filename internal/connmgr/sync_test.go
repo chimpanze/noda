@@ -100,8 +100,7 @@ func waitFor(t *testing.T, timeout time.Duration, cond func() bool) {
 
 func TestSyncBridge_WSCrossDelivery(t *testing.T) {
 	bus := newFakeBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrA := NewManager()
 	mgrB := NewManager()
@@ -162,8 +161,7 @@ func TestSyncBridge_WSCrossDelivery(t *testing.T) {
 
 func TestSyncBridge_SSECrossDelivery(t *testing.T) {
 	bus := newFakeBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrB := NewManager()
 	bridgeA := NewSyncBridge(bus, "instanceA", nil)
@@ -211,8 +209,7 @@ func TestSyncBridge_SSECrossDelivery(t *testing.T) {
 
 func TestSyncBridge_MalformedEnvelopeDropped(t *testing.T) {
 	bus := newFakeBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrB := NewManager()
 	bridgeA := NewSyncBridge(bus, "instanceA", nil)
@@ -264,8 +261,7 @@ func TestSyncBridge_MalformedEnvelopeDropped(t *testing.T) {
 
 func TestSyncBridge_UnknownVersionOrKindDropped(t *testing.T) {
 	bus := newFakeBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrB := NewManager()
 	bridgeB := NewSyncBridge(bus, "instanceB", nil)
@@ -312,8 +308,7 @@ func TestSyncBridge_UnknownVersionOrKindDropped(t *testing.T) {
 func TestSyncBridge_SubscribeErrorRetriesAndRecovers(t *testing.T) {
 	bus := newFakeBus()
 	bus.subErrOnce = true
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrB := NewManager()
 	bridgeA := NewSyncBridge(bus, "instanceA", nil)
@@ -558,8 +553,7 @@ func TestSyncBridge_CtxCancelReturns(t *testing.T) {
 func TestSyncBridge_BinaryPayloadRoundTripsByteExact(t *testing.T) {
 	binary := []byte{0x82, 0xa3, 0xfe, 0xff, 0x00, 0x01} // invalid UTF-8
 	bus := newFakeBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrA := NewManager()
 	mgrB := NewManager()
@@ -646,8 +640,7 @@ func TestSyncBridge_UTF8PayloadPlainEncoding(t *testing.T) {
 // delivered corrupted.
 func TestSyncBridge_MalformedBase64Dropped(t *testing.T) {
 	bus := newFakeBus()
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrB := NewManager()
 	bridgeA := NewSyncBridge(bus, "instanceA", nil)

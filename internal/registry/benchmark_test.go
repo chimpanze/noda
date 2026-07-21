@@ -44,7 +44,7 @@ func setupBenchNodeRegistry(b *testing.B, count int) *NodeRegistry {
 	b.Helper()
 	reg := NewNodeRegistry()
 	var regs []api.NodeRegistration
-	for i := 0; i < count; i++ {
+	for i := range count {
 		regs = append(regs, api.NodeRegistration{
 			Descriptor: &benchDescriptor{name: fmt.Sprintf("node%d", i)},
 			Factory:    func(map[string]any) api.NodeExecutor { return &benchExecutor{} },
@@ -98,7 +98,7 @@ func BenchmarkNodeRegistry_AllTypes(b *testing.B) {
 func BenchmarkServiceRegistry_Get(b *testing.B) {
 	reg := NewServiceRegistry()
 	p := &benchPlugin{name: "bench", prefix: "bench"}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		_ = reg.Register(fmt.Sprintf("svc_%d", i), struct{}{}, p)
 	}
 	b.ReportAllocs()
@@ -111,7 +111,7 @@ func BenchmarkServiceRegistry_Get(b *testing.B) {
 func BenchmarkServiceRegistry_Get_Parallel(b *testing.B) {
 	reg := NewServiceRegistry()
 	p := &benchPlugin{name: "bench", prefix: "bench"}
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		_ = reg.Register(fmt.Sprintf("svc_%d", i), struct{}{}, p)
 	}
 	b.ReportAllocs()

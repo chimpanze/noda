@@ -113,7 +113,7 @@ func TestExecutionContext_DepthTracking(t *testing.T) {
 	ctx := NewExecutionContext()
 
 	// Should allow incrementing up to max depth
-	for i := 0; i < 64; i++ {
+	for i := range 64 {
 		require.NoError(t, ctx.CheckAndIncrementDepth(), "depth %d should succeed", i)
 	}
 
@@ -127,7 +127,7 @@ func TestExecutionContext_DepthTracking(t *testing.T) {
 	require.NoError(t, ctx.CheckAndIncrementDepth())
 
 	// Clean up
-	for i := 0; i < 64; i++ {
+	for range 64 {
 		ctx.DecrementDepth()
 	}
 }
@@ -181,7 +181,7 @@ func TestResolve_EnvCaptureNotCorruptedByConcurrentResolves(t *testing.T) {
 	require.True(t, ok)
 
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -189,7 +189,7 @@ func TestResolve_EnvCaptureNotCorruptedByConcurrentResolves(t *testing.T) {
 		}()
 	}
 	// Read the captured map concurrently with the Resolves above.
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		_ = capturedMap["input"]
 	}
 	wg.Wait()

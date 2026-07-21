@@ -1,7 +1,6 @@
 package connmgr
 
 import (
-	"context"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -27,8 +26,7 @@ func TestSyncBridge_Integration_RealPubSub(t *testing.T) {
 	svc, ok := svcAny.(*pubsub.Service)
 	require.True(t, ok)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrA := NewManager()
 	mgrB := NewManager()
@@ -107,8 +105,7 @@ func TestSyncBridge_Integration_RealPubSub_SSE(t *testing.T) {
 	svc, ok := svcAny.(*pubsub.Service)
 	require.True(t, ok)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 
 	mgrA := NewManager()
 	mgrB := NewManager()
