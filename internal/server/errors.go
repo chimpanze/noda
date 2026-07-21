@@ -33,6 +33,12 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 	var resp ErrorResponse
 
 	code := api.ErrorCode(err)
+	if code == "" {
+		// Defensive: api.ErrorCode returns "" for a nil error. Both call
+		// sites guard against nil, so this is unreachable, but a nil here
+		// must not produce an empty code in the response body.
+		code = "INTERNAL_ERROR"
+	}
 
 	switch {
 	case errors.As(err, &valErr):

@@ -248,25 +248,31 @@ func TestDevModeSurfacesCause(t *testing.T) {
 	assert.Contains(t, string(body), "VISIBLE")
 }
 
-// The HTTP body's code and the error-edge payload's code must be the same
-// vocabulary. This test is what stops the two surfaces drifting.
-func TestMapErrorToHTTPCodeMatchesErrorCode(t *testing.T) {
-	tests := []error{
-		&api.ValidationError{Field: "age", Message: "bad"},
-		&api.NotFoundError{Resource: "user", ID: "1"},
-		&api.ConflictError{Resource: "users", Reason: "dup"},
-		&api.ServiceUnavailableError{Service: "db"},
-		&api.TimeoutError{Operation: "query"},
-		errors.New("untyped boom"),
+// Pins the HTTP status and the error code together for every typed error.
+// Asserting the pair is what makes this catch drift: comparing the body's
+// code against api.ErrorCode alone is a tautology, since MapErrorToHTTP
+// now derives the code from that same function — a switch arm with the
+// wrong status (or a missing/extra arm) would still pass a code-only check.
+func TestMapErrorToHTTPStatusAndCode(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+		wantCode   string
+	}{
+		{"validation", &api.ValidationError{Field: "age", Message: "bad"}, 422, "VALIDATION_ERROR"},
+		{"not found", &api.NotFoundError{Resource: "user", ID: "1"}, 404, "NOT_FOUND"},
+		{"conflict", &api.ConflictError{Resource: "users", Reason: "dup"}, 409, "CONFLICT"},
+		{"unavailable", &api.ServiceUnavailableError{Service: "db"}, 503, "SERVICE_UNAVAILABLE"},
+		{"timeout", &api.TimeoutError{Operation: "query"}, 504, "TIMEOUT"},
+		{"untyped", errors.New("boom"), 500, "INTERNAL_ERROR"},
 	}
-	for _, err := range tests {
-		t.Run(api.ErrorCode(err), func(t *testing.T) {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
 			for _, dev := range []bool{false, true} {
-				_, resp := MapErrorToHTTP(err, "trace-1", dev)
-				if resp.Error.Code != api.ErrorCode(err) {
-					t.Fatalf("devMode=%v: body code %q != api.ErrorCode %q",
-						dev, resp.Error.Code, api.ErrorCode(err))
-				}
+				status, resp := MapErrorToHTTP(tc.err, "trace-1", dev)
+				require.Equal(t, tc.wantStatus, status, "devMode=%v status", dev)
+				require.Equal(t, tc.wantCode, resp.Error.Code, "devMode=%v code", dev)
 			}
 		})
 	}
