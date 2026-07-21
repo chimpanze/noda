@@ -36,6 +36,15 @@ func (e *mockFailExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ 
 	return "", nil, fmt.Errorf("node failed")
 }
 
+// mockConflictExecutor fails with a typed api error, to prove the
+// error-edge payload reports the typed code rather than INTERNAL_ERROR.
+type mockConflictExecutor struct{}
+
+func (e *mockConflictExecutor) Outputs() []string { return []string{"success", "error"} }
+func (e *mockConflictExecutor) Execute(_ context.Context, _ api.ExecutionContext, _ map[string]any, _ map[string]any) (string, any, error) {
+	return "", nil, &api.ConflictError{Resource: "users", Reason: "unique constraint violation"}
+}
+
 func setupDispatchTest(t *testing.T) (*registry.NodeRegistry, *registry.PluginRegistry, *registry.ServiceRegistry) {
 	t.Helper()
 	plugins := registry.NewPluginRegistry()
@@ -58,6 +67,10 @@ func setupDispatchTest(t *testing.T) (*registry.NodeRegistry, *registry.PluginRe
 			{
 				Descriptor: &testDescriptor{name: "panic", deps: nil},
 				Factory:    func(map[string]any) api.NodeExecutor { return &mockPanicExecutor{} },
+			},
+			{
+				Descriptor: &testDescriptor{name: "conflict", deps: nil},
+				Factory:    func(map[string]any) api.NodeExecutor { return &mockConflictExecutor{} },
 			},
 		},
 	}
@@ -226,6 +239,57 @@ func TestDispatchNode_ErrorEdgeIncludesContext(t *testing.T) {
 	assert.Equal(t, "step1", errorData["node_id"])
 	assert.Equal(t, "mock.fail", errorData["node_type"])
 	assert.Contains(t, errorData["available_nodes"], "prev")
+}
+
+// An untyped node failure reports INTERNAL_ERROR.
+func TestDispatchNode_ErrorEdgeCode_Untyped(t *testing.T) {
+	nodes, _, services := setupDispatchTest(t)
+	execCtx := NewExecutionContext()
+
+	node := &CompiledNode{ID: "step1", Type: "mock.fail", Outputs: []string{"success", "error"}}
+	output, err := dispatchNode(context.Background(), node, execCtx, services, nodes)
+	require.NoError(t, err)
+	assert.Equal(t, "error", output)
+
+	data, ok := execCtx.GetOutput("step1")
+	require.True(t, ok)
+	assert.Equal(t, "INTERNAL_ERROR", data.(map[string]any)["code"])
+}
+
+// A typed node failure reports the typed code, so an author can branch on
+// cause without touching the raw error string.
+func TestDispatchNode_ErrorEdgeCode_Typed(t *testing.T) {
+	nodes, _, services := setupDispatchTest(t)
+	execCtx := NewExecutionContext()
+
+	node := &CompiledNode{ID: "step1", Type: "mock.conflict", Outputs: []string{"success", "error"}}
+	output, err := dispatchNode(context.Background(), node, execCtx, services, nodes)
+	require.NoError(t, err)
+	assert.Equal(t, "error", output)
+
+	data, ok := execCtx.GetOutput("step1")
+	require.True(t, ok)
+	assert.Equal(t, "CONFLICT", data.(map[string]any)["code"])
+}
+
+// The change must be purely additive: `error` stays byte-identical to
+// execErr.Error(), so existing workflows are unaffected.
+func TestDispatchNode_ErrorEdgeErrorStringUnchanged(t *testing.T) {
+	nodes, _, services := setupDispatchTest(t)
+	execCtx := NewExecutionContext()
+
+	node := &CompiledNode{ID: "step1", Type: "mock.conflict", Outputs: []string{"success", "error"}}
+	_, err := dispatchNode(context.Background(), node, execCtx, services, nodes)
+	require.NoError(t, err)
+
+	data, ok := execCtx.GetOutput("step1")
+	require.True(t, ok)
+	want := (&api.ConflictError{Resource: "users", Reason: "unique constraint violation"}).Error()
+	assert.Equal(t, want, data.(map[string]any)["error"])
+	// the pre-existing keys must survive
+	assert.Equal(t, "step1", data.(map[string]any)["node_id"])
+	assert.Equal(t, "mock.conflict", data.(map[string]any)["node_type"])
+	assert.Contains(t, data.(map[string]any), "available_nodes")
 }
 
 // test helpers for dispatch tests
