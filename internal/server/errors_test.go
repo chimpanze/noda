@@ -186,7 +186,13 @@ func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
 	for _, code := range codes {
 		t.Run(code, func(t *testing.T) {
 			driverErr := fmt.Errorf("db.find: %w", &pgconn.PgError{
-				Code: code, Message: secret, Detail: secret,
+				Code:           code,
+				Message:        secret,
+				Detail:         secret,
+				ConstraintName: secret,
+				TableName:      secret,
+				SchemaName:     secret,
+				Hint:           secret,
 			})
 			typed := dberr.Classify(driverErr, "users")
 			require.NotNil(t, typed, "code %s should classify", code)
