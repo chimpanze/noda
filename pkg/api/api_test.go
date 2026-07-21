@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,4 +226,46 @@ func TestErrorData(t *testing.T) {
 	}
 	assert.Equal(t, "NOT_FOUND", ed.Code)
 	assert.Equal(t, "node-1", ed.NodeID)
+}
+
+func TestErrorsUnwrapCause(t *testing.T) {
+	cause := errors.New("driver boom")
+
+	tests := []struct {
+		name string
+		err  error
+	}{
+		{"ValidationError", &api.ValidationError{Field: "age", Message: "invalid input syntax", Cause: cause}},
+		{"ConflictError", &api.ConflictError{Resource: "users", Reason: "unique constraint violation", Cause: cause}},
+		{"TimeoutError", &api.TimeoutError{Operation: "database query", Cause: cause}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if !errors.Is(tc.err, cause) {
+				t.Fatalf("errors.Is could not reach the cause")
+			}
+		})
+	}
+}
+
+// TimeoutError.Error() reaches prod clients unconditionally
+// (internal/server/errors.go), so it must never render the cause.
+func TestTimeoutErrorDoesNotRenderCause(t *testing.T) {
+	err := &api.TimeoutError{Operation: "database query", Cause: errors.New("SQLSTATE 57014 secret")}
+	if strings.Contains(err.Error(), "secret") {
+		t.Fatalf("TimeoutError.Error() leaked the cause: %q", err.Error())
+	}
+}
+
+// ValidationError and ConflictError render Error() only to logs or
+// dev-mode responses, so they may include the cause.
+func TestValidationAndConflictRenderCause(t *testing.T) {
+	ve := &api.ValidationError{Field: "age", Message: "invalid input syntax", Cause: errors.New("boom")}
+	if !strings.Contains(ve.Error(), "boom") {
+		t.Fatalf("ValidationError.Error() dropped the cause: %q", ve.Error())
+	}
+	ce := &api.ConflictError{Resource: "users", Reason: "unique constraint violation", Cause: errors.New("boom")}
+	if !strings.Contains(ce.Error(), "boom") {
+		t.Fatalf("ConflictError.Error() dropped the cause: %q", ce.Error())
+	}
 }
