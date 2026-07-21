@@ -1,22 +1,26 @@
 package db
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/chimpanze/noda/pkg/api"
+	sqlite3 "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
 // registerFakeDuplicateKeyErr installs a gorm "before create" callback that
-// forces a raw driver-style duplicate-key error, simulating what a real
-// Postgres unique constraint violation looks like (constraint name + value),
-// without depending on a specific driver's error formatting.
+// forces a typed sqlite3.Error with the unique-constraint extended code,
+// simulating what a real SQLite unique constraint violation looks like.
+// dberr.Classify keys off the typed driver error, not message text, so the
+// fake must be a real sqlite3.Error rather than a plain errors.New.
 func registerFakeDuplicateKeyErr(t *testing.T, db *gorm.DB, name string) {
 	t.Helper()
 	err := db.Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
-		_ = tx.AddError(errors.New(`ERROR: duplicate key value violates unique constraint "tasks_title_key" (title)=(dup)`))
+		_ = tx.AddError(sqlite3.Error{
+			Code:         sqlite3.ErrConstraint,
+			ExtendedCode: sqlite3.ErrConstraintUnique,
+		})
 	})
 	require.NoError(t, err)
 }

@@ -92,7 +92,7 @@ func (e *findOneExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 	var results []map[string]any
 	tx = tx.Scan(&results)
 	if tx.Error != nil {
-		return "", nil, fmt.Errorf("db.findOne: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, table, "db.findOne")
 	}
 
 	if len(results) == 0 {

@@ -83,7 +83,7 @@ func (e *countExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 	var count int64
 	tx = tx.Count(&count)
 	if tx.Error != nil {
-		return "", nil, fmt.Errorf("db.count: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, table, "db.count")
 	}
 
 	return api.OutputSuccess, map[string]any{

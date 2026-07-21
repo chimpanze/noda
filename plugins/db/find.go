@@ -83,7 +83,7 @@ func (e *findExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	var results []map[string]any
 	tx = tx.Scan(&results)
 	if tx.Error != nil {
-		return "", nil, fmt.Errorf("db.find: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, table, "db.find")
 	}
 
 	if results == nil {

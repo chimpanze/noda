@@ -76,7 +76,7 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	tx := db.WithContext(ctx).Table(table).Where(where).Updates(row)
 	if tx.Error != nil {
-		return "", nil, fmt.Errorf("db.update: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, table, "db.update")
 	}
 
 	return api.OutputSuccess, map[string]any{

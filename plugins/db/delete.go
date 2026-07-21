@@ -65,7 +65,7 @@ func (e *deleteExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	tx := db.WithContext(ctx).Table(table).Where(where).Delete(nil)
 	if tx.Error != nil {
-		return "", nil, fmt.Errorf("db.delete: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, table, "db.delete")
 	}
 
 	return api.OutputSuccess, map[string]any{
