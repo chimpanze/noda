@@ -151,7 +151,7 @@ jobs:
 
       - uses: acifani/setup-tinygo@v2
         with:
-          tinygo-version: '0.40.1'
+          tinygo-version: '0.41.1'
 
       - name: Build example guest modules
         run: |
