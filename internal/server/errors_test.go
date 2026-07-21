@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -174,8 +175,19 @@ func TestMapErrorToHTTP_DevMode_WrappedTypedError_NoNodeCtx(t *testing.T) {
 // Every mapped driver error must produce a prod-mode body free of driver
 // text. MapErrorToHTTP renders ValidationError.Message and
 // TimeoutError.Error() unconditionally, so a careless Cause could leak.
+//
+// ColumnName is a deliberate, sanctioned exception to that rule:
+// internal/dberr copies it into ValidationError.Field, and errors.go
+// renders Details{"field","value"} unconditionally, so a driver-supplied
+// column name does reach production. That is intentional — naming the
+// offending field is the point of a 422, and the value is normally the
+// caller's own input key, not internal schema detail. This test uses a
+// sentinel distinct from the other driver fields (columnSentinel) so the
+// exception is documented and bounded: the sentinel may appear in
+// Details["field"] and nowhere else in the body.
 func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
 	const secret = "SECRET_DRIVER_DETAIL"
+	const columnSentinel = "SENTINEL_COLUMN_NAME"
 
 	codes := []string{
 		"23505", "23503", "23P01", "23502", "23514",
@@ -193,6 +205,7 @@ func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
 				TableName:      secret,
 				SchemaName:     secret,
 				Hint:           secret,
+				ColumnName:     columnSentinel,
 			})
 			typed := dberr.Classify(driverErr, "users")
 			require.NotNil(t, typed, "code %s should classify", code)
@@ -202,8 +215,26 @@ func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
 
 			body, err := json.Marshal(resp)
 			require.NoError(t, err)
-			assert.NotContains(t, string(body), secret,
+			bodyStr := string(body)
+			assert.NotContains(t, bodyStr, secret,
 				"prod response leaked driver text for %s: %s", code, body)
+
+			var valErr *api.ValidationError
+			if errors.As(typed, &valErr) {
+				// Sanctioned exception: Details["field"] must be exactly
+				// the driver's ColumnName, and the sentinel must not
+				// appear anywhere else in the body.
+				details, ok := resp.Error.Details.(map[string]any)
+				require.True(t, ok, "ValidationError response must carry Details for %s", code)
+				assert.Equal(t, columnSentinel, details["field"],
+					"Details[\"field\"] must equal the driver's ColumnName for %s", code)
+				assert.Equal(t, 1, strings.Count(bodyStr, columnSentinel),
+					"columnSentinel must appear exactly once (in details.field) for %s: %s", code, body)
+			} else {
+				// No other mapped type may carry ColumnName into the body.
+				assert.NotContains(t, bodyStr, columnSentinel,
+					"prod response leaked ColumnName for a non-ValidationError type on %s: %s", code, body)
+			}
 		})
 	}
 }
