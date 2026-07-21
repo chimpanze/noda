@@ -147,8 +147,7 @@ func fiberToOpenAPIPath(path string) string {
 	// Convert :param to {param}
 	parts := strings.Split(path, "/")
 	for i, p := range parts {
-		if strings.HasPrefix(p, ":") {
-			name := strings.TrimPrefix(p, ":")
+		if name, ok := strings.CutPrefix(p, ":"); ok {
 			name = strings.TrimSuffix(name, "?") // optional params
 			parts[i] = "{" + name + "}"
 		}
@@ -166,8 +165,7 @@ func routeToOperationID(route map[string]any) string {
 }
 
 func addPathParams(op *openapi3.Operation, path string) {
-	parts := strings.Split(path, "/")
-	for _, p := range parts {
+	for p := range strings.SplitSeq(path, "/") {
 		if strings.HasPrefix(p, "{") && strings.HasSuffix(p, "}") {
 			name := strings.Trim(p, "{}")
 			op.Parameters = append(op.Parameters, &openapi3.ParameterRef{
@@ -246,7 +244,10 @@ func addRequestBody(op *openapi3.Operation, bodyDef map[string]any, _ *config.Re
 }
 
 func addResponses(op *openapi3.Operation, route map[string]any, _ *config.ResolvedConfig) {
-	op.Responses = openapi3.NewResponses()
+	// NewResponses() with no options pre-seeds a match-all "default" entry with
+	// an empty description. That leaks into every operation and makes the
+	// Len()==0 fallback below unreachable, so start from an empty container.
+	op.Responses = openapi3.NewResponsesWithCapacity(0)
 
 	if respDef, ok := route["response"].(map[string]any); ok {
 		for status, def := range respDef {
