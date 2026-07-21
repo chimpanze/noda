@@ -1,6 +1,6 @@
 module tally
 
-go 1.25.0
+go 1.26.0
 
 require github.com/nodafw/noda-pdk-go v0.0.0
 

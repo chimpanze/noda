@@ -1,6 +1,6 @@
 module helpers
 
-go 1.25.0
+go 1.26.0
 
 require (
 	github.com/extism/go-pdk v1.1.3

@@ -70,7 +70,7 @@ volumes:
 Use the repository's `Dockerfile` — it is a four-stage build:
 
 1. A Node stage builds the embedded editor assets.
-2. A `golang:1.25-bookworm` builder compiles the binary, controlled by a `VARIANT` build-arg: `full` (cgo, libvips → `image.*` nodes work) or `slim` (static, no image processing).
+2. A `golang:1.26-bookworm` builder compiles the binary, controlled by a `VARIANT` build-arg: `full` (cgo, libvips → `image.*` nodes work) or `slim` (static, no image processing).
 3. The `full` runtime is `debian:bookworm-slim` with libvips; the `slim` runtime is `gcr.io/distroless/static-debian12`.
 4. Both run as a non-root user and declare a `HEALTHCHECK` against `/health/live`.
 

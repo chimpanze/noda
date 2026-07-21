@@ -13,7 +13,7 @@ COPY docs/ /docs
 RUN npm run build
 
 # Go builder stage
-FROM golang:1.25-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 ARG VARIANT
 
