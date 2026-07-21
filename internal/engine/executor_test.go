@@ -50,8 +50,6 @@ func setupExecutorTest(t *testing.T, executors map[string]api.NodeExecutor) (*re
 
 	var nodeRegs []api.NodeRegistration
 	for name, exec := range executors {
-		name := name
-		exec := exec
 		nodeRegs = append(nodeRegs, api.NodeRegistration{
 			Descriptor: &testDescriptor{name: name},
 			Factory:    func(map[string]any) api.NodeExecutor { return exec },
@@ -497,7 +495,7 @@ func TestExecuteGraph_ParallelMixedErrorTypes_NoPanic(t *testing.T) {
 	require.NoError(t, err)
 
 	// Run repeatedly to make the concurrent record deterministic.
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		execCtx := NewExecutionContext(WithWorkflowID("mixed"))
 		gerr := ExecuteGraph(context.Background(), graph, execCtx, svcReg, nodeReg)
 		require.Error(t, gerr) // a failure is expected; a PANIC (process crash) is not

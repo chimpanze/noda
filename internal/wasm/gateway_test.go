@@ -56,7 +56,7 @@ func TestHeartbeatLoop_NoRaceOnStopChReassign(t *testing.T) {
 	go func() { g.heartbeatLoop(ctx, gc); close(hbDone) }()
 
 	// Concurrently reassign stopCh under lock, mimicking reconnectLoop.
-	for i := 0; i < 200000; i++ {
+	for range 200000 {
 		gc.mu.Lock()
 		gc.stopCh = make(chan struct{})
 		gc.mu.Unlock()

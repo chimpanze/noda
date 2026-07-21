@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -93,13 +94,7 @@ func TestNodeDescriptorContract(t *testing.T) {
 				}
 			}
 			for out := range descs {
-				found := false
-				for _, o := range outputs {
-					if o == out {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(outputs, out)
 				if !found {
 					t.Errorf("OutputDescriptions() entry %q is not returned by Outputs()", out)
 				}

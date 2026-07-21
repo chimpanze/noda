@@ -86,8 +86,6 @@ func setupIntegrationTest(t *testing.T, executors map[string]api.NodeExecutor) (
 
 	var regs []api.NodeRegistration
 	for name, exec := range executors {
-		name := name
-		exec := exec
 		regs = append(regs, api.NodeRegistration{
 			Descriptor: &testDescriptor{name: name},
 			Factory:    func(map[string]any) api.NodeExecutor { return exec },
@@ -393,7 +391,6 @@ func TestIntegration_ComplexGraph(t *testing.T) {
 	nodeNames := []string{"entry1", "entry2", "entry3", "transform", "validate",
 		"db_write", "cache_check", "auth_check", "merge", "log", "respond", "respond2"}
 	for _, name := range nodeNames {
-		name := name
 		executors[name] = &orderTrackingExecutor{mu: mu, order: &order, nodeID: name}
 	}
 

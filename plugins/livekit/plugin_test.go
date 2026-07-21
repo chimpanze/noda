@@ -1,6 +1,7 @@
 package livekit
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/registry"
@@ -80,9 +81,7 @@ func TestServiceConfigSchema_RequiredMatchesCreateService(t *testing.T) {
 	for _, r := range required {
 		field := r.(string)
 		cfg := map[string]any{}
-		for k, v := range base {
-			cfg[k] = v
-		}
+		maps.Copy(cfg, base)
 		delete(cfg, field)
 		assert.NotEmpty(t, registry.ValidateNodeConfig(schema, cfg), "schema must reject config missing %q", field)
 		_, err := p.CreateService(cfg)

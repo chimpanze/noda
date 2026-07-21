@@ -923,7 +923,7 @@ func TestSSEHandler_Integration_SSEFnBufferFull(t *testing.T) {
 	go func() {
 		<-connected
 		// Flood the buffer (buffer size is 64) to trigger "sse buffer full"
-		for i := 0; i < 100; i++ {
+		for i := range 100 {
 			_ = mgr.SendSSE(context.Background(), "ch", "msg", fmt.Sprintf("msg-%d", i), "")
 		}
 	}()
@@ -1264,7 +1264,7 @@ func TestSSEHandler_Integration_MultipleEvents(t *testing.T) {
 
 	go func() {
 		time.Sleep(50 * time.Millisecond)
-		for i := 0; i < 5; i++ {
+		for i := range 5 {
 			_ = mgr.SendSSE(context.Background(), "ch", "msg", fmt.Sprintf("event-%d", i), fmt.Sprintf("%d", i))
 		}
 	}()
@@ -1481,7 +1481,7 @@ func TestSSEHandler_Integration_FlushErrorEndsStream(t *testing.T) {
 	go func() {
 		time.Sleep(30 * time.Millisecond)
 		// Send events to cover the SSEFn code path
-		for i := 0; i < 3; i++ {
+		for i := range 3 {
 			_ = mgr.SendSSE(context.Background(), "ch", "evt", fmt.Sprintf("d%d", i), fmt.Sprintf("id%d", i))
 			time.Sleep(5 * time.Millisecond)
 		}
@@ -1745,7 +1745,7 @@ func TestSSEFn_DropsAndCountsOnFull(t *testing.T) {
 	// we verify the underlying queue behavior directly: 100 pushes into a
 	// 64-cap DropNewest queue with no reader yields exactly 36 drops.
 	q := bounded.New[sseEvent](64, bounded.DropNewest)
-	for i := 0; i < 100; i++ {
+	for range 100 {
 		q.Push(sseEvent{Event: "x", Data: "y"})
 	}
 	assert.Equal(t, uint64(36), q.Dropped())

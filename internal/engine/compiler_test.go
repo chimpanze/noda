@@ -251,7 +251,7 @@ func TestComputeJoinTypes_Deterministic(t *testing.T) {
 		},
 	}
 	var first JoinType
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		g, err := Compile(wf, twoOutResolver{})
 		require.NoError(t, err)
 		if i == 0 {

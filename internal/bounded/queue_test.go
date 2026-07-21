@@ -181,12 +181,12 @@ func TestQueue_RaceProducersConsumer(t *testing.T) {
 
 	// Spawn producers.
 	var wg sync.WaitGroup
-	for p := 0; p < producers; p++ {
+	for p := range producers {
 		wg.Add(1)
 		go func(prodID int) {
 			defer wg.Done()
 			base := prodID * pushesPerProd
-			for i := 0; i < pushesPerProd; i++ {
+			for i := range pushesPerProd {
 				q.Push(base + i)
 			}
 		}(p)
