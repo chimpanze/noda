@@ -20,9 +20,13 @@ type Suite struct {
 
 // Step is one ordered action: an HTTP request/expect pair, or a mail assertion, or a WebSocket/SSE interaction.
 type Step struct {
-	Name    string            `json:"name"`
-	Request RequestSpec       `json:"request,omitempty"`
-	Expect  ExpectSpec        `json:"expect,omitempty"`
+	Name string `json:"name"`
+	// omitzero, not omitempty: omitempty has no effect on a non-pointer
+	// struct field. These are only ever unmarshalled today, so this is a
+	// no-op in practice — it is correct rather than misleading if a Suite
+	// is ever marshalled.
+	Request RequestSpec       `json:"request,omitzero"`
+	Expect  ExpectSpec        `json:"expect,omitzero"`
 	Capture map[string]string `json:"capture,omitempty"`
 	Mail    *MailExpect       `json:"mail,omitempty"`
 	WS      *WSStep           `json:"ws,omitempty"`

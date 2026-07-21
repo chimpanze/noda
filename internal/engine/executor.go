@@ -100,16 +100,15 @@ func ExecuteGraph(
 	)
 
 	// dispatchIfReady launches a goroutine to execute a node.
-	// CONCURRENCY SAFETY: wg.Add(1) is called synchronously before the goroutine
-	// is spawned, so wg.Wait() cannot return prematurely.
+	// CONCURRENCY SAFETY: wg.Go increments the counter synchronously in the
+	// calling goroutine before spawning, so wg.Wait() cannot return
+	// prematurely — including for the recursive dispatches below, which run
+	// inside an already-counted goroutine.
 	var dispatchIfReady func(nodeID string)
 	dispatchIfReady = func(nodeID string) {
 		node := graph.Nodes[nodeID]
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-
+		wg.Go(func() {
 			// Check context
 			if execCtx2.Err() != nil {
 				return
@@ -241,7 +240,7 @@ func ExecuteGraph(
 					dispatchIfReady(targetID)
 				}
 			}
-		}()
+		})
 	}
 
 	// Start all entry nodes

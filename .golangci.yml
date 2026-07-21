@@ -10,6 +10,10 @@ linters:
     - staticcheck
     - unused
     - misspell
+    # Keeps the Go 1.21+ stdlib-idiom adoption from #410 from drifting back.
+    # Without this the count silently climbed to 148 before anyone noticed,
+    # because these only surfaced via gopls in-editor.
+    - modernize
   exclusions:
     paths:
       # Go code vendored inside npm packages (the `flatted` package ships a Go
@@ -55,6 +59,16 @@ linters:
       # G120: test HTTP handlers don't need body size limits
       - linters: [gosec]
         text: "G120"
+        path: _test\.go
+      # SA5011: false positive on the `if p == nil { t.Fatal(...) }` guard
+      # followed by a dereference — t.Fatal terminates the test, so the
+      # pointer cannot be nil at the later use. staticcheck loses that only
+      # when `modernize` is also enabled (analyzer ordering); the same code
+      # reports clean without it, and 10 other instances of the identical
+      # pattern in this repo are not flagged. Scoped to tests: a nil deref in
+      # a test fails loudly on its own.
+      - linters: [staticcheck]
+        text: "SA5011"
         path: _test\.go
 
 formatters:

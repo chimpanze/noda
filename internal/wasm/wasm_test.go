@@ -3873,13 +3873,11 @@ func TestModule_SendCommand_ConcurrentWithStop(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for j := range 50 {
 				m.SendCommand(map[string]any{"n": j})
 			}
-		}()
+		})
 	}
 	require.NoError(t, m.Stop(context.Background()))
 	wg.Wait()
@@ -3900,9 +3898,7 @@ func TestModule_TryAddOutstanding_NoAddAfterStop(t *testing.T) {
 	stop := make(chan struct{})
 	var wg sync.WaitGroup
 	for range 8 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			for {
 				select {
 				case <-stop:
@@ -3914,7 +3910,7 @@ func TestModule_TryAddOutstanding_NoAddAfterStop(t *testing.T) {
 					m.outstandingCalls.Done()
 				}
 			}
-		}()
+		})
 	}
 	time.Sleep(10 * time.Millisecond) // let the hammer run
 	require.NoError(t, m.Stop(context.Background()))

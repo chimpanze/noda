@@ -76,16 +76,14 @@ func TestReconnectLoop_DoesNotResurrectAfterClose(t *testing.T) {
 		if err != nil {
 			return
 		}
-		srvWG.Add(1)
-		go func() {
-			defer srvWG.Done()
+		srvWG.Go(func() {
 			for {
 				if _, _, err := c.ReadMessage(); err != nil {
 					_ = c.Close()
 					return
 				}
 			}
-		}()
+		})
 	}))
 	defer srv.Close()
 	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http")

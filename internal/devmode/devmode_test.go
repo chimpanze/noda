@@ -275,11 +275,9 @@ func TestReloader_Config_ThreadSafe(t *testing.T) {
 	// Access from multiple goroutines
 	var wg sync.WaitGroup
 	for range 10 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_ = r.Config()
-		}()
+		})
 	}
 	wg.Wait()
 }
