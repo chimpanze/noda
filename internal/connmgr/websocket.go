@@ -358,9 +358,9 @@ func extractFiberParamsFromCtx(c fiber.Ctx, paramNames []string) map[string]stri
 // extractParamNamesFromPath parses :paramName segments from a Fiber route path.
 func extractParamNamesFromPath(path string) []string {
 	var names []string
-	for _, part := range strings.Split(path, "/") {
-		if strings.HasPrefix(part, ":") {
-			names = append(names, strings.TrimPrefix(part, ":"))
+	for part := range strings.SplitSeq(path, "/") {
+		if after, ok := strings.CutPrefix(part, ":"); ok {
+			names = append(names, after)
 		}
 	}
 	return names

@@ -13,7 +13,7 @@ import (
 // missing or of the wrong shape.
 func LookupPath(doc any, path string) (any, bool) {
 	cur := doc
-	for _, seg := range strings.Split(path, ".") {
+	for seg := range strings.SplitSeq(path, ".") {
 		switch v := cur.(type) {
 		case map[string]any:
 			next, ok := v[seg]

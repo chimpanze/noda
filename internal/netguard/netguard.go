@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 )
 
 // Policy controls which destinations a host is allowed to dial.
@@ -104,13 +105,7 @@ type lookupFn func(ctx context.Context, host string) ([]net.IPAddr, error)
 func (p Policy) checkHostWithLookup(ctx context.Context, host string, lookup lookupFn) (net.IP, error) {
 	// If the AllowedHosts list contains this hostname, skip the
 	// private-network deny but still apply metadata + always-denied checks.
-	hostAllowed := false
-	for _, h := range p.AllowedHosts {
-		if h == host {
-			hostAllowed = true
-			break
-		}
-	}
+	hostAllowed := slices.Contains(p.AllowedHosts, host)
 
 	addrs, err := lookup(ctx, host)
 	if err != nil {

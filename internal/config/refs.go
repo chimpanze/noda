@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -280,16 +281,14 @@ func resolveRefsInValue(v any, registry map[string]map[string]any, filePath stri
 
 func resolveRef(refName string, registry map[string]map[string]any, filePath string, seen []string) (any, []ValidationError) {
 	// Check for circular reference
-	for _, s := range seen {
-		if s == refName {
-			cycle := make([]string, len(seen)+1)
-			copy(cycle, seen)
-			cycle[len(seen)] = refName
-			return nil, []ValidationError{{
-				FilePath: filePath,
-				Message:  fmt.Sprintf("circular $ref detected: %s", strings.Join(cycle, " → ")),
-			}}
-		}
+	if slices.Contains(seen, refName) {
+		cycle := make([]string, len(seen)+1)
+		copy(cycle, seen)
+		cycle[len(seen)] = refName
+		return nil, []ValidationError{{
+			FilePath: filePath,
+			Message:  fmt.Sprintf("circular $ref detected: %s", strings.Join(cycle, " → ")),
+		}}
 	}
 
 	schema, ok := registry[refName]

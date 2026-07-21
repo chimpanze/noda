@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	neturl "net/url"
 	"sync"
 	"sync/atomic"
@@ -243,9 +244,7 @@ func (g *Gateway) Configure(payload map[string]any) (any, error) {
 func (g *Gateway) CloseAll() {
 	g.mu.Lock()
 	conns := make(map[string]*gatewayConn, len(g.conns))
-	for k, v := range g.conns {
-		conns[k] = v
-	}
+	maps.Copy(conns, g.conns)
 	g.conns = make(map[string]*gatewayConn)
 	g.mu.Unlock()
 

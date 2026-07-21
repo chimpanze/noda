@@ -2,6 +2,7 @@ package editor
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -335,13 +336,7 @@ func (e *API) listEnvVars(c fiber.Ctx) error {
 			}
 			sources := envVars[varName]["sources"].([]string)
 			// Avoid duplicate sources
-			found := false
-			for _, s := range sources {
-				if s == source {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(sources, source)
 			if !found {
 				envVars[varName]["sources"] = append(sources, source)
 			}
@@ -406,13 +401,7 @@ func (e *API) listVars(c fiber.Ctx) error {
 		for _, varName := range refs {
 			// Deduplicate sources
 			sources := varUsages[varName]
-			found := false
-			for _, s := range sources {
-				if s == source {
-					found = true
-					break
-				}
-			}
+			found := slices.Contains(sources, source)
 			if !found {
 				varUsages[varName] = append(sources, source)
 			}
@@ -490,15 +479,15 @@ func findEnvRefs(v any) []string {
 				break
 			}
 			rest := s[idx+5:]
-			end := strings.Index(rest, ")")
-			if end < 0 {
+			before, after, ok := strings.Cut(rest, ")")
+			if !ok {
 				break
 			}
-			varName := strings.TrimSpace(rest[:end])
+			varName := strings.TrimSpace(before)
 			if varName != "" {
 				refs = append(refs, varName)
 			}
-			s = rest[end+1:]
+			s = after
 		}
 	case map[string]any:
 		for _, child := range val {

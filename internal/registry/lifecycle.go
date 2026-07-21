@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"time"
 
@@ -148,8 +149,8 @@ func (r *ServiceRegistry) ShutdownAll(ctx context.Context) []error {
 
 	var errs []error
 	// Reverse initialization order
-	for i := len(r.order) - 1; i >= 0; i-- {
-		name := r.order[i]
+	for _, name := range slices.Backward(r.order) {
+
 		entry := r.services[name]
 		if entry.plugin == nil {
 			continue

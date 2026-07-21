@@ -2,6 +2,7 @@ package trace
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -88,7 +89,7 @@ func redactValueDepth(v any, depth int) any {
 		}
 		n := rv.Len()
 		out := make([]any, n)
-		for i := 0; i < n; i++ {
+		for i := range n {
 			out[i] = redactValueDepth(rv.Index(i).Interface(), depth+1)
 		}
 		return out
@@ -122,12 +123,7 @@ func redactStringMap(m map[string]any, depth int) map[string]any {
 // plugin's SessionCookieObject/ClearCookieObject helpers.
 func isCookieContainerKey(key string) bool {
 	lower := strings.ToLower(key)
-	for _, k := range cookieObjectKeys {
-		if lower == k {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(cookieObjectKeys, lower)
 }
 
 // isCookieShapedMap reports whether m looks like a cookie object: it has
@@ -206,10 +202,5 @@ func IsSensitiveKey(key string) bool {
 			return true
 		}
 	}
-	for _, exact := range sensitiveExact {
-		if lower == exact {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(sensitiveExact, lower)
 }

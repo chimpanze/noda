@@ -3,6 +3,7 @@ package transform
 import (
 	"context"
 	"fmt"
+	"maps"
 
 	"github.com/chimpanze/noda/pkg/api"
 )
@@ -222,13 +223,11 @@ func (e *mergeExecutor) positionMode(inputs [][]any) (string, any, error) {
 	}
 
 	result := make([]any, length)
-	for i := 0; i < length; i++ {
+	for i := range length {
 		merged := make(map[string]any)
 		for _, items := range inputs {
 			if row, ok := items[i].(map[string]any); ok {
-				for k, v := range row {
-					merged[k] = v
-				}
+				maps.Copy(merged, row)
 			}
 		}
 		result[i] = merged
@@ -239,19 +238,13 @@ func (e *mergeExecutor) positionMode(inputs [][]any) (string, any, error) {
 
 func mergeRows(left, right map[string]any) map[string]any {
 	result := make(map[string]any, len(left)+len(right))
-	for k, v := range left {
-		result[k] = v
-	}
-	for k, v := range right {
-		result[k] = v
-	}
+	maps.Copy(result, left)
+	maps.Copy(result, right)
 	return result
 }
 
 func copyRow(row map[string]any) map[string]any {
 	result := make(map[string]any, len(row))
-	for k, v := range row {
-		result[k] = v
-	}
+	maps.Copy(result, row)
 	return result
 }

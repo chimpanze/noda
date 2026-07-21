@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"os"
 	"sync"
 	"time"
@@ -62,10 +63,7 @@ func buildManifest(cfg ModuleConfig, wasmBytes []byte) extism.Manifest {
 	// which makes a context deadline/cancellation actually terminate a running
 	// guest call rather than just abandoning it. Use the larger of the tick
 	// timeout and the general call timeout so no legitimate call is cut short.
-	timeout := cfg.TickTimeout
-	if timeout < wasmCallTimeout {
-		timeout = wasmCallTimeout
-	}
+	timeout := max(cfg.TickTimeout, wasmCallTimeout)
 	manifest.Timeout = uint64(timeout / time.Millisecond)
 
 	return manifest
@@ -272,9 +270,7 @@ func (r *Runtime) StartAll(ctx context.Context) error {
 func (r *Runtime) StopAll(ctx context.Context) error {
 	r.mu.Lock()
 	modules := make(map[string]*Module, len(r.modules))
-	for k, v := range r.modules {
-		modules[k] = v
-	}
+	maps.Copy(modules, r.modules)
 	r.mu.Unlock()
 
 	var firstErr error

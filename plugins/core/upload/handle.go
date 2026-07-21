@@ -131,10 +131,7 @@ func (e *handleExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 		}
 
 		// Detect content type from the first 512 bytes
-		sniffLen := 512
-		if len(content) < sniffLen {
-			sniffLen = len(content)
-		}
+		sniffLen := min(len(content), 512)
 		detectedType := http.DetectContentType(content[:sniffLen])
 
 		// Validate MIME type

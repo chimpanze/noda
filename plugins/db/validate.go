@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -35,8 +36,8 @@ func ValidateOrderClause(s string) error {
 	if s == "" {
 		return fmt.Errorf("order clause must not be empty")
 	}
-	parts := strings.Split(s, ",")
-	for _, part := range parts {
+	parts := strings.SplitSeq(s, ",")
+	for part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			return fmt.Errorf("order clause contains empty item")
@@ -68,12 +69,7 @@ var wordBoundaryRe = regexp.MustCompile(`\W+`)
 // containsWord checks if s contains kw as a whole word (not as a substring of another word).
 func containsWord(s, kw string) bool {
 	words := wordBoundaryRe.Split(s, -1)
-	for _, w := range words {
-		if w == kw {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(words, kw)
 }
 
 // ValidateSQLFragment rejects strings containing dangerous SQL patterns.

@@ -3,6 +3,7 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"maps"
 	"sort"
 )
 
@@ -31,9 +32,7 @@ func (m *Manager) Load(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("secrets provider %q: %w", p.Name(), err)
 		}
-		for k, v := range vals {
-			merged[k] = v
-		}
+		maps.Copy(merged, vals)
 	}
 	m.secrets = merged
 	return nil
