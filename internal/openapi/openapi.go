@@ -246,7 +246,10 @@ func addRequestBody(op *openapi3.Operation, bodyDef map[string]any, _ *config.Re
 }
 
 func addResponses(op *openapi3.Operation, route map[string]any, _ *config.ResolvedConfig) {
-	op.Responses = openapi3.NewResponses()
+	// NewResponses() with no options pre-seeds a match-all "default" entry with
+	// an empty description. That leaks into every operation and makes the
+	// Len()==0 fallback below unreachable, so start from an empty container.
+	op.Responses = openapi3.NewResponsesWithCapacity(0)
 
 	if respDef, ok := route["response"].(map[string]any); ok {
 		for status, def := range respDef {

@@ -1,6 +1,7 @@
 package openapi
 
 import (
+	"context"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -454,6 +455,57 @@ func TestGenerateOpenAPI_ResponseNonMapEntry(t *testing.T) {
 	require.NotNil(t, pathItem)
 	// Default 200 response should be added since the non-map was skipped
 	assert.Equal(t, 1, pathItem.Get.Responses.Len())
+	require.NotNil(t, pathItem.Get.Responses.Value("200"))
+	assert.Nil(t, pathItem.Get.Responses.Value("default"))
+}
+
+// TestGenerateOpenAPI_NoSpuriousDefaultResponse guards the whole document: no
+// operation may carry a "default" response unless the route declared one.
+// kin-openapi's openapi3.NewResponses() pre-seeds an empty-description
+// "default" entry, which both leaked into output and made the 200 fallback
+// dead code (Len() was never 0).
+func TestGenerateOpenAPI_NoSpuriousDefaultResponse(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{},
+		Routes: map[string]map[string]any{
+			"declared": {
+				"id":      "declared",
+				"method":  "GET",
+				"path":    "/declared",
+				"trigger": map[string]any{"workflow": "test"},
+				"response": map[string]any{
+					"200": map[string]any{"description": "OK"},
+					"404": map[string]any{"description": "Missing"},
+				},
+			},
+			"undeclared": {
+				"id":      "undeclared",
+				"method":  "GET",
+				"path":    "/undeclared",
+				"trigger": map[string]any{"workflow": "test"},
+			},
+		},
+		Schemas: map[string]map[string]any{},
+	}
+	doc, err := Generate(rc)
+	require.NoError(t, err)
+
+	declared := doc.Paths.Find("/declared")
+	require.NotNil(t, declared)
+	assert.Equal(t, 2, declared.Get.Responses.Len())
+	assert.Nil(t, declared.Get.Responses.Value("default"))
+
+	undeclared := doc.Paths.Find("/undeclared")
+	require.NotNil(t, undeclared)
+	assert.Equal(t, 1, undeclared.Get.Responses.Len())
+	require.NotNil(t, undeclared.Get.Responses.Value("200"))
+	assert.Nil(t, undeclared.Get.Responses.Value("default"))
+
+	// General sanity guard on the emitted document. Note this does NOT catch the
+	// spurious "default" itself — kin-openapi's Validate accepts an
+	// empty-description Response Object — so the key assertions above are the
+	// real regression guard.
+	require.NoError(t, doc.Validate(context.Background()))
 }
 
 // --- OpenAPI: multiple routes on same path ---
@@ -542,8 +594,12 @@ func TestAddResponses_EmptyResponseDef(t *testing.T) {
 	rc := &config.ResolvedConfig{Schemas: map[string]map[string]any{}}
 	addResponses(op, route, rc)
 
-	// Should add default 200 response
+	// A route declaring no responses gets exactly one synthesized 200,
+	// and no stray "default" entry.
 	assert.Equal(t, 1, op.Responses.Len())
+	require.NotNil(t, op.Responses.Value("200"))
+	assert.Equal(t, "Success", *op.Responses.Value("200").Value.Description)
+	assert.Nil(t, op.Responses.Value("default"))
 }
 
 func TestAddResponses_WithDescription(t *testing.T) {
@@ -558,7 +614,12 @@ func TestAddResponses_WithDescription(t *testing.T) {
 	rc := &config.ResolvedConfig{Schemas: map[string]map[string]any{}}
 	addResponses(op, route, rc)
 
-	assert.GreaterOrEqual(t, op.Responses.Len(), 1)
+	// Only the declared status is emitted — no "default", and no 200 fallback
+	// since a response was declared.
+	assert.Equal(t, 1, op.Responses.Len())
+	require.NotNil(t, op.Responses.Value("201"))
+	assert.Equal(t, "Created successfully", *op.Responses.Value("201").Value.Description)
+	assert.Nil(t, op.Responses.Value("default"))
 }
 
 // --- OpenAPI: addRequestBody with $ref ---
