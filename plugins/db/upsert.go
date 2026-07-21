@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
@@ -89,14 +88,7 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	tx := db.WithContext(ctx).Table(table).Clauses(onConflict).Create(row)
 	if tx.Error != nil {
-		errMsg := tx.Error.Error()
-		if strings.Contains(errMsg, "duplicate key") || strings.Contains(errMsg, "unique constraint") {
-			return "", nil, &api.ConflictError{
-				Resource: table,
-				Reason:   "unique constraint violation",
-			}
-		}
-		return "", nil, fmt.Errorf("db.upsert: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, table, "db.upsert")
 	}
 
 	return api.OutputSuccess, data, nil

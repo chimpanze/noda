@@ -1,22 +1,34 @@
 package db
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/chimpanze/noda/pkg/api"
+	sqlite3 "github.com/mattn/go-sqlite3"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
 // registerFakeDuplicateKeyErr installs a gorm "before create" callback that
-// forces a raw driver-style duplicate-key error, simulating what a real
-// Postgres unique constraint violation looks like (constraint name + value),
-// without depending on a specific driver's error formatting.
+// forces a typed sqlite3.Error with the unique-constraint extended code,
+// simulating what a real SQLite unique constraint violation looks like.
+// dberr.Classify keys off the typed driver error, not message text, so the
+// fake must be a real sqlite3.Error rather than a plain errors.New.
+//
+// sqlite3.Error's message is an unexported field with no exported
+// constructor, so this fake carries no message text at all — there is no
+// driver detail available to assert against. That's fine: dberr.Classify
+// derives ConflictError.Reason from a fixed lookup table keyed on
+// ExtendedCode (see sqliteConflict in internal/dberr/sqlite.go), never
+// from the driver error's message, so Reason can never contain
+// constraint/column names regardless of what the fake's message holds.
 func registerFakeDuplicateKeyErr(t *testing.T, db *gorm.DB, name string) {
 	t.Helper()
 	err := db.Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
-		_ = tx.AddError(errors.New(`ERROR: duplicate key value violates unique constraint "tasks_title_key" (title)=(dup)`))
+		_ = tx.AddError(sqlite3.Error{
+			Code:         sqlite3.ErrConstraint,
+			ExtendedCode: sqlite3.ErrConstraintUnique,
+		})
 	})
 	require.NoError(t, err)
 }
@@ -43,8 +55,6 @@ func TestConflictError_ReasonIsSafe(t *testing.T) {
 	require.ErrorAs(t, err, &cfErr)
 	require.Equal(t, "tasks", cfErr.Resource)
 	require.Equal(t, "unique constraint violation", cfErr.Reason)
-	require.NotContains(t, cfErr.Reason, "tasks_title_key")
-	require.NotContains(t, cfErr.Reason, "dup")
 }
 
 // TestUpsertConflictError_ReasonIsSafe is the same check for db.upsert.
@@ -67,6 +77,4 @@ func TestUpsertConflictError_ReasonIsSafe(t *testing.T) {
 	require.ErrorAs(t, err, &cfErr)
 	require.Equal(t, "tasks", cfErr.Resource)
 	require.Equal(t, "unique constraint violation", cfErr.Reason)
-	require.NotContains(t, cfErr.Reason, "tasks_title_key")
-	require.NotContains(t, cfErr.Reason, "dup")
 }

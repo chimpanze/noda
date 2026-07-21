@@ -1,14 +1,19 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/pkg/api"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMapErrorToHTTP_ValidationError(t *testing.T) {
@@ -165,4 +170,80 @@ func TestMapErrorToHTTP_DevMode_WrappedTypedError_NoNodeCtx(t *testing.T) {
 		NodeID: "n1", NodeType: "t1", Err: valErr, AvailableNodes: nil,
 	}
 	assert.True(t, errors.As(nodeWrapped, &valErr))
+}
+
+// Every mapped driver error must produce a prod-mode body free of driver
+// text. MapErrorToHTTP renders ValidationError.Message and
+// TimeoutError.Error() unconditionally, so a careless Cause could leak.
+//
+// ColumnName is a deliberate, sanctioned exception to that rule:
+// internal/dberr copies it into ValidationError.Field, and errors.go
+// renders Details{"field","value"} unconditionally, so a driver-supplied
+// column name does reach production. That is intentional — naming the
+// offending field is the point of a 422, and the value is normally the
+// caller's own input key, not internal schema detail. This test uses a
+// sentinel distinct from the other driver fields (columnSentinel) so the
+// exception is documented and bounded: the sentinel may appear in
+// Details["field"] and nowhere else in the body.
+func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
+	const secret = "SECRET_DRIVER_DETAIL"
+	const columnSentinel = "SENTINEL_COLUMN_NAME"
+
+	codes := []string{
+		"23505", "23503", "23P01", "23502", "23514",
+		"22P02", "22003", "22007", "22008", "22001", "22023",
+		"40001", "40P01", "53300", "08000", "08003", "08006", "57014",
+	}
+
+	for _, code := range codes {
+		t.Run(code, func(t *testing.T) {
+			driverErr := fmt.Errorf("db.find: %w", &pgconn.PgError{
+				Code:           code,
+				Message:        secret,
+				Detail:         secret,
+				ConstraintName: secret,
+				TableName:      secret,
+				SchemaName:     secret,
+				Hint:           secret,
+				ColumnName:     columnSentinel,
+			})
+			typed := dberr.Classify(driverErr, "users")
+			require.NotNil(t, typed, "code %s should classify", code)
+
+			status, resp := MapErrorToHTTP(typed, "trace-1", false)
+			assert.NotEqual(t, 500, status, "mapped errors must not be 500")
+
+			body, err := json.Marshal(resp)
+			require.NoError(t, err)
+			bodyStr := string(body)
+			assert.NotContains(t, bodyStr, secret,
+				"prod response leaked driver text for %s: %s", code, body)
+
+			if _, ok := errors.AsType[*api.ValidationError](typed); ok {
+				// Sanctioned exception: Details["field"] must be exactly
+				// the driver's ColumnName, and the sentinel must not
+				// appear anywhere else in the body.
+				details, ok := resp.Error.Details.(map[string]any)
+				require.True(t, ok, "ValidationError response must carry Details for %s", code)
+				assert.Equal(t, columnSentinel, details["field"],
+					"Details[\"field\"] must equal the driver's ColumnName for %s", code)
+				assert.Equal(t, 1, strings.Count(bodyStr, columnSentinel),
+					"columnSentinel must appear exactly once (in details.field) for %s: %s", code, body)
+			} else {
+				// No other mapped type may carry ColumnName into the body.
+				assert.NotContains(t, bodyStr, columnSentinel,
+					"prod response leaked ColumnName for a non-ValidationError type on %s: %s", code, body)
+			}
+		})
+	}
+}
+
+// Dev mode is expected to expose the cause — that is the point of Unwrap.
+func TestDevModeSurfacesCause(t *testing.T) {
+	driverErr := fmt.Errorf("db.create: %w", &pgconn.PgError{Code: "23505", Message: "VISIBLE"})
+	typed := dberr.Classify(driverErr, "users")
+	_, resp := MapErrorToHTTP(typed, "trace-1", true)
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "VISIBLE")
 }

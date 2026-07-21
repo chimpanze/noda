@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
@@ -114,7 +115,7 @@ func (e *createUserExecutor) Execute(ctx context.Context, nCtx api.ExecutionCont
 		"updated_at":        now,
 	}
 	if err := db.WithContext(ctx).Table("auth_users").Create(row).Error; err != nil {
-		if isUniqueViolation(err) {
+		if dberr.IsUniqueViolation(err) {
 			return "exists", map[string]any{}, nil
 		}
 		return "", nil, fmt.Errorf("auth.create_user: %w", err)

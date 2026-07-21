@@ -66,7 +66,7 @@ func (e *execExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 
 	tx := db.WithContext(ctx).Exec(query, params...)
 	if tx.Error != nil {
-		return "", nil, fmt.Errorf("db.exec: %w", tx.Error)
+		return "", nil, classifyOr(tx.Error, "query", "db.exec")
 	}
 
 	return api.OutputSuccess, map[string]any{

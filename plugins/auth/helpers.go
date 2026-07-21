@@ -16,16 +16,6 @@ func normalizeEmail(s string) string {
 	return strings.ToLower(strings.TrimSpace(s))
 }
 
-// isUniqueViolation matches unique-constraint errors across sqlite and postgres.
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "UNIQUE constraint failed") || // sqlite
-		strings.Contains(msg, "duplicate key value violates unique constraint") // postgres
-}
-
 func parseRoles(v any) []string {
 	var raw string
 	switch t := v.(type) {
