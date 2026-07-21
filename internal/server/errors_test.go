@@ -1,14 +1,18 @@
 package server
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/pkg/api"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestMapErrorToHTTP_ValidationError(t *testing.T) {
@@ -165,4 +169,45 @@ func TestMapErrorToHTTP_DevMode_WrappedTypedError_NoNodeCtx(t *testing.T) {
 		NodeID: "n1", NodeType: "t1", Err: valErr, AvailableNodes: nil,
 	}
 	assert.True(t, errors.As(nodeWrapped, &valErr))
+}
+
+// Every mapped driver error must produce a prod-mode body free of driver
+// text. MapErrorToHTTP renders ValidationError.Message and
+// TimeoutError.Error() unconditionally, so a careless Cause could leak.
+func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
+	const secret = "SECRET_DRIVER_DETAIL"
+
+	codes := []string{
+		"23505", "23503", "23P01", "23502", "23514",
+		"22P02", "22003", "22007", "22008", "22001", "22023",
+		"40001", "40P01", "53300", "08000", "08003", "08006", "57014",
+	}
+
+	for _, code := range codes {
+		t.Run(code, func(t *testing.T) {
+			driverErr := fmt.Errorf("db.find: %w", &pgconn.PgError{
+				Code: code, Message: secret, Detail: secret,
+			})
+			typed := dberr.Classify(driverErr, "users")
+			require.NotNil(t, typed, "code %s should classify", code)
+
+			status, resp := MapErrorToHTTP(typed, "trace-1", false)
+			assert.NotEqual(t, 500, status, "mapped errors must not be 500")
+
+			body, err := json.Marshal(resp)
+			require.NoError(t, err)
+			assert.NotContains(t, string(body), secret,
+				"prod response leaked driver text for %s: %s", code, body)
+		})
+	}
+}
+
+// Dev mode is expected to expose the cause — that is the point of Unwrap.
+func TestDevModeSurfacesCause(t *testing.T) {
+	driverErr := fmt.Errorf("db.create: %w", &pgconn.PgError{Code: "23505", Message: "VISIBLE"})
+	typed := dberr.Classify(driverErr, "users")
+	_, resp := MapErrorToHTTP(typed, "trace-1", true)
+	body, err := json.Marshal(resp)
+	require.NoError(t, err)
+	assert.Contains(t, string(body), "VISIBLE")
 }
