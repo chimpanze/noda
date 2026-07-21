@@ -490,7 +490,7 @@ func TestE2E_ConcurrentRequests(t *testing.T) {
 
 	// Send 10 concurrent requests
 	results := make(chan int, 10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(n int) {
 			body := strings.NewReader(`{"n":` + strings.Repeat("1", n+1) + `}`)
 			req := httptest.NewRequest("POST", "/echo", body)
@@ -504,7 +504,7 @@ func TestE2E_ConcurrentRequests(t *testing.T) {
 		}(i)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		status := <-results
 		assert.Equal(t, 200, status, "concurrent request %d", i)
 	}

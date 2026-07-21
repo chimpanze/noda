@@ -112,7 +112,7 @@ func TestConsumeTokenConcurrentSingleUse(t *testing.T) {
 	const n = 8
 	var wg sync.WaitGroup
 	successes := make(chan struct{}, n)
-	for i := 0; i < n; i++ {
+	for range n {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

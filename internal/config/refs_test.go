@@ -459,7 +459,7 @@ func TestBuildSchemaRegistry_CollisionKeyedVsKeyed(t *testing.T) {
 
 	// Map iteration is randomized; the collision must be reported on every build.
 	var first string
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		_, errs := BuildSchemaRegistry(schemas)
 		require.Len(t, errs, 1, "collision must be detected on build %d", i)
 		if i == 0 {
@@ -482,7 +482,7 @@ func TestBuildSchemaRegistry_CollisionBareVsKeyed(t *testing.T) {
 
 	// Map iteration is randomized; the collision must be reported on every build.
 	var first string
-	for i := 0; i < 200; i++ {
+	for i := range 200 {
 		_, errs := BuildSchemaRegistry(schemas)
 		require.Len(t, errs, 1, "collision must be detected on build %d", i)
 		if i == 0 {

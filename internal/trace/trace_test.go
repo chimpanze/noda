@@ -370,7 +370,7 @@ func TestEventHub_ConcurrentEmitAndSubscribe(t *testing.T) {
 	defer unsub()
 
 	var wg sync.WaitGroup
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -484,7 +484,7 @@ func TestEventHub_SlowSubscriberDoesNotBlockOthers(t *testing.T) {
 
 	// Emit 50 events from the calling goroutine.
 	start := time.Now()
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		hub.Emit(Event{Type: EventNodeEntered, NodeID: "n"})
 	}
 	emitElapsed := time.Since(start)
@@ -492,7 +492,7 @@ func TestEventHub_SlowSubscriberDoesNotBlockOthers(t *testing.T) {
 		"Emit must not block on slow subscriber; took %s", emitElapsed)
 
 	// Fast subscriber must still see all 50 events.
-	for i := 0; i < 50; i++ {
+	for i := range 50 {
 		select {
 		case <-fastReceived:
 		case <-time.After(2 * time.Second):

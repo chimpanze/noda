@@ -128,7 +128,7 @@ func TestRun_DepthTrackingExceeded(t *testing.T) {
 
 	execCtx := engine.NewExecutionContext()
 	// Exhaust recursion depth by calling CheckAndIncrementDepth until it fails
-	for i := 0; i < 64; i++ {
+	for range 64 {
 		err := execCtx.CheckAndIncrementDepth()
 		require.NoError(t, err)
 	}

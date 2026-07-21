@@ -60,7 +60,7 @@ func setupBenchRegistry(b *testing.B, nodeTypes []string) (*registry.NodeRegistr
 func makeLinearWorkflow(n int) WorkflowConfig {
 	nodes := make(map[string]NodeConfig, n)
 	edges := make([]EdgeConfig, 0, n-1)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		id := fmt.Sprintf("n%d", i)
 		nodes[id] = NodeConfig{Type: fmt.Sprintf("test.n%d", i)}
 		if i > 0 {
@@ -77,7 +77,7 @@ func makeParallelWorkflow(branches int) WorkflowConfig {
 	}
 	edges := make([]EdgeConfig, 0, branches*2)
 	types := []string{"start", "join"}
-	for i := 0; i < branches; i++ {
+	for i := range branches {
 		id := fmt.Sprintf("b%d", i)
 		nodes[id] = NodeConfig{Type: fmt.Sprintf("test.b%d", i)}
 		types = append(types, fmt.Sprintf("b%d", i))
@@ -191,7 +191,7 @@ func benchExec(b *testing.B, wf WorkflowConfig, nodeTypes []string) {
 
 func nodeTypesForLinear(n int) []string {
 	types := make([]string, n)
-	for i := 0; i < n; i++ {
+	for i := range n {
 		types[i] = fmt.Sprintf("n%d", i)
 	}
 	return types
@@ -199,7 +199,7 @@ func nodeTypesForLinear(n int) []string {
 
 func nodeTypesForParallel(branches int) []string {
 	types := []string{"start", "join"}
-	for i := 0; i < branches; i++ {
+	for i := range branches {
 		types = append(types, fmt.Sprintf("b%d", i))
 	}
 	return types
@@ -397,7 +397,7 @@ func BenchmarkExecute_LargePayload(b *testing.B) {
 	payload := make(map[string]any, numKeys)
 	// Each value is ~1KB string to reach ~10MB total.
 	value := string(make([]byte, 1024))
-	for i := 0; i < numKeys; i++ {
+	for i := range numKeys {
 		payload[fmt.Sprintf("field_%d", i)] = value
 	}
 

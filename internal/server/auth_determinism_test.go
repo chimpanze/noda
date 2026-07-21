@@ -25,7 +25,7 @@ func TestGetGroupMiddleware_MergesOverlappingGroups(t *testing.T) {
 		},
 	})
 	// Deterministic across many runs (old code returned a random single group).
-	for i := 0; i < 50; i++ {
+	for range 50 {
 		mw, err := srv.getGroupMiddleware("/api/admin/users")
 		require.NoError(t, err)
 		assert.Equal(t, []string{"auth.jwt", "casbin.enforce"}, mw,

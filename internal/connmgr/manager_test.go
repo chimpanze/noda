@@ -82,7 +82,7 @@ func TestWildcard_Star_Rejected(t *testing.T) {
 	mgr := NewManager()
 	var count atomic.Int32
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		id := string(rune('a' + i))
 		require.NoError(t, mgr.Register(&Conn{
 			ID:      id,
@@ -131,7 +131,7 @@ func TestConcurrentRegisterUnregister(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Concurrent registers
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -148,7 +148,7 @@ func TestConcurrentRegisterUnregister(t *testing.T) {
 	assert.Equal(t, int64(100), mgr.Count())
 
 	// Concurrent unregisters
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -186,7 +186,7 @@ func TestMultipleConnectionsSameChannel(t *testing.T) {
 	mgr := NewManager()
 	var count atomic.Int32
 
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		id := string(rune('a' + i))
 		require.NoError(t, mgr.Register(&Conn{
 			ID:      id,

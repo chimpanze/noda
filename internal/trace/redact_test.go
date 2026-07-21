@@ -306,7 +306,7 @@ func TestEmit_RedactsSliceData(t *testing.T) {
 func TestRedactValue_PastDepthCapScrubbed(t *testing.T) {
 	leaf := "raw-secret-material"
 	v := any(map[string]any{"leaf": leaf})
-	for i := 0; i < maxRedactDepth+2; i++ {
+	for range maxRedactDepth + 2 {
 		v = map[string]any{"nest": v}
 	}
 	b, err := json.Marshal(redactValue(v))

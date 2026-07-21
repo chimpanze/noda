@@ -93,7 +93,7 @@ func TestWatcher_Debounce(t *testing.T) {
 	testFile := filepath.Join(dir, "test.json")
 
 	// Rapid writes — should only trigger once after debounce
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		_ = os.WriteFile(testFile, []byte(`{"v":`+string(rune('0'+i))+`}`), 0644)
 		time.Sleep(5 * time.Millisecond)
 	}
@@ -274,7 +274,7 @@ func TestReloader_Config_ThreadSafe(t *testing.T) {
 
 	// Access from multiple goroutines
 	var wg sync.WaitGroup
-	for i := 0; i < 10; i++ {
+	for range 10 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

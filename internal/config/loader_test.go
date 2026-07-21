@@ -98,7 +98,7 @@ func TestLoadAll_EmptyJSON(t *testing.T) {
 func TestLoadAll_LargeFile(t *testing.T) {
 	// Generate a large JSON object
 	largeJSON := `{"items": [`
-	for i := 0; i < 1000; i++ {
+	for i := range 1000 {
 		if i > 0 {
 			largeJSON += ","
 		}

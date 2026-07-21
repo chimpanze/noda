@@ -206,7 +206,7 @@ func TestRuntime_ConcurrentProcessing(t *testing.T) {
 	require.NoError(t, err)
 
 	// Publish multiple messages
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		data, _ := json.Marshal(map[string]any{"i": i})
 		client.XAdd(ctx, &redis.XAddArgs{
 			Stream: "concurrent-events",
@@ -920,7 +920,7 @@ func TestReapOnce_DrainsBacklogAtConcurrency(t *testing.T) {
 	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
 
 	const n = 4
-	for i := 0; i < n; i++ {
+	for i := range n {
 		_, err := client.XAdd(context.Background(), &redis.XAddArgs{
 			Stream: topic, Values: map[string]any{"payload": fmt.Sprintf(`{"x":%d}`, i)},
 		}).Result()
@@ -996,7 +996,7 @@ func TestReclaim_PoisonPanic_DeadLettered(t *testing.T) {
 	// After 2 reapOnce calls the count reaches 3 (>= after=3) and the message is dead-lettered.
 	// Clock must advance cumulatively so each claim sees the message idle > min_idle.
 	base := time.Now()
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		base = base.Add(61 * time.Second)
 		mr.SetTime(base)
 		require.NoError(t, r.reapOnce(context.Background(), w, client))
@@ -1038,7 +1038,7 @@ func TestReclaim_PoisonPanic_NoDLQ_DroppedAfterMaxAttempts(t *testing.T) {
 
 	// Attempts 2 and 3 via reclaim; after 2 reapOnce calls count reaches 3 (>= max_attempts=3) → drop.
 	base := time.Now()
-	for i := 0; i < 2; i++ {
+	for range 2 {
 		base = base.Add(61 * time.Second)
 		mr.SetTime(base)
 		require.NoError(t, r.reapOnce(context.Background(), w, client))
@@ -1255,7 +1255,7 @@ func TestReapOnce_ProcessesPageConcurrently(t *testing.T) {
 	client, svcReg, nodeReg, mr := newTestSetup(t)
 	topic, group := "t-parreap", "g-parreap"
 	require.NoError(t, client.XGroupCreateMkStream(context.Background(), topic, group, "0").Err())
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		_, err := client.XAdd(context.Background(), &redis.XAddArgs{
 			Stream: topic, Values: map[string]any{"payload": fmt.Sprintf(`{"i":%d}`, i)},
 		}).Result()
@@ -1295,7 +1295,7 @@ func TestReapOnce_ProcessesPageConcurrently(t *testing.T) {
 	go func() { done <- r.reapOnce(context.Background(), w, client) }()
 
 	// All three reclaimed messages must be in-flight simultaneously.
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		select {
 		case <-mw.entered:
 		case <-time.After(2 * time.Second):
@@ -1347,7 +1347,7 @@ func TestPrefetchAttempts_BatchesDeliveryCounts(t *testing.T) {
 	require.NoError(t, client.XGroupCreateMkStream(ctx, topic, group, "0").Err())
 
 	ids := make([]string, 0, 3)
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		id, err := client.XAdd(ctx, &redis.XAddArgs{
 			Stream: topic, Values: map[string]any{"payload": `{}`},
 		}).Result()

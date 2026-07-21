@@ -31,6 +31,6 @@ func TestMatchMessage(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, ok, "non-matching messages are skipped, not fatal")
 
-	_, err = matchMessage([]byte(`not-json`), []BodyAssertion{{Path: "x", Exists: boolPtr(true)}})
+	_, err = matchMessage([]byte(`not-json`), []BodyAssertion{{Path: "x", Exists: new(true)}})
 	assert.Error(t, err)
 }

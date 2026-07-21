@@ -285,7 +285,7 @@ func TestRuntime_History_Capped(t *testing.T) {
 	rt := &Runtime{}
 
 	// Fill history with 1001 entries
-	for i := 0; i < 1001; i++ {
+	for range 1001 {
 		rt.recordRun(JobRun{ScheduleID: "job", Success: true})
 	}
 
