@@ -182,11 +182,9 @@ func TestResolve_EnvCaptureNotCorruptedByConcurrentResolves(t *testing.T) {
 
 	var wg sync.WaitGroup
 	for range 50 {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			_, _ = c.Resolve("{{ input.marker }}")
-		}()
+		})
 	}
 	// Read the captured map concurrently with the Resolves above.
 	for range 50 {

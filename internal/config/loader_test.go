@@ -2,6 +2,7 @@ package config
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -97,14 +98,16 @@ func TestLoadAll_EmptyJSON(t *testing.T) {
 
 func TestLoadAll_LargeFile(t *testing.T) {
 	// Generate a large JSON object
-	largeJSON := `{"items": [`
+	var b strings.Builder
+	b.WriteString(`{"items": [`)
 	for i := range 1000 {
 		if i > 0 {
-			largeJSON += ","
+			b.WriteString(",")
 		}
-		largeJSON += `{"id": ` + string(rune('0'+i%10)) + `}`
+		b.WriteString(`{"id": ` + string(rune('0'+i%10)) + `}`)
 	}
-	largeJSON += `]}`
+	b.WriteString(`]}`)
+	largeJSON := b.String()
 
 	dir := setupTestProject(t, map[string]string{
 		"noda.json": largeJSON,

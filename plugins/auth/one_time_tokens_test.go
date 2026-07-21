@@ -113,16 +113,14 @@ func TestConsumeTokenConcurrentSingleUse(t *testing.T) {
 	var wg sync.WaitGroup
 	successes := make(chan struct{}, n)
 	for range n {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			out, _, err := consume.Execute(context.Background(), fakeCtx{}, map[string]any{
 				"token": token, "purpose": PurposeVerifyEmail,
 			}, testServices(db))
 			if err == nil && out == api.OutputSuccess {
 				successes <- struct{}{}
 			}
-		}()
+		})
 	}
 	wg.Wait()
 	close(successes)

@@ -38,9 +38,7 @@ func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) 
 
 		// Write loop — single goroutine owns all writes to the connection.
 		var writeWg sync.WaitGroup
-		writeWg.Add(1)
-		go func() {
-			defer writeWg.Done()
+		writeWg.Go(func() {
 			for {
 				select {
 				case <-done:
@@ -51,7 +49,7 @@ func RegisterTraceWebSocket(app *fiber.App, hub *EventHub, logger *slog.Logger) 
 					}
 				}
 			}
-		}()
+		})
 
 		// Read loop — keeps connection alive, detects close.
 		for {
