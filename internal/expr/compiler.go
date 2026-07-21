@@ -171,10 +171,7 @@ func (c *Compiler) Compile(input string) (*CompiledExpression, error) {
 // of entries when the limit is reached. Must be called with c.mu held.
 func (c *Compiler) addToCache(key string, compiled *CompiledExpression) {
 	if c.opts.maxCacheSize > 0 && len(c.cache) >= c.opts.maxCacheSize {
-		evictCount := c.opts.maxCacheSize / 4
-		if evictCount < 1 {
-			evictCount = 1
-		}
+		evictCount := max(c.opts.maxCacheSize/4, 1)
 		for i := 0; i < evictCount && i < len(c.order); i++ {
 			delete(c.cache, c.order[i])
 		}

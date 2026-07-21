@@ -3,6 +3,7 @@ package secrets
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -41,9 +42,7 @@ func (p *DotEnvProvider) Load(_ context.Context) (map[string]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("reading %s: %w", f, err)
 		}
-		for k, v := range vals {
-			merged[k] = v
-		}
+		maps.Copy(merged, vals)
 	}
 
 	// 2. .env in working directory (if different)
@@ -53,9 +52,7 @@ func (p *DotEnvProvider) Load(_ context.Context) (map[string]string, error) {
 			if err != nil {
 				return nil, fmt.Errorf("reading %s: %w", f, err)
 			}
-			for k, v := range vals {
-				merged[k] = v
-			}
+			maps.Copy(merged, vals)
 		}
 	}
 
@@ -66,9 +63,7 @@ func (p *DotEnvProvider) Load(_ context.Context) (map[string]string, error) {
 			if err != nil {
 				return nil, fmt.Errorf("reading %s: %w", f, err)
 			}
-			for k, v := range vals {
-				merged[k] = v
-			}
+			maps.Copy(merged, vals)
 		}
 	}
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -467,12 +468,7 @@ func (m *Module) RegisterAsyncLabel(label string) error {
 // IsWorkflowAllowed checks if the module can trigger a workflow.
 // Returns false if AllowedWorkflows is empty (deny by default).
 func (m *Module) IsWorkflowAllowed(workflowID string) bool {
-	for _, w := range m.Config.AllowedWorkflows {
-		if w == workflowID {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.Config.AllowedWorkflows, workflowID)
 }
 
 // IsServiceAllowed checks if the module can access a service.
@@ -480,17 +476,10 @@ func (m *Module) IsServiceAllowed(service string) bool {
 	if service == "" {
 		return true // system operations always allowed
 	}
-	for _, s := range m.Config.Services {
-		if s == service {
-			return true
-		}
+	if slices.Contains(m.Config.Services, service) {
+		return true
 	}
-	for _, c := range m.Config.Connections {
-		if c == service {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(m.Config.Connections, service)
 }
 
 // errGuestInterrupted is a sentinel wrapped into the error returned by

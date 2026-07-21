@@ -474,7 +474,7 @@ func validateMiddlewareRefs(filePath string, route map[string]any, presets map[s
 			}
 		}
 		if name, ok := m["use"].(string); ok {
-			if idx := strings.Index(name, ":"); idx >= 0 {
+			if found := strings.Contains(name, ":"); found {
 				// Instance reference like "auth.jwt:prod"
 				if !instances[name] {
 					errs = append(errs, ValidationError{

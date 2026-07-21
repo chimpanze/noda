@@ -698,7 +698,8 @@ func createTableSQL(model *ModelDef, dialect string) (string, string) {
 		lines = append(lines, fmt.Sprintf("  PRIMARY KEY (%s)", strings.Join(quoteIdentList(pkCols), ", ")))
 	}
 
-	up := fmt.Sprintf("CREATE TABLE %s (\n%s\n);", quoteIdent(model.Table), strings.Join(lines, ",\n"))
+	var up strings.Builder
+	fmt.Fprintf(&up, "CREATE TABLE %s (\n%s\n);", quoteIdent(model.Table), strings.Join(lines, ",\n"))
 
 	// Indexes
 	for _, idx := range model.Indexes {
@@ -707,7 +708,7 @@ func createTableSQL(model *ModelDef, dialect string) (string, string) {
 		if idx.Unique {
 			unique = "UNIQUE "
 		}
-		up += fmt.Sprintf("\nCREATE %sINDEX %s ON %s (%s);", unique, quoteIdent(idxName), quoteIdent(model.Table), strings.Join(quoteIdentList(idx.Columns), ", "))
+		fmt.Fprintf(&up, "\nCREATE %sINDEX %s ON %s (%s);", unique, quoteIdent(idxName), quoteIdent(model.Table), strings.Join(quoteIdentList(idx.Columns), ", "))
 	}
 
 	// FK constraints from belongsTo relations (PostgreSQL only — SQLite uses inline REFERENCES above)
@@ -728,7 +729,7 @@ func createTableSQL(model *ModelDef, dialect string) (string, string) {
 			if rel.OnDelete != "" {
 				onDelete = " ON DELETE " + rel.OnDelete
 			}
-			up += fmt.Sprintf("\nALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
+			fmt.Fprintf(&up, "\nALTER TABLE %s ADD CONSTRAINT %s FOREIGN KEY (%s) REFERENCES %s (%s)%s;",
 				quoteIdent(model.Table), quoteIdent(fkName), quoteIdent(rel.ForeignKey), quoteIdent(rel.Table), quoteIdent("id"), onDelete)
 		}
 	}
@@ -746,7 +747,7 @@ func createTableSQL(model *ModelDef, dialect string) (string, string) {
 			continue
 		}
 		fkType := fkColumnType(dialect)
-		up += fmt.Sprintf("\nCREATE TABLE IF NOT EXISTS %s (\n  %s %s NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  %s %s NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  PRIMARY KEY (%s, %s)\n);",
+		fmt.Fprintf(&up, "\nCREATE TABLE IF NOT EXISTS %s (\n  %s %s NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  %s %s NOT NULL REFERENCES %s (%s) ON DELETE CASCADE,\n  PRIMARY KEY (%s, %s)\n);",
 			quoteIdent(rel.Junction), quoteIdent(rel.LocalKey), fkType, quoteIdent(model.Table), quoteIdent("id"),
 			quoteIdent(rel.ForeignKey), fkType, quoteIdent(rel.Table), quoteIdent("id"),
 			quoteIdent(rel.LocalKey), quoteIdent(rel.ForeignKey))
@@ -759,7 +760,7 @@ func createTableSQL(model *ModelDef, dialect string) (string, string) {
 		down = fmt.Sprintf("DROP TABLE IF EXISTS %s CASCADE;", quoteIdent(model.Table))
 	}
 
-	return up, down
+	return up.String(), down
 }
 
 func topoSortCreates(creates []Change) []Change {
