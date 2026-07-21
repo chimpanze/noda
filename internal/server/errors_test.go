@@ -219,8 +219,7 @@ func TestMappedDriverErrorsDoNotLeakInProd(t *testing.T) {
 			assert.NotContains(t, bodyStr, secret,
 				"prod response leaked driver text for %s: %s", code, body)
 
-			var valErr *api.ValidationError
-			if errors.As(typed, &valErr) {
+			if _, ok := errors.AsType[*api.ValidationError](typed); ok {
 				// Sanctioned exception: Details["field"] must be exactly
 				// the driver's ColumnName, and the sentinel must not
 				// appear anywhere else in the body.

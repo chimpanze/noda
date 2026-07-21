@@ -46,11 +46,7 @@ const pgQueryCanceled = "57014"
 
 // pgError extracts a *pgconn.PgError from anywhere in err's chain.
 func pgError(err error) (*pgconn.PgError, bool) {
-	var pge *pgconn.PgError
-	if errors.As(err, &pge) {
-		return pge, true
-	}
-	return nil, false
+	return errors.AsType[*pgconn.PgError](err)
 }
 
 // pgField returns a best-effort column name for a ValidationError.

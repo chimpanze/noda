@@ -31,11 +31,7 @@ var (
 // sqliteError extracts a sqlite3.Error from anywhere in err's chain.
 // Note it is a value type, not a pointer, unlike pgconn.PgError.
 func sqliteError(err error) (sqlite3.Error, bool) {
-	var se sqlite3.Error
-	if errors.As(err, &se) {
-		return se, true
-	}
-	return sqlite3.Error{}, false
+	return errors.AsType[sqlite3.Error](err)
 }
 
 // sqlite3.ErrConstraintUnique and sqlite3.ErrConstraintPrimaryKey are
