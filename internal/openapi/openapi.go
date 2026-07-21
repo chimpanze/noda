@@ -147,8 +147,7 @@ func fiberToOpenAPIPath(path string) string {
 	// Convert :param to {param}
 	parts := strings.Split(path, "/")
 	for i, p := range parts {
-		if strings.HasPrefix(p, ":") {
-			name := strings.TrimPrefix(p, ":")
+		if name, ok := strings.CutPrefix(p, ":"); ok {
 			name = strings.TrimSuffix(name, "?") // optional params
 			parts[i] = "{" + name + "}"
 		}
@@ -166,8 +165,7 @@ func routeToOperationID(route map[string]any) string {
 }
 
 func addPathParams(op *openapi3.Operation, path string) {
-	parts := strings.Split(path, "/")
-	for _, p := range parts {
+	for p := range strings.SplitSeq(path, "/") {
 		if strings.HasPrefix(p, "{") && strings.HasSuffix(p, "}") {
 			name := strings.Trim(p, "{}")
 			op.Parameters = append(op.Parameters, &openapi3.ParameterRef{
