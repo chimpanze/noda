@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"log/slog"
+	"maps"
 	"sort"
 	"sync"
 	"sync/atomic"
@@ -225,9 +226,7 @@ func (c *ExecutionContextImpl) ResolveWithVars(expression string, extraVars map[
 	context := c.buildExprContext()
 	c.mu.RUnlock()
 
-	for k, v := range extraVars {
-		context[k] = v
-	}
+	maps.Copy(context, extraVars)
 
 	resolver := expr.NewResolver(c.compiler, context)
 	return resolver.Resolve(expression)
@@ -400,9 +399,7 @@ func (c *ExecutionContextImpl) buildExprContext() map[string]any {
 	// Node outputs are namespaced under "nodes" to avoid clashing with
 	// expr-lang built-in functions (len, find, count, map, filter, etc.).
 	nodesMap := make(map[string]any, len(c.outputs))
-	for k, v := range c.outputs {
-		nodesMap[k] = v
-	}
+	maps.Copy(nodesMap, c.outputs)
 	ctx["nodes"] = nodesMap
 	if c.secretsContext != nil {
 		ctx["secrets"] = c.secretsContext

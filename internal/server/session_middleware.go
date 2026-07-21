@@ -37,7 +37,7 @@ func (s *Server) newSessionMiddleware(cfg map[string]any, _ map[string]any) (fib
 		token := c.Cookies(authn.SessionCookieName())
 		if token == "" {
 			header := c.Get("Authorization")
-			if t := strings.TrimPrefix(header, "Bearer "); t != header {
+			if t, ok := strings.CutPrefix(header, "Bearer "); ok {
 				token = t
 			}
 		}

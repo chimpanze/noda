@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 
@@ -364,8 +365,8 @@ func validateNodeConfigSchema(wfName, nodeID, nodeType string, desc api.NodeDesc
 }
 
 func extractPrefix(nodeType string) string {
-	if idx := strings.IndexByte(nodeType, '.'); idx >= 0 {
-		return nodeType[:idx]
+	if before, _, ok := strings.Cut(nodeType, "."); ok {
+		return before
 	}
 	return nodeType
 }
@@ -384,10 +385,5 @@ func pluginNames(plugins *PluginRegistry) []string {
 
 // containsStr reports whether s is present in slice.
 func containsStr(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(slice, s)
 }

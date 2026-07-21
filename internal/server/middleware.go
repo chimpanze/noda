@@ -51,8 +51,8 @@ var middlewareRegistry = map[string]MiddlewareFactory{
 // ParseMiddlewareName splits a middleware name into its base type and instance.
 // For "auth.jwt:v1" it returns ("auth.jwt", "v1"). For "auth.jwt" it returns ("auth.jwt", "").
 func ParseMiddlewareName(name string) (baseType, instance string) {
-	if idx := strings.Index(name, ":"); idx >= 0 {
-		return name[:idx], name[idx+1:]
+	if before, after, ok := strings.Cut(name, ":"); ok {
+		return before, after
 	}
 	return name, ""
 }

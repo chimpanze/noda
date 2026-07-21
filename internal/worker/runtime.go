@@ -113,10 +113,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	ctx, r.cancel = context.WithCancel(ctx)
 
 	for _, w := range r.workers {
-		concurrency := w.Concurrency
-		if concurrency < 1 {
-			concurrency = 1
-		}
+		concurrency := max(w.Concurrency, 1)
 		if concurrency > maxConcurrency {
 			return fmt.Errorf("worker %q: concurrency %d exceeds maximum %d", w.ID, concurrency, maxConcurrency)
 		}
@@ -142,7 +139,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		w.Retry = resolveRetry(w.Retry, w.Timeout, r.logger, w.ID)
 		w.DeadLetter = resolveDeadLetter(w.DeadLetter, w.Retry.MaxAttempts, r.logger, w.ID)
 
-		for i := 0; i < concurrency; i++ {
+		for i := range concurrency {
 			consumerID := fmt.Sprintf("%s-%d", w.ID, i)
 			r.wg.Add(1)
 			go r.consume(ctx, w, client, consumerID)
@@ -401,8 +398,8 @@ func (r *Runtime) runMessage(ctx context.Context, w WorkerConfig, msg redis.XMes
 	handler := func(ctx context.Context) error {
 		return engine.RunWorkflow(ctx, w.WorkflowID, execCtx, r.workflowCache, r.workflows, r.services, r.nodes)
 	}
-	for i := len(r.middleware) - 1; i >= 0; i-- {
-		handler = r.middleware[i].Wrap(handler, &MessageContext{
+	for _, v := range slices.Backward(r.middleware) {
+		handler = v.Wrap(handler, &MessageContext{
 			WorkerID: w.ID, MessageID: msg.ID, TraceID: traceID,
 			Topic: w.Topic, Group: w.Group, Logger: r.logger,
 		})
@@ -578,10 +575,7 @@ func resolveRetry(rc RetryConfig, timeout time.Duration, logger *slog.Logger, wo
 // scans on an idle PEL; half the threshold caps the added redelivery latency
 // at 50% of min_idle.
 func reapInterval(minIdle time.Duration) time.Duration {
-	iv := minIdle / 2
-	if iv < 30*time.Second {
-		iv = 30 * time.Second
-	}
+	iv := max(minIdle/2, 30*time.Second)
 	return iv
 }
 
@@ -621,10 +615,7 @@ func prefetchAttempts(ctx context.Context, client *redis.Client, topic, group, c
 // instance's reaper to steal).
 func (r *Runtime) reapOnce(ctx context.Context, w WorkerConfig, client *redis.Client) error {
 	consumerID := w.ID + "-reaper"
-	concurrency := w.Concurrency
-	if concurrency < 1 {
-		concurrency = 1
-	}
+	concurrency := max(w.Concurrency, 1)
 	cursor := "0"
 	for {
 		if ctx.Err() != nil {

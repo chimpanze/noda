@@ -144,10 +144,7 @@ func (l *Lifecycle) StopAll(parent context.Context) {
 
 	var totalBudget time.Duration
 	if deadline, ok := parent.Deadline(); ok {
-		totalBudget = time.Until(deadline)
-		if totalBudget < 0 {
-			totalBudget = 0
-		}
+		totalBudget = max(time.Until(deadline), 0)
 	} else {
 		totalBudget = l.rollbackDeadline
 	}
@@ -159,10 +156,7 @@ func (l *Lifecycle) StopAll(parent context.Context) {
 		c := components[i]
 		l.logger.Info("stopping component", "name", c.Name())
 
-		budget := perComponent
-		if budget > remaining {
-			budget = remaining
-		}
+		budget := min(perComponent, remaining)
 
 		start := time.Now()
 		ctx, cancel := context.WithTimeout(parent, budget)

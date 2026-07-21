@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 
 	json "github.com/goccy/go-json"
 	"path/filepath"
@@ -594,13 +595,7 @@ func explainWorkflowHandler(nodeReg *registry.NodeRegistry) server.ToolHandlerFu
 		// If some nodes weren't reached (cycles or disconnected), add them
 		if len(executionOrder) < len(wf.Nodes) {
 			for nodeID := range wf.Nodes {
-				found := false
-				for _, id := range executionOrder {
-					if id == nodeID {
-						found = true
-						break
-					}
-				}
+				found := slices.Contains(executionOrder, nodeID)
 				if !found {
 					executionOrder = append(executionOrder, nodeID)
 				}

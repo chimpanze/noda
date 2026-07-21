@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"mime/multipart"
 	"net"
 	"net/http"
@@ -392,9 +393,7 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 	}
 
 	vars := map[string]string{}
-	for k, v := range rctx.opt.Vars {
-		vars[k] = v
-	}
+	maps.Copy(vars, rctx.opt.Vars)
 	wsConns := map[string]*websocket.Conn{}
 	defer func() {
 		for _, c := range wsConns {

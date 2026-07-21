@@ -2,6 +2,7 @@ package registry
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 
 	"github.com/chimpanze/noda/pkg/api"
@@ -114,9 +115,7 @@ func (r *ServiceRegistry) WithOverrides(overrides map[string]any) *ServiceRegist
 		services: make(map[string]serviceEntry, len(r.services)),
 	}
 	r.mu.RLock()
-	for name, entry := range r.services {
-		child.services[name] = entry
-	}
+	maps.Copy(child.services, r.services)
 	child.order = make([]string, len(r.order))
 	copy(child.order, r.order)
 	r.mu.RUnlock()

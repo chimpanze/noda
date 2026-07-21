@@ -56,7 +56,7 @@ func extractJSONBlocks(file, content string) []block {
 // the docs annotate JSON examples with such comment lines.
 func stripComments(s string) string {
 	var out []string
-	for _, line := range strings.Split(s, "\n") {
+	for line := range strings.SplitSeq(s, "\n") {
 		if strings.HasPrefix(strings.TrimSpace(line), "//") {
 			continue
 		}

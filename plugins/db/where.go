@@ -211,7 +211,7 @@ func applyQueryOptions(tx *gorm.DB, nCtx api.ExecutionContext, config map[string
 	if group, ok, err := plugin.ResolveOptionalString(nCtx, config, "group"); err != nil {
 		return nil, err
 	} else if ok {
-		for _, col := range strings.Split(group, ",") {
+		for col := range strings.SplitSeq(group, ",") {
 			col = strings.TrimSpace(col)
 			if err := ValidateIdentifier(col); err != nil {
 				return nil, fmt.Errorf("group: %w", err)
