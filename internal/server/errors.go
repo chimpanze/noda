@@ -32,12 +32,14 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 	var status int
 	var resp ErrorResponse
 
+	code := api.ErrorCode(err)
+
 	switch {
 	case errors.As(err, &valErr):
 		status = 422
 		resp = ErrorResponse{
 			Error: api.ErrorData{
-				Code:    "VALIDATION_ERROR",
+				Code:    code,
 				Message: valErr.Message,
 				Details: map[string]any{
 					"field": valErr.Field,
@@ -50,7 +52,7 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 		status = 404
 		resp = ErrorResponse{
 			Error: api.ErrorData{
-				Code:    "NOT_FOUND",
+				Code:    code,
 				Message: nfErr.Error(),
 				TraceID: traceID,
 			},
@@ -63,7 +65,7 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 		}
 		resp = ErrorResponse{
 			Error: api.ErrorData{
-				Code:    "CONFLICT",
+				Code:    code,
 				Message: msg,
 				TraceID: traceID,
 			},
@@ -76,7 +78,7 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 		}
 		resp = ErrorResponse{
 			Error: api.ErrorData{
-				Code:    "SERVICE_UNAVAILABLE",
+				Code:    code,
 				Message: msg,
 				TraceID: traceID,
 			},
@@ -85,7 +87,7 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 		status = 504
 		resp = ErrorResponse{
 			Error: api.ErrorData{
-				Code:    "TIMEOUT",
+				Code:    code,
 				Message: toErr.Error(),
 				TraceID: traceID,
 			},
@@ -98,7 +100,7 @@ func MapErrorToHTTP(err error, traceID string, devMode bool) (int, ErrorResponse
 		}
 		resp = ErrorResponse{
 			Error: api.ErrorData{
-				Code:    "INTERNAL_ERROR",
+				Code:    code,
 				Message: msg,
 				TraceID: traceID,
 			},

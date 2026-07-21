@@ -247,3 +247,27 @@ func TestDevModeSurfacesCause(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "VISIBLE")
 }
+
+// The HTTP body's code and the error-edge payload's code must be the same
+// vocabulary. This test is what stops the two surfaces drifting.
+func TestMapErrorToHTTPCodeMatchesErrorCode(t *testing.T) {
+	tests := []error{
+		&api.ValidationError{Field: "age", Message: "bad"},
+		&api.NotFoundError{Resource: "user", ID: "1"},
+		&api.ConflictError{Resource: "users", Reason: "dup"},
+		&api.ServiceUnavailableError{Service: "db"},
+		&api.TimeoutError{Operation: "query"},
+		errors.New("untyped boom"),
+	}
+	for _, err := range tests {
+		t.Run(api.ErrorCode(err), func(t *testing.T) {
+			for _, dev := range []bool{false, true} {
+				_, resp := MapErrorToHTTP(err, "trace-1", dev)
+				if resp.Error.Code != api.ErrorCode(err) {
+					t.Fatalf("devMode=%v: body code %q != api.ErrorCode %q",
+						dev, resp.Error.Code, api.ErrorCode(err))
+				}
+			}
+		})
+	}
+}
