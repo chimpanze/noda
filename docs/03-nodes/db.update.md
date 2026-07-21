@@ -18,7 +18,7 @@ Output: `{rows_affected: <count>}`
 
 ## Behavior
 
-Updates all rows in the specified table that match the `where` conditions, setting the fields specified in `data`. Returns the number of affected rows.
+Updates all rows in the specified table that match the `where` conditions, setting the fields specified in `data`. Returns the number of affected rows. Fires `error` with `ConflictError` if the update violates a unique constraint.
 
 ## Service Dependencies
 

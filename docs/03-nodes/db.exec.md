@@ -36,11 +36,11 @@ Executes the given SQL write statement (INSERT, UPDATE, DELETE) with parameteriz
 
 ## Error Output
 
-The `error` port fires on SQL errors such as constraint violations, syntax errors, or connection failures. The error output contains:
+The `error` port fires on SQL errors such as constraint violations, syntax errors, or connection failures. Constraint violations, invalid input, and similar caller-triggerable failures are classified into typed errors (e.g. `ConflictError`, `ValidationError`) rather than a generic 500; the underlying driver detail is preserved in the message. The error output contains:
 
 ```json
 {
-  "error": "db.exec: ERROR: duplicate key value violates unique constraint \"users_email_key\" (SQLSTATE 23505)",
+  "error": "conflict on query: unique constraint violation: ERROR: duplicate key value violates unique constraint \"users_email_key\" (SQLSTATE 23505)",
   "node_id": "insert_user",
   "node_type": "db.exec"
 }
