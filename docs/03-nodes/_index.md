@@ -28,16 +28,49 @@ Noda provides 81 built-in node types organized by plugin. Every node returns a n
 
 ## Error Handling
 
-All nodes can route to an `error` output. When a node fails, the error data is available downstream as `ErrorData`:
+All nodes can route to an `error` output. When a node fails, the error data is available downstream as a plain object with these fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `code` | string | Error code (e.g., `VALIDATION_ERROR`, `NOT_FOUND`) |
-| `message` | string | Human-readable error message |
+| `error` | string | Diagnostic error message — see warning below |
 | `node_id` | string | ID of the failed node |
 | `node_type` | string | Type of the failed node |
-| `trace_id` | string | Request trace ID |
-| `details` | any | Additional error details |
+| `available_nodes` | array of string | IDs of nodes whose output was available for data flow at the point of failure |
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
+
+There is no `message`, `trace_id`, or `details` field on this payload — those belong to the
+separate HTTP error response body (see the status-mapping table below), not to the error-edge
+data a downstream node reads.
+
+### Branching on the error code
+
+```json
+{
+  "get_user": {
+    "type": "db.findOne",
+    "services": { "database": "postgres" },
+    "config": {
+      "table": "users",
+      "where": { "id": "{{ input.user_id }}" },
+      "required": true
+    }
+  },
+  "check_error": {
+    "type": "control.if",
+    "config": {
+      "condition": "{{ nodes.get_user.code == \"NOT_FOUND\" }}"
+    }
+  }
+}
+```
+
+Wire `get_user`'s `error` output to `check_error`. `nodes.get_user.code` holds the code from the
+table above, so this workflow can take a different path for a missing user than for, say, a
+`SERVICE_UNAVAILABLE` from a database outage.
 
 ### Error Type to HTTP Status Mapping
 

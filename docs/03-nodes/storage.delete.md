@@ -37,11 +37,16 @@ The `error` port fires if the file does not exist or the delete operation fails 
 
 ```json
 {
+  "code": "NOT_FOUND",
   "error": "storage not found: avatars/user-42.png",
   "node_id": "delete_avatar",
   "node_type": "storage.delete"
 }
 ```
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
 
 ## Examples
 

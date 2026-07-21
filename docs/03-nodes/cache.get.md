@@ -40,11 +40,16 @@ The `error` port fires when the key does not exist in the cache (`NotFoundError`
 
 ```json
 {
+  "code": "NOT_FOUND",
   "error": "cache not found: user:999",
   "node_id": "check_cache",
   "node_type": "cache.get"
 }
 ```
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
 
 ## Examples
 

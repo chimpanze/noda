@@ -54,13 +54,18 @@ The `error` port fires on connection errors, DNS failures, or timeouts. It does 
 
 ```json
 {
+  "code": "INTERNAL_ERROR",
   "error": "http.request: Post \"https://api.example.com/orders\": dial tcp: connection refused",
   "node_id": "create_order",
   "node_type": "http.post"
 }
 ```
 
-For timeouts, the error message is: `"timeout: HTTP POST https://api.example.com/orders"`.
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
+
+When the node's own `timeout` config elapses, `code` is `TIMEOUT` and the error message is: `"timeout: HTTP POST https://api.example.com/orders"`. When no node `timeout` is set, the *service's* `http.Client.Timeout` (default 30s) can still expire; that path has no context deadline for the node to detect, so it surfaces untyped with `code: "INTERNAL_ERROR"` and a message like `"http.request: Post ...: (Client.Timeout exceeded while awaiting headers)"`.
 
 ## Example
 

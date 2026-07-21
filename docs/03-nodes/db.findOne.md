@@ -34,6 +34,23 @@ Builds and executes a SELECT query with `LIMIT 1`. Returns a single row object. 
 |------|--------|----------|
 | `database` | `db` | Yes |
 
+## Error Output
+
+The `error` port fires with `NotFoundError` when `required` is `true` (the default) and no row matches, or with another typed error (e.g. a constraint violation or connection failure) when the query itself fails. The `NotFoundError` case's error output contains:
+
+```json
+{
+  "code": "NOT_FOUND",
+  "error": "tasks not found",
+  "node_id": "get_task",
+  "node_type": "db.findOne"
+}
+```
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
+
 ## Example
 
 ```json

@@ -74,6 +74,7 @@ func dispatchNode(
 		if containsString(node.Outputs, "error") {
 			// Store error data and return "error" output
 			errorData := map[string]any{
+				"code":            api.ErrorCode(execErr),
 				"error":           execErr.Error(),
 				"node_id":         node.ID,
 				"node_type":       node.Type,

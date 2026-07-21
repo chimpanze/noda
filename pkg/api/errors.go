@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -86,3 +87,42 @@ func (e *ConflictError) Error() string {
 }
 
 func (e *ConflictError) Unwrap() error { return e.Cause }
+
+// ErrorCode returns the stable symbolic code for err, matching the `code`
+// field of the HTTP error body and of a node's error-edge output.
+//
+// It is the shared source for those two surfaces: internal/server's
+// workflow-error HTTP body and internal/engine's node error-edge payload
+// both derive their code from here, so those two cannot drift from each
+// other. It is not the only vocabulary the server emits — errorHandler in
+// internal/server/server.go and literals in internal/server/routes.go mint
+// additional codes (e.g. METHOD_NOT_ALLOWED, RATE_LIMITED) for failures
+// that never reach a typed error, and internal/wasm/hostapi.go has its own
+// vocabulary for the Wasm host-call boundary.
+//
+// Evaluation order matches MapErrorToHTTP's switch. No error chain
+// currently matches two of these types, so the order is not load-bearing,
+// but it is preserved rather than depended upon.
+//
+// A nil error returns the empty string, never INTERNAL_ERROR.
+func ErrorCode(err error) string {
+	if err == nil {
+		return ""
+	}
+	if _, ok := errors.AsType[*ValidationError](err); ok {
+		return "VALIDATION_ERROR"
+	}
+	if _, ok := errors.AsType[*NotFoundError](err); ok {
+		return "NOT_FOUND"
+	}
+	if _, ok := errors.AsType[*ConflictError](err); ok {
+		return "CONFLICT"
+	}
+	if _, ok := errors.AsType[*ServiceUnavailableError](err); ok {
+		return "SERVICE_UNAVAILABLE"
+	}
+	if _, ok := errors.AsType[*TimeoutError](err); ok {
+		return "TIMEOUT"
+	}
+	return "INTERNAL_ERROR"
+}

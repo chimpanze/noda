@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -267,5 +268,37 @@ func TestValidationAndConflictRenderCause(t *testing.T) {
 	ce := &api.ConflictError{Resource: "users", Reason: "unique constraint violation", Cause: errors.New("boom")}
 	if !strings.Contains(ce.Error(), "boom") {
 		t.Fatalf("ConflictError.Error() dropped the cause: %q", ce.Error())
+	}
+}
+
+func TestErrorCode(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"nil", nil, ""},
+		{"validation", &api.ValidationError{Field: "age", Message: "bad"}, "VALIDATION_ERROR"},
+		{"not found", &api.NotFoundError{Resource: "user", ID: "1"}, "NOT_FOUND"},
+		{"conflict", &api.ConflictError{Resource: "users", Reason: "dup"}, "CONFLICT"},
+		{"unavailable", &api.ServiceUnavailableError{Service: "db"}, "SERVICE_UNAVAILABLE"},
+		{"timeout", &api.TimeoutError{Operation: "query"}, "TIMEOUT"},
+		{"untyped", errors.New("boom"), "INTERNAL_ERROR"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := api.ErrorCode(tc.err); got != tc.want {
+				t.Fatalf("ErrorCode = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// The code must be recoverable through a wrapping chain, because callers
+// wrap node errors with context before this is reached.
+func TestErrorCodeThroughWrapping(t *testing.T) {
+	err := fmt.Errorf("db.create: %w", &api.ConflictError{Resource: "users", Reason: "dup"})
+	if got := api.ErrorCode(err); got != "CONFLICT" {
+		t.Fatalf("ErrorCode through wrap = %q, want CONFLICT", got)
 	}
 }

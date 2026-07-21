@@ -24,6 +24,23 @@ Reads the file at `path` from the configured storage service. Returns the file c
 |------|--------|----------|
 | `storage` | `storage` | Yes |
 
+## Error Output
+
+The `error` port fires with `NotFoundError` when the path doesn't exist. The error output contains:
+
+```json
+{
+  "code": "NOT_FOUND",
+  "error": "storage not found: documents/report.pdf",
+  "node_id": "read_file",
+  "node_type": "storage.read"
+}
+```
+
+> **`error` is a diagnostic field.** It may contain driver, network, or filesystem detail such as
+> constraint names, internal hostnames, or file paths. Do not forward it to clients — branch on
+> `code` instead, and return your own message.
+
 ## Example
 
 ```json
