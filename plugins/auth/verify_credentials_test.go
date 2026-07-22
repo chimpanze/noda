@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func seedUser(t *testing.T, db *gorm.DB, email, passwordHash, status string) string {
+func seedUserWithHash(t *testing.T, db *gorm.DB, email, passwordHash, status string) string {
 	t.Helper()
 	id := uuid.NewString()
 	now := time.Now().UTC()
@@ -30,7 +30,7 @@ func TestVerifyCredentials(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	seedUser(t, db, "alice@example.com", hash, "active")
+	seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	exec := newVerifyCredentialsExecutor(nil)
 
 	out, data, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{
@@ -58,7 +58,7 @@ func TestVerifyCredentialsDisabledUser(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	seedUser(t, db, "off@example.com", hash, "disabled")
+	seedUserWithHash(t, db, "off@example.com", hash, "disabled")
 	exec := newVerifyCredentialsExecutor(nil)
 	out, _, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"email": "off@example.com", "password": "password123",
@@ -79,7 +79,7 @@ func TestVerifyCredentialsUnrecognizedHashIsInvalid(t *testing.T) {
 		"empty":              "",
 	} {
 		email := strings.ToLower(strings.ReplaceAll(name, " ", "-")) + "@example.com"
-		seedUser(t, db, email, hash, "active")
+		seedUserWithHash(t, db, email, hash, "active")
 		out, _, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{
 			"email": email, "password": "password123",
 		}, testServices(db))
@@ -91,7 +91,7 @@ func TestVerifyCredentialsUnrecognizedHashIsInvalid(t *testing.T) {
 
 func TestVerifyCredentialsBcryptUpgrade(t *testing.T) {
 	db := newTestDB(t)
-	id := seedUser(t, db, "old@example.com", mustBcrypt(t, "password123"), "active")
+	id := seedUserWithHash(t, db, "old@example.com", mustBcrypt(t, "password123"), "active")
 	exec := newVerifyCredentialsExecutor(nil)
 	out, _, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"email": "old@example.com", "password": "password123",

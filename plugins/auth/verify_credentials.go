@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -77,7 +78,7 @@ func (e *verifyCredentialsExecutor) Execute(ctx context.Context, nCtx api.Execut
 		return "invalid", map[string]any{}, nil
 	}
 	if err != nil {
-		return "", nil, fmt.Errorf("auth.verify_credentials: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "user", "auth.verify_credentials")
 	}
 
 	storedHash, _ := row["password_hash"].(string)

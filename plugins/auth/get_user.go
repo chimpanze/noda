@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -76,7 +77,7 @@ func (e *getUserExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "not_found", map[string]any{}, nil
 		}
-		return "", nil, fmt.Errorf("auth.get_user: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "user", "auth.get_user")
 	}
 	return api.OutputSuccess, userView(row), nil
 }

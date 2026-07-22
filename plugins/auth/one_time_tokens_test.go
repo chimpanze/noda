@@ -14,7 +14,7 @@ func TestCreateAndConsumeToken(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 
 	create := newCreateTokenExecutor(nil)
 	out, data, err := create.Execute(context.Background(), fakeCtx{}, map[string]any{
@@ -61,7 +61,7 @@ func TestCreateTokenInvalidatesPrior(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	create := newCreateTokenExecutor(nil)
 	consume := newConsumeTokenExecutor(nil)
 
@@ -80,7 +80,7 @@ func TestConsumeExpiredToken(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	create := newCreateTokenExecutor(nil)
 	_, data, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"user_id": userID, "purpose": PurposeVerifyEmail, "ttl": "1ns",
@@ -101,7 +101,7 @@ func TestConsumeTokenConcurrentSingleUse(t *testing.T) {
 	db := newTestDB(t) // MaxOpenConns(1) serializes; the guard does the correctness work
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	create := newCreateTokenExecutor(nil)
 	_, data, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"user_id": userID, "purpose": PurposeVerifyEmail,
@@ -142,7 +142,7 @@ func TestConsumeTokenVerifyEmailTransactional(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	create := newCreateTokenExecutor(nil)
 	_, data, err := create.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"user_id": userID, "purpose": PurposeVerifyEmail,
@@ -179,7 +179,7 @@ func TestCreateTokenInvalidPurpose(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	create := newCreateTokenExecutor(nil)
 	_, _, err := create.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"user_id": userID, "purpose": "invalid_purpose",
@@ -193,7 +193,7 @@ func TestCreateTokenInvalidTTL(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUser(t, db, "alice@example.com", hash, "active")
+	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
 	create := newCreateTokenExecutor(nil)
 	_, _, err := create.Execute(context.Background(), fakeCtx{}, map[string]any{
 		"user_id": userID, "purpose": PurposeVerifyEmail, "ttl": "not_a_duration",

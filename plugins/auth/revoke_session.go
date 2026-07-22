@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -92,7 +93,7 @@ func (e *revokeSessionExecutor) Execute(ctx context.Context, nCtx api.ExecutionC
 	}
 	res := q.Update("revoked_at", time.Now().UTC())
 	if res.Error != nil {
-		return "", nil, fmt.Errorf("auth.revoke_session: %w", res.Error)
+		return "", nil, dberr.ClassifyOr(res.Error, "session", "auth.revoke_session")
 	}
 	return api.OutputSuccess, map[string]any{
 		"revoked_count": res.RowsAffected,

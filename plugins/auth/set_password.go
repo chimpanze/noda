@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -129,7 +130,7 @@ func (e *setPasswordExecutor) Execute(ctx context.Context, nCtx api.ExecutionCon
 		return nil
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("auth.set_password: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "user", "auth.set_password")
 	}
 	if invalid {
 		return "invalid", map[string]any{}, nil

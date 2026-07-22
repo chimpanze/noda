@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
@@ -91,7 +92,7 @@ func (e *createSessionExecutor) Execute(ctx context.Context, nCtx api.ExecutionC
 		row["user_agent"] = trig.UserAgent
 	}
 	if err := db.WithContext(ctx).Table("auth_sessions").Create(row).Error; err != nil {
-		return "", nil, fmt.Errorf("auth.create_session: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "session", "auth.create_session")
 	}
 	return api.OutputSuccess, map[string]any{
 		"token":      raw,
