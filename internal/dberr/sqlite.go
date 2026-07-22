@@ -10,10 +10,11 @@ import (
 //
 // SQLite's dynamic typing accepts a string in an ordinary INTEGER column
 // without error, so for ordinary columns there is no analogue of the
-// Postgres data-exception class. There are two exceptions, both mapped
-// below: an INTEGER PRIMARY KEY (rowid alias) rejects a non-integer with
-// ErrMismatch, and a STRICT table rejects a wrong-typed value with
-// SQLITE_CONSTRAINT_DATATYPE.
+// Postgres data-exception class. Two exceptions are mapped below: an
+// INTEGER PRIMARY KEY (rowid alias) rejects a non-integer with ErrMismatch,
+// and a STRICT table rejects a wrong-typed value with
+// SQLITE_CONSTRAINT_DATATYPE. (SQLITE_TOOBIG, the rough analogue of
+// Postgres 22001, is a further case this package does not map.)
 //
 // SQLite still collapses every schema error into ErrError (Code=1), which
 // stays unmapped and therefore a 500 — the same treatment Postgres class
@@ -22,17 +23,16 @@ import (
 // Note that SQLite splits what Postgres reports as a single 23505 across
 // three extended codes (unique, primary key, rowid). All map to
 // ConflictError, or the same conflict would differ by driver.
-
-// sqliteConstraintDataType is SQLITE_CONSTRAINT_DATATYPE (3091), raised
-// when a STRICT table rejects a value of the wrong type.
-//
-// It is constructed rather than named because go-sqlite3 v1.14.22 defines
-// ErrConstraint.Extend(n) constants only up to ErrConstraintRowID
-// (Extend(10)) — STRICT tables arrived in SQLite 3.37, after that list was
-// written. TestSQLiteDataTypeCodeValue pins the value.
-var sqliteConstraintDataType = sqlite3.ErrConstraint.Extend(12)
-
 var (
+	// sqliteConstraintDataType is SQLITE_CONSTRAINT_DATATYPE (3091), raised
+	// when a STRICT table rejects a value of the wrong type.
+	//
+	// It is constructed rather than named because go-sqlite3 v1.14.22 defines
+	// ErrConstraint.Extend(n) constants only up to ErrConstraintRowID
+	// (Extend(10)) — STRICT tables arrived in SQLite 3.37, after that list was
+	// written. TestSQLiteDataTypeCodeValue pins the value.
+	sqliteConstraintDataType = sqlite3.ErrConstraint.Extend(12)
+
 	sqliteConflict = map[sqlite3.ErrNoExtended]string{
 		sqlite3.ErrConstraintUnique:     "unique constraint violation",
 		sqlite3.ErrConstraintPrimaryKey: "unique constraint violation",

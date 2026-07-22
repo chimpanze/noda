@@ -164,6 +164,7 @@ func TestClassify_SQLiteRowidMismatch(t *testing.T) {
 	require.Error(t, err)
 	var ve *api.ValidationError
 	assert.True(t, errors.As(err, &ve), "want ValidationError, got %v", err)
+	assert.Equal(t, "invalid input syntax", ve.Message)
 }
 
 // SQLite only: a STRICT table rejects a wrong-typed value with
@@ -177,6 +178,7 @@ func TestClassify_SQLiteStrictDataType(t *testing.T) {
 	require.Error(t, err)
 	var ve *api.ValidationError
 	assert.True(t, errors.As(err, &ve), "want ValidationError, got %v", err)
+	assert.Equal(t, "invalid input syntax", ve.Message)
 }
 
 // Class 42 is an author bug and must stay unmapped, i.e. a 500.
