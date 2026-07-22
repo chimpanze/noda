@@ -79,7 +79,7 @@ There is a single image variant. libvips is always present, so `image.*` nodes a
 docker build -t my-noda-app .
 ```
 
-Prebuilt images are published to GHCR by the tag-triggered `docker.yml` workflow as multi-arch (amd64 + arm64) manifests under unsuffixed tags: `latest`, `0.0.8`, `0.0`, `0`. Release binaries (Linux amd64/arm64, macOS arm64/amd64) come from the `release.yml` matrix on `v*` tags. There is no prebuilt Windows binary — see the [installation guide](../01-getting-started/installation.md#windows).
+Prebuilt images are published to GHCR by the `docker.yml` workflow — on every merge to `main` and on `v*` tags as multi-arch (amd64 + arm64) manifests under unsuffixed tags: `latest`, `0.0.8`, `0.0`, `0`. Release binaries (Linux amd64/arm64, macOS arm64/amd64) come from the `release.yml` matrix on `v*` tags. There is no prebuilt Windows binary — see the [installation guide](../01-getting-started/installation.md#windows).
 
 ## Environment Variables
 
