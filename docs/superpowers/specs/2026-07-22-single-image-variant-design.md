@@ -101,7 +101,8 @@ Result: four stages become three (editor, builder, runtime) with no conditionals
   the `release` job begins).
 - Remove `build-windows` from the `release` job's `needs` list.
 - No other change: the `release` job downloads with `pattern: noda-*` and globs
-  `artifacts/*`, so it simply collects three artifacts instead of four.
+  `artifacts/*`, so it simply collects four artifacts instead of five
+  (`build-linux` is itself a two-way `goarch` matrix).
 
 ### 4. Delete the `noimage` build tag
 
