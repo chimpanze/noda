@@ -81,6 +81,9 @@ func TestClassifySQLite(t *testing.T) {
 		{"foreignkey", sqlite3.ErrConstraintForeignKey, &api.ConflictError{}},
 		{"notnull", sqlite3.ErrConstraintNotNull, &api.ValidationError{}},
 		{"check", sqlite3.ErrConstraintCheck, &api.ValidationError{}},
+		{"rowid", sqlite3.ErrConstraintRowID, &api.ConflictError{}},
+		{"datatype (STRICT table)", sqlite3.ErrConstraint.Extend(12), &api.ValidationError{}},
+		{"mismatch", sqlite3.ErrNoExtended(sqlite3.ErrMismatch), &api.ValidationError{}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -122,4 +125,18 @@ func TestIsUniqueViolation(t *testing.T) {
 	assert.False(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrConstraintNotNull)))
 	assert.False(t, dberr.IsUniqueViolation(nil))
 	assert.False(t, dberr.IsUniqueViolation(errors.New("plain")))
+	assert.True(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrConstraintRowID)))
+	assert.False(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrNoExtended(sqlite3.ErrMismatch))))
+	assert.False(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrConstraint.Extend(12))))
+}
+
+// SQLITE_CONSTRAINT_DATATYPE (3091) has no named constant in
+// go-sqlite3 v1.14.22 — its ErrConstraint.Extend(n) list stops at
+// ErrConstraintRowID (Extend(10)), because STRICT tables postdate it.
+// The value is therefore constructed, and this pins it so a driver
+// upgrade cannot silently renumber it.
+func TestSQLiteDataTypeCodeValue(t *testing.T) {
+	assert.Equal(t, sqlite3.ErrNoExtended(3091), sqlite3.ErrConstraint.Extend(12))
+	assert.Equal(t, sqlite3.ErrNoExtended(2579), sqlite3.ErrConstraintRowID)
+	assert.Equal(t, sqlite3.ErrNoExtended(20), sqlite3.ErrNoExtended(sqlite3.ErrMismatch))
 }

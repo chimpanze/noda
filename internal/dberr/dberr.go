@@ -71,7 +71,8 @@ func IsUniqueViolation(err error) bool {
 	}
 	if se, ok := sqliteError(err); ok {
 		return se.ExtendedCode == sqlite3ConstraintUnique ||
-			se.ExtendedCode == sqlite3ConstraintPrimaryKey
+			se.ExtendedCode == sqlite3ConstraintPrimaryKey ||
+			se.ExtendedCode == sqlite3ConstraintRowID
 	}
 	return false
 }
