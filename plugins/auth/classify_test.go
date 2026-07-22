@@ -139,6 +139,24 @@ func TestTokenNodesClassifySerializationFailure(t *testing.T) {
 		require.True(t, errors.As(err, &su), "want ServiceUnavailableError, got %v", err)
 	})
 
+	// The invalidate-prior UPDATE at line ~92 always runs first; injecting on
+	// "update" (as above) trips that site before the token-row Create at
+	// one_time_tokens.go:103 is ever reached. Injecting on "create" instead
+	// lets the UPDATE succeed and lands the failure on the Create call, so
+	// that classify site is actually exercised.
+	t.Run("create_token second classify site", func(t *testing.T) {
+		db := newTestDB(t)
+		uid := seedClassifyUser(t, db)
+		injectDriverErr(t, db, "create", "40001") // hits the token-row Create
+
+		_, _, err := newCreateTokenExecutor(nil).Execute(context.Background(), fakeCtx{},
+			map[string]any{"user_id": uid, "purpose": PurposeResetPassword}, testServices(db))
+		require.Error(t, err)
+
+		var su *api.ServiceUnavailableError
+		require.True(t, errors.As(err, &su), "want ServiceUnavailableError, got %v", err)
+	})
+
 	t.Run("consume_token", func(t *testing.T) {
 		db := newTestDB(t)
 		uid := seedClassifyUser(t, db)

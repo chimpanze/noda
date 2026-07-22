@@ -131,9 +131,10 @@ change and is not part of this work.
 ## Behavior changes
 
 - **Auth node failures on caller-triggerable SQL conditions move off 500.** Serialization
-  failures and deadlocks become 503, statement timeouts 504, data exceptions 422, matching
-  what `plugins/db` has returned since #403. A caller treating any 5xx from an auth route
-  as retryable will see different statuses.
+  failures and deadlocks become 503, statement timeouts 504, data exceptions 422, and
+  constraint violations 409 (for example, `auth.create_session` with a `user_id` that no
+  longer exists), matching what `plugins/db` has returned since #403. A caller treating any
+  5xx from an auth route as retryable will see different statuses.
 - **Session-authenticated routes return 503/504 on a database outage** instead of 500.
   This affects every route behind the session middleware and is the widest-reaching part
   of this change.

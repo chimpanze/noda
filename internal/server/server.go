@@ -293,6 +293,10 @@ func (s *Server) errorHandler(c fiber.Ctx, err error) error {
 			code = "FORBIDDEN"
 		case fiber.StatusRequestTimeout:
 			code = "TIMEOUT"
+		case fiber.StatusServiceUnavailable:
+			code = "SERVICE_UNAVAILABLE"
+		case fiber.StatusGatewayTimeout:
+			code = "TIMEOUT"
 		default:
 			code = "HTTP_ERROR"
 		}

@@ -131,22 +131,23 @@ func TestSessionMiddlewareOrdering(t *testing.T) {
 // token, so neither is reachable by a caller.
 func TestSessionMiddlewareHonorsTypedErrors(t *testing.T) {
 	cases := []struct {
-		name   string
-		err    error
-		want   int
-		absent []string
+		name       string
+		err        error
+		want       int
+		expectCode string
+		absent     []string
 	}{
 		{"unavailable", &api.ServiceUnavailableError{
 			Service: "database",
 			Cause:   errors.New("pq: connection refused 10.0.0.5:5432"),
-		}, 503, []string{"connection refused", "10.0.0.5"}},
+		}, 503, "SERVICE_UNAVAILABLE", []string{"connection refused", "10.0.0.5"}},
 		{"timeout", &api.TimeoutError{
 			Operation: "database query",
 			Cause:     errors.New("pq: canceling statement due to statement timeout"),
-		}, 504, []string{"canceling statement"}},
-		{"conflict stays 500", &api.ConflictError{Resource: "session"}, 500, nil},
-		{"validation stays 500", &api.ValidationError{Message: "nope"}, 500, nil},
-		{"unmapped stays 500", errors.New("boom"), 500, nil},
+		}, 504, "TIMEOUT", []string{"canceling statement"}},
+		{"conflict stays 500", &api.ConflictError{Resource: "session"}, 500, "HTTP_ERROR", nil},
+		{"validation stays 500", &api.ValidationError{Message: "nope"}, 500, "HTTP_ERROR", nil},
+		{"unmapped stays 500", errors.New("boom"), 500, "HTTP_ERROR", nil},
 	}
 
 	for _, tc := range cases {
@@ -158,7 +159,7 @@ func TestSessionMiddlewareHonorsTypedErrors(t *testing.T) {
 			h, err := s.buildMiddleware("auth.session")
 			require.NoError(t, err)
 
-			app := fiber.New()
+			app := fiber.New(fiber.Config{ErrorHandler: s.errorHandler})
 			app.Use(h)
 			app.Get("/x", func(c fiber.Ctx) error { return c.SendString("ok") })
 
@@ -171,9 +172,12 @@ func TestSessionMiddlewareHonorsTypedErrors(t *testing.T) {
 			bodyBytes, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			body := string(bodyBytes)
-			for _, s := range tc.absent {
-				require.NotContains(t, body, s,
+			for _, frag := range tc.absent {
+				require.NotContains(t, body, frag,
 					"middleware must not render Cause detail on this ungated path")
+			}
+			if tc.expectCode != "" {
+				require.Contains(t, body, tc.expectCode)
 			}
 		})
 	}
