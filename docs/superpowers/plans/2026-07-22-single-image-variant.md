@@ -43,13 +43,11 @@ Removes the build-tagged indirection that let the image plugin be compiled out. 
 
 - [ ] **Step 1: Write the characterization test**
 
-Append to `plugins/all/all_test.go`. This asserts the guarantee the task establishes — the image plugin is in every build, not just builds without `-tags noimage`. It follows the `seen[...]` spot-check style already used by `TestAllIsCorePlusServiceOnly` in the same file.
+Append to `plugins/all/all_test.go`. This asserts the guarantee the task establishes — the image plugin is in every build. It follows the `seen[...]` spot-check style already used by `TestAllIsCorePlusServiceOnly` in the same file.
+
+**Write no doc comment on this test.** Step 9's exit criterion is that the string `noimage` appears in no `*.go` file, and a comment explaining the test's history would name the deleted tag and trip that check. The human chose the grep over the comment.
 
 ```go
-// TestCoreIncludesImagePlugin pins the image plugin into Core() for every
-// build. It used to be appended by a `!noimage`-tagged init(), which meant a
-// `-tags noimage` build silently registered a different plugin set (#425).
-// There is now one build configuration and libvips is always present.
 func TestCoreIncludesImagePlugin(t *testing.T) {
 	seen := map[string]bool{}
 	for _, p := range all.Core() {
