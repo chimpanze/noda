@@ -135,9 +135,15 @@ func TestConsumeTokenConcurrentSingleUse(t *testing.T) {
 
 // TestConsumeTokenVerifyEmailTransactional proves the consume-UPDATE and the
 // email_verified_at UPDATE commit or fail together. It forces the second
-// statement to fail (by dropping auth_users after the token is minted) and
+// statement to fail (with a trigger that aborts any UPDATE on auth_users) and
 // asserts the token was NOT burned — i.e. the consume-UPDATE was rolled back
 // along with the failed verify step, rather than being left committed.
+//
+// The failure has to be injected without disturbing rows: dropping auth_users
+// (the original mechanism) cascades through auth_tokens' ON DELETE CASCADE now
+// that the fixture enforces foreign keys, deleting the very token this test
+// then looks for — consume_token would report "invalid" and never reach the
+// verify step under test.
 func TestConsumeTokenVerifyEmailTransactional(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
@@ -153,8 +159,9 @@ func TestConsumeTokenVerifyEmailTransactional(t *testing.T) {
 	token := data.(map[string]any)["token"].(string)
 
 	// Force the third statement (email_verified_at update) to fail.
-	if err := db.Exec("DROP TABLE auth_users").Error; err != nil {
-		t.Fatalf("drop auth_users: %v", err)
+	if err := db.Exec(`CREATE TRIGGER fail_user_update BEFORE UPDATE ON auth_users
+		BEGIN SELECT RAISE(ABORT, 'injected failure'); END;`).Error; err != nil {
+		t.Fatalf("create trigger: %v", err)
 	}
 
 	consume := newConsumeTokenExecutor(nil)

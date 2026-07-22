@@ -14,11 +14,11 @@ import (
 // injectDriverErr makes every gorm operation of the given kind fail with a
 // chosen SQLSTATE.
 //
-// SQLite cannot produce codes like 40001 or 57014, and this package's test
-// fixture runs with foreign keys OFF (newTestDB's DSN uses modernc's
-// _pragma= syntax, which the mattn driver ignores), so a real classifiable
+// SQLite cannot produce codes like 40001 or 57014, so a real classifiable
 // error cannot be provoked at most of these call sites. Injection drives
-// the site through Classify deterministically instead.
+// the site through Classify deterministically instead. (Foreign-key
+// violations are the exception — newTestDB enforces those for real — and are
+// covered against both drivers in classify_integration_test.go.)
 //
 // Register the injection AFTER seeding, or the seed will fail too.
 func injectDriverErr(t *testing.T, db *gorm.DB, kind, sqlstate string) {
