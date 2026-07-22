@@ -150,10 +150,13 @@ Accepted knowingly:
 - **`ghcr.io/chimpanze/noda:latest` grows from 36 MB to 119 MB compressed (amd64)** and
   stops being distroless — it becomes debian-based with a shell. This is a real
   attack-surface increase on the image running in production.
-- **`projects/homebase` switches base image on its next pull.** Its compose file pulls the
-  unsuffixed tag (`ghcr.io/chimpanze/noda:${NODA_VERSION:-0.0.7}`), which now resolves to
-  the debian+libvips image. No compose edit is required; the change is silent and
-  intentional.
+- **`projects/homebase` needs a compose edit, which this branch does not make.** Its
+  compose file pulls the unsuffixed tag (`ghcr.io/chimpanze/noda:${NODA_VERSION:-0.0.7}`),
+  which now resolves to the debian+libvips image, and its `files-init` service chowns the
+  uploads volume to uid 65532 — the distroless `nonroot` uid. The new image runs as uid
+  999, so uploads fail with `EACCES`. The design originally claimed no compose edit was
+  required; that was wrong, and the final review caught it. Tracked as #426 and
+  deliberately left out of this branch's scope.
 - **Windows users lose the prebuilt binary** and must build from source with libvips, which
   is awkward on Windows.
 - Anyone pinned to a `-full` tag keeps working on existing tags but receives no new ones.

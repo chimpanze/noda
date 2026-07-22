@@ -198,7 +198,7 @@ both enumeration sites and drop the optional-plugin indirection."
 ### Task 2: Collapse the Dockerfile to one variant
 
 **Files:**
-- Modify: `Dockerfile` (full rewrite, 84 lines → 50)
+- Modify: `Dockerfile` (full rewrite, 83 lines → 56)
 
 **Interfaces:**
 - Consumes: Task 1's guarantee that the default build registers the image plugin.
@@ -310,7 +310,7 @@ debian:bookworm-slim. Four stages become three with no conditionals."
 ### Task 3: Collapse `docker.yml` to one variant
 
 **Files:**
-- Modify: `.github/workflows/docker.yml` (full rewrite, 162 lines → 105)
+- Modify: `.github/workflows/docker.yml` (full rewrite, 161 lines → 106)
 
 **Interfaces:**
 - Consumes: the `Dockerfile` from Task 2, built with no `--build-arg`.
