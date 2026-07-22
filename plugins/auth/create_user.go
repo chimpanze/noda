@@ -118,7 +118,7 @@ func (e *createUserExecutor) Execute(ctx context.Context, nCtx api.ExecutionCont
 		if dberr.IsUniqueViolation(err) {
 			return "exists", map[string]any{}, nil
 		}
-		return "", nil, fmt.Errorf("auth.create_user: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "user", "auth.create_user")
 	}
 	return api.OutputSuccess, userView(row), nil
 }

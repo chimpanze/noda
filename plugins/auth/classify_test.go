@@ -123,3 +123,87 @@ func TestAuthNodesFallThroughUnmapped(t *testing.T) {
 	require.False(t, errors.As(err, &ve))
 	require.Contains(t, err.Error(), "auth.get_user:")
 }
+
+// The token nodes classify like every other node.
+func TestTokenNodesClassifySerializationFailure(t *testing.T) {
+	t.Run("create_token", func(t *testing.T) {
+		db := newTestDB(t)
+		uid := seedClassifyUser(t, db)
+		injectDriverErr(t, db, "update", "40001") // hits the invalidate-prior UPDATE
+
+		_, _, err := newCreateTokenExecutor(nil).Execute(context.Background(), fakeCtx{},
+			map[string]any{"user_id": uid, "purpose": PurposeResetPassword}, testServices(db))
+		require.Error(t, err)
+
+		var su *api.ServiceUnavailableError
+		require.True(t, errors.As(err, &su), "want ServiceUnavailableError, got %v", err)
+	})
+
+	t.Run("consume_token", func(t *testing.T) {
+		db := newTestDB(t)
+		uid := seedClassifyUser(t, db)
+
+		out, data, err := newCreateTokenExecutor(nil).Execute(context.Background(), fakeCtx{},
+			map[string]any{"user_id": uid, "purpose": PurposeResetPassword}, testServices(db))
+		require.NoError(t, err)
+		require.Equal(t, api.OutputSuccess, out)
+		raw, _ := data.(map[string]any)["token"].(string)
+		require.NotEmpty(t, raw)
+
+		injectDriverErr(t, db, "update", "40001")
+
+		_, _, err = newConsumeTokenExecutor(nil).Execute(context.Background(), fakeCtx{},
+			map[string]any{"token": raw, "purpose": PurposeResetPassword}, testServices(db))
+		require.Error(t, err)
+
+		var su *api.ServiceUnavailableError
+		require.True(t, errors.As(err, &su), "want ServiceUnavailableError, got %v", err)
+	})
+}
+
+// INVARIANT 1 (spec): the "exists" edge stays bound to IsUniqueViolation.
+//
+// A 23505 must still return "exists" with a nil error — that edge is the
+// anti-enumeration register flow. A 23503 (foreign key) must NOT: routing it
+// to "exists" would report a false "email already registered" for an FK bug.
+func TestCreateUserExistsEdgeStaysOnUniqueViolation(t *testing.T) {
+	t.Run("23505 still yields exists", func(t *testing.T) {
+		db := newTestDB(t)
+		injectDriverErr(t, db, "create", "23505")
+
+		out, _, err := newCreateUserExecutor(nil).Execute(context.Background(), fakeCtx{},
+			map[string]any{"email": "dup@example.com", "password": "password123"},
+			testServices(db))
+		require.NoError(t, err, "unique violation must not surface as an error")
+		require.Equal(t, "exists", out)
+	})
+
+	t.Run("23503 does not yield exists", func(t *testing.T) {
+		db := newTestDB(t)
+		injectDriverErr(t, db, "create", "23503")
+
+		out, _, err := newCreateUserExecutor(nil).Execute(context.Background(), fakeCtx{},
+			map[string]any{"email": "fk@example.com", "password": "password123"},
+			testServices(db))
+		require.Error(t, err)
+		require.NotEqual(t, "exists", out, "an FK violation must never read as 'email taken'")
+
+		var ce *api.ConflictError
+		require.True(t, errors.As(err, &ce), "want ConflictError, got %v", err)
+		require.Equal(t, "user", ce.Resource)
+	})
+}
+
+// INVARIANT 2 (spec): verify_credentials' anti-enumeration edges are unchanged.
+// An unknown email must still return "invalid" with a nil error — never a
+// typed error and never a distinguishable status.
+func TestVerifyCredentialsUnknownEmailStillInvalid(t *testing.T) {
+	db := newTestDB(t)
+	seedClassifyUser(t, db)
+
+	out, _, err := newVerifyCredentialsExecutor(nil).Execute(context.Background(), fakeCtx{},
+		map[string]any{"email": "nobody@example.com", "password": "password123"},
+		testServices(db))
+	require.NoError(t, err)
+	require.Equal(t, "invalid", out)
+}
