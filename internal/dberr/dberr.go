@@ -9,6 +9,8 @@
 package dberr
 
 import (
+	"fmt"
+
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -75,4 +77,18 @@ func IsUniqueViolation(err error) bool {
 			se.ExtendedCode == sqlite3ConstraintRowID
 	}
 	return false
+}
+
+// ClassifyOr maps a SQL driver error to a typed api error when its cause
+// is caller-facing, and otherwise wraps it with the caller's context
+// string exactly as an unclassified error would have been.
+//
+// resource names the table or entity involved; it reaches clients via
+// ConflictError.Resource, so it must not carry schema detail. op is the
+// caller's error prefix, e.g. "db.create" or "auth.create_session".
+func ClassifyOr(err error, resource, op string) error {
+	if typed := Classify(err, resource); typed != nil {
+		return typed
+	}
+	return fmt.Errorf("%s: %w", op, err)
 }

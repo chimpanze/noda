@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -73,7 +74,7 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 	// are populated back into the row map.
 	tx := db.WithContext(ctx).Table(table).Clauses(clause.Returning{}).Create(row)
 	if tx.Error != nil {
-		return "", nil, classifyOr(tx.Error, table, "db.create")
+		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.create")
 	}
 
 	// clause.Returning repopulates row from the DB, where jsonb columns come

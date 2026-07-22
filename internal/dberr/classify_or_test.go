@@ -1,10 +1,11 @@
-package db
+package dberr_test
 
 import (
 	"errors"
 	"fmt"
 	"testing"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
@@ -15,7 +16,7 @@ import (
 // context string is deliberately dropped in favour of the typed error.
 func TestClassifyOr_TypedWins(t *testing.T) {
 	driverErr := &pgconn.PgError{Code: "23505", Message: "nonstandard wording"}
-	got := classifyOr(driverErr, "users", "db.create")
+	got := dberr.ClassifyOr(driverErr, "users", "db.create")
 
 	var ce *api.ConflictError
 	require.True(t, errors.As(got, &ce), "want ConflictError, got %v", got)
@@ -27,7 +28,7 @@ func TestClassifyOr_TypedWins(t *testing.T) {
 // context string, so existing messages and %w chains are unchanged.
 func TestClassifyOr_FallsThroughWithContext(t *testing.T) {
 	base := errors.New("connection reset")
-	got := classifyOr(base, "users", "db.update")
+	got := dberr.ClassifyOr(base, "users", "db.update")
 
 	assert.EqualError(t, got, "db.update: connection reset")
 	assert.ErrorIs(t, got, base)
@@ -37,7 +38,7 @@ func TestClassifyOr_FallsThroughWithContext(t *testing.T) {
 // to the wrapped form and stay a 500.
 func TestClassifyOr_Class42FallsThrough(t *testing.T) {
 	driverErr := fmt.Errorf("boom: %w", &pgconn.PgError{Code: "42703", Message: "no column"})
-	got := classifyOr(driverErr, "users", "db.find")
+	got := dberr.ClassifyOr(driverErr, "users", "db.find")
 
 	var ce *api.ConflictError
 	var ve *api.ValidationError

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -83,7 +84,7 @@ func (e *findExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, c
 	var results []map[string]any
 	tx = tx.Scan(&results)
 	if tx.Error != nil {
-		return "", nil, classifyOr(tx.Error, table, "db.find")
+		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.find")
 	}
 
 	if results == nil {

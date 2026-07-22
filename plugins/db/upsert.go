@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -88,7 +89,7 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	tx := db.WithContext(ctx).Table(table).Clauses(onConflict).Create(row)
 	if tx.Error != nil {
-		return "", nil, classifyOr(tx.Error, table, "db.upsert")
+		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.upsert")
 	}
 
 	return api.OutputSuccess, data, nil
