@@ -23,19 +23,16 @@ import (
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
+	imageplugin "github.com/chimpanze/noda/plugins/image"
 	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
 )
 
-// optional holds plugins registered via build-tagged init() functions
-// (image, gated on !noimage).
-var optional []api.Plugin
-
 // Core returns all plugins that provide node types.
 func Core() []api.Plugin {
-	plugins := []api.Plugin{
+	return []api.Plugin{
 		&control.Plugin{},
 		&transform.Plugin{},
 		&util.Plugin{},
@@ -48,6 +45,7 @@ func Core() []api.Plugin {
 		&upload.Plugin{},
 		&httpplugin.Plugin{},
 		&emailplugin.Plugin{},
+		&imageplugin.Plugin{},
 		&corews.Plugin{},
 		&coresse.Plugin{},
 		&corewasm.Plugin{},
@@ -55,7 +53,6 @@ func Core() []api.Plugin {
 		&livekitplugin.Plugin{},
 		&authplugin.Plugin{},
 	}
-	return append(plugins, optional...)
 }
 
 // ServiceOnly returns plugins that provide services but no node types

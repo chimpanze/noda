@@ -29,3 +29,11 @@ func TestAllIsCorePlusServiceOnly(t *testing.T) {
 		assert.True(t, seen[name], "service-only plugin %q missing", name)
 	}
 }
+
+func TestCoreIncludesImagePlugin(t *testing.T) {
+	seen := map[string]bool{}
+	for _, p := range all.Core() {
+		seen[p.Name()] = true
+	}
+	assert.True(t, seen["image"], "core plugin image missing from all.Core()")
+}

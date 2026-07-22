@@ -22,7 +22,7 @@ A configuration-driven API runtime for Go. Build production-grade REST APIs, bac
 
 - Go 1.26+
 - Docker and Docker Compose
-- libvips (for image processing, included in Docker image)
+- libvips (required to build and to run the binary; included in the Docker image)
 
 ## Quick Start
 

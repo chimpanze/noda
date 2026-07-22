@@ -18,19 +18,26 @@ Re-run the same command to update to the latest version.
 
 ## Windows
 
-1. Download the `.zip` for your architecture from the [latest release](https://github.com/chimpanze/noda/releases/latest)
-2. Extract `noda.exe` to a directory of your choice (e.g., `C:\Program Files\noda\`)
-3. Add that directory to your system PATH:
-   - Open **Settings > System > About > Advanced system settings**
-   - Click **Environment Variables**
-   - Under **System variables**, select `Path` and click **Edit**
-   - Click **New** and add the directory containing `noda.exe`
-   - Click **OK** to save
+There is no prebuilt Windows binary. Noda requires cgo and libvips, so on Windows either run it in Docker (simplest) or build from source.
 
-Verify the installation:
+**Docker:**
 
 ```
-noda version
+docker pull ghcr.io/chimpanze/noda:latest
+```
+
+**From source:** install [Go 1.26+](https://go.dev/dl/), Node 22+, a C toolchain (e.g. [MSYS2](https://www.msys2.org/) mingw-w64), and [libvips](https://www.libvips.org/install.html). Run the build from the MSYS2 shell — the `Makefile` uses Unix commands that are not available in PowerShell or cmd.exe:
+
+```
+git clone https://github.com/chimpanze/noda.git
+cd noda
+make build
+```
+
+This produces `dist/noda`. Verify it:
+
+```
+dist/noda version
 ```
 
 ## Docker
@@ -43,7 +50,7 @@ docker pull ghcr.io/chimpanze/noda:latest
 
 - **PostgreSQL** (optional) — for database operations
 - **Redis** (optional) — for caching, events, pub/sub, distributed locking
-- **libvips** (optional) — for image processing (`image.*` nodes). Noda links against the system libvips dynamically — it is **not** bundled with the prebuilt binary. Install it on any machine that runs `image.*` nodes (e.g. `brew install vips`, `apt install libvips-dev`), whether you use the prebuilt binary or build from source.
+- **libvips** (required) — Noda links against the system libvips dynamically and it is **not** bundled with the prebuilt binary, so the binary will not start without it. Install it on every machine that runs Noda (e.g. `brew install vips`, `apt install libvips-dev`), whether you use the prebuilt binary or build from source. The Docker image already includes it.
 
 ## CLI Reference
 

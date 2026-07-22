@@ -46,8 +46,8 @@ detect_os() {
         Darwin*) echo "darwin" ;;
         *)
             echo "Error: Unsupported operating system '$(uname -s)'." >&2
-            echo "For Windows, download the binary manually from:" >&2
-            echo "  https://github.com/${REPO}/releases/latest" >&2
+            echo "For Windows, use Docker or build from source — see:" >&2
+            echo "  https://github.com/${REPO}/blob/main/docs/01-getting-started/installation.md#windows" >&2
             exit 1
             ;;
     esac

@@ -67,19 +67,19 @@ volumes:
 
 ### Dockerfile
 
-Use the repository's `Dockerfile` — it is a four-stage build:
+Use the repository's `Dockerfile` — it is a three-stage build:
 
 1. A Node stage builds the embedded editor assets.
-2. A `golang:1.26-bookworm` builder compiles the binary, controlled by a `VARIANT` build-arg: `full` (cgo, libvips → `image.*` nodes work) or `slim` (static, no image processing).
-3. The `full` runtime is `debian:bookworm-slim` with libvips; the `slim` runtime is `gcr.io/distroless/static-debian12`.
-4. Both run as a non-root user and declare a `HEALTHCHECK` against `/health/live`.
+2. A `golang:1.26-bookworm` builder installs libvips and compiles the binary with `CGO_ENABLED=1 -tags embed_editor`.
+3. The runtime is `debian:bookworm-slim` with libvips, running as a non-root user with a `HEALTHCHECK` against `/health/live`.
+
+There is a single image variant. libvips is always present, so `image.*` nodes always work.
 
 ```bash
-docker build --build-arg VARIANT=slim -t my-noda-app .
-# or VARIANT=full if you use image.* nodes
+docker build -t my-noda-app .
 ```
 
-Prebuilt images are published to GHCR by the tag-triggered `docker.yml` workflow. Release binaries (Linux amd64/arm64, macOS, Windows) come from the `release.yml` matrix on `v*` tags — the `.goreleaser.yaml` in the repo is **not** the active release path.
+Prebuilt images are published to GHCR by the `docker.yml` workflow as multi-arch (amd64 + arm64) manifests under unsuffixed tags. A merge to `main` publishes the `main` tag; a `v*` tag publishes `latest` and the semver tags (`0.0.8`, `0.0`, `0`). Release binaries (Linux amd64/arm64, macOS arm64/amd64) come from the `release.yml` matrix on `v*` tags. There is no prebuilt Windows binary — see the [installation guide](../01-getting-started/installation.md#windows).
 
 ## Environment Variables
 
