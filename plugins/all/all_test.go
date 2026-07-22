@@ -30,10 +30,6 @@ func TestAllIsCorePlusServiceOnly(t *testing.T) {
 	}
 }
 
-// TestCoreIncludesImagePlugin pins the image plugin into Core() for every
-// build. It used to be appended by a `!noimage`-tagged init(), which meant a
-// `-tags noimage` build silently registered a different plugin set (#425).
-// There is now one build configuration and libvips is always present.
 func TestCoreIncludesImagePlugin(t *testing.T) {
 	seen := map[string]bool{}
 	for _, p := range all.Core() {
