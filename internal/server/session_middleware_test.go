@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -130,15 +131,22 @@ func TestSessionMiddlewareOrdering(t *testing.T) {
 // token, so neither is reachable by a caller.
 func TestSessionMiddlewareHonorsTypedErrors(t *testing.T) {
 	cases := []struct {
-		name string
-		err  error
-		want int
+		name   string
+		err    error
+		want   int
+		absent []string
 	}{
-		{"unavailable", &api.ServiceUnavailableError{Service: "database"}, 503},
-		{"timeout", &api.TimeoutError{Operation: "database query"}, 504},
-		{"conflict stays 500", &api.ConflictError{Resource: "session"}, 500},
-		{"validation stays 500", &api.ValidationError{Message: "nope"}, 500},
-		{"unmapped stays 500", errors.New("boom"), 500},
+		{"unavailable", &api.ServiceUnavailableError{
+			Service: "database",
+			Cause:   errors.New("pq: connection refused 10.0.0.5:5432"),
+		}, 503, []string{"connection refused", "10.0.0.5"}},
+		{"timeout", &api.TimeoutError{
+			Operation: "database query",
+			Cause:     errors.New("pq: canceling statement due to statement timeout"),
+		}, 504, []string{"canceling statement"}},
+		{"conflict stays 500", &api.ConflictError{Resource: "session"}, 500, nil},
+		{"validation stays 500", &api.ValidationError{Message: "nope"}, 500, nil},
+		{"unmapped stays 500", errors.New("boom"), 500, nil},
 	}
 
 	for _, tc := range cases {
@@ -160,10 +168,13 @@ func TestSessionMiddlewareHonorsTypedErrors(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, tc.want, resp.StatusCode)
 
-			body := make([]byte, 512)
-			n, _ := resp.Body.Read(body)
-			require.NotContains(t, string(body[:n]), "database query",
-				"middleware must not render Cause detail on this ungated path")
+			bodyBytes, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			body := string(bodyBytes)
+			for _, s := range tc.absent {
+				require.NotContains(t, body, s,
+					"middleware must not render Cause detail on this ungated path")
+			}
 		})
 	}
 }
