@@ -6,25 +6,49 @@ import (
 	sqlite3 "github.com/mattn/go-sqlite3"
 )
 
-// SQLite extended result codes. SQLite maps cleanly only for the
-// constraint family: it has no analogue for the Postgres data-exception
-// class (dynamic typing silently accepts a string in an integer column),
-// and it collapses every schema error into ErrError (Code=1), which stays
-// unmapped and therefore a 500.
+// SQLite extended result codes.
+//
+// SQLite's dynamic typing accepts a string in an ordinary INTEGER column
+// without error, so for ordinary columns there is no analogue of the
+// Postgres data-exception class. Two exceptions are mapped below: an
+// INTEGER PRIMARY KEY (rowid alias) rejects a non-integer with ErrMismatch,
+// and a STRICT table rejects a wrong-typed value with
+// SQLITE_CONSTRAINT_DATATYPE. (SQLITE_TOOBIG, the rough analogue of
+// Postgres 22001, is a further case this package does not map.)
+//
+// SQLite still collapses every schema error into ErrError (Code=1), which
+// stays unmapped and therefore a 500 — the same treatment Postgres class
+// 42 gets.
 //
 // Note that SQLite splits what Postgres reports as a single 23505 across
-// two extended codes. Both must map to ConflictError, or a primary-key
-// conflict would be 409 on Postgres and 500 on SQLite.
+// three extended codes (unique, primary key, rowid). All map to
+// ConflictError, or the same conflict would differ by driver.
 var (
+	// sqliteConstraintDataType is SQLITE_CONSTRAINT_DATATYPE (3091), raised
+	// when a STRICT table rejects a value of the wrong type.
+	//
+	// It is constructed rather than named because go-sqlite3 v1.14.22 defines
+	// ErrConstraint.Extend(n) constants only up to ErrConstraintRowID
+	// (Extend(10)) — STRICT tables arrived in SQLite 3.37, after that list was
+	// written. TestSQLiteDataTypeCodeValue pins the value.
+	sqliteConstraintDataType = sqlite3.ErrConstraint.Extend(12)
+
 	sqliteConflict = map[sqlite3.ErrNoExtended]string{
 		sqlite3.ErrConstraintUnique:     "unique constraint violation",
 		sqlite3.ErrConstraintPrimaryKey: "unique constraint violation",
+		sqlite3.ErrConstraintRowID:      "unique constraint violation",
 		sqlite3.ErrConstraintForeignKey: "foreign key constraint violation",
 	}
 
 	sqliteValidation = map[sqlite3.ErrNoExtended]string{
 		sqlite3.ErrConstraintNotNull: "not-null constraint violation",
 		sqlite3.ErrConstraintCheck:   "check constraint violation",
+		sqliteConstraintDataType:     "invalid input syntax",
+		// ErrMismatch is a PRIMARY result code with no extended variant.
+		// SQLite reports ExtendedCode == Code == 20 in that case, so it
+		// keys into this ExtendedCode-based map directly and needs no
+		// separate se.Code branch.
+		sqlite3.ErrNoExtended(sqlite3.ErrMismatch): "invalid input syntax",
 	}
 )
 
@@ -40,4 +64,5 @@ func sqliteError(err error) (sqlite3.Error, bool) {
 var (
 	sqlite3ConstraintUnique     = sqlite3.ErrConstraintUnique
 	sqlite3ConstraintPrimaryKey = sqlite3.ErrConstraintPrimaryKey
+	sqlite3ConstraintRowID      = sqlite3.ErrConstraintRowID
 )

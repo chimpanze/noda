@@ -17,6 +17,14 @@ func pgErr(code string) error {
 	return fmt.Errorf("db.find: %w", &pgconn.PgError{Code: code, Message: "driver detail"})
 }
 
+// sqliteErr builds a sqlite3.Error with the given ExtendedCode. Code is
+// deliberately hardcoded to sqlite3.ErrConstraint regardless of ext, so for
+// primary result codes like ErrMismatch (whose real Code == ExtendedCode ==
+// 20) this constructs a {Code, ExtendedCode} combination the driver never
+// actually produces. That's harmless today because Classify and
+// IsUniqueViolation read only ExtendedCode — but callers must not rely on
+// Code being realistic, and any future code that branches on se.Code should
+// not trust this fixture.
 func sqliteErr(ext sqlite3.ErrNoExtended) error {
 	return fmt.Errorf("db.find: %w", sqlite3.Error{Code: sqlite3.ErrConstraint, ExtendedCode: ext})
 }
@@ -81,6 +89,9 @@ func TestClassifySQLite(t *testing.T) {
 		{"foreignkey", sqlite3.ErrConstraintForeignKey, &api.ConflictError{}},
 		{"notnull", sqlite3.ErrConstraintNotNull, &api.ValidationError{}},
 		{"check", sqlite3.ErrConstraintCheck, &api.ValidationError{}},
+		{"rowid", sqlite3.ErrConstraintRowID, &api.ConflictError{}},
+		{"datatype (STRICT table)", sqlite3.ErrConstraint.Extend(12), &api.ValidationError{}},
+		{"mismatch", sqlite3.ErrNoExtended(sqlite3.ErrMismatch), &api.ValidationError{}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -122,4 +133,25 @@ func TestIsUniqueViolation(t *testing.T) {
 	assert.False(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrConstraintNotNull)))
 	assert.False(t, dberr.IsUniqueViolation(nil))
 	assert.False(t, dberr.IsUniqueViolation(errors.New("plain")))
+	assert.True(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrConstraintRowID)))
+	assert.False(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrNoExtended(sqlite3.ErrMismatch))))
+	assert.False(t, dberr.IsUniqueViolation(sqliteErr(sqlite3.ErrConstraint.Extend(12))))
+}
+
+// Three different guarantees, not one:
+//   - the 2579 and 20 assertions pin the real named constants
+//     (ErrConstraintRowID, ErrMismatch) to the literal values this package's
+//     comments and reasoning rely on;
+//   - the 3091 assertion only pins the arithmetic identity between
+//     sqlite3.ErrNoExtended(3091) and sqlite3.ErrConstraint.Extend(12) — both
+//     sides derive from the same constant and formula, so it can only fail
+//     if ErrConstraint stops being 19 or Extend's arithmetic changes, not if
+//     3091 stops being the real SQLITE_CONSTRAINT_DATATYPE code;
+//   - end-to-end confirmation that 3091 is in fact what a live STRICT table
+//     raises comes from the integration test
+//     TestClassify_SQLiteStrictDataType, not from this test.
+func TestSQLiteDataTypeCodeValue(t *testing.T) {
+	assert.Equal(t, sqlite3.ErrNoExtended(3091), sqlite3.ErrConstraint.Extend(12))
+	assert.Equal(t, sqlite3.ErrNoExtended(2579), sqlite3.ErrConstraintRowID)
+	assert.Equal(t, sqlite3.ErrNoExtended(20), sqlite3.ErrNoExtended(sqlite3.ErrMismatch))
 }
