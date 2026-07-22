@@ -9,9 +9,10 @@ package registry_test
 // the same walker used for NodeDescriptor.ConfigSchema, per the
 // ServiceConfigSchema doc comment's "same conventions" note (#375, #376).
 //
-// Under default build tags the list includes the image plugin; a
-// `-tags noimage` test run audits exactly what the noimage build registers,
-// which is the point of consuming the runtime's own list.
+// The list always includes the image plugin: there is one build
+// configuration and libvips is always present (#425). Consuming the
+// runtime's own list is the point — the audit cannot drift from what
+// actually gets registered.
 //
 // This lives in an external (_test) package, rather than package registry,
 // so it can import plugins/all (whose plugin packages themselves import

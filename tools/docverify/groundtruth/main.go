@@ -28,14 +28,12 @@ import (
 	dbplugin "github.com/chimpanze/noda/plugins/db"
 	emailplugin "github.com/chimpanze/noda/plugins/email"
 	httpplugin "github.com/chimpanze/noda/plugins/http"
+	imageplugin "github.com/chimpanze/noda/plugins/image"
 	livekitplugin "github.com/chimpanze/noda/plugins/livekit"
 	pubsubplugin "github.com/chimpanze/noda/plugins/pubsub"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	streamplugin "github.com/chimpanze/noda/plugins/stream"
 )
-
-// optionalPlugins is appended by the build-tagged plugins_image.go.
-var optionalPlugins []api.Plugin
 
 type nodeInfo struct {
 	Type         string                    `json:"type"`
@@ -47,17 +45,16 @@ type nodeInfo struct {
 }
 
 func allPlugins() []api.Plugin {
-	plugins := []api.Plugin{
+	return []api.Plugin{
 		&control.Plugin{}, &transform.Plugin{}, &util.Plugin{},
 		&workflow.Plugin{}, &response.Plugin{}, &dbplugin.Plugin{},
 		&cacheplugin.Plugin{}, &event.Plugin{}, &corestorage.Plugin{},
 		&upload.Plugin{}, &httpplugin.Plugin{}, &emailplugin.Plugin{},
-		&corews.Plugin{}, &coresse.Plugin{}, &corewasm.Plugin{},
-		&coreoidc.Plugin{}, &livekitplugin.Plugin{},
+		&imageplugin.Plugin{}, &corews.Plugin{}, &coresse.Plugin{},
+		&corewasm.Plugin{}, &coreoidc.Plugin{}, &livekitplugin.Plugin{},
 		&authplugin.Plugin{}, &streamplugin.Plugin{},
 		&pubsubplugin.Plugin{}, &storageplugin.Plugin{},
 	}
-	return append(plugins, optionalPlugins...)
 }
 
 func buildGroundTruth() ([]nodeInfo, []expr.FunctionInfo, error) {
