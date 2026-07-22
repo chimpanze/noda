@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -83,7 +84,7 @@ func (e *countExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 	var count int64
 	tx = tx.Count(&count)
 	if tx.Error != nil {
-		return "", nil, classifyOr(tx.Error, table, "db.count")
+		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.count")
 	}
 
 	return api.OutputSuccess, map[string]any{

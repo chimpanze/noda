@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
@@ -67,7 +68,7 @@ func (e *queryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, 
 	var results []map[string]any
 	tx := db.WithContext(ctx).Raw(query, params...).Scan(&results)
 	if tx.Error != nil {
-		return "", nil, classifyOr(tx.Error, "query", "db.query")
+		return "", nil, dberr.ClassifyOr(tx.Error, "query", "db.query")
 	}
 
 	if results == nil {

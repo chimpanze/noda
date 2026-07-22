@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/pkg/api"
 	"gorm.io/gorm"
 )
@@ -51,7 +52,7 @@ func (s *Service) AuthenticateSession(ctx context.Context, dbAny any, rawToken s
 		return nil, nil
 	}
 	if err != nil {
-		return nil, fmt.Errorf("auth: AuthenticateSession: %w", err)
+		return nil, dberr.ClassifyOr(err, "session", "auth: AuthenticateSession")
 	}
 
 	if row.LastUsedAt == nil || now.Sub(*row.LastUsedAt) > lastUsedThrottle {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/chimpanze/noda/internal/dberr"
 	"github.com/chimpanze/noda/internal/plugin"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/google/uuid"
@@ -87,7 +88,7 @@ func (e *createTokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionCon
 	if err := db.WithContext(ctx).Table("auth_tokens").
 		Where("user_id = ? AND purpose = ? AND consumed_at IS NULL", userID, purpose).
 		Update("consumed_at", now).Error; err != nil {
-		return "", nil, fmt.Errorf("auth.create_token: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "token", "auth.create_token")
 	}
 
 	raw, hash, err := MintToken()
@@ -99,7 +100,7 @@ func (e *createTokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionCon
 		"id": uuid.NewString(), "user_id": userID, "purpose": purpose,
 		"token_hash": hash, "expires_at": expiresAt, "created_at": now,
 	}).Error; err != nil {
-		return "", nil, fmt.Errorf("auth.create_token: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "token", "auth.create_token")
 	}
 	return api.OutputSuccess, map[string]any{"token": raw, "expires_at": expiresAt}, nil
 }
@@ -212,7 +213,7 @@ func (e *consumeTokenExecutor) Execute(ctx context.Context, nCtx api.ExecutionCo
 		return nil
 	})
 	if err != nil {
-		return "", nil, fmt.Errorf("auth.consume_token: %w", err)
+		return "", nil, dberr.ClassifyOr(err, "token", "auth.consume_token")
 	}
 	if invalid {
 		return "invalid", map[string]any{}, nil
