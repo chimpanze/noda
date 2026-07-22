@@ -1,6 +1,7 @@
 package server
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -48,7 +49,18 @@ func (s *Server) newSessionMiddleware(cfg map[string]any, _ map[string]any) (fib
 		ad, err := authn.AuthenticateSession(c.Context(), db, token)
 		if err != nil {
 			slog.Error("auth.session: validation error", "error", err)
-			return fiber.NewError(fiber.StatusInternalServerError, "internal error")
+			// Static bodies only: unlike MapErrorToHTTP this path has no
+			// dev-mode gate, so it must never render the error's Cause.
+			var suErr *api.ServiceUnavailableError
+			var toErr *api.TimeoutError
+			switch {
+			case errors.As(err, &suErr):
+				return fiber.NewError(fiber.StatusServiceUnavailable, "service unavailable")
+			case errors.As(err, &toErr):
+				return fiber.NewError(fiber.StatusGatewayTimeout, "timeout")
+			default:
+				return fiber.NewError(fiber.StatusInternalServerError, "internal error")
+			}
 		}
 		if ad == nil {
 			slog.Debug("auth.session: invalid session token")

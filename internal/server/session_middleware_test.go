@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -16,9 +17,13 @@ import (
 // fakeSessionAuth implements api.SessionAuthenticator without a real DB.
 type fakeSessionAuth struct {
 	validToken string
+	err        error // when set, AuthenticateSession fails with this
 }
 
 func (f *fakeSessionAuth) AuthenticateSession(_ context.Context, _ any, tok string) (*api.AuthData, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	if tok == f.validToken {
 		return &api.AuthData{
 			UserID: "user-1",
@@ -116,5 +121,49 @@ func TestSessionMiddlewareOrdering(t *testing.T) {
 	}
 	if err := ValidateMiddlewareOrder([]string{"casbin.enforce", "auth.session"}); err == nil {
 		t.Fatal("casbin before auth.session must be rejected")
+	}
+}
+
+// A database outage during session validation is infrastructure, not a
+// server bug: it must surface as 503/504 rather than a blanket 500. 409 and
+// 422 stay deliberately unmapped — a session lookup is a SELECT on a hashed
+// token, so neither is reachable by a caller.
+func TestSessionMiddlewareHonorsTypedErrors(t *testing.T) {
+	cases := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"unavailable", &api.ServiceUnavailableError{Service: "database"}, 503},
+		{"timeout", &api.TimeoutError{Operation: "database query"}, 504},
+		{"conflict stays 500", &api.ConflictError{Resource: "session"}, 500},
+		{"validation stays 500", &api.ValidationError{Message: "nope"}, 500},
+		{"unmapped stays 500", errors.New("boom"), 500},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := newTestServerWithServices(t, map[string]any{
+				"auth": &fakeSessionAuth{validToken: "tok123", err: tc.err},
+				"db":   struct{}{},
+			})
+			h, err := s.buildMiddleware("auth.session")
+			require.NoError(t, err)
+
+			app := fiber.New()
+			app.Use(h)
+			app.Get("/x", func(c fiber.Ctx) error { return c.SendString("ok") })
+
+			req := httptest.NewRequest("GET", "/x", nil)
+			req.Header.Set("Authorization", "Bearer tok123")
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, resp.StatusCode)
+
+			body := make([]byte, 512)
+			n, _ := resp.Body.Read(body)
+			require.NotContains(t, string(body[:n]), "database query",
+				"middleware must not render Cause detail on this ungated path")
+		})
 	}
 }
