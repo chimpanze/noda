@@ -10,7 +10,7 @@ func TestAuthenticateSession(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
 
 	create := newCreateSessionExecutor(nil)
 	_, data, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
@@ -48,7 +48,7 @@ func TestAuthenticateSessionExpiredAndDisabled(t *testing.T) {
 	hash, _ := svc.HashPassword("password123")
 
 	// expired session
-	u1 := seedUserWithHash(t, db, "a@example.com", hash, "active")
+	u1 := seedUser(t, db, "a@example.com", hash, "active")
 	create := newCreateSessionExecutor(nil)
 	_, d, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": u1, "ttl": "1ns"}, testServices(db))
 	time.Sleep(10 * time.Millisecond)
@@ -57,7 +57,7 @@ func TestAuthenticateSessionExpiredAndDisabled(t *testing.T) {
 	}
 
 	// disabled user
-	u2 := seedUserWithHash(t, db, "b@example.com", hash, "disabled")
+	u2 := seedUser(t, db, "b@example.com", hash, "disabled")
 	_, d2, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": u2}, testServices(db))
 	if ad, _ := svc.AuthenticateSession(context.Background(), db, d2.(map[string]any)["token"].(string)); ad != nil {
 		t.Fatal("disabled user must not authenticate")
@@ -68,7 +68,7 @@ func TestAuthenticateSessionTouchesLastUsed(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
 	create := newCreateSessionExecutor(nil)
 	_, d, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
 	token := d.(map[string]any)["token"].(string)

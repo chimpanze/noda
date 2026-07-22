@@ -12,7 +12,7 @@ func TestSetPassword(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	oldHash, _ := svc.HashPassword("oldpassword")
-	userID := seedUserWithHash(t, db, "alice@example.com", oldHash, "active")
+	userID := seedUser(t, db, "alice@example.com", oldHash, "active")
 
 	create := newCreateSessionExecutor(nil)
 	_, _, _ = create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
@@ -57,7 +57,7 @@ func TestSetPasswordNoRevoke(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	oldHash, _ := svc.HashPassword("oldpassword")
-	userID := seedUserWithHash(t, db, "alice@example.com", oldHash, "active")
+	userID := seedUser(t, db, "alice@example.com", oldHash, "active")
 
 	create := newCreateSessionExecutor(nil)
 	_, _, _ = create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
@@ -114,7 +114,7 @@ func TestSetPasswordWithTokenConsumesAtomically(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	oldHash, _ := svc.HashPassword("oldpassword")
-	userID := seedUserWithHash(t, db, "alice@example.com", oldHash, "active")
+	userID := seedUser(t, db, "alice@example.com", oldHash, "active")
 	token := mintResetToken(t, db, userID)
 
 	set := newSetPasswordExecutor(nil)
@@ -149,7 +149,7 @@ func TestSetPasswordWithUnknownTokenIsInvalid(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	oldHash, _ := svc.HashPassword("oldpassword")
-	seedUserWithHash(t, db, "alice@example.com", oldHash, "active")
+	seedUser(t, db, "alice@example.com", oldHash, "active")
 
 	set := newSetPasswordExecutor(nil)
 	out, _, err := set.Execute(context.Background(), fakeCtx{}, map[string]any{
@@ -174,7 +174,7 @@ func TestSetPasswordTokenSurvivesBadPassword(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	oldHash, _ := svc.HashPassword("oldpassword")
-	userID := seedUserWithHash(t, db, "alice@example.com", oldHash, "active")
+	userID := seedUser(t, db, "alice@example.com", oldHash, "active")
 	token := mintResetToken(t, db, userID)
 
 	set := newSetPasswordExecutor(nil)

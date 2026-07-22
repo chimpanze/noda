@@ -40,8 +40,8 @@ func injectDriverErr(t *testing.T, db *gorm.DB, kind, sqlstate string) {
 	require.NoError(t, err)
 }
 
-// seedUser creates one user and returns its id.
-func seedUser(t *testing.T, db *gorm.DB) string {
+// seedClassifyUser creates one user and returns its id.
+func seedClassifyUser(t *testing.T, db *gorm.DB) string {
 	t.Helper()
 	out, data, err := newCreateUserExecutor(nil).Execute(context.Background(), fakeCtx{},
 		map[string]any{"email": "seed@example.com", "password": "password123"},
@@ -92,7 +92,7 @@ func TestAuthNodesClassifySerializationFailure(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			db := newTestDB(t)
-			uid := seedUser(t, db)
+			uid := seedClassifyUser(t, db)
 			injectDriverErr(t, db, tc.kind, "40001")
 
 			err := tc.run(db, uid)
@@ -110,7 +110,7 @@ func TestAuthNodesClassifySerializationFailure(t *testing.T) {
 // node's own context prefix, so existing messages and %w chains survive.
 func TestAuthNodesFallThroughUnmapped(t *testing.T) {
 	db := newTestDB(t)
-	uid := seedUser(t, db)
+	uid := seedClassifyUser(t, db)
 	injectDriverErr(t, db, "query", "42703") // undefined column: author bug, stays 500
 
 	_, _, err := newGetUserExecutor(nil).Execute(context.Background(), fakeCtx{},

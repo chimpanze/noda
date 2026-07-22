@@ -11,7 +11,7 @@ func TestCreateSession(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
 
 	exec := newCreateSessionExecutor(nil)
 	out, data, err := exec.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
@@ -54,7 +54,7 @@ func TestCreateSessionStoresRequestMeta(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
 
 	exec := newCreateSessionExecutor(nil)
 	out, data, err := exec.Execute(context.Background(), metaCtx{}, map[string]any{"user_id": userID}, testServices(db))
@@ -90,7 +90,7 @@ func TestRevokeSession(t *testing.T) {
 	db := newTestDB(t)
 	svc := testService()
 	hash, _ := svc.HashPassword("password123")
-	userID := seedUserWithHash(t, db, "alice@example.com", hash, "active")
+	userID := seedUser(t, db, "alice@example.com", hash, "active")
 
 	create := newCreateSessionExecutor(nil)
 	_, d1, _ := create.Execute(context.Background(), fakeCtx{}, map[string]any{"user_id": userID}, testServices(db))
