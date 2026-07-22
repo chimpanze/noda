@@ -39,6 +39,26 @@ func setupClassify(t *testing.T, driver string) (*registry.ServiceRegistry, *reg
 	return svcReg, nodeReg
 }
 
+// setupClassifyStrict builds a SQLite service with a STRICT table.
+// STRICT requires SQLite 3.37+, which the bundled go-sqlite3 provides,
+// and has no Postgres equivalent — hence SQLite-only.
+func setupClassifyStrict(t *testing.T) (*registry.ServiceRegistry, *registry.NodeRegistry) {
+	t.Helper()
+	svc, err := (&Plugin{}).CreateService(map[string]any{
+		"driver": "sqlite", "path": t.TempDir() + "/strict.db",
+	})
+	require.NoError(t, err)
+	gdb := svc.(*gorm.DB)
+	require.NoError(t, gdb.Exec(
+		`CREATE TABLE strict_cls (id INTEGER PRIMARY KEY, n INTEGER NOT NULL) STRICT`).Error)
+
+	svcReg := registry.NewServiceRegistry()
+	require.NoError(t, svcReg.Register("db", svc, nil))
+	nodeReg := registry.NewNodeRegistry()
+	require.NoError(t, nodeReg.RegisterFromPlugin(&Plugin{}))
+	return svcReg, nodeReg
+}
+
 func runOne(t *testing.T, svcReg *registry.ServiceRegistry, nodeReg *registry.NodeRegistry,
 	nodeType string, config map[string]any) error {
 	t.Helper()
@@ -125,6 +145,34 @@ func TestClassify_InvalidTextRepresentation_PostgresOnly(t *testing.T) {
 	err := runOne(t, svcReg, nodeReg, "db.find", map[string]any{
 		"table": "cls",
 		"where": map[string]any{"age": "not-a-number"},
+	})
+	require.Error(t, err)
+	var ve *api.ValidationError
+	assert.True(t, errors.As(err, &ve), "want ValidationError, got %v", err)
+}
+
+// SQLite only: an INTEGER PRIMARY KEY is a rowid alias and rejects a
+// non-integer with SQLITE_MISMATCH. Postgres reports the equivalent as
+// 22P02, already covered by TestClassify_InvalidTextRepresentation_PostgresOnly.
+// An ordinary SQLite INTEGER column would accept this silently.
+func TestClassify_SQLiteRowidMismatch(t *testing.T) {
+	svcReg, nodeReg := setupClassify(t, "sqlite")
+	err := runOne(t, svcReg, nodeReg, "db.create", map[string]any{
+		"table": "cls",
+		"data":  map[string]any{"id": "not-an-int", "age": 1, "email": "m@example.com"},
+	})
+	require.Error(t, err)
+	var ve *api.ValidationError
+	assert.True(t, errors.As(err, &ve), "want ValidationError, got %v", err)
+}
+
+// SQLite only: a STRICT table rejects a wrong-typed value with
+// SQLITE_CONSTRAINT_DATATYPE. STRICT is not a Postgres concept.
+func TestClassify_SQLiteStrictDataType(t *testing.T) {
+	svcReg, nodeReg := setupClassifyStrict(t)
+	err := runOne(t, svcReg, nodeReg, "db.create", map[string]any{
+		"table": "strict_cls",
+		"data":  map[string]any{"id": 2, "n": "not-an-int"},
 	})
 	require.Error(t, err)
 	var ve *api.ValidationError
