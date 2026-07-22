@@ -18,19 +18,26 @@ Re-run the same command to update to the latest version.
 
 ## Windows
 
-1. Download the `.zip` for your architecture from the [latest release](https://github.com/chimpanze/noda/releases/latest)
-2. Extract `noda.exe` to a directory of your choice (e.g., `C:\Program Files\noda\`)
-3. Add that directory to your system PATH:
-   - Open **Settings > System > About > Advanced system settings**
-   - Click **Environment Variables**
-   - Under **System variables**, select `Path` and click **Edit**
-   - Click **New** and add the directory containing `noda.exe`
-   - Click **OK** to save
+There is no prebuilt Windows binary. Noda requires cgo and libvips, so on Windows either run it in Docker (simplest) or build from source.
 
-Verify the installation:
+**Docker:**
 
 ```
-noda version
+docker pull ghcr.io/chimpanze/noda:latest
+```
+
+**From source:** install [Go 1.26+](https://go.dev/dl/), Node 22+, a C toolchain (e.g. [MSYS2](https://www.msys2.org/) mingw-w64), and [libvips](https://www.libvips.org/install.html), then:
+
+```
+git clone https://github.com/chimpanze/noda.git
+cd noda
+make build
+```
+
+This produces `dist/noda`. Verify it:
+
+```
+dist/noda version
 ```
 
 ## Docker

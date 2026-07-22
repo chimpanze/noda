@@ -183,6 +183,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Stream plugin consume-side API (`Subscribe`, `Ack`, `PendingCount`): unused by the platform (workers consume streams directly) and its hardcoded 60s reclaim conflicted with the worker reaper's timeout-clamped policy. `Publish` and the `pkg/api.StreamService` contract are unchanged.
+- **BREAKING:** the `slim` Docker image variant and the `-full` tag suffix. There is now one image — `debian:bookworm-slim` with libvips, built with cgo — published under unsuffixed tags (`latest`, `0.0.8`, `0.0`, `0`). Existing `-full` tags remain in GHCR but receive no new versions; pullers of the unsuffixed tag get the former `-full` image, which is larger (≈119 MB vs ≈36 MB compressed on amd64) and no longer distroless, and in exchange `image.*` nodes now work in every image. The slim variant built with `CGO_ENABLED=0` and had not compiled since `internal/dberr` landed (#425).
+- **BREAKING:** the prebuilt Windows release binary. It was the last `CGO_ENABLED=0` build target and was broken by the same cgo dependency. On Windows, use the Docker image or build from source with libvips — see the [installation guide](docs/01-getting-started/installation.md#windows).
+- The `noimage` build tag. With one build configuration there is nothing to gate: the image plugin is now an unconditional member of the plugin list, and libvips is a hard requirement to build from source.
+- `.goreleaser.yaml`. It was referenced by no workflow, Makefile, or script — `release.yml` is and remains the release path — and described a target set that no longer matches what ships.
 
 ## [1.0.0] - 2026-03-18
 
