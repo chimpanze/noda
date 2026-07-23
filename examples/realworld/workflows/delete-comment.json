@@ -1,0 +1,35 @@
+{
+  "id": "delete-comment",
+  "name": "Delete Comment",
+  "description": "Author-only, scoped to the comment id + JWT subject in a single DELETE (no separate slug/article-ownership check — RealWorld's spec does not tie comment deletion to the article's author, only the comment's). `rows_affected == 0` conflates two distinct causes (comment id doesn't exist vs. exists but belongs to someone else) into a single 403; documented as a MINOR finding since a 404-vs-403 split would need an extra find-then-check round trip for a rarely-exercised edge case.",
+  "nodes": {
+    "delete_comment": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "DELETE FROM comments WHERE id = $1 AND author_id = $2",
+        "params": ["{{ input.id }}", "{{ input.user_id }}"]
+      }
+    },
+    "check_deleted": {
+      "type": "control.if",
+      "config": { "condition": "{{ nodes.delete_comment.rows_affected > 0 }}" }
+    },
+    "respond_forbidden": {
+      "type": "response.json",
+      "config": {
+        "status": 403,
+        "body": { "errors": { "body": ["forbidden"] } }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": {} }
+    }
+  },
+  "edges": [
+    { "from": "delete_comment", "to": "check_deleted" },
+    { "from": "check_deleted", "output": "then", "to": "respond" },
+    { "from": "check_deleted", "output": "else", "to": "respond_forbidden" }
+  ]
+}

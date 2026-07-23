@@ -1,0 +1,13 @@
+{
+  "id": "delete-comment",
+  "method": "DELETE",
+  "path": "/api/articles/:slug/comments/:id",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "delete-comment",
+    "input": {
+      "id": "{{ params.id }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

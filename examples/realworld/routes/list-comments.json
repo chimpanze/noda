@@ -1,0 +1,12 @@
+{
+  "id": "list-comments",
+  "method": "GET",
+  "path": "/api/articles/:slug/comments",
+  "trigger": {
+    "workflow": "list-comments",
+    "input": {
+      "slug": "{{ params.slug }}",
+      "viewer": ""
+    }
+  }
+}

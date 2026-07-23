@@ -1,0 +1,63 @@
+{
+  "id": "add-comment",
+  "workflow": "add-comment",
+  "tests": [
+    {
+      "name": "adds a comment successfully",
+      "input": {
+        "slug": "how-to-train-your-dragon",
+        "author_id": "u1",
+        "body": "Thank you so much!"
+      },
+      "mocks": {
+        "find_article": {
+          "output": [{ "id": "a1" }]
+        },
+        "insert_comment": {
+          "output": [{ "id": 1, "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z" }]
+        },
+        "author": {
+          "output": [{ "username": "jake", "bio": "", "image": "", "following": false }]
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    },
+    {
+      "name": "missing body fails validation",
+      "input": {
+        "slug": "how-to-train-your-dragon",
+        "author_id": "u1"
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_invalid_input.status": 422
+        }
+      }
+    },
+    {
+      "name": "404s for an unknown slug",
+      "input": {
+        "slug": "nope",
+        "author_id": "u1",
+        "body": "Hi"
+      },
+      "mocks": {
+        "find_article": {
+          "output": []
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_not_found.status": 404
+        }
+      }
+    }
+  ]
+}
