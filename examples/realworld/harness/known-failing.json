@@ -1,4 +1,10 @@
 {
   "_comment": "Hurl entries known to fail because of a documented Noda gap. Each key is a stable identifier from the Hurl report (see internal/testing/realworld). Update ONLY alongside a FINDINGS.md row + a GitHub issue.",
-  "gaps": []
+  "gaps": [
+    "errors_articles.hurl :: entry 1 (line 2)",
+    "errors_auth.hurl :: entry 10 (line 116)",
+    "errors_comments.hurl :: entry 1 (line 2)",
+    "errors_profiles.hurl :: entry 2 (line 8)",
+    "favorites.hurl :: entry 4 (line 45)"
+  ]
 }
