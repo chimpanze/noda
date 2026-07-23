@@ -48,6 +48,13 @@ linters:
       - linters: [gosec]
         text: "G107"
         path: internal/testing/cookbook/
+      # G107: HTTP requests with a variable URL, testcontainer harness only —
+      # the "variable" URL is the ephemeral address of a container the test
+      # itself just started (e.g. StartLiveKit's ws:// endpoint), never
+      # attacker input.
+      - linters: [gosec]
+        text: "G107"
+        path: internal/testing/containers/
       # G124: request cookies in tests carry no attributes on the wire
       - linters: [gosec]
         text: "G124"

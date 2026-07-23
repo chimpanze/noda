@@ -24,8 +24,15 @@ jobs:
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
-          args: --timeout=5m
+          # Pinned rather than `latest`: golangci-lint's bundled `modernize`
+          # reports a different finding set across releases (see #414), so a
+          # silent action bump could redden an untouched branch. Bump this
+          # deliberately in its own commit.
+          version: v2.12.2
+          # --build-tags=integration so the linter also sees `*_integration_test.go`
+          # (all behind `//go:build integration`). Without it every integration
+          # test file — and the `modernize` gate on it — is invisible to CI (#415).
+          args: --timeout=5m --build-tags=integration
 
       - name: Run tests with coverage
         run: make test-coverage
