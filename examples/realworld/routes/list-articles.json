@@ -1,0 +1,15 @@
+{
+  "id": "list-articles",
+  "method": "GET",
+  "path": "/api/articles",
+  "trigger": {
+    "workflow": "list-articles",
+    "input": {
+      "tag": "{{ query.tag ?? '' }}",
+      "author": "{{ query.author ?? '' }}",
+      "favorited": "{{ query.favorited ?? '' }}",
+      "limit": "{{ query.limit ?? '20' }}",
+      "offset": "{{ query.offset ?? '0' }}"
+    }
+  }
+}

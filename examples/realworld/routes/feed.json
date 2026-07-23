@@ -1,0 +1,14 @@
+{
+  "id": "feed",
+  "method": "GET",
+  "path": "/api/articles/feed",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "feed",
+    "input": {
+      "viewer": "{{ auth.sub }}",
+      "limit": "{{ query.limit ?? '20' }}",
+      "offset": "{{ query.offset ?? '0' }}"
+    }
+  }
+}

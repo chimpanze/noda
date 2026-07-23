@@ -1,0 +1,45 @@
+{
+  "id": "list-articles",
+  "name": "List Articles",
+  "description": "Deliberately unauthenticated (no `auth.jwt` middleware, must not 401 anonymously). Noda has no in-workflow JWT decode/verify node (only `util.jwt_sign` exists), so the caller's identity cannot be recovered here without the hard-401'ing `auth.jwt` middleware; the viewer id passed to the `favorited`/`following` subqueries is therefore always the literal empty string, making both always false. Documented gap, same pattern as get-article/get-profile (see task-3/task-4 reports, noda-limitation). Per-row author profile is resolved via a JOIN to auth_users rather than a companion query + transform.map merge: `GROUP BY a.id, u.id` is valid Postgres SQL because both are primary keys, so every other column of `a`/`u` is functionally dependent and can be selected outside the GROUP BY list — this keeps the whole list+filters+author lookup in a single indexed query instead of one round-trip per row.",
+  "nodes": {
+    "list": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}') AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $4) AS favorited, u.metadata->>'username' AS username, u.metadata->>'bio' AS bio, u.metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $4 AND fo.followee_id = a.author_id) AS following FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id JOIN auth_users u ON u.id = a.author_id WHERE ($1 = '' OR EXISTS(SELECT 1 FROM article_tags t2 WHERE t2.article_id = a.id AND t2.tag = $1)) AND ($2 = '' OR a.author_id = (SELECT id FROM auth_users WHERE metadata->>'username' = $2)) AND ($3 = '' OR EXISTS(SELECT 1 FROM favorites f2 JOIN auth_users u2 ON u2.id = f2.user_id WHERE f2.article_id = a.id AND u2.metadata->>'username' = $3)) GROUP BY a.id, u.id ORDER BY a.created_at DESC LIMIT $5 OFFSET $6",
+        "params": ["{{ input.tag }}", "{{ input.author }}", "{{ input.favorited }}", "", "{{ toInt(input.limit) }}", "{{ toInt(input.offset) }}"]
+      }
+    },
+    "count": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT count(*) AS count FROM articles a WHERE ($1 = '' OR EXISTS(SELECT 1 FROM article_tags t2 WHERE t2.article_id = a.id AND t2.tag = $1)) AND ($2 = '' OR a.author_id = (SELECT id FROM auth_users WHERE metadata->>'username' = $2)) AND ($3 = '' OR EXISTS(SELECT 1 FROM favorites f2 JOIN auth_users u2 ON u2.id = f2.user_id WHERE f2.article_id = a.id AND u2.metadata->>'username' = $3))",
+        "params": ["{{ input.tag }}", "{{ input.author }}", "{{ input.favorited }}"]
+      }
+    },
+    "articles": {
+      "type": "transform.map",
+      "config": {
+        "collection": "{{ nodes.list }}",
+        "expression": "{{ { 'slug': $item.slug, 'title': $item.title, 'description': $item.description, 'body': $item.body, 'tagList': $item.tag_list, 'createdAt': $item.created_at, 'updatedAt': $item.updated_at, 'favorited': $item.favorited, 'favoritesCount': $item.favorites_count, 'author': { 'username': $item.username, 'bio': $item.bio, 'image': $item.image, 'following': $item.following } } }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "articles": "{{ nodes.articles }}",
+          "articlesCount": "{{ nodes.count[0].count }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "count" },
+    { "from": "count", "to": "articles" },
+    { "from": "articles", "to": "respond" }
+  ]
+}
