@@ -21,6 +21,7 @@ var envForDir = map[string][]string{
 	"auth-demo":       {"SMTP_HOST", "DATABASE_URL"},
 	"discord-bot":     {"DISCORD_BOT_TOKEN"},
 	"realtime-collab": {"JWT_SECRET", "DATABASE_URL", "REDIS_URL"},
+	"realworld":       {"DATABASE_URL", "JWT_SECRET"},
 	"rest-api":        {"DATABASE_URL", "JWT_SECRET"},
 	"saas-backend":    {"JWT_SECRET", "REDIS_URL", "SMTP_FROM", "SMTP_HOST", "SMTP_PORT", "DATABASE_URL"},
 	"video-rooms":     {"LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "LIVEKIT_URL"},
