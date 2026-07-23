@@ -52,6 +52,16 @@ import (
 // granularity, the finest stable identifier this report schema exposes:
 //
 //	"<basename> :: entry <index> (line <line>)"
+//
+// The file-level "success" field is a belt-and-suspenders cross-check, not
+// the primary signal: a file can fail for a reason that never produces a
+// failing assert (a capture error, a runtime/network error before any
+// assert runs) — the assert-derived logic above would silently count that
+// as passing. If a file reports success:false but none of its entries
+// produced a failing-assert key, a synthetic key is added so the failure
+// can't be swallowed:
+//
+//	"<basename> :: file-level failure (no failing assert)"
 type hurlReportFile struct {
 	Filename string            `json:"filename"`
 	Success  bool              `json:"success"`
@@ -71,11 +81,12 @@ type hurlReportAssert struct {
 }
 
 // parseHurlReport reads <reportDir>/report.json and returns the set of
-// failing entry keys plus the count of entries that passed. For every
-// failing entry it also logs (via t.Logf) the key and Hurl's captured
-// assertion-failure message(s), so a run's `-v` output carries what Task 11
-// needs to write accurate FINDINGS rows.
-func parseHurlReport(t *testing.T, reportDir string) (failing map[string]bool, passCount int) {
+// failing entry keys, the count of entries that passed, and (keyed by
+// failing entry key) Hurl's captured assertion-failure message(s) so the
+// caller can log them once it knows which keys are documented gaps vs
+// genuine regressions (see conformance_integration_test.go) — this function
+// deliberately does not log, since it doesn't have the baseline.
+func parseHurlReport(t *testing.T, reportDir string) (failing map[string]bool, passCount int, messages map[string]string) {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(reportDir, "report.json"))
 	if err != nil {
@@ -87,8 +98,10 @@ func parseHurlReport(t *testing.T, reportDir string) (failing map[string]bool, p
 	}
 
 	failing = map[string]bool{}
+	messages = map[string]string{}
 	for _, f := range files {
 		base := filepath.Base(f.Filename)
+		fileHasFailingAssert := false
 		for _, e := range f.Entries {
 			key := fmt.Sprintf("%s :: entry %d (line %d)", base, e.Index, e.Line)
 			var msgs []string
@@ -103,11 +116,22 @@ func parseHurlReport(t *testing.T, reportDir string) (failing map[string]bool, p
 			}
 			if len(msgs) > 0 {
 				failing[key] = true
-				t.Logf("FAIL %s:\n%s", key, strings.Join(msgs, "\n---\n"))
+				fileHasFailingAssert = true
+				messages[key] = strings.Join(msgs, "\n---\n")
 			} else {
 				passCount++
 			}
 		}
+		// Cross-check against the file-level success field: a file can fail
+		// for a reason that produces no failing assert (capture error,
+		// runtime/network error before any assert runs). Without this, such
+		// a failure is silently swallowed and the entry miscounted as
+		// passing — a false GREEN. See the doc comment above.
+		if !f.Success && !fileHasFailingAssert {
+			key := fmt.Sprintf("%s :: file-level failure (no failing assert)", base)
+			failing[key] = true
+			messages[key] = "Hurl reported success:false for this file but no entry had a failing assert (capture error or runtime error?) — inspect the file's entries/captures directly."
+		}
 	}
-	return failing, passCount
+	return failing, passCount, messages
 }

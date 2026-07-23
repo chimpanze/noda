@@ -40,8 +40,24 @@ func TestRealWorldConformance(t *testing.T) {
 	baseURL, stop := cookbook.BootListen(t, projectDir, all.All())
 	defer stop()
 
-	failing, passCount := runHurl(t, projectDir, baseURL)
+	failing, passCount, messages := runHurl(t, projectDir, baseURL)
 	baseline := loadBaseline(t, filepath.Join(projectDir, "harness", "known-failing.json"))
+
+	// Log every failing key now that the baseline is known, so a GREEN run
+	// only prints "FAIL" for genuine (unexpected) failures — documented
+	// gaps are logged as "known-gap" instead, not mislabeled as failures.
+	failingKeys := make([]string, 0, len(failing))
+	for k := range failing {
+		failingKeys = append(failingKeys, k)
+	}
+	sort.Strings(failingKeys)
+	for _, k := range failingKeys {
+		if baseline[k] {
+			t.Logf("known-gap %s:\n%s", k, messages[k])
+		} else {
+			t.Logf("FAIL %s:\n%s", k, messages[k])
+		}
+	}
 
 	newFailures := diff(failing, baseline) // failing but not documented
 	fixedGaps := diff(baseline, failing)   // documented but now passing
@@ -58,7 +74,7 @@ func TestRealWorldConformance(t *testing.T) {
 // baseURL, with a uid unique to this run since the suite builds
 // emails/usernames from it and those hit unique constraints across reruns
 // against the same (fresh, per-run) database.
-func runHurl(t *testing.T, projectDir, baseURL string) (failing map[string]bool, passCount int) {
+func runHurl(t *testing.T, projectDir, baseURL string) (failing map[string]bool, passCount int, messages map[string]string) {
 	t.Helper()
 	hurlDir := filepath.Join(projectDir, "harness", "hurl")
 	files, err := filepath.Glob(filepath.Join(hurlDir, "*.hurl"))
