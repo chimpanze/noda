@@ -1,0 +1,45 @@
+{
+  "id": "get-profile",
+  "name": "Get Profile",
+  "description": "Auth users table is `auth_users`; username lives in the JSONB `metadata` column and is queried with `metadata->>'username'`. Route is deliberately unauthenticated (no `auth.jwt` middleware, must not 401 anonymously). Noda has no in-workflow JWT decode/verify node (only `util.jwt_sign` exists) so the caller's identity cannot be recovered here without the hard-401'ing `auth.jwt` middleware; `following` is therefore always false for this endpoint. Documented gap, see task-3 report (noda-limitation).",
+  "nodes": {
+    "resolve": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT metadata->>'username' AS username, metadata->>'bio' AS bio, metadata->>'image' AS image FROM auth_users WHERE metadata->>'username' = $1",
+        "params": ["{{ input.username }}"]
+      }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.resolve) > 0 }}" }
+    },
+    "respond_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "body": ["profile not found"] } }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "profile": {
+            "username": "{{ nodes.resolve[0].username }}",
+            "bio": "{{ nodes.resolve[0].bio }}",
+            "image": "{{ nodes.resolve[0].image }}",
+            "following": false
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "resolve", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "respond" },
+    { "from": "check_found", "output": "else", "to": "respond_not_found" }
+  ]
+}

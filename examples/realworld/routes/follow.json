@@ -1,0 +1,13 @@
+{
+  "id": "follow",
+  "method": "POST",
+  "path": "/api/profiles/:username/follow",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "follow",
+    "input": {
+      "follower_id": "{{ auth.sub }}",
+      "username": "{{ params.username }}"
+    }
+  }
+}

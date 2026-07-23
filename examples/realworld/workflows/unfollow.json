@@ -1,0 +1,53 @@
+{
+  "id": "unfollow",
+  "name": "Unfollow User",
+  "nodes": {
+    "find_user": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id, metadata->>'bio' AS bio, metadata->>'image' AS image FROM auth_users WHERE metadata->>'username' = $1",
+        "params": ["{{ input.username }}"]
+      }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.find_user) > 0 }}" }
+    },
+    "respond_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "body": ["profile not found"] } }
+      }
+    },
+    "delete_follow": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "DELETE FROM follows WHERE follower_id = $1 AND followee_id = $2",
+        "params": ["{{ input.follower_id }}", "{{ nodes.find_user[0].id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "profile": {
+            "username": "{{ input.username }}",
+            "bio": "{{ nodes.find_user[0].bio }}",
+            "image": "{{ nodes.find_user[0].image }}",
+            "following": false
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "find_user", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "delete_follow" },
+    { "from": "check_found", "output": "else", "to": "respond_not_found" },
+    { "from": "delete_follow", "to": "respond" }
+  ]
+}
