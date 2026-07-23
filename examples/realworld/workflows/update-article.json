@@ -1,0 +1,96 @@
+{
+  "id": "update-article",
+  "name": "Update Article",
+  "description": "Author-only. Regenerates the slug when title changes (same kebab-case + unique-id-suffix scheme as create-article), matching RealWorld/Conduit conformance; unchanged fields (title/description/body null) are left as-is via COALESCE.",
+  "nodes": {
+    "find_article": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id, author_id FROM articles WHERE slug = $1",
+        "params": ["{{ input.slug }}"]
+      }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.find_article) > 0 }}" }
+    },
+    "respond_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "body": ["article not found"] } }
+      }
+    },
+    "check_owner": {
+      "type": "control.if",
+      "config": { "condition": "{{ nodes.find_article[0].author_id == input.user_id }}" }
+    },
+    "respond_forbidden": {
+      "type": "response.json",
+      "config": {
+        "status": 403,
+        "body": { "errors": { "body": ["forbidden"] } }
+      }
+    },
+    "update": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "UPDATE articles SET title = COALESCE($1, title), description = COALESCE($2, description), body = COALESCE($3, body), slug = CASE WHEN $1 IS NOT NULL THEN lower(regexp_replace($1, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || id ELSE slug END, updated_at = now() WHERE id = $4",
+        "params": ["{{ input.title }}", "{{ input.description }}", "{{ input.body }}", "{{ nodes.find_article[0].id }}"]
+      }
+    },
+    "article": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}') AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
+        "params": ["{{ nodes.find_article[0].id }}", "{{ input.user_id }}"]
+      }
+    },
+    "author": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT metadata->>'username' AS username, metadata->>'bio' AS bio, metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $2 AND fo.followee_id = $1) AS following FROM auth_users WHERE id = $1",
+        "params": ["{{ nodes.find_article[0].author_id }}", "{{ input.user_id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "article": {
+            "slug": "{{ nodes.article[0].slug }}",
+            "title": "{{ nodes.article[0].title }}",
+            "description": "{{ nodes.article[0].description }}",
+            "body": "{{ nodes.article[0].body }}",
+            "tagList": "{{ nodes.article[0].tag_list }}",
+            "createdAt": "{{ nodes.article[0].created_at }}",
+            "updatedAt": "{{ nodes.article[0].updated_at }}",
+            "favorited": "{{ nodes.article[0].favorited }}",
+            "favoritesCount": "{{ nodes.article[0].favorites_count }}",
+            "author": {
+              "username": "{{ nodes.author[0].username }}",
+              "bio": "{{ nodes.author[0].bio }}",
+              "image": "{{ nodes.author[0].image }}",
+              "following": "{{ nodes.author[0].following }}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "find_article", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "check_owner" },
+    { "from": "check_found", "output": "else", "to": "respond_not_found" },
+    { "from": "check_owner", "output": "then", "to": "update" },
+    { "from": "check_owner", "output": "else", "to": "respond_forbidden" },
+    { "from": "update", "to": "article" },
+    { "from": "article", "to": "author" },
+    { "from": "author", "to": "respond" }
+  ]
+}

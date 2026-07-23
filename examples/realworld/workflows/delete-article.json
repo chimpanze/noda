@@ -1,0 +1,57 @@
+{
+  "id": "delete-article",
+  "name": "Delete Article",
+  "description": "Author-only. Cascades to article_tags/favorites/comments via ON DELETE CASCADE FKs (migration 0001).",
+  "nodes": {
+    "find_article": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id, author_id FROM articles WHERE slug = $1",
+        "params": ["{{ input.slug }}"]
+      }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.find_article) > 0 }}" }
+    },
+    "respond_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "body": ["article not found"] } }
+      }
+    },
+    "check_owner": {
+      "type": "control.if",
+      "config": { "condition": "{{ nodes.find_article[0].author_id == input.user_id }}" }
+    },
+    "respond_forbidden": {
+      "type": "response.json",
+      "config": {
+        "status": 403,
+        "body": { "errors": { "body": ["forbidden"] } }
+      }
+    },
+    "delete": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "DELETE FROM articles WHERE id = $1 AND author_id = $2",
+        "params": ["{{ nodes.find_article[0].id }}", "{{ input.user_id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "status": 200, "body": {} }
+    }
+  },
+  "edges": [
+    { "from": "find_article", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "check_owner" },
+    { "from": "check_found", "output": "else", "to": "respond_not_found" },
+    { "from": "check_owner", "output": "then", "to": "delete" },
+    { "from": "check_owner", "output": "else", "to": "respond_forbidden" },
+    { "from": "delete", "to": "respond" }
+  ]
+}

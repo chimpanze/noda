@@ -1,0 +1,63 @@
+{
+  "id": "create-article",
+  "workflow": "create-article",
+  "tests": [
+    {
+      "name": "creates an article successfully",
+      "input": {
+        "author_id": "u1",
+        "title": "How to Noda",
+        "description": "A short guide",
+        "body": "Body text",
+        "tagList": ["dragons", "training"]
+      },
+      "mocks": {
+        "insert": {
+          "output": [{ "id": 1, "slug": "how-to-noda-1", "created_at": "2026-01-01T00:00:00Z", "updated_at": "2026-01-01T00:00:00Z" }]
+        },
+        "insert_tags": {
+          "output": {}
+        },
+        "article": {
+          "output": [
+            {
+              "slug": "how-to-noda-1",
+              "title": "How to Noda",
+              "description": "A short guide",
+              "body": "Body text",
+              "created_at": "2026-01-01T00:00:00Z",
+              "updated_at": "2026-01-01T00:00:00Z",
+              "author_id": "u1",
+              "tag_list": ["dragons", "training"],
+              "favorites_count": 0,
+              "favorited": false
+            }
+          ]
+        },
+        "author": {
+          "output": [{ "username": "jake", "bio": "", "image": "", "following": false }]
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    },
+    {
+      "name": "missing title fails validation",
+      "input": {
+        "author_id": "u1",
+        "description": "A short guide",
+        "body": "Body text"
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_invalid_input.status": 422
+        }
+      }
+    }
+  ]
+}
