@@ -103,6 +103,7 @@ docs/               Documentation
 | [Wasm Counter](examples/wasm-counter/) | Simple stateful Wasm module |
 | [Init Example](examples/init-example/) | Scaffolded starter project from `noda init` |
 | [Video Rooms](examples/video-rooms/) | Video conferencing with LiveKit integration |
+| [RealWorld / Conduit](examples/realworld/) | Config-only Conduit API implementation with a Hurl conformance gate |
 
 ### Use Cases
 

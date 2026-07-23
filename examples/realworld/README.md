@@ -17,11 +17,24 @@ tables (`migrations/0001_init.up.sql`).
 
 ## Conformance
 
-See `FINDINGS.md` for spec-conformance notes and gaps, and run the conformance
-suite with:
+See `FINDINGS.md` for spec-conformance notes and gaps, and `harness/known-failing.json`
+for the pinned baseline of known-gap assertions the gate tolerates.
+
+Run the full integration suite (includes `TestRealWorldConformance`) with:
 
 ```bash
 make test-integration
 ```
 
-which includes `TestRealWorldConformance`.
+### Running the conformance suite directly
+
+Requires Docker (Postgres via testcontainers) and the `hurl` binary:
+
+```bash
+brew install hurl   # local; CI installs the pinned .deb release instead
+docker compose up   # start the app being tested, if not using testcontainers-managed boot
+go test -tags integration ./internal/testing/realworld/ -run TestRealWorldConformance -v
+```
+
+The test prints `N passed, Y known-gap, 0 unexpected` on success. If `hurl` is
+missing from `PATH`, the test `t.Skip`s rather than failing.
