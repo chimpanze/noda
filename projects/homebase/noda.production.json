@@ -1,9 +1,0 @@
-{
-  "server": {
-    "trust_proxy": {
-      "enabled": true,
-      "private": true,
-      "header": "X-Forwarded-For"
-    }
-  }
-}
