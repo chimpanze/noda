@@ -201,6 +201,7 @@ func (e *API) listMiddleware(c fiber.Ctx) error {
 		{Name: "auth.jwt", Description: "JWT authentication using Bearer tokens", ConfigFields: []configField{
 			{Key: "secret", Type: "string", Description: "JWT signing secret or key", Required: true},
 			{Key: "algorithm", Type: "select", Description: "Signing algorithm", Options: []string{"HS256", "HS384", "HS512"}, Default: "HS256"},
+			{Key: "auth_scheme", Type: "string", Description: `Authorization header scheme to strip before the token (default "Bearer"; e.g. "Token"). Empty string accepts a raw token.`, Default: "Bearer"},
 		}},
 		{Name: "auth.oidc", Description: "OpenID Connect token validation via external identity providers", ConfigFields: []configField{
 			{Key: "issuer_url", Type: "string", Description: "OIDC provider issuer URL", Required: true},

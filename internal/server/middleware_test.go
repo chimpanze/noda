@@ -540,3 +540,47 @@ func TestBuildMiddleware_StatusRemap_Instance(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 401, resp.StatusCode)
 }
+
+func mintHS256(t *testing.T, secret string, claims jwt.MapClaims) string {
+	t.Helper()
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	s, err := tok.SignedString([]byte(secret))
+	require.NoError(t, err)
+	return s
+}
+
+func TestJWTMiddleware_AuthScheme(t *testing.T) {
+	secret := "0123456789abcdef0123456789abcdef" // >=32 bytes
+	token := mintHS256(t, secret, jwt.MapClaims{"sub": "u1", "exp": time.Now().Add(time.Hour).Unix()})
+
+	cases := []struct {
+		name       string
+		scheme     any // value for cfg["auth_scheme"]; nil = omit
+		header     string
+		wantStatus int
+	}{
+		{"default is bearer", nil, "Bearer " + token, fiber.StatusOK},
+		{"default rejects token scheme", nil, "Token " + token, fiber.StatusUnauthorized},
+		{"token scheme accepts token", "Token", "Token " + token, fiber.StatusOK},
+		{"token scheme rejects bearer", "Token", "Bearer " + token, fiber.StatusUnauthorized},
+		{"empty scheme accepts raw", "", token, fiber.StatusOK},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := map[string]any{"secret": secret, "algorithm": "HS256"}
+			if tc.scheme != nil {
+				cfg["auth_scheme"] = tc.scheme
+			}
+			h, err := newJWTMiddleware(cfg, nil)
+			require.NoError(t, err)
+			app := fiber.New()
+			app.Use(h)
+			app.Get("/", func(c fiber.Ctx) error { return c.SendStatus(fiber.StatusOK) })
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Authorization", tc.header)
+			resp, err := app.Test(req)
+			require.NoError(t, err)
+			require.Equal(t, tc.wantStatus, resp.StatusCode)
+		})
+	}
+}

@@ -369,6 +369,11 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 		parserOpts = append(parserOpts, jwt.WithExpirationRequired())
 	}
 
+	authScheme := "Bearer"
+	if v, ok := cfg["auth_scheme"].(string); ok {
+		authScheme = v // may be "" to accept a raw token
+	}
+
 	// Custom JWT middleware: parse token, validate, store claims in locals
 	return func(c fiber.Ctx) error {
 		auth := c.Get("Authorization")
@@ -376,9 +381,15 @@ func newJWTMiddleware(cfg map[string]any, _ map[string]any) (fiber.Handler, erro
 			return fiber.NewError(fiber.StatusUnauthorized, "missing authorization header")
 		}
 
-		tokenStr := strings.TrimPrefix(auth, "Bearer ")
-		if tokenStr == auth {
-			return fiber.NewError(fiber.StatusUnauthorized, "invalid authorization format")
+		var tokenStr string
+		if authScheme == "" {
+			tokenStr = auth
+		} else {
+			prefix := authScheme + " "
+			tokenStr = strings.TrimPrefix(auth, prefix)
+			if tokenStr == auth {
+				return fiber.NewError(fiber.StatusUnauthorized, "invalid authorization format")
+			}
 		}
 
 		token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (any, error) {
