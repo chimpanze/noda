@@ -1,0 +1,13 @@
+{
+  "id": "unfavorite",
+  "method": "DELETE",
+  "path": "/api/articles/:slug/favorite",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "unfavorite",
+    "input": {
+      "slug": "{{ params.slug }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}
