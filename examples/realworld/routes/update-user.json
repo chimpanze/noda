@@ -11,7 +11,8 @@
       "username": "{{ body.user.username }}",
       "password": "{{ body.user.password }}",
       "bio": "{{ body.user.bio }}",
-      "image": "{{ body.user.image }}"
+      "image": "{{ body.user.image }}",
+      "user_raw": "{{ body.user }}"
     }
   }
 }

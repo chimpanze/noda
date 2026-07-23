@@ -1,7 +1,7 @@
 {
   "id": "update-user",
   "name": "Update User",
-  "description": "The `update` (`db.update`) node's `error` output is wired to `respond_conflict`, mirroring register's duplicate-email envelope/status (422, 'email or username has already been taken'); db.update has only a single generic `error` output (no `exists`-style discriminator like auth.create_user), so any database error on this node — not just a unique-constraint violation — surfaces that message. `skip_password` is a deliberate no-op (`transform.set`) inserted on the has_password 'else' branch so both branches reach `update` through a proper node rather than one edge coming directly from the conditional itself: with a bare `has_password --else--> update` edge alongside `has_password --then--> set_password --> update`, the compiler's join-type heuristic (internal/engine/compiler.go computeJoinTypes) misclassified `update` as an AND-join (it only recognizes OR-joins when a common conditional ancestor is reached through the join sources via two distinct *reachable* outputs, and a self-edge from the conditional isn't a reachable descendant of itself) — an AND-join never fires because only one of the two mutually-exclusive branches executes per request, so the workflow hung/errored on every 'no password change' request. This was a real pre-existing defect (unrelated to the error-envelope fix) caught only because Task 8 added the first tests/update-user.json; documented here rather than filed as a separate engine issue since the workflow-level fix is a one-node, zero-behavior-change workaround.",
+  "description": "The `update` (`db.update`) node's `error` output is wired to `respond_conflict`, mirroring register's duplicate-email envelope/status (422, 'email or username has already been taken'); db.update has only a single generic `error` output (no `exists`-style discriminator like auth.create_user), so any database error on this node — not just a unique-constraint violation — surfaces that message. `skip_password` is a deliberate no-op (`transform.set`) inserted on the has_password 'else' branch so both branches reach `update` through a proper node rather than one edge coming directly from the conditional itself: with a bare `has_password --else--> update` edge alongside `has_password --then--> set_password --> update`, the compiler's join-type heuristic (internal/engine/compiler.go computeJoinTypes) misclassified `update` as an AND-join (it only recognizes OR-joins when a common conditional ancestor is reached through the join sources via two distinct *reachable* outputs, and a self-edge from the conditional isn't a reachable descendant of itself) — an AND-join never fires because only one of the two mutually-exclusive branches executes per request, so the workflow hung/errored on every 'no password change' request. This was a real pre-existing defect (unrelated to the error-envelope fix) caught only because Task 8 added the first tests/update-user.json; documented here rather than filed as a separate engine issue since the workflow-level fix is a one-node, zero-behavior-change workaround. `check_email_invalid`/`check_username_invalid`/`has_password`+`check_password_valid` read `input.user_raw` (the route maps the WHOLE `body.user` sub-object, not just individual fields) because Noda's trigger-input mapping flattens presence: `\"email\": \"{{ body.user.email }}\"` always creates the `input.email` key (as nil) whether the client sent `\"email\": null` or omitted the key — the conformance suite requires the former (explicit null/blank) to 422 while the latter (omitted, 'don't change this field') must succeed, and only the raw sub-object preserves that distinction (checked via expr's `'key' in map` membership test, which is presence-aware unlike a nil comparison on a flattened field).",
   "nodes": {
     "validate": {
       "type": "transform.validate",
@@ -26,9 +26,43 @@
         "body": { "errors": { "body": ["invalid token"] } }
       }
     },
+    "check_email_invalid": {
+      "type": "control.if",
+      "config": { "condition": "{{ 'email' in input.user_raw && (input.user_raw.email == nil || input.user_raw.email == '') }}" }
+    },
+    "respond_email_invalid": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "email": ["can't be blank"] } } }
+    },
+    "check_username_invalid": {
+      "type": "control.if",
+      "config": { "condition": "{{ 'username' in input.user_raw && (input.user_raw.username == nil || input.user_raw.username == '') }}" }
+    },
+    "respond_username_invalid": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "username": ["can't be blank"] } } }
+    },
+    "compute_metadata": {
+      "type": "transform.set",
+      "config": {
+        "fields": {
+          "username": "{{ ('username' in input.user_raw && input.user_raw.username != nil && input.user_raw.username != '') ? input.user_raw.username : nodes.fetch.metadata.username }}",
+          "bio": "{{ 'bio' in input.user_raw ? (input.user_raw.bio == nil || input.user_raw.bio == '' ? nil : input.user_raw.bio) : nodes.fetch.metadata.bio }}",
+          "image": "{{ 'image' in input.user_raw ? (input.user_raw.image == nil || input.user_raw.image == '' ? nil : input.user_raw.image) : nodes.fetch.metadata.image }}"
+        }
+      }
+    },
     "has_password": {
       "type": "control.if",
-      "config": { "condition": "{{ input.password != nil && input.password != '' }}" }
+      "config": { "condition": "{{ 'password' in input.user_raw }}" }
+    },
+    "check_password_valid": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.user_raw.password != nil && input.user_raw.password != '' && len(input.user_raw.password) >= 8 }}" }
+    },
+    "respond_password_invalid": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "password": ["is too short (minimum is 8 characters)"] } } }
     },
     "set_password": {
       "type": "auth.set_password",
@@ -49,11 +83,7 @@
         "table": "auth_users",
         "data": {
           "email": "{{ input.email ?? nodes.fetch.email }}",
-          "metadata": {
-            "username": "{{ input.username ?? nodes.fetch.metadata.username }}",
-            "bio": "{{ input.bio ?? nodes.fetch.metadata.bio }}",
-            "image": "{{ input.image ?? nodes.fetch.metadata.image }}"
-          },
+          "metadata": "{{ nodes.compute_metadata }}",
           "updated_at": "{{ now() }}"
         },
         "where": { "id": "{{ input.user_id }}" }
@@ -71,7 +101,7 @@
       "config": {
         "claims": {
           "sub": "{{ input.user_id }}",
-          "username": "{{ input.username ?? nodes.fetch.metadata.username }}"
+          "username": "{{ nodes.compute_metadata.username }}"
         },
         "secret": "{{ secrets.JWT_SECRET }}",
         "expiry": "72h"
@@ -84,9 +114,9 @@
         "body": {
           "user": {
             "email": "{{ input.email ?? nodes.fetch.email }}",
-            "username": "{{ input.username ?? nodes.fetch.metadata.username }}",
-            "bio": "{{ input.bio ?? nodes.fetch.metadata.bio }}",
-            "image": "{{ input.image ?? nodes.fetch.metadata.image }}",
+            "username": "{{ nodes.compute_metadata.username }}",
+            "bio": "{{ nodes.compute_metadata.bio }}",
+            "image": "{{ nodes.compute_metadata.image }}",
             "token": "{{ nodes.sign }}"
           }
         }
@@ -96,10 +126,17 @@
   "edges": [
     { "from": "validate", "to": "fetch" },
     { "from": "validate", "output": "error", "to": "respond_invalid_input" },
-    { "from": "fetch", "to": "has_password" },
+    { "from": "fetch", "to": "check_email_invalid" },
     { "from": "fetch", "output": "not_found", "to": "respond_missing" },
-    { "from": "has_password", "output": "then", "to": "set_password" },
+    { "from": "check_email_invalid", "output": "then", "to": "respond_email_invalid" },
+    { "from": "check_email_invalid", "output": "else", "to": "check_username_invalid" },
+    { "from": "check_username_invalid", "output": "then", "to": "respond_username_invalid" },
+    { "from": "check_username_invalid", "output": "else", "to": "compute_metadata" },
+    { "from": "compute_metadata", "to": "has_password" },
+    { "from": "has_password", "output": "then", "to": "check_password_valid" },
     { "from": "has_password", "output": "else", "to": "skip_password" },
+    { "from": "check_password_valid", "output": "then", "to": "set_password" },
+    { "from": "check_password_valid", "output": "else", "to": "respond_password_invalid" },
     { "from": "set_password", "to": "update" },
     { "from": "skip_password", "to": "update" },
     { "from": "update", "to": "sign" },

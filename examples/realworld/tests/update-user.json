@@ -10,13 +10,14 @@
         "username": "user1",
         "password": null,
         "bio": "bio",
-        "image": "img"
+        "image": "img",
+        "user_raw": { "email": "user1@example.com", "username": "user1", "bio": "bio", "image": "img" }
       },
       "mocks": {
         "fetch": {
           "output": {
-            "email": "user1@example.com",
-            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+            "email": "old@example.com",
+            "metadata": { "username": "olduser", "bio": "oldbio", "image": "oldimg" }
           }
         },
         "update": { "output": { "rows_affected": 1 } },
@@ -35,7 +36,8 @@
         "username": "user1",
         "password": "newpassword",
         "bio": "bio",
-        "image": "img"
+        "image": "img",
+        "user_raw": { "email": "user1@example.com", "username": "user1", "password": "newpassword", "bio": "bio", "image": "img" }
       },
       "mocks": {
         "fetch": {
@@ -61,7 +63,8 @@
         "username": "user1",
         "password": null,
         "bio": "bio",
-        "image": "img"
+        "image": "img",
+        "user_raw": { "email": "taken@example.com", "username": "user1", "bio": "bio", "image": "img" }
       },
       "mocks": {
         "fetch": {
@@ -88,7 +91,8 @@
         "username": "user1",
         "password": null,
         "bio": "bio",
-        "image": "img"
+        "image": "img",
+        "user_raw": { "email": 123, "username": "user1", "bio": "bio", "image": "img" }
       },
       "mocks": {
         "fetch": {
@@ -113,7 +117,8 @@
         "username": "user1",
         "password": null,
         "bio": "bio",
-        "image": "img"
+        "image": "img",
+        "user_raw": { "email": "user1@example.com", "username": "user1", "bio": "bio", "image": "img" }
       },
       "mocks": {
         "fetch": { "output_name": "not_found", "output": {} }
@@ -121,6 +126,94 @@
       "expect": {
         "status": "success",
         "output": { "respond_missing.status": 401 }
+      }
+    },
+    {
+      "name": "explicit null email is rejected (omission would keep it, so null must not silently no-op)",
+      "input": {
+        "user_id": "u1",
+        "user_raw": { "email": null }
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_email_invalid.status": 422,
+          "respond_email_invalid.body.errors.email": ["can't be blank"]
+        }
+      }
+    },
+    {
+      "name": "explicit blank username is rejected",
+      "input": {
+        "user_id": "u1",
+        "user_raw": { "username": "" }
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_username_invalid.status": 422,
+          "respond_username_invalid.body.errors.username": ["can't be blank"]
+        }
+      }
+    },
+    {
+      "name": "password shorter than 8 characters is rejected",
+      "input": {
+        "user_id": "u1",
+        "user_raw": { "password": "short7c" }
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond_password_invalid.status": 422 }
+      }
+    },
+    {
+      "name": "explicit null bio clears it rather than keeping the old value",
+      "input": {
+        "user_id": "u1",
+        "user_raw": { "bio": null }
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "was set before", "image": "img" }
+          }
+        },
+        "update": { "output": { "rows_affected": 1 } },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200,
+          "respond.body.user.bio": null,
+          "respond.body.user.username": "user1"
+        }
       }
     }
   ]

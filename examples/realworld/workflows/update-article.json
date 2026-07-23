@@ -19,7 +19,7 @@
       "type": "response.json",
       "config": {
         "status": 404,
-        "body": { "errors": { "body": ["article not found"] } }
+        "body": { "errors": { "article": ["not found"] } }
       }
     },
     "check_owner": {
@@ -30,8 +30,32 @@
       "type": "response.json",
       "config": {
         "status": 403,
-        "body": { "errors": { "body": ["forbidden"] } }
+        "body": { "errors": { "article": ["forbidden"] } }
       }
+    },
+    "check_taglist_null": {
+      "type": "control.if",
+      "config": { "condition": "{{ 'tagList' in input.article_raw && input.article_raw.tagList == nil }}" }
+    },
+    "respond_taglist_invalid": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "tagList": ["can't be null"] } } }
+    },
+    "check_taglist_present": {
+      "type": "control.if",
+      "config": { "condition": "{{ 'tagList' in input.article_raw }}" }
+    },
+    "replace_tags": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "WITH del AS (DELETE FROM article_tags WHERE article_id = $1), ins_tags AS (INSERT INTO tags (name) SELECT unnest($2::text[]) ON CONFLICT DO NOTHING) INSERT INTO article_tags (article_id, tag) SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING",
+        "params": ["{{ nodes.find_article[0].id }}", "{{ input.article_raw.tagList }}"]
+      }
+    },
+    "skip_tags": {
+      "type": "transform.set",
+      "config": { "fields": { "skipped": true } }
     },
     "update": {
       "type": "db.exec",
@@ -45,7 +69,7 @@
       "type": "db.query",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}') AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, to_json(COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}')) AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
         "params": ["{{ nodes.find_article[0].id }}", "{{ input.user_id }}"]
       }
     },
@@ -67,7 +91,7 @@
             "title": "{{ nodes.article[0].title }}",
             "description": "{{ nodes.article[0].description }}",
             "body": "{{ nodes.article[0].body }}",
-            "tagList": "{{ nodes.article[0].tag_list }}",
+            "tagList": "{{ fromJSON(nodes.article[0].tag_list) }}",
             "createdAt": "{{ nodes.article[0].created_at }}",
             "updatedAt": "{{ nodes.article[0].updated_at }}",
             "favorited": "{{ nodes.article[0].favorited }}",
@@ -87,8 +111,14 @@
     { "from": "find_article", "to": "check_found" },
     { "from": "check_found", "output": "then", "to": "check_owner" },
     { "from": "check_found", "output": "else", "to": "respond_not_found" },
-    { "from": "check_owner", "output": "then", "to": "update" },
+    { "from": "check_owner", "output": "then", "to": "check_taglist_null" },
     { "from": "check_owner", "output": "else", "to": "respond_forbidden" },
+    { "from": "check_taglist_null", "output": "then", "to": "respond_taglist_invalid" },
+    { "from": "check_taglist_null", "output": "else", "to": "check_taglist_present" },
+    { "from": "check_taglist_present", "output": "then", "to": "replace_tags" },
+    { "from": "check_taglist_present", "output": "else", "to": "skip_tags" },
+    { "from": "replace_tags", "to": "update" },
+    { "from": "skip_tags", "to": "update" },
     { "from": "update", "to": "article" },
     { "from": "article", "to": "author" },
     { "from": "author", "to": "respond" }

@@ -10,7 +10,8 @@
       "slug": "{{ params.slug }}",
       "title": "{{ body.article.title }}",
       "description": "{{ body.article.description }}",
-      "body": "{{ body.article.body }}"
+      "body": "{{ body.article.body }}",
+      "article_raw": "{{ body.article }}"
     }
   }
 }
