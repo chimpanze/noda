@@ -1,0 +1,63 @@
+{
+  "id": "register",
+  "name": "Register",
+  "nodes": {
+    "validate": {
+      "type": "transform.validate",
+      "config": { "data": "{{ input }}", "schema": { "$ref": "schemas/Register" } }
+    },
+    "respond_invalid_input": {
+      "type": "response.json",
+      "config": {
+        "status": 422,
+        "body": { "errors": { "body": ["{{ nodes.validate.error }}"] } }
+      }
+    },
+    "create": {
+      "type": "auth.create_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": {
+        "email": "{{ input.email }}",
+        "password": "{{ input.password }}",
+        "metadata": { "username": "{{ input.username }}", "bio": "", "image": "" }
+      }
+    },
+    "respond_exists": {
+      "type": "response.json",
+      "config": {
+        "status": 422,
+        "body": { "errors": { "body": ["email or username has already been taken"] } }
+      }
+    },
+    "sign": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": { "sub": "{{ nodes.create.id }}", "username": "{{ input.username }}" },
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "72h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "user": {
+            "email": "{{ nodes.create.email }}",
+            "username": "{{ input.username }}",
+            "bio": "",
+            "image": "",
+            "token": "{{ nodes.sign }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "validate", "to": "create" },
+    { "from": "validate", "output": "error", "to": "respond_invalid_input" },
+    { "from": "create", "to": "sign" },
+    { "from": "create", "output": "exists", "to": "respond_exists" },
+    { "from": "sign", "to": "respond" }
+  ]
+}

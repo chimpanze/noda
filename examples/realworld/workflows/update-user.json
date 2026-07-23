@@ -1,0 +1,95 @@
+{
+  "id": "update-user",
+  "name": "Update User",
+  "nodes": {
+    "validate": {
+      "type": "transform.validate",
+      "config": { "data": "{{ input }}", "schema": { "$ref": "schemas/UpdateUser" } }
+    },
+    "respond_invalid_input": {
+      "type": "response.json",
+      "config": {
+        "status": 422,
+        "body": { "errors": { "body": ["{{ nodes.validate.error }}"] } }
+      }
+    },
+    "fetch": {
+      "type": "auth.get_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "user_id": "{{ input.user_id }}" }
+    },
+    "respond_missing": {
+      "type": "response.json",
+      "config": {
+        "status": 401,
+        "body": { "errors": { "body": ["invalid token"] } }
+      }
+    },
+    "has_password": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.password != nil && input.password != '' }}" }
+    },
+    "set_password": {
+      "type": "auth.set_password",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": {
+        "user_id": "{{ input.user_id }}",
+        "password": "{{ input.password }}"
+      }
+    },
+    "update": {
+      "type": "db.update",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "auth_users",
+        "data": {
+          "email": "{{ input.email ?? nodes.fetch.email }}",
+          "metadata": {
+            "username": "{{ input.username ?? nodes.fetch.metadata.username }}",
+            "bio": "{{ input.bio ?? nodes.fetch.metadata.bio }}",
+            "image": "{{ input.image ?? nodes.fetch.metadata.image }}"
+          },
+          "updated_at": "{{ now() }}"
+        },
+        "where": { "id": "{{ input.user_id }}" }
+      }
+    },
+    "sign": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": {
+          "sub": "{{ input.user_id }}",
+          "username": "{{ input.username ?? nodes.fetch.metadata.username }}"
+        },
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "72h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "user": {
+            "email": "{{ input.email ?? nodes.fetch.email }}",
+            "username": "{{ input.username ?? nodes.fetch.metadata.username }}",
+            "bio": "{{ input.bio ?? nodes.fetch.metadata.bio }}",
+            "image": "{{ input.image ?? nodes.fetch.metadata.image }}",
+            "token": "{{ nodes.sign }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "validate", "to": "fetch" },
+    { "from": "validate", "output": "error", "to": "respond_invalid_input" },
+    { "from": "fetch", "to": "has_password" },
+    { "from": "fetch", "output": "not_found", "to": "respond_missing" },
+    { "from": "has_password", "output": "then", "to": "set_password" },
+    { "from": "has_password", "output": "else", "to": "update" },
+    { "from": "set_password", "to": "update" },
+    { "from": "update", "to": "sign" },
+    { "from": "sign", "to": "respond" }
+  ]
+}

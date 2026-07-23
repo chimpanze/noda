@@ -1,0 +1,12 @@
+{
+  "id": "login",
+  "method": "POST",
+  "path": "/api/users/login",
+  "trigger": {
+    "workflow": "login",
+    "input": {
+      "email": "{{ body.user.email }}",
+      "password": "{{ body.user.password }}"
+    }
+  }
+}

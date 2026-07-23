@@ -1,0 +1,59 @@
+{
+  "id": "login",
+  "name": "Login",
+  "nodes": {
+    "validate": {
+      "type": "transform.validate",
+      "config": { "data": "{{ input }}", "schema": { "$ref": "schemas/Login" } }
+    },
+    "respond_invalid_input": {
+      "type": "response.json",
+      "config": {
+        "status": 422,
+        "body": { "errors": { "body": ["{{ nodes.validate.error }}"] } }
+      }
+    },
+    "verify": {
+      "type": "auth.verify_credentials",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "email": "{{ input.email }}", "password": "{{ input.password }}" }
+    },
+    "respond_invalid": {
+      "type": "response.json",
+      "config": {
+        "status": 422,
+        "body": { "errors": { "body": ["email or password is invalid"] } }
+      }
+    },
+    "sign": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": { "sub": "{{ nodes.verify.id }}", "username": "{{ nodes.verify.metadata.username }}" },
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "72h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "user": {
+            "email": "{{ nodes.verify.email }}",
+            "username": "{{ nodes.verify.metadata.username }}",
+            "bio": "{{ nodes.verify.metadata.bio }}",
+            "image": "{{ nodes.verify.metadata.image }}",
+            "token": "{{ nodes.sign }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "validate", "to": "verify" },
+    { "from": "validate", "output": "error", "to": "respond_invalid_input" },
+    { "from": "verify", "to": "sign" },
+    { "from": "verify", "output": "invalid", "to": "respond_invalid" },
+    { "from": "sign", "to": "respond" }
+  ]
+}

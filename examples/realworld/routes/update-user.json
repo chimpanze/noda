@@ -1,0 +1,17 @@
+{
+  "id": "update-user",
+  "method": "PUT",
+  "path": "/api/user",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "update-user",
+    "input": {
+      "user_id": "{{ auth.sub }}",
+      "email": "{{ body.user.email }}",
+      "username": "{{ body.user.username }}",
+      "password": "{{ body.user.password }}",
+      "bio": "{{ body.user.bio }}",
+      "image": "{{ body.user.image }}"
+    }
+  }
+}

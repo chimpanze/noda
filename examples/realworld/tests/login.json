@@ -1,0 +1,49 @@
+{
+  "id": "login",
+  "workflow": "login",
+  "tests": [
+    {
+      "name": "logs in successfully",
+      "input": {
+        "email": "jake@jake.jake",
+        "password": "jakejake"
+      },
+      "mocks": {
+        "verify": {
+          "output": {
+            "id": "u1",
+            "email": "jake@jake.jake",
+            "metadata": { "username": "jake", "bio": "", "image": "" }
+          }
+        },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200
+        }
+      }
+    },
+    {
+      "name": "rejects invalid credentials",
+      "input": {
+        "email": "jake@jake.jake",
+        "password": "wrong-password"
+      },
+      "mocks": {
+        "verify": {
+          "output": {},
+          "output_name": "invalid"
+        },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_invalid.status": 422
+        }
+      }
+    }
+  ]
+}

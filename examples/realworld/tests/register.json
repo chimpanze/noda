@@ -1,0 +1,41 @@
+{
+  "id": "register",
+  "workflow": "register",
+  "tests": [
+    {
+      "name": "registers successfully",
+      "input": {
+        "username": "jake",
+        "email": "jake@jake.jake",
+        "password": "jakejake"
+      },
+      "mocks": {
+        "create": { "output": { "id": "u1", "email": "jake@jake.jake" } },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    },
+    {
+      "name": "missing email fails validation",
+      "input": {
+        "username": "jake",
+        "password": "jakejake"
+      },
+      "mocks": {
+        "create": { "output": { "id": "u1", "email": "jake@jake.jake" } },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_invalid_input.status": 422
+        }
+      }
+    }
+  ]
+}
