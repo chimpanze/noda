@@ -41,6 +41,21 @@ const defaultMaxModuleSize int64 = 50 * 1024 * 1024
 // 256 pages * 64 KiB = 16 MiB (wazero's default is unbounded up to 4 GiB).
 const defaultMemoryPages uint32 = 256
 
+// defaultMaxHTTPResponseBytes caps a response body read by the guest's own
+// HTTP host function (extism's built-in http_request, gated by AllowHTTP).
+// These MUST be set explicitly whenever manifest.Memory is populated: extism
+// only falls back to its own defaults when the field is negative, so the zero
+// value reads as "allow zero bytes" and every guest HTTP call fails with
+// "http: request body too large" (see calculateMaxHttp in go-sdk).
+//
+// 8 MiB sits under the 16 MiB default guest memory cap — a larger response
+// could not be written into guest linear memory anyway.
+const defaultMaxHTTPResponseBytes int64 = 8 * 1024 * 1024
+
+// defaultMaxVarBytes caps the guest's extism var store (matching extism's own
+// default). Zero here does not mean "unlimited" — it disables vars entirely.
+const defaultMaxVarBytes int64 = 1024 * 1024
+
 // buildManifest constructs the Extism manifest for a module, applying a
 // bounded default guest memory cap and the timeout needed to make context
 // cancellation actually terminate a running guest call (see wazero's
@@ -57,7 +72,11 @@ func buildManifest(cfg ModuleConfig, wasmBytes []byte) extism.Manifest {
 	if pages == 0 {
 		pages = defaultMemoryPages
 	}
-	manifest.Memory = &extism.ManifestMemory{MaxPages: pages}
+	manifest.Memory = &extism.ManifestMemory{
+		MaxPages:             pages,
+		MaxHttpResponseBytes: defaultMaxHTTPResponseBytes,
+		MaxVarBytes:          defaultMaxVarBytes,
+	}
 
 	// Set the manifest timeout so extism enables wazero's WithCloseOnContextDone,
 	// which makes a context deadline/cancellation actually terminate a running

@@ -16,6 +16,7 @@ import (
 	"github.com/chimpanze/noda/internal/connmgr"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/pkg/api"
+	extism "github.com/extism/go-sdk"
 	"github.com/fasthttp/websocket"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -231,6 +232,31 @@ func TestBuildManifest_DefaultMemoryCap(t *testing.T) {
 	man2 := buildManifest(ModuleConfig{MemoryPages: 512}, []byte{0x00})
 	require.NotNil(t, man2.Memory)
 	require.Equal(t, uint32(512), man2.Memory.MaxPages)
+}
+
+// TestBuildManifest_EffectiveLimits asserts the limits extism itself derives
+// from our manifest, not the fields we wrote into it. extism.ManifestMemory
+// treats a zero MaxHttpResponseBytes/MaxVarBytes as an explicit "zero bytes
+// allowed" (see calculateMaxHttp/calculateMaxVar in go-sdk plugin.go: any value
+// >= 0 wins over the default), so populating Memory for MaxPages alone silently
+// disabled guest HTTP (every response body panicked with "http: request body
+// too large") and guest vars ("Vars are disabled by this host"). Reading the
+// limits off a real plugin instance is what catches that; asserting the
+// manifest fields we just set would not.
+func TestBuildManifest_EffectiveLimits(t *testing.T) {
+	// Minimal valid wasm module (magic + version): enough for extism to
+	// instantiate a plugin, which is where the limits get computed.
+	emptyModule := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
+
+	man := buildManifest(ModuleConfig{}, emptyModule)
+	plugin, err := extism.NewPlugin(context.Background(), man, extism.PluginConfig{EnableWasi: true}, nil)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = plugin.Close(context.Background()) })
+
+	require.Equal(t, defaultMaxHTTPResponseBytes, plugin.MaxHttpResponseBytes,
+		"guest HTTP responses must not be capped at zero bytes")
+	require.Equal(t, defaultMaxVarBytes, plugin.MaxVarBytes,
+		"guest vars must not be disabled")
 }
 
 // --- Module Tests ---

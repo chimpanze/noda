@@ -433,8 +433,9 @@ Wasm modules run in a sandboxed Wazero runtime with multiple layers of access co
 ### Outbound Network Whitelisting
 - Outbound HTTP requests are restricted to hosts listed in `allow_outbound.http`
 - Outbound WebSocket connections are restricted to hosts listed in `allow_outbound.ws`
-- Host matching compares the parsed URL hostname against the whitelist entries
+- Host matching compares the parsed URL hostname against the whitelist entries (hostname only — do not include a port)
 - Requests to non-whitelisted hosts return `PERMISSION_DENIED`
+- An outbound HTTP response body is capped at 8 MiB; a larger body fails the call with `http: request body too large`
 
 ### Input Validation
 - All host API calls validate required fields — missing or empty required parameters return `VALIDATION_ERROR`
