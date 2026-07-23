@@ -3,16 +3,29 @@
   "name": "Create Article",
   "description": "Slug is generated in SQL (no slugify expr function exists — grep of internal/expr confirmed this; documented finding). Uniqueness is guaranteed by appending a value pulled from articles_id_seq (the BIGSERIAL sequence backing articles.id) to the kebab-cased title, all inside the single INSERT, so no separate uniqueness round-trip or retry is needed. tagList insert uses one db.exec with unnest($2::text[]) for both the tags upsert and the article_tags link (see 'insert_tags'); this is the canonical article-select's first use (see 'article' + 'author' nodes), reused verbatim by get/update-article and by later tasks.",
   "nodes": {
-    "validate": {
-      "type": "transform.validate",
-      "config": { "data": "{{ input }}", "schema": { "$ref": "schemas/CreateArticle" } }
+    "check_title_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.title != nil && input.title != '' }}" }
     },
-    "respond_invalid_input": {
+    "respond_title_blank": {
       "type": "response.json",
-      "config": {
-        "status": 422,
-        "body": { "errors": { "body": ["{{ nodes.validate.error }}"] } }
-      }
+      "config": { "status": 422, "body": { "errors": { "title": ["can't be blank"] } } }
+    },
+    "check_description_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.description != nil && input.description != '' }}" }
+    },
+    "respond_description_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "description": ["can't be blank"] } } }
+    },
+    "check_body_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.body != nil && input.body != '' }}" }
+    },
+    "respond_body_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "body": ["can't be blank"] } } }
     },
     "insert": {
       "type": "db.query",
@@ -34,7 +47,7 @@
       "type": "db.query",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}') AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, to_json(COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}')) AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
         "params": ["{{ nodes.insert[0].id }}", "{{ input.author_id }}"]
       }
     },
@@ -56,7 +69,7 @@
             "title": "{{ nodes.article[0].title }}",
             "description": "{{ nodes.article[0].description }}",
             "body": "{{ nodes.article[0].body }}",
-            "tagList": "{{ nodes.article[0].tag_list }}",
+            "tagList": "{{ fromJSON(nodes.article[0].tag_list) }}",
             "createdAt": "{{ nodes.article[0].created_at }}",
             "updatedAt": "{{ nodes.article[0].updated_at }}",
             "favorited": "{{ nodes.article[0].favorited }}",
@@ -73,8 +86,12 @@
     }
   },
   "edges": [
-    { "from": "validate", "to": "insert" },
-    { "from": "validate", "output": "error", "to": "respond_invalid_input" },
+    { "from": "check_title_blank", "output": "then", "to": "check_description_blank" },
+    { "from": "check_title_blank", "output": "else", "to": "respond_title_blank" },
+    { "from": "check_description_blank", "output": "then", "to": "check_body_blank" },
+    { "from": "check_description_blank", "output": "else", "to": "respond_description_blank" },
+    { "from": "check_body_blank", "output": "then", "to": "insert" },
+    { "from": "check_body_blank", "output": "else", "to": "respond_body_blank" },
     { "from": "insert", "to": "insert_tags" },
     { "from": "insert_tags", "to": "article" },
     { "from": "article", "to": "author" },

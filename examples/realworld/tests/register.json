@@ -10,7 +10,9 @@
         "password": "jakejake"
       },
       "mocks": {
-        "create": { "output": { "id": "u1", "email": "jake@jake.jake" } },
+        "check_username_taken": { "output": [] },
+        "check_email_taken": { "output": [] },
+        "create": { "output": { "id": "u1", "email": "jake@jake.jake", "metadata": { "username": "jake", "bio": null, "image": null } } },
         "sign": { "output": "jwt-abc" }
       },
       "expect": {
@@ -26,14 +28,45 @@
         "username": "jake",
         "password": "jakejake"
       },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_email_blank.status": 422
+        }
+      }
+    },
+    {
+      "name": "duplicate username is rejected before create runs",
+      "input": {
+        "username": "jake",
+        "email": "new@jake.jake",
+        "password": "jakejake"
+      },
       "mocks": {
-        "create": { "output": { "id": "u1", "email": "jake@jake.jake" } },
-        "sign": { "output": "jwt-abc" }
+        "check_username_taken": { "output": [{ "id": "u1" }] }
       },
       "expect": {
         "status": "success",
         "output": {
-          "respond_invalid_input.status": 422
+          "respond_username_taken.status": 409
+        }
+      }
+    },
+    {
+      "name": "duplicate email is rejected before create runs",
+      "input": {
+        "username": "newjake",
+        "email": "jake@jake.jake",
+        "password": "jakejake"
+      },
+      "mocks": {
+        "check_username_taken": { "output": [] },
+        "check_email_taken": { "output": [{ "id": "u1" }] }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_email_taken.status": 409
         }
       }
     }

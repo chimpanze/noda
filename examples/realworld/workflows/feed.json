@@ -7,7 +7,7 @@
       "type": "db.query",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}') AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $1) AS favorited, u.metadata->>'username' AS username, u.metadata->>'bio' AS bio, u.metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $1 AND fo.followee_id = a.author_id) AS following FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id JOIN auth_users u ON u.id = a.author_id WHERE a.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1) GROUP BY a.id, u.id ORDER BY a.created_at DESC LIMIT $2 OFFSET $3",
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, to_json(COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}')) AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $1) AS favorited, u.metadata->>'username' AS username, u.metadata->>'bio' AS bio, u.metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $1 AND fo.followee_id = a.author_id) AS following FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id JOIN auth_users u ON u.id = a.author_id WHERE a.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1) GROUP BY a.id, u.id ORDER BY a.created_at DESC LIMIT $2 OFFSET $3",
         "params": ["{{ input.viewer }}", "{{ toInt(input.limit) }}", "{{ toInt(input.offset) }}"]
       }
     },
@@ -23,7 +23,7 @@
       "type": "transform.map",
       "config": {
         "collection": "{{ nodes.list }}",
-        "expression": "{{ { 'slug': $item.slug, 'title': $item.title, 'description': $item.description, 'body': $item.body, 'tagList': $item.tag_list, 'createdAt': $item.created_at, 'updatedAt': $item.updated_at, 'favorited': $item.favorited, 'favoritesCount': $item.favorites_count, 'author': { 'username': $item.username, 'bio': $item.bio, 'image': $item.image, 'following': $item.following } } }}"
+        "expression": "{{ { 'slug': $item.slug, 'title': $item.title, 'description': $item.description, 'tagList': fromJSON($item.tag_list), 'createdAt': $item.created_at, 'updatedAt': $item.updated_at, 'favorited': $item.favorited, 'favoritesCount': $item.favorites_count, 'author': { 'username': $item.username, 'bio': $item.bio, 'image': $item.image, 'following': $item.following } } }}"
       }
     },
     "respond": {

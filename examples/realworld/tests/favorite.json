@@ -25,7 +25,7 @@
               "created_at": "2016-02-18T03:22:56.637Z",
               "updated_at": "2016-02-18T03:48:35.824Z",
               "author_id": "u2",
-              "tag_list": ["dragons", "training"],
+              "tag_list": "[\"dragons\",\"training\"]",
               "favorites_count": 1,
               "favorited": true
             }

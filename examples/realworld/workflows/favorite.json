@@ -18,7 +18,7 @@
       "type": "response.json",
       "config": {
         "status": 404,
-        "body": { "errors": { "body": ["article not found"] } }
+        "body": { "errors": { "article": ["not found"] } }
       }
     },
     "insert_favorite": {
@@ -33,7 +33,7 @@
       "type": "db.query",
       "services": { "database": "main-db" },
       "config": {
-        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}') AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, to_json(COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}')) AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
         "params": ["{{ nodes.find_article[0].id }}", "{{ input.user_id }}"]
       }
     },
@@ -55,7 +55,7 @@
             "title": "{{ nodes.article[0].title }}",
             "description": "{{ nodes.article[0].description }}",
             "body": "{{ nodes.article[0].body }}",
-            "tagList": "{{ nodes.article[0].tag_list }}",
+            "tagList": "{{ fromJSON(nodes.article[0].tag_list) }}",
             "createdAt": "{{ nodes.article[0].created_at }}",
             "updatedAt": "{{ nodes.article[0].updated_at }}",
             "favorited": "{{ nodes.article[0].favorited }}",

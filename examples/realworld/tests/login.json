@@ -41,7 +41,7 @@
       "expect": {
         "status": "success",
         "output": {
-          "respond_invalid.status": 422
+          "respond_invalid.status": 401
         }
       }
     }

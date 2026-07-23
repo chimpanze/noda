@@ -6,6 +6,7 @@
   "trigger": {
     "workflow": "delete-comment",
     "input": {
+      "slug": "{{ params.slug }}",
       "id": "{{ params.id }}",
       "user_id": "{{ auth.sub }}"
     }

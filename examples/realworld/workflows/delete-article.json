@@ -19,7 +19,7 @@
       "type": "response.json",
       "config": {
         "status": 404,
-        "body": { "errors": { "body": ["article not found"] } }
+        "body": { "errors": { "article": ["not found"] } }
       }
     },
     "check_owner": {
@@ -30,7 +30,7 @@
       "type": "response.json",
       "config": {
         "status": 403,
-        "body": { "errors": { "body": ["forbidden"] } }
+        "body": { "errors": { "article": ["forbidden"] } }
       }
     },
     "delete": {
@@ -43,7 +43,7 @@
     },
     "respond": {
       "type": "response.json",
-      "config": { "status": 200, "body": {} }
+      "config": { "status": 204 }
     }
   },
   "edges": [

@@ -3,16 +3,13 @@
   "name": "Add Comment",
   "description": "Author profile for the response is resolved from the caller's own auth.sub — the caller's own `following` toward themselves is therefore always false (no self-follow row exists), which matches RealWorld's expectation for a freshly-posted comment.",
   "nodes": {
-    "validate": {
-      "type": "transform.validate",
-      "config": { "data": "{{ input }}", "schema": { "$ref": "schemas/AddComment" } }
+    "check_body_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.body != nil && input.body != '' }}" }
     },
-    "respond_invalid_input": {
+    "respond_body_blank": {
       "type": "response.json",
-      "config": {
-        "status": 422,
-        "body": { "errors": { "body": ["{{ nodes.validate.error }}"] } }
-      }
+      "config": { "status": 422, "body": { "errors": { "body": ["can't be blank"] } } }
     },
     "find_article": {
       "type": "db.query",
@@ -30,7 +27,7 @@
       "type": "response.json",
       "config": {
         "status": 404,
-        "body": { "errors": { "body": ["article not found"] } }
+        "body": { "errors": { "article": ["not found"] } }
       }
     },
     "insert_comment": {
@@ -71,8 +68,8 @@
     }
   },
   "edges": [
-    { "from": "validate", "to": "find_article" },
-    { "from": "validate", "output": "error", "to": "respond_invalid_input" },
+    { "from": "check_body_blank", "output": "then", "to": "find_article" },
+    { "from": "check_body_blank", "output": "else", "to": "respond_body_blank" },
     { "from": "find_article", "to": "check_found" },
     { "from": "check_found", "output": "then", "to": "insert_comment" },
     { "from": "check_found", "output": "else", "to": "respond_not_found" },

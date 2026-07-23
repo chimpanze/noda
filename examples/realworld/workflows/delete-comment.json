@@ -1,35 +1,79 @@
 {
   "id": "delete-comment",
   "name": "Delete Comment",
-  "description": "Author-only, scoped to the comment id + JWT subject in a single DELETE (no separate slug/article-ownership check — RealWorld's spec does not tie comment deletion to the article's author, only the comment's). `rows_affected == 0` conflates two distinct causes (comment id doesn't exist vs. exists but belongs to someone else) into a single 403; documented as a MINOR finding since a 404-vs-403 split would need an extra find-then-check round trip for a rarely-exercised edge case.",
+  "description": "Three-way branch (article not found / comment not found / forbidden) matching the RealWorld conformance suite's distinct 404-vs-404-vs-403 expectations: find_article scopes find_comment to that article's id, so a comment id that exists but belongs to a DIFFERENT article's slug correctly 404s as 'comment not found' rather than leaking a cross-article match.",
   "nodes": {
-    "delete_comment": {
-      "type": "db.exec",
+    "find_article": {
+      "type": "db.query",
       "services": { "database": "main-db" },
       "config": {
-        "query": "DELETE FROM comments WHERE id = $1 AND author_id = $2",
-        "params": ["{{ input.id }}", "{{ input.user_id }}"]
+        "query": "SELECT id FROM articles WHERE slug = $1",
+        "params": ["{{ input.slug }}"]
       }
     },
-    "check_deleted": {
+    "check_article_found": {
       "type": "control.if",
-      "config": { "condition": "{{ nodes.delete_comment.rows_affected > 0 }}" }
+      "config": { "condition": "{{ len(nodes.find_article) > 0 }}" }
+    },
+    "respond_article_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "article": ["not found"] } }
+      }
+    },
+    "find_comment": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id, author_id FROM comments WHERE id = $1 AND article_id = $2",
+        "params": ["{{ input.id }}", "{{ nodes.find_article[0].id }}"]
+      }
+    },
+    "check_comment_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.find_comment) > 0 }}" }
+    },
+    "respond_comment_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "comment": ["not found"] } }
+      }
+    },
+    "check_owner": {
+      "type": "control.if",
+      "config": { "condition": "{{ nodes.find_comment[0].author_id == input.user_id }}" }
     },
     "respond_forbidden": {
       "type": "response.json",
       "config": {
         "status": 403,
-        "body": { "errors": { "body": ["forbidden"] } }
+        "body": { "errors": { "comment": ["forbidden"] } }
+      }
+    },
+    "delete_comment": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "DELETE FROM comments WHERE id = $1",
+        "params": ["{{ nodes.find_comment[0].id }}"]
       }
     },
     "respond": {
       "type": "response.json",
-      "config": { "status": 200, "body": {} }
+      "config": { "status": 204 }
     }
   },
   "edges": [
-    { "from": "delete_comment", "to": "check_deleted" },
-    { "from": "check_deleted", "output": "then", "to": "respond" },
-    { "from": "check_deleted", "output": "else", "to": "respond_forbidden" }
+    { "from": "find_article", "to": "check_article_found" },
+    { "from": "check_article_found", "output": "then", "to": "find_comment" },
+    { "from": "check_article_found", "output": "else", "to": "respond_article_not_found" },
+    { "from": "find_comment", "to": "check_comment_found" },
+    { "from": "check_comment_found", "output": "then", "to": "check_owner" },
+    { "from": "check_comment_found", "output": "else", "to": "respond_comment_not_found" },
+    { "from": "check_owner", "output": "then", "to": "delete_comment" },
+    { "from": "check_owner", "output": "else", "to": "respond_forbidden" },
+    { "from": "delete_comment", "to": "respond" }
   ]
 }

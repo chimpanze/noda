@@ -18,7 +18,7 @@
       "type": "response.json",
       "config": {
         "status": 404,
-        "body": { "errors": { "body": ["profile not found"] } }
+        "body": { "errors": { "profile": ["not found"] } }
       }
     },
     "delete_follow": {

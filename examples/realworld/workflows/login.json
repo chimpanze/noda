@@ -2,16 +2,21 @@
   "id": "login",
   "name": "Login",
   "nodes": {
-    "validate": {
-      "type": "transform.validate",
-      "config": { "data": "{{ input }}", "schema": { "$ref": "schemas/Login" } }
+    "check_email_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.email != nil && input.email != '' }}" }
     },
-    "respond_invalid_input": {
+    "respond_email_blank": {
       "type": "response.json",
-      "config": {
-        "status": 422,
-        "body": { "errors": { "body": ["{{ nodes.validate.error }}"] } }
-      }
+      "config": { "status": 422, "body": { "errors": { "email": ["can't be blank"] } } }
+    },
+    "check_password_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.password != nil && input.password != '' }}" }
+    },
+    "respond_password_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "password": ["can't be blank"] } } }
     },
     "verify": {
       "type": "auth.verify_credentials",
@@ -21,8 +26,8 @@
     "respond_invalid": {
       "type": "response.json",
       "config": {
-        "status": 422,
-        "body": { "errors": { "body": ["email or password is invalid"] } }
+        "status": 401,
+        "body": { "errors": { "credentials": ["invalid"] } }
       }
     },
     "sign": {
@@ -50,8 +55,10 @@
     }
   },
   "edges": [
-    { "from": "validate", "to": "verify" },
-    { "from": "validate", "output": "error", "to": "respond_invalid_input" },
+    { "from": "check_email_blank", "output": "then", "to": "check_password_blank" },
+    { "from": "check_email_blank", "output": "else", "to": "respond_email_blank" },
+    { "from": "check_password_blank", "output": "then", "to": "verify" },
+    { "from": "check_password_blank", "output": "else", "to": "respond_password_blank" },
     { "from": "verify", "to": "sign" },
     { "from": "verify", "output": "invalid", "to": "respond_invalid" },
     { "from": "sign", "to": "respond" }
