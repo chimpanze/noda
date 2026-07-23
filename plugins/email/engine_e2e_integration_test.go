@@ -35,7 +35,7 @@ func fetchMessages(t *testing.T, apiBase string) mailpitMessages {
 		resp, err := http.Get(apiBase + "/api/v1/messages")
 		require.NoError(t, err)
 		func() {
-			defer resp.Body.Close()
+			defer func() { _ = resp.Body.Close() }()
 			require.NoError(t, json.NewDecoder(resp.Body).Decode(&out))
 		}()
 		if out.Total > 0 {

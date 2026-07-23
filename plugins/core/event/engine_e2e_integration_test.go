@@ -82,7 +82,7 @@ func TestEventEmit_PubSub_Engine(t *testing.T) {
 	svcReg, nodeReg, rc := emitRegistries(t, url)
 
 	sub := rc.Subscribe(context.Background(), "alerts")
-	defer sub.Close()
+	defer func() { _ = sub.Close() }()
 	subCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_, err := sub.Receive(subCtx) // wait for subscription confirmation
