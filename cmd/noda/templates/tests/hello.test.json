@@ -9,7 +9,7 @@
         "status": "success",
         "outputs": {
           "respond": {
-            "Body": {
+            "body": {
               "greeting": "Hello, World!"
             }
           }

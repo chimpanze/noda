@@ -51,3 +51,47 @@ Files in `tests/*.json`. Each file defines a test suite for one workflow.
   ]
 }
 ```
+
+## Matching node outputs
+
+`expect.outputs` maps a node ID to a subtree that must appear in that node's
+output. The match is partial — keys you omit are ignored.
+
+Node outputs are compared as JSON, so use the **JSON field names**, which are
+lowercase. A `response.json` node produces `status`, `headers`, `cookies` and
+`body` — not the Go field names `Status` or `Body`:
+
+```json
+{
+  "expect": {
+    "status": "success",
+    "outputs": {
+      "respond": {
+        "status": 200,
+        "body": { "greeting": "Hello, World!" }
+      }
+    }
+  }
+}
+```
+
+## Error edges change `expect.status`
+
+`expect.status` is the status of the *workflow*, not of a node. If the failing
+node has an `error` edge, the workflow follows that edge and still finishes
+successfully — so assert `"success"` and check the node the error edge leads
+to:
+
+```json
+{
+  "name": "task not found",
+  "mocks": { "fetch": { "error": { "message": "record not found" } } },
+  "expect": {
+    "status": "success",
+    "outputs": { "not_found": { "status": 404 } }
+  }
+}
+```
+
+Use `"status": "error"` only when nothing handles the failure. In that case
+`expect.error_node` asserts which node failed.
