@@ -1,0 +1,127 @@
+{
+  "id": "update-user",
+  "workflow": "update-user",
+  "tests": [
+    {
+      "name": "updates profile fields without changing password",
+      "input": {
+        "user_id": "u1",
+        "email": "user1@example.com",
+        "username": "user1",
+        "password": null,
+        "bio": "bio",
+        "image": "img"
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        },
+        "update": { "output": { "rows_affected": 1 } },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond.status": 200 }
+      }
+    },
+    {
+      "name": "updates password when provided",
+      "input": {
+        "user_id": "u1",
+        "email": "user1@example.com",
+        "username": "user1",
+        "password": "newpassword",
+        "bio": "bio",
+        "image": "img"
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        },
+        "set_password": { "output": {} },
+        "update": { "output": { "rows_affected": 1 } },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond.status": 200 }
+      }
+    },
+    {
+      "name": "duplicate email or username on update returns the standard envelope",
+      "input": {
+        "user_id": "u1",
+        "email": "taken@example.com",
+        "username": "user1",
+        "password": null,
+        "bio": "bio",
+        "image": "img"
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        },
+        "update": { "error": { "message": "unique constraint violation" } }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_conflict.status": 422,
+          "respond_conflict.body.errors.body": ["email or username has already been taken"]
+        }
+      }
+    },
+    {
+      "name": "invalid email type fails validation",
+      "input": {
+        "user_id": "u1",
+        "email": 123,
+        "username": "user1",
+        "password": null,
+        "bio": "bio",
+        "image": "img"
+      },
+      "mocks": {
+        "fetch": {
+          "output": {
+            "email": "user1@example.com",
+            "metadata": { "username": "user1", "bio": "bio", "image": "img" }
+          }
+        },
+        "update": { "output": { "rows_affected": 1 } },
+        "sign": { "output": "jwt-abc" }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond_invalid_input.status": 422 }
+      }
+    },
+    {
+      "name": "missing/invalid token yields 401",
+      "input": {
+        "user_id": "gone",
+        "email": "user1@example.com",
+        "username": "user1",
+        "password": null,
+        "bio": "bio",
+        "image": "img"
+      },
+      "mocks": {
+        "fetch": { "output_name": "not_found", "output": {} }
+      },
+      "expect": {
+        "status": "success",
+        "output": { "respond_missing.status": 401 }
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "id": "list-tags",
+  "name": "List Tags",
+  "description": "Deliberately unauthenticated. `db.query` returns one row object per tag (`{name: ...}`); `transform.map` flattens that to a plain array of name strings, matching RealWorld's `{\"tags\":[...]}` shape.",
+  "nodes": {
+    "list": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT name FROM tags ORDER BY name"
+      }
+    },
+    "tags": {
+      "type": "transform.map",
+      "config": {
+        "collection": "{{ nodes.list }}",
+        "expression": "{{ $item.name }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "tags": "{{ nodes.tags }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "tags" },
+    { "from": "tags", "to": "respond" }
+  ]
+}

@@ -1,6 +1,7 @@
 {
   "id": "update-user",
   "name": "Update User",
+  "description": "The `update` (`db.update`) node's `error` output is wired to `respond_conflict`, mirroring register's duplicate-email envelope/status (422, 'email or username has already been taken'); db.update has only a single generic `error` output (no `exists`-style discriminator like auth.create_user), so any database error on this node — not just a unique-constraint violation — surfaces that message. `skip_password` is a deliberate no-op (`transform.set`) inserted on the has_password 'else' branch so both branches reach `update` through a proper node rather than one edge coming directly from the conditional itself: with a bare `has_password --else--> update` edge alongside `has_password --then--> set_password --> update`, the compiler's join-type heuristic (internal/engine/compiler.go computeJoinTypes) misclassified `update` as an AND-join (it only recognizes OR-joins when a common conditional ancestor is reached through the join sources via two distinct *reachable* outputs, and a self-edge from the conditional isn't a reachable descendant of itself) — an AND-join never fires because only one of the two mutually-exclusive branches executes per request, so the workflow hung/errored on every 'no password change' request. This was a real pre-existing defect (unrelated to the error-envelope fix) caught only because Task 8 added the first tests/update-user.json; documented here rather than filed as a separate engine issue since the workflow-level fix is a one-node, zero-behavior-change workaround.",
   "nodes": {
     "validate": {
       "type": "transform.validate",
@@ -37,6 +38,10 @@
         "password": "{{ input.password }}"
       }
     },
+    "skip_password": {
+      "type": "transform.set",
+      "config": { "fields": { "skipped": true } }
+    },
     "update": {
       "type": "db.update",
       "services": { "database": "main-db" },
@@ -52,6 +57,13 @@
           "updated_at": "{{ now() }}"
         },
         "where": { "id": "{{ input.user_id }}" }
+      }
+    },
+    "respond_conflict": {
+      "type": "response.json",
+      "config": {
+        "status": 422,
+        "body": { "errors": { "body": ["email or username has already been taken"] } }
       }
     },
     "sign": {
@@ -87,9 +99,11 @@
     { "from": "fetch", "to": "has_password" },
     { "from": "fetch", "output": "not_found", "to": "respond_missing" },
     { "from": "has_password", "output": "then", "to": "set_password" },
-    { "from": "has_password", "output": "else", "to": "update" },
+    { "from": "has_password", "output": "else", "to": "skip_password" },
     { "from": "set_password", "to": "update" },
+    { "from": "skip_password", "to": "update" },
     { "from": "update", "to": "sign" },
+    { "from": "update", "output": "error", "to": "respond_conflict" },
     { "from": "sign", "to": "respond" }
   ]
 }
