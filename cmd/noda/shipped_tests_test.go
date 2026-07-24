@@ -13,8 +13,10 @@ import (
 
 // runProjectTestSuites runs every workflow test suite a project ships through
 // the real `noda test` runner and asserts each case passes. It mirrors exactly
-// what the test command does (main.go newTestCmd), so a green run here means a
-// user running `noda test` in that directory sees green too.
+// what the test command does (main.go newTestCmd) — including the startup
+// validation the command runs before executing anything (#444) — so a green
+// run here means a user running `noda test` in that directory sees green too.
+// When newTestCmd gains a step, add it here.
 func runProjectTestSuites(t *testing.T, dir string) {
 	t.Helper()
 
@@ -23,6 +25,9 @@ func runProjectTestSuites(t *testing.T, dir string) {
 
 	rc, errs := config.ValidateAll(dir, "", sm)
 	require.Empty(t, errs, "project must pass config validation before its tests can run")
+
+	require.NoError(t, validateProject(rc),
+		"project must pass startup validation before its tests can run")
 
 	suites, err := nodatesting.LoadTests(rc)
 	require.NoError(t, err)
@@ -94,7 +99,7 @@ func TestShippedExamplesPassTheirTests(t *testing.T) {
 		}
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			for _, name := range envForDir[filepath.Base(dir)] {
-				t.Setenv(name, "dummy")
+				t.Setenv(name, dummyEnvValue(name))
 			}
 			runProjectTestSuites(t, dir)
 		})

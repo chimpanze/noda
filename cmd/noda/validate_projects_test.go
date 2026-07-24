@@ -37,6 +37,17 @@ var envForDir = map[string][]string{
 	"livekit":         {"LIVEKIT_URL", "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"},
 }
 
+// dummyEnvValue returns a placeholder for an example's $env() variable. Most
+// only need to be non-empty to satisfy config.ValidateAll's unresolved-$env()
+// check, but a JWT secret must also clear auth.jwt's 32-byte minimum or
+// ValidateMiddlewareBuilds rejects every route using it (#444).
+func dummyEnvValue(name string) string {
+	if name == "JWT_SECRET" {
+		return "dummy-jwt-secret-at-least-32-bytes-long"
+	}
+	return "dummy"
+}
+
 // Every shipped example and full-project fixture must pass the exact
 // pipeline `noda validate` runs — including node ConfigSchema enforcement.
 func TestShippedProjectsValidate(t *testing.T) {
@@ -59,7 +70,7 @@ func TestShippedProjectsValidate(t *testing.T) {
 		}
 		t.Run(filepath.Base(dir), func(t *testing.T) {
 			for _, name := range envForDir[filepath.Base(dir)] {
-				t.Setenv(name, "dummy")
+				t.Setenv(name, dummyEnvValue(name))
 			}
 
 			sm, err := config.NewSecretsManager(dir, "")
@@ -67,11 +78,7 @@ func TestShippedProjectsValidate(t *testing.T) {
 			rc, errs := config.ValidateAll(dir, "", sm)
 			require.Empty(t, errs)
 
-			plugins := registry.NewPluginRegistry()
-			require.NoError(t, registerCorePlugins(plugins))
-			_, bootErrs := registry.Bootstrap(context.Background(), rc, plugins,
-				registry.BootstrapOptions{DryRun: true})
-			require.Empty(t, bootErrs)
+			require.NoError(t, validateProject(rc))
 		})
 	}
 }
