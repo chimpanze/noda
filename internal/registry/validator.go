@@ -125,6 +125,12 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 		}
 	}
 
+	// 5. Outcome outputs must be wired (#442): live boot (`noda start`, `noda
+	// dev` initial boot) goes through this function, not just the dry-run
+	// validate path — shared with ValidateStartupDryRun via
+	// validateOutcomeOutputs so the two entry points can never drift.
+	errs = append(errs, validateOutcomeOutputs(rc, nodes)...)
+
 	return errs
 }
 
@@ -317,6 +323,10 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		}
 	}
 
+	// 5. Outcome outputs must be wired (#442). Shared with ValidateStartup so
+	// the two entry points can never drift.
+	errs = append(errs, validateOutcomeOutputs(rc, nodes)...)
+
 	// Pre-compile all expressions and validate static fields
 	for wfName, wf := range rc.Workflows {
 		wfNodes, ok := wf["nodes"].(map[string]any)
@@ -342,6 +352,68 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 		}
 	}
 
+	return errs
+}
+
+// validateOutcomeOutputs checks that every node whose descriptor implements
+// api.OutcomeOutputsProvider has every declared outcome output wired to an
+// outbound edge (#442): a fired output with no outbound edge silently ends
+// the path — ExecuteGraph returns nil, the workflow reports success, HTTP
+// falls back to 202. The engine already fails loudly on an unwired "error"
+// output; this extends the same contract to outputs a descriptor declares as
+// operation outcomes (db.create's "exists", auth.get_user's "not_found",
+// ...). Built here rather than at runtime so validate/editor/MCP AND live
+// boot (ValidateStartup) all reject it before/at deploy — called from both
+// ValidateStartup and ValidateStartupDryRun so the error message and
+// semantics stay identical between the two entry points.
+func validateOutcomeOutputs(rc *config.ResolvedConfig, nodes *NodeRegistry) []error {
+	var errs []error
+	for wfName, wf := range rc.Workflows {
+		wfNodes, ok := wf["nodes"].(map[string]any)
+		if !ok {
+			continue
+		}
+
+		wiredOutputs := make(map[string]map[string]bool) // nodeID → wired output set
+		if edgesRaw, ok := wf["edges"].([]any); ok {
+			for _, rawEdge := range edgesRaw {
+				edgeMap, ok := rawEdge.(map[string]any)
+				if !ok {
+					continue
+				}
+				from, _ := edgeMap["from"].(string)
+				output, _ := edgeMap["output"].(string)
+				if output == "" {
+					output = "success"
+				}
+				if wiredOutputs[from] == nil {
+					wiredOutputs[from] = make(map[string]bool)
+				}
+				wiredOutputs[from][output] = true
+			}
+		}
+		for nodeID, raw := range wfNodes {
+			node, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			nodeType, _ := node["type"].(string)
+			desc, found := nodes.GetDescriptor(nodeType)
+			if !found {
+				continue // unregistered node type: owned by check 2 above
+			}
+			provider, ok := desc.(api.OutcomeOutputsProvider)
+			if !ok {
+				continue
+			}
+			for _, out := range provider.OutcomeOutputs() {
+				if !wiredOutputs[nodeID][out] {
+					errs = append(errs, fmt.Errorf("workflow %q, node %q (%s): outcome output %q has no outbound edge — a fired outcome output with no edge silently ends the path; wire it (e.g. to an error response, or to the same target as \"success\" if the distinction does not matter)",
+						wfName, nodeID, nodeType, out))
+				}
+			}
+		}
+	}
 	return errs
 }
 

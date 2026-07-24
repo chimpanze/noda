@@ -25,6 +25,11 @@
     {
       "from": "emit_assigned",
       "to": "respond_with_event"
+    },
+    {
+      "from": "insert",
+      "output": "exists",
+      "to": "respond_conflict"
     }
   ],
   "id": "create-task",
@@ -84,6 +89,14 @@
         "status": 201
       },
       "type": "response.json"
+    },
+    "respond_conflict": {
+      "config": {
+        "code": "CONFLICT",
+        "message": "a row with one of these unique values already exists",
+        "status": 409
+      },
+      "type": "response.error"
     },
     "respond_with_event": {
       "config": {

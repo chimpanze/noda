@@ -24,7 +24,7 @@ Updates all rows in the specified table that match the `where` conditions, setti
 
 If the update collides with a unique constraint, the node fires `exists` rather than `error`, so a duplicate value can be answered with a field-scoped 409/422 without also catching unrelated database failures. Any other database error fires `error`.
 
-> **Wire `exists` if you care about duplicates.** An output with no outbound edge silently ends that path — the workflow neither continues nor fails. A workflow that wired `error` to catch duplicates must move that edge to `exists`.
+> `exists` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter. A workflow that wired `error` to catch duplicates must move that edge to `exists`.
 
 ## Service Dependencies
 

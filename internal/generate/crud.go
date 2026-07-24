@@ -403,6 +403,16 @@ func generateCreateWorkflow(table, singular string, columns []colInfo, opts CRUD
 	}
 	edges = append(edges, map[string]any{"from": "create", "to": "respond", "output": "success"})
 
+	nodes["conflict"] = map[string]any{
+		"type": "response.error",
+		"config": map[string]any{
+			"status":  409,
+			"code":    "CONFLICT",
+			"message": singular + " already exists",
+		},
+	}
+	edges = append(edges, map[string]any{"from": "create", "to": "conflict", "output": "exists"})
+
 	return map[string]any{
 		"id":    "create-" + singular,
 		"nodes": nodes,
@@ -552,6 +562,16 @@ func generateUpdateWorkflow(table, singular string, columns []colInfo, opts CRUD
 
 	edges = append(edges, map[string]any{"from": "find_one", "to": "update", "output": "success"})
 	edges = append(edges, map[string]any{"from": "update", "to": "respond", "output": "success"})
+
+	nodes["conflict"] = map[string]any{
+		"type": "response.error",
+		"config": map[string]any{
+			"status":  409,
+			"code":    "CONFLICT",
+			"message": singular + " already exists",
+		},
+	}
+	edges = append(edges, map[string]any{"from": "update", "to": "conflict", "output": "exists"})
 
 	return map[string]any{
 		"id":    "update-" + singular,

@@ -343,7 +343,8 @@ Since the route defines `body.schema`, the request body is validated automatical
     }
   },
   "edges": [
-    { "from": "insert", "to": "respond" }
+    { "from": "insert", "to": "respond" },
+    { "from": "insert", "to": "respond", "output": "exists" }
   ]
 }
 ```

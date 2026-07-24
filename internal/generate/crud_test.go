@@ -3,6 +3,7 @@ package generate
 import (
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -256,6 +257,50 @@ func TestGenerateCRUD_ScopeThreadedAndBodyExcluded(t *testing.T) {
 	require.Contains(t, updateProps, "title")
 	if req, ok := updateSchema["required"].([]any); ok {
 		require.NotContains(t, req, "org_id")
+	}
+}
+
+func TestGenerateCRUD_WiresExistsOutcome(t *testing.T) {
+	// #442: generated create/update workflows must wire db.create/db.update's
+	// "exists" outcome output — validation rejects unwired outcome outputs.
+	model := map[string]any{
+		"table": "tasks",
+		"columns": map[string]any{
+			"id":    map[string]any{"type": "uuid", "primary_key": true, "default": "gen_random_uuid()"},
+			"title": map[string]any{"type": "text", "not_null": true},
+		},
+	}
+
+	result := GenerateCRUD(model, CRUDOptions{})
+
+	cases := []struct {
+		wf  string
+		src string
+	}{
+		{"workflows/create-task.json", "create"},
+		{"workflows/update-task.json", "update"},
+	}
+
+	for _, tc := range cases {
+		workflow, ok := result.Files[tc.wf]
+		require.True(t, ok, "missing workflow %s", tc.wf)
+
+		nodes := workflow["nodes"].(map[string]any)
+		conflict, ok := nodes["conflict"].(map[string]any)
+		require.True(t, ok, "%s workflow must have a conflict response node", tc.wf)
+		assert.Equal(t, "response.error", conflict["type"])
+		cfg := conflict["config"].(map[string]any)
+		assert.Equal(t, 409, cfg["status"])
+		assert.Equal(t, "CONFLICT", cfg["code"])
+
+		found := false
+		for _, e := range workflow["edges"].([]any) {
+			em := e.(map[string]any)
+			if em["from"] == tc.src && em["output"] == "exists" && em["to"] == "conflict" {
+				found = true
+			}
+		}
+		assert.True(t, found, "%s workflow must wire %s.exists -> conflict", tc.wf, tc.src)
 	}
 }
 

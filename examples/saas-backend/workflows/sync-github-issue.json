@@ -42,6 +42,10 @@
     "log_unknown": {
       "config": { "level": "info", "message": "Ignoring GitHub issue action: {{ input.action }}" },
       "type": "util.log"
+    },
+    "log_conflict": {
+      "config": { "level": "warn", "message": "unique constraint conflict — row not written" },
+      "type": "util.log"
     }
   },
   "edges": [
@@ -50,6 +54,8 @@
     { "from": "has_project", "output": "then", "to": "create_task" },
     { "from": "has_project", "output": "else", "to": "log_no_project" },
     { "from": "switch_action", "output": "closed", "to": "close_task" },
-    { "from": "switch_action", "output": "default", "to": "log_unknown" }
+    { "from": "switch_action", "output": "default", "to": "log_unknown" },
+    { "from": "create_task", "output": "exists", "to": "log_conflict" },
+    { "from": "close_task", "output": "exists", "to": "log_conflict" }
   ]
 }

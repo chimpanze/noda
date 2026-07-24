@@ -25,11 +25,29 @@
     {
       "from": "log_unknown",
       "to": "respond"
+    },
+    {
+      "from": "update_subscription",
+      "output": "exists",
+      "to": "log_conflict"
+    },
+    {
+      "from": "log_conflict",
+      "to": "ack_conflict"
     }
   ],
   "id": "handle-stripe-webhook",
   "name": "Handle Stripe Webhook",
   "nodes": {
+    "ack_conflict": {
+      "config": {
+        "body": {
+          "received": true
+        },
+        "status": 200
+      },
+      "type": "response.json"
+    },
     "emit_payment": {
       "config": {
         "mode": "stream",
@@ -43,6 +61,13 @@
         "stream": "main-stream"
       },
       "type": "event.emit"
+    },
+    "log_conflict": {
+      "config": {
+        "level": "warn",
+        "message": "stripe webhook: subscription update hit a unique constraint — row not written"
+      },
+      "type": "util.log"
     },
     "log_unknown": {
       "config": {

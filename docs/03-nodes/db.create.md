@@ -21,7 +21,7 @@ Inserts a new record into the specified table using the key-value pairs in `data
 
 If the insert collides with a unique constraint, the node fires `exists` rather than `error`, so a duplicate value can be answered with a field-scoped 409/422 without also catching unrelated database failures. Any other database error fires `error`.
 
-> **Wire `exists` if you care about duplicates.** An output with no outbound edge silently ends that path — the workflow neither continues nor fails.
+> `exists` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
 
 `data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
 

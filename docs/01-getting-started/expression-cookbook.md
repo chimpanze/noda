@@ -457,10 +457,16 @@ Every executed node stores its output in `nodes.<id>`. Use the `"as"` alias for 
   },
   "edges": [
     { "from": "prepare", "to": "create_user", "output": "success" },
-    { "from": "create_user", "to": "respond", "output": "success" }
+    { "from": "create_user", "to": "respond", "output": "success" },
+    { "from": "create_user", "to": "respond", "output": "exists" }
   ]
 }
 ```
+
+`create_user`'s `exists` output (duplicate email) is routed to the same
+`respond` node here since this snippet's focus is hashing, not conflict
+handling — a real registration flow should route it to a distinct `409`
+response instead (see [authentication.md](../04-guides/authentication.md)).
 
 #### Login: Verify the Password and Issue JWT
 

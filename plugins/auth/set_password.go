@@ -45,6 +45,10 @@ func (d *setPasswordDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+// OutcomeOutputs declares "invalid" as an outcome the workflow must wire:
+// an unwired outcome output silently ends the path (#442).
+func (d *setPasswordDescriptor) OutcomeOutputs() []string { return []string{"invalid"} }
+
 type setPasswordExecutor struct{}
 
 func newSetPasswordExecutor(_ map[string]any) api.NodeExecutor { return &setPasswordExecutor{} }

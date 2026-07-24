@@ -57,6 +57,14 @@ Every node's `config` object is validated against the node's schema at two point
           "total": "{{ input.total }}"
         }
       }
+    },
+    "conflict": {
+      "type": "response.error",
+      "config": {
+        "status": 409,
+        "code": "ORDER_EXISTS",
+        "message": "Order already exists"
+      }
     }
   },
   "edges": [
@@ -64,7 +72,28 @@ Every node's `config` object is validated against the node's schema at two point
     {
       "from": "create", "to": "notify", "output": "success",
       "retry": { "attempts": 3, "backoff": "exponential", "delay": "1s" }
-    }
+    },
+    { "from": "create", "to": "conflict", "output": "exists" }
   ]
 }
 ```
+
+### Outcome outputs must be wired
+
+Some outputs report an operation outcome rather than a control-flow branch:
+`exists` on `db.create`/`db.update`/`db.upsert`/`auth.create_user`, `not_found`
+on `auth.get_user`, and `invalid` on `auth.set_password`/`auth.verify_credentials`/
+`auth.consume_token`. A fired output with no outbound edge silently ends that
+execution path, so `noda validate` (and boot) reject a workflow that leaves an
+outcome output unwired:
+
+```
+workflow "create-user", node "insert" (db.create): outcome output "exists" has no
+outbound edge — a fired outcome output with no edge silently ends the path; wire
+it (e.g. to an error response, or to the same target as "success" if the
+distinction does not matter)
+```
+
+Control-flow branches are exempt: leaving `control.if`'s `else`,
+`control.switch`'s `default`, or `control.loop`'s `done` unwired is a normal
+workflow shape.

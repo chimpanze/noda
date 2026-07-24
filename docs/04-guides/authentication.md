@@ -357,10 +357,15 @@ A registration workflow that hashes the password and creates a user:
     { "from": "check_existing", "to": "create_user", "output": "error" },
     { "from": "create_user", "to": "sign_token", "output": "success" },
     { "from": "create_user", "to": "server_error", "output": "error" },
+    { "from": "create_user", "to": "already_exists", "output": "exists" },
     { "from": "sign_token", "to": "respond_success", "output": "success" }
   ]
 }
 ```
+
+`create_user`'s `exists` output covers the race between the `check_existing`
+lookup and the insert (two concurrent registrations for the same email); it
+routes to the same `already_exists` response as the upfront check.
 
 ### Anti-enumeration in the scaffolded flows
 
@@ -579,6 +584,14 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
         "code": "EXCHANGE_FAILED",
         "message": "Failed to exchange authorization code"
       }
+    },
+    "account_conflict": {
+      "type": "response.error",
+      "config": {
+        "status": 409,
+        "code": "ACCOUNT_CONFLICT",
+        "message": "Account already registered with a different provider"
+      }
     }
   },
   "edges": [
@@ -589,6 +602,7 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
     { "from": "exchange_code", "to": "upsert_user", "output": "success" },
     { "from": "exchange_code", "to": "exchange_failed", "output": "error" },
     { "from": "upsert_user", "to": "sign_session_token", "output": "success" },
+    { "from": "upsert_user", "to": "account_conflict", "output": "exists" },
     { "from": "sign_session_token", "to": "redirect_to_app", "output": "success" }
   ]
 }

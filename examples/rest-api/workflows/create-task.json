@@ -28,10 +28,15 @@
         "status": 201,
         "body": "{{ nodes.insert }}"
       }
+    },
+    "respond_conflict": {
+      "type": "response.error",
+      "config": { "status": 409, "code": "CONFLICT", "message": "a row with one of these unique values already exists" }
     }
   },
   "edges": [
     { "from": "validate", "to": "insert" },
-    { "from": "insert", "to": "respond" }
+    { "from": "insert", "to": "respond" },
+    { "from": "insert", "output": "exists", "to": "respond_conflict" }
   ]
 }

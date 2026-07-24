@@ -23,6 +23,17 @@ type NodeOutputSchemaProvider interface {
 	OutputSchema() map[string]any
 }
 
+// OutcomeOutputsProvider is optionally implemented by NodeDescriptor to declare
+// outputs that report an operation outcome the workflow must handle (e.g. a
+// db.create's "exists"). A fired output with no outbound edge silently ends
+// that execution path, so validation rejects a workflow that leaves a declared
+// outcome output unwired (#442). Control-flow branches (control.if's "then"/
+// "else", control.switch's "default", control.loop's "done") are deliberately
+// not outcome outputs: leaving one unwired is a normal workflow shape.
+type OutcomeOutputsProvider interface {
+	OutcomeOutputs() []string
+}
+
 // NodeRegistration pairs a node descriptor with its factory function.
 type NodeRegistration struct {
 	Descriptor NodeDescriptor

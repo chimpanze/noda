@@ -159,6 +159,10 @@ func (d *consumeTokenDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+// OutcomeOutputs declares "invalid" as an outcome the workflow must wire:
+// an unwired outcome output silently ends the path (#442).
+func (d *consumeTokenDescriptor) OutcomeOutputs() []string { return []string{"invalid"} }
+
 type consumeTokenExecutor struct{}
 
 func newConsumeTokenExecutor(_ map[string]any) api.NodeExecutor { return &consumeTokenExecutor{} }

@@ -134,6 +134,20 @@ func (d *GreetDescriptor) ConfigSchema() map[string]any {
 }
 ```
 
+### Declaring outcome outputs
+
+If a node has an output that reports an operation outcome the workflow must
+handle (a "not found", a "duplicate", an "invalid input" port), implement the
+optional `api.OutcomeOutputsProvider` on the descriptor:
+
+```go
+func (d *myDescriptor) OutcomeOutputs() []string { return []string{"not_found"} }
+```
+
+Validation then rejects any workflow that leaves that output unwired. Do not
+declare control-flow branches (an `if`'s `else`, a switch's `default`) — leaving
+those unwired is a legitimate workflow shape.
+
 ## Node Factory and Executor
 
 The **factory** creates a node executor from the node's config. Its signature is `func(config map[string]any) api.NodeExecutor` — it cannot return an error, so config validation belongs in `Execute` (return an error there), not the factory.

@@ -15,6 +15,16 @@
     {
       "from": "insert_member",
       "to": "respond"
+    },
+    {
+      "from": "insert_workspace",
+      "output": "exists",
+      "to": "respond_conflict"
+    },
+    {
+      "from": "insert_member",
+      "output": "exists",
+      "to": "respond_conflict"
     }
   ],
   "id": "create-workspace",
@@ -64,6 +74,14 @@
         "status": 201
       },
       "type": "response.json"
+    },
+    "respond_conflict": {
+      "config": {
+        "code": "CONFLICT",
+        "message": "a row with one of these unique values already exists",
+        "status": 409
+      },
+      "type": "response.error"
     },
     "validate": {
       "config": {

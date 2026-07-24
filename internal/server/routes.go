@@ -453,7 +453,21 @@ func (s *Server) awaitWorkflowResponse(c fiber.Ctx, responseCh chan *api.HTTPRes
 		}
 	}
 	writeAccepted := func() error {
-		// No response node → 202 Accepted
+		// No response node fired. For a fire-and-forget route that's the
+		// contract: 202. But a route that declares response schemas and
+		// produced none is contradicting its own contract — surface it as a
+		// server error rather than a 2xx that reads as success (#442).
+		if respValidator != nil {
+			s.logger.Error("route declares response schemas but the workflow produced no response",
+				"route", routeID, "trace_id", traceID)
+			return writeErrorResponse(c, 500, ErrorResponse{
+				Error: api.ErrorData{
+					Code:    "INTERNAL_ERROR",
+					Message: "route declares responses but the workflow produced none",
+					TraceID: traceID,
+				},
+			})
+		}
 		return c.Status(fiber.StatusAccepted).JSON(map[string]any{
 			"status":   "accepted",
 			"trace_id": traceID,

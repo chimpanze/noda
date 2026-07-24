@@ -366,7 +366,8 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     { "from": "route", "to": "save_message", "output": "message" },
     { "from": "route", "to": "broadcast_typing", "output": "typing" },
     { "from": "route", "to": "log_unknown", "output": "default" },
-    { "from": "save_message", "to": "broadcast_message", "output": "success" }
+    { "from": "save_message", "to": "broadcast_message", "output": "success" },
+    { "from": "save_message", "to": "broadcast_message", "output": "exists" }
   ]
 }
 ```
