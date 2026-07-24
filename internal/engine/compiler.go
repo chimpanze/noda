@@ -14,10 +14,26 @@ import (
 type JoinType int
 
 const (
-	JoinNone JoinType = iota // single inbound edge or entry node
-	JoinAND                  // wait for ALL inbound edges (parallel branches)
-	JoinOR                   // wait for whichever fires (conditional branches)
+	JoinNone  JoinType = iota // single inbound edge or entry node
+	JoinAND                   // wait for ALL inbound edges (parallel branches)
+	JoinOR                    // wait for whichever fires (conditional branches)
+	JoinMixed                 // both: some legs are mutually exclusive, others concurrent
 )
+
+func (j JoinType) String() string {
+	switch j {
+	case JoinNone:
+		return "none"
+	case JoinAND:
+		return "AND-join"
+	case JoinOR:
+		return "OR-join"
+	case JoinMixed:
+		return "mixed join"
+	default:
+		return "unknown"
+	}
+}
 
 // EdgeConfig represents a connection between two nodes.
 type EdgeConfig struct {
@@ -96,8 +112,20 @@ type CompiledGraph struct {
 	// Dependency count: how many inbound edges before a node can run
 	DepCount map[string]int
 
-	// Join type per node
+	// Join type per node. Derived from JoinGroups; kept as a readable summary
+	// for diagnostics and error messages.
 	JoinTypes map[string]JoinType
+
+	// JoinGroups partitions each node's inbound source nodes into
+	// mutually-exclusive groups: nodeID → sourceNodeID → group index.
+	// Sources in the same group descend from different outputs of a common
+	// conditional ancestor, so exactly one of them delivers an arrival.
+	// Sources in different groups run concurrently and all deliver.
+	JoinGroups map[string]map[string]int
+
+	// JoinGroupCount is the number of distinct groups in JoinGroups[nodeID] —
+	// i.e. how many arrivals the node must collect before it runs.
+	JoinGroupCount map[string]int
 }
 
 // NodeOutputResolver resolves the valid outputs for a node type.
@@ -134,6 +162,9 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		Reverse:    make(map[string][]string),
 		DepCount:   make(map[string]int),
 		JoinTypes:  make(map[string]JoinType),
+
+		JoinGroups:     make(map[string]map[string]int),
+		JoinGroupCount: make(map[string]int),
 	}
 
 	// Parse workflow timeout
@@ -322,116 +353,165 @@ func validateAliases(g *CompiledGraph) error {
 	return nil
 }
 
-// computeJoinTypes determines AND-join vs OR-join for each node.
-// This runs at compile time and the result is cached, so the O(n^2) worst case
-// from hasCommonConditionalAncestor is acceptable for typical workflow sizes.
+// computeJoinTypes partitions every node's inbound legs into mutually-exclusive
+// groups and records how many arrivals the node must collect before it runs.
+// This generalizes the older AND/OR split: a parallel join is N groups of one
+// leg, a conditional join is one group of N legs, and a join fed by both kinds
+// at once (JoinMixed) falls out of the same computation rather than having to
+// be forced into one bucket or the other.
+//
+// This runs at compile time and the result is cached, so the pairwise
+// exclusivity check is acceptable for typical workflow sizes.
 func computeJoinTypes(g *CompiledGraph) {
 	for id := range g.Nodes {
 		inbound := g.Reverse[id]
-		if len(inbound) <= 1 {
+		if len(inbound) == 0 {
 			g.JoinTypes[id] = JoinNone
+			g.JoinGroupCount[id] = 0
 			continue
 		}
 
-		// Check if all inbound edges come from different outputs of the same node
-		// (conditional split → OR-join)
-		if allFromSameNode(inbound) {
-			g.JoinTypes[id] = JoinOR
-		} else {
-			// Check if inbound edges trace back to a common conditional ancestor
-			if hasCommonConditionalAncestor(g, id, inbound) {
-				g.JoinTypes[id] = JoinOR
-			} else {
-				g.JoinTypes[id] = JoinAND
+		// Distinct sources: two edges from the same node (e.g. a conditional
+		// wiring both "then" and "else" straight to this node) are one leg,
+		// because only one of them can ever fire.
+		sources := slices.Clone(inbound)
+		slices.Sort(sources)
+		sources = slices.Compact(sources)
+
+		// Union sources that are mutually exclusive. Each resulting class is
+		// a group that delivers exactly one arrival.
+		uf := newUnionFind(sources)
+		for i := 0; i < len(sources); i++ {
+			for k := i + 1; k < len(sources); k++ {
+				if mutuallyExclusive(g, id, sources[i], sources[k]) {
+					uf.union(sources[i], sources[k])
+				}
 			}
 		}
-	}
-}
 
-// allFromSameNode checks if all source nodes are the same node.
-func allFromSameNode(sources []string) bool {
-	if len(sources) == 0 {
-		return false
-	}
-	first := sources[0]
-	for _, s := range sources[1:] {
-		if s != first {
-			return false
+		groups := make(map[string]int, len(sources))
+		index := make(map[string]int)
+		for _, src := range sources {
+			root := uf.find(src)
+			idx, ok := index[root]
+			if !ok {
+				idx = len(index)
+				index[root] = idx
+			}
+			groups[src] = idx
+		}
+
+		g.JoinGroups[id] = groups
+		g.JoinGroupCount[id] = len(index)
+
+		switch {
+		case len(sources) == 1:
+			g.JoinTypes[id] = JoinNone
+		case len(index) == 1:
+			g.JoinTypes[id] = JoinOR
+		case len(index) == len(sources):
+			g.JoinTypes[id] = JoinAND
+		default:
+			g.JoinTypes[id] = JoinMixed
 		}
 	}
-	return true
 }
 
-// hasCommonConditionalAncestor traces inbound edges back to find if they share
-// a common conditional ancestor (meaning they're mutually exclusive branches).
-func hasCommonConditionalAncestor(g *CompiledGraph, joinID string, inbound []string) bool {
-	// For each inbound source, trace ancestors
-	ancestorSets := make([]map[string]bool, len(inbound))
-	for i, src := range inbound {
-		ancestorSets[i] = traceAncestors(g, src)
-		ancestorSets[i][src] = true
-	}
+// unionFind is a tiny disjoint-set over node IDs.
+type unionFind struct{ parent map[string]string }
 
-	// Find common ancestors
-	common := make(map[string]bool)
-	for ancestor := range ancestorSets[0] {
-		isCommon := true
-		for _, set := range ancestorSets[1:] {
-			if !set[ancestor] {
-				isCommon = false
+func newUnionFind(ids []string) *unionFind {
+	p := make(map[string]string, len(ids))
+	for _, id := range ids {
+		p[id] = id
+	}
+	return &unionFind{parent: p}
+}
+
+func (u *unionFind) find(x string) string {
+	for u.parent[x] != x {
+		u.parent[x] = u.parent[u.parent[x]] // path halving
+		x = u.parent[x]
+	}
+	return x
+}
+
+func (u *unionFind) union(a, b string) {
+	ra, rb := u.find(a), u.find(b)
+	if ra != rb {
+		u.parent[rb] = ra
+	}
+}
+
+// mutuallyExclusive reports whether two inbound sources of joinID can never
+// both deliver an arrival, because they descend from different outputs of a
+// common conditional ancestor. A node fires exactly one of its outputs per
+// execution, so legs under different outputs are exclusive.
+func mutuallyExclusive(g *CompiledGraph, joinID, srcA, srcB string) bool {
+	ancA := traceAncestors(g, srcA)
+	ancA[srcA] = true
+	ancB := traceAncestors(g, srcB)
+	ancB[srcB] = true
+
+	for ancestor := range ancA {
+		if !ancB[ancestor] {
+			continue
+		}
+		// Only a node with more than one distinct output can split control.
+		if len(g.Adjacency[ancestor]) <= 1 {
+			continue
+		}
+		outsA := descendedOutputs(g, ancestor, joinID, srcA)
+		outsB := descendedOutputs(g, ancestor, joinID, srcB)
+		if len(outsA) == 0 || len(outsB) == 0 {
+			continue
+		}
+		// Disjoint output sets → the two legs are on different branches.
+		// Overlapping sets mean at least one leg is reachable from an output
+		// the other also uses, so we cannot prove exclusivity; stay conservative
+		// and treat them as concurrent.
+		disjoint := true
+		for o := range outsA {
+			if outsB[o] {
+				disjoint = false
 				break
 			}
 		}
-		if isCommon {
-			common[ancestor] = true
+		if disjoint {
+			return true
 		}
 	}
-
-	// Check if any common ancestor is a conditional (has multiple distinct output edges)
-	for ancestor := range common {
-		outputs := g.Adjacency[ancestor]
-		if len(outputs) > 1 {
-			// Check if the inbound nodes are reached through different outputs
-			reachedThrough := make(map[string]map[string]bool) // src → set of output names
-			for _, src := range inbound {
-				reachedThrough[src] = make(map[string]bool)
-				names := make([]string, 0, len(outputs))
-				for n := range outputs {
-					names = append(names, n)
-				}
-				sort.Strings(names)
-				for _, outputName := range names {
-					// A leg that is a direct edge from the conditional to the
-					// join descends from the output that edge carries. It is
-					// not reachable from that output (a node is not reachable
-					// from itself), so the reachability scan below would miss
-					// it and collapse the diamond to an AND-join, which then
-					// never fires — only one mutually exclusive leg ever runs.
-					if src == ancestor {
-						if slices.Contains(outputs[outputName], joinID) {
-							reachedThrough[src][outputName] = true
-						}
-						continue
-					}
-					if reachableFrom(g, outputs[outputName], src) {
-						reachedThrough[src][outputName] = true
-					}
-				}
-			}
-			// OR-join iff the inbound sources are reached through different outputs.
-			allOutputs := make(map[string]bool)
-			for _, set := range reachedThrough {
-				for o := range set {
-					allOutputs[o] = true
-				}
-			}
-			if len(allOutputs) > 1 {
-				return true
-			}
-		}
-	}
-
 	return false
+}
+
+// descendedOutputs returns the set of ancestor outputs that src's leg into
+// joinID descends from.
+func descendedOutputs(g *CompiledGraph, ancestor, joinID, src string) map[string]bool {
+	outputs := g.Adjacency[ancestor]
+	names := make([]string, 0, len(outputs))
+	for n := range outputs {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+
+	result := make(map[string]bool)
+	for _, outputName := range names {
+		// A leg that is a direct edge from the conditional to the join
+		// descends from the output that edge carries. It is not reachable
+		// from that output (a node is not reachable from itself), so the
+		// reachability scan below would miss it and collapse the diamond
+		// into a join that never fires (#433).
+		if src == ancestor {
+			if slices.Contains(outputs[outputName], joinID) {
+				result[outputName] = true
+			}
+			continue
+		}
+		if reachableFrom(g, outputs[outputName], src) {
+			result[outputName] = true
+		}
+	}
+	return result
 }
 
 // traceAncestors returns all ancestors of a node via BFS.
