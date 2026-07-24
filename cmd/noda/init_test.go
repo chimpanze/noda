@@ -58,7 +58,7 @@ func TestScaffoldProject_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
 	require.Len(t, secretA, 64)
 	require.Len(t, secretB, 64)
 	require.NotEqual(t, secretA, secretB, "each init must generate a unique secret")
-	require.NotContains(t, string(envA), "replace-with-at-least-32-bytes")
+	require.NotContains(t, string(envA), "replace-with-a-secret-of-at-least-32-bytes")
 
 	// Other lines from .env.example must survive untouched in .env.
 	require.Contains(t, string(envA), "DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable")
