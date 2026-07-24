@@ -125,6 +125,12 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 		}
 	}
 
+	// 5. Outcome outputs must be wired (#442): live boot (`noda start`, `noda
+	// dev` initial boot) goes through this function, not just the dry-run
+	// validate path — shared with ValidateStartupDryRun via
+	// validateOutcomeOutputs so the two entry points can never drift.
+	errs = append(errs, validateOutcomeOutputs(rc, nodes)...)
+
 	return errs
 }
 
@@ -315,14 +321,59 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				}
 			}
 		}
+	}
 
-		// 5. Outcome outputs must be wired (#442): a fired output with no
-		// outbound edge silently ends the path — ExecuteGraph returns nil, the
-		// workflow reports success, HTTP falls back to 202. The engine already
-		// fails loudly on an unwired "error" output; this extends the same
-		// contract to outputs a descriptor declares as operation outcomes
-		// (db.create's "exists", auth.get_user's "not_found", ...). Built here
-		// rather than at runtime so validate/editor/MCP reject it before deploy.
+	// 5. Outcome outputs must be wired (#442). Shared with ValidateStartup so
+	// the two entry points can never drift.
+	errs = append(errs, validateOutcomeOutputs(rc, nodes)...)
+
+	// Pre-compile all expressions and validate static fields
+	for wfName, wf := range rc.Workflows {
+		wfNodes, ok := wf["nodes"].(map[string]any)
+		if !ok {
+			continue
+		}
+		for nodeID, raw := range wfNodes {
+			node, ok := raw.(map[string]any)
+			if !ok {
+				continue
+			}
+			nodeType, _ := node["type"].(string)
+			if cfg, ok := node["config"].(map[string]any); ok {
+				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
+					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
+				}
+				if fields, ok := staticFieldsByNodeType[nodeType]; ok {
+					for _, sfErr := range expr.ValidateStaticFields(cfg, fields) {
+						errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr))
+					}
+				}
+			}
+		}
+	}
+
+	return errs
+}
+
+// validateOutcomeOutputs checks that every node whose descriptor implements
+// api.OutcomeOutputsProvider has every declared outcome output wired to an
+// outbound edge (#442): a fired output with no outbound edge silently ends
+// the path — ExecuteGraph returns nil, the workflow reports success, HTTP
+// falls back to 202. The engine already fails loudly on an unwired "error"
+// output; this extends the same contract to outputs a descriptor declares as
+// operation outcomes (db.create's "exists", auth.get_user's "not_found",
+// ...). Built here rather than at runtime so validate/editor/MCP AND live
+// boot (ValidateStartup) all reject it before/at deploy — called from both
+// ValidateStartup and ValidateStartupDryRun so the error message and
+// semantics stay identical between the two entry points.
+func validateOutcomeOutputs(rc *config.ResolvedConfig, nodes *NodeRegistry) []error {
+	var errs []error
+	for wfName, wf := range rc.Workflows {
+		wfNodes, ok := wf["nodes"].(map[string]any)
+		if !ok {
+			continue
+		}
+
 		wiredOutputs := make(map[string]map[string]bool) // nodeID → wired output set
 		if edgesRaw, ok := wf["edges"].([]any); ok {
 			for _, rawEdge := range edgesRaw {
@@ -363,32 +414,6 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			}
 		}
 	}
-
-	// Pre-compile all expressions and validate static fields
-	for wfName, wf := range rc.Workflows {
-		wfNodes, ok := wf["nodes"].(map[string]any)
-		if !ok {
-			continue
-		}
-		for nodeID, raw := range wfNodes {
-			node, ok := raw.(map[string]any)
-			if !ok {
-				continue
-			}
-			nodeType, _ := node["type"].(string)
-			if cfg, ok := node["config"].(map[string]any); ok {
-				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
-				}
-				if fields, ok := staticFieldsByNodeType[nodeType]; ok {
-					for _, sfErr := range expr.ValidateStaticFields(cfg, fields) {
-						errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr))
-					}
-				}
-			}
-		}
-	}
-
 	return errs
 }
 

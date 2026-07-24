@@ -160,7 +160,8 @@ A 3-node workflow that creates a user and returns the result:
   },
   "edges": [
     { "from": "generate_id", "to": "create", "output": "success" },
-    { "from": "create", "to": "respond", "output": "success" }
+    { "from": "create", "to": "respond", "output": "success" },
+    { "from": "create", "to": "respond", "output": "exists" }
   ]
 }
 ```

@@ -266,7 +266,8 @@ The client receives the token and the LiveKit URL, then connects directly to Liv
   },
   "edges": [
     { "from": "record", "to": "save_egress" },
-    { "from": "save_egress", "to": "respond" }
+    { "from": "save_egress", "to": "respond" },
+    { "from": "save_egress", "to": "respond", "output": "exists" }
   ]
 }
 ```
@@ -367,6 +368,7 @@ LiveKit sends events when rooms start, participants join/leave, recordings finis
     { "from": "log_join", "to": "respond_ok" },
     { "from": "log_leave", "to": "respond_ok" },
     { "from": "update_recording", "to": "respond_ok" },
+    { "from": "update_recording", "to": "respond_ok", "output": "exists" },
     { "from": "log_other", "to": "respond_ok" }
   ]
 }

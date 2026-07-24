@@ -43,12 +43,13 @@ Route errors to a dedicated response node using the `error` output port. Every n
   },
   "edges": [
     { "from": "create", "to": "respond", "output": "success" },
-    { "from": "create", "to": "error_response", "output": "error" }
+    { "from": "create", "to": "error_response", "output": "error" },
+    { "from": "create", "to": "respond", "output": "exists" }
   ]
 }
 ```
 
-**Key point:** If a node fires `error` and no error edge exists, the entire workflow fails with an unhandled error. Always add error edges for nodes that can fail (database writes, HTTP calls, cache operations).
+**Key point:** If a node fires `error` and no error edge exists, the entire workflow fails with an unhandled error. Always add error edges for nodes that can fail (database writes, HTTP calls, cache operations). `db.create`'s `exists` output is a third case (a unique-constraint conflict, not a database error) and must also be wired — `noda validate`/boot reject a workflow that leaves it unwired; here it's routed to the same success response since this pattern isn't about that distinction. See [Outcome outputs must be wired](../02-config/workflows.md#outcome-outputs-must-be-wired).
 
 ### Retry Configuration
 
@@ -674,12 +675,20 @@ Use `control.switch` when there are more than two branches. Define case values a
     { "from": "route", "to": "handle_comment", "output": "comment_added" },
     { "from": "route", "to": "log_unknown", "output": "default" },
     { "from": "handle_opened", "to": "respond", "output": "success" },
+    { "from": "handle_opened", "to": "respond", "output": "exists" },
     { "from": "handle_closed", "to": "respond", "output": "success" },
+    { "from": "handle_closed", "to": "respond", "output": "exists" },
     { "from": "handle_comment", "to": "respond", "output": "success" },
+    { "from": "handle_comment", "to": "respond", "output": "exists" },
     { "from": "log_unknown", "to": "respond", "output": "success" }
   ]
 }
 ```
+
+`handle_opened`, `handle_closed`, and `handle_comment` each declare an `exists`
+outcome output (a unique-constraint conflict); routed here to the same
+`respond` node as `success` since this pattern is about switch routing, not
+conflict handling.
 
 **Key point:** The `respond` node has four inbound edges from four mutually exclusive branches. The engine detects this as an OR-join -- only one branch fires, and `respond` executes as soon as that branch completes. No waiting for the other (unreachable) branches.
 
@@ -736,7 +745,8 @@ Use `workflow.run` to call a shared workflow from multiple parents. Extract a su
   "edges": [
     { "from": "validate_inventory", "to": "create", "output": "success" },
     { "from": "validate_inventory", "to": "out_of_stock", "output": "error" },
-    { "from": "create", "to": "respond", "output": "success" }
+    { "from": "create", "to": "respond", "output": "success" },
+    { "from": "create", "to": "respond", "output": "exists" }
   ]
 }
 ```

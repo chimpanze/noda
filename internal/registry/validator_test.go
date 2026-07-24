@@ -814,6 +814,56 @@ func setupOutcomeValidation(t *testing.T) (*PluginRegistry, *NodeRegistry) {
 	return plugins, nodes
 }
 
+// TestValidateStartup_OutcomeOutput_UnwiredRejected guards against the live
+// boot path (ValidateStartup, called from bootstrap.go when DryRun:false)
+// missing check 5 entirely: a config `noda validate`/dry-run rejects for an
+// unwired outcome output must ALSO be rejected by `noda start`/`noda dev`,
+// not boot cleanly. Mirrors TestValidateStartupDryRun_OutcomeOutput_UnwiredRejected.
+func TestValidateStartup_OutcomeOutput_UnwiredRejected(t *testing.T) {
+	plugins, nodes := setupOutcomeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"insert": edgeWorkflowNode("db.create", nil),
+					"next":   edgeWorkflowNode("db.findOne", nil),
+				},
+				"edges": []any{edge("insert", "next", "success")},
+			},
+		},
+	}
+
+	errs := ValidateStartup(rc, plugins, nil, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `workflow "wf1", node "insert" (db.create): outcome output "exists" has no outbound edge`)
+}
+
+// TestValidateStartup_OutcomeOutput_WiredAccepted is the live-boot-path
+// counterpart of TestValidateStartupDryRun_OutcomeOutput_WiredAccepted: once
+// the outcome output is wired, ValidateStartup must not reject it.
+func TestValidateStartup_OutcomeOutput_WiredAccepted(t *testing.T) {
+	plugins, nodes := setupOutcomeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"insert": edgeWorkflowNode("db.create", nil),
+					"next":   edgeWorkflowNode("db.findOne", nil),
+				},
+				"edges": []any{
+					edge("insert", "next", "success"),
+					edge("insert", "next", "exists"),
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartup(rc, plugins, nil, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
 func TestValidateStartupDryRun_OutcomeOutput_UnwiredRejected(t *testing.T) {
 	plugins, nodes := setupOutcomeValidation(t)
 

@@ -165,6 +165,7 @@ A REST route persists a message, then broadcasts it to everyone subscribed to th
   },
   "edges": [
     { "from": "store", "to": "broadcast", "output": "success" },
+    { "from": "store", "to": "broadcast", "output": "exists" },
     { "from": "broadcast", "to": "respond", "output": "success" }
   ]
 }

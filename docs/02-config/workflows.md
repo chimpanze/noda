@@ -57,6 +57,14 @@ Every node's `config` object is validated against the node's schema at two point
           "total": "{{ input.total }}"
         }
       }
+    },
+    "conflict": {
+      "type": "response.error",
+      "config": {
+        "status": 409,
+        "code": "ORDER_EXISTS",
+        "message": "Order already exists"
+      }
     }
   },
   "edges": [
@@ -64,7 +72,8 @@ Every node's `config` object is validated against the node's schema at two point
     {
       "from": "create", "to": "notify", "output": "success",
       "retry": { "attempts": 3, "backoff": "exponential", "delay": "1s" }
-    }
+    },
+    { "from": "create", "to": "conflict", "output": "exists" }
   ]
 }
 ```
