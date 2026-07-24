@@ -364,7 +364,7 @@ func allFromSameNode(sources []string) bool {
 
 // hasCommonConditionalAncestor traces inbound edges back to find if they share
 // a common conditional ancestor (meaning they're mutually exclusive branches).
-func hasCommonConditionalAncestor(g *CompiledGraph, _ string, inbound []string) bool {
+func hasCommonConditionalAncestor(g *CompiledGraph, joinID string, inbound []string) bool {
 	// For each inbound source, trace ancestors
 	ancestorSets := make([]map[string]bool, len(inbound))
 	for i, src := range inbound {
@@ -401,6 +401,18 @@ func hasCommonConditionalAncestor(g *CompiledGraph, _ string, inbound []string) 
 				}
 				sort.Strings(names)
 				for _, outputName := range names {
+					// A leg that is a direct edge from the conditional to the
+					// join descends from the output that edge carries. It is
+					// not reachable from that output (a node is not reachable
+					// from itself), so the reachability scan below would miss
+					// it and collapse the diamond to an AND-join, which then
+					// never fires — only one mutually exclusive leg ever runs.
+					if src == ancestor {
+						if slices.Contains(outputs[outputName], joinID) {
+							reachedThrough[src][outputName] = true
+						}
+						continue
+					}
 					if reachableFrom(g, outputs[outputName], src) {
 						reachedThrough[src][outputName] = true
 					}
