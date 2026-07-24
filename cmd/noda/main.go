@@ -175,6 +175,13 @@ func newTestCmd() *cobra.Command {
 				return fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 			}
 
+			// The same startup validation `noda validate` runs. Without it a
+			// test run executes workflows that validate and boot both reject,
+			// so green tests would not imply the project starts (#444).
+			if err := validateProject(rc); err != nil {
+				return err
+			}
+
 			// Load test suites
 			suites, err := nodatesting.LoadTests(rc)
 			if err != nil {
