@@ -1,0 +1,11 @@
+{
+  "id": "get-article",
+  "method": "GET",
+  "path": "/api/articles/:slug",
+  "trigger": {
+    "workflow": "get-article",
+    "input": {
+      "slug": "{{ params.slug }}"
+    }
+  }
+}

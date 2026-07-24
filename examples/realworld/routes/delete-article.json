@@ -1,0 +1,13 @@
+{
+  "id": "delete-article",
+  "method": "DELETE",
+  "path": "/api/articles/:slug",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "delete-article",
+    "input": {
+      "user_id": "{{ auth.sub }}",
+      "slug": "{{ params.slug }}"
+    }
+  }
+}

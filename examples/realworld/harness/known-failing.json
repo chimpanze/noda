@@ -1,0 +1,18 @@
+{
+  "_comment": "Hurl entries known to fail because of a documented Noda gap. Each key is a stable identifier from the Hurl report (see internal/testing/realworld). Update ONLY alongside a FINDINGS.md row + a GitHub issue. NOTE: the key is position-based (entry N / line L), so a GREEN gap only guarantees the entry still fails — not that it fails for the SAME reason; the gate logs the live assert message as 'known-gap ...', so scan CI output if a gap's root cause might have shifted.",
+  "gaps": [
+    "errors_articles.hurl :: entry 1 (line 2)",
+    "errors_auth.hurl :: entry 10 (line 116)",
+    "errors_comments.hurl :: entry 1 (line 2)",
+    "errors_profiles.hurl :: entry 2 (line 8)",
+    "favorites.hurl :: entry 4 (line 45)"
+  ],
+  "_issues": {
+    "_comment": "gap key -> chimpanze/noda issue number tracking the underlying Noda limitation. See examples/realworld/FINDINGS.md for the full writeup.",
+    "errors_articles.hurl :: entry 1 (line 2)": 435,
+    "errors_auth.hurl :: entry 10 (line 116)": 435,
+    "errors_comments.hurl :: entry 1 (line 2)": 435,
+    "errors_profiles.hurl :: entry 2 (line 8)": 435,
+    "favorites.hurl :: entry 4 (line 45)": 434
+  }
+}

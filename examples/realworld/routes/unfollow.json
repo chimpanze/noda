@@ -1,0 +1,13 @@
+{
+  "id": "unfollow",
+  "method": "DELETE",
+  "path": "/api/profiles/:username/follow",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "unfollow",
+    "input": {
+      "follower_id": "{{ auth.sub }}",
+      "username": "{{ params.username }}"
+    }
+  }
+}

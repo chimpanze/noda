@@ -1,0 +1,13 @@
+{
+  "type": "object",
+  "required": ["title", "description", "body"],
+  "properties": {
+    "title": { "type": "string", "minLength": 1 },
+    "description": { "type": "string", "minLength": 1 },
+    "body": { "type": "string", "minLength": 1 },
+    "tagList": {
+      "type": ["array", "null"],
+      "items": { "type": "string" }
+    }
+  }
+}

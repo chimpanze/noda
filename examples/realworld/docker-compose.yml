@@ -1,0 +1,33 @@
+services:
+  noda:
+    build: ../..
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://noda:noda@postgres:5432/realworld?sslmode=disable
+      JWT_SECRET: test-secret-please-change-0123456789abcdef
+    volumes:
+      - .:/app/config
+    command: ["start", "--config", "/app/config", "--server"]
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: noda
+      POSTGRES_PASSWORD: noda
+      POSTGRES_DB: realworld
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noda -d realworld"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

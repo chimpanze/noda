@@ -1,0 +1,11 @@
+{
+  "id": "get-profile",
+  "method": "GET",
+  "path": "/api/profiles/:username",
+  "trigger": {
+    "workflow": "get-profile",
+    "input": {
+      "username": "{{ params.username }}"
+    }
+  }
+}

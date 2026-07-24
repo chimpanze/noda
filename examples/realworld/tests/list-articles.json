@@ -1,0 +1,89 @@
+{
+  "id": "list-articles",
+  "workflow": "list-articles",
+  "tests": [
+    {
+      "name": "lists articles with default paging",
+      "input": {
+        "tag": "",
+        "author": "",
+        "favorited": "",
+        "limit": "20",
+        "offset": "0"
+      },
+      "mocks": {
+        "list": {
+          "output": [
+            {
+              "slug": "how-to-noda-1",
+              "title": "How to Noda",
+              "description": "A short guide",
+              "body": "Body text",
+              "created_at": "2026-01-01T00:00:00Z",
+              "updated_at": "2026-01-01T00:00:00Z",
+              "author_id": "u1",
+              "tag_list": "[\"dragons\",\"training\"]",
+              "favorites_count": 2,
+              "favorited": false,
+              "username": "jake",
+              "bio": "",
+              "image": "",
+              "following": false
+            },
+            {
+              "slug": "second-article-2",
+              "title": "Second Article",
+              "description": "Another guide",
+              "body": "More body text",
+              "created_at": "2026-01-02T00:00:00Z",
+              "updated_at": "2026-01-02T00:00:00Z",
+              "author_id": "u2",
+              "tag_list": "[]",
+              "favorites_count": 0,
+              "favorited": false,
+              "username": "jane",
+              "bio": "",
+              "image": "",
+              "following": false
+            }
+          ]
+        },
+        "count": {
+          "output": [{ "count": 2 }]
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200,
+          "respond.body.articlesCount": 2
+        }
+      }
+    },
+    {
+      "name": "filters return an empty page",
+      "input": {
+        "tag": "unused-tag",
+        "author": "",
+        "favorited": "",
+        "limit": "20",
+        "offset": "0"
+      },
+      "mocks": {
+        "list": {
+          "output": []
+        },
+        "count": {
+          "output": [{ "count": 0 }]
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200,
+          "respond.body.articlesCount": 0
+        }
+      }
+    }
+  ]
+}

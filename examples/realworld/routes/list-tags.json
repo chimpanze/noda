@@ -1,0 +1,9 @@
+{
+  "id": "list-tags",
+  "method": "GET",
+  "path": "/api/tags",
+  "trigger": {
+    "workflow": "list-tags",
+    "input": {}
+  }
+}

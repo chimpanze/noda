@@ -1,0 +1,79 @@
+{
+  "id": "add-comment",
+  "name": "Add Comment",
+  "description": "Author profile for the response is resolved from the caller's own auth.sub — the caller's own `following` toward themselves is therefore always false (no self-follow row exists), which matches RealWorld's expectation for a freshly-posted comment.",
+  "nodes": {
+    "check_body_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.body != nil && input.body != '' }}" }
+    },
+    "respond_body_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "body": ["can't be blank"] } } }
+    },
+    "find_article": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id FROM articles WHERE slug = $1",
+        "params": ["{{ input.slug }}"]
+      }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.find_article) > 0 }}" }
+    },
+    "respond_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "article": ["not found"] } }
+      }
+    },
+    "insert_comment": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "INSERT INTO comments(article_id, author_id, body) VALUES ($1,$2,$3) RETURNING id, created_at, updated_at",
+        "params": ["{{ nodes.find_article[0].id }}", "{{ input.author_id }}", "{{ input.body }}"]
+      }
+    },
+    "author": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT metadata->>'username' AS username, metadata->>'bio' AS bio, metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $2 AND fo.followee_id = $1) AS following FROM auth_users WHERE id = $1",
+        "params": ["{{ input.author_id }}", "{{ input.author_id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "comment": {
+            "id": "{{ nodes.insert_comment[0].id }}",
+            "createdAt": "{{ nodes.insert_comment[0].created_at }}",
+            "updatedAt": "{{ nodes.insert_comment[0].updated_at }}",
+            "body": "{{ input.body }}",
+            "author": {
+              "username": "{{ nodes.author[0].username }}",
+              "bio": "{{ nodes.author[0].bio }}",
+              "image": "{{ nodes.author[0].image }}",
+              "following": "{{ nodes.author[0].following }}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "check_body_blank", "output": "then", "to": "find_article" },
+    { "from": "check_body_blank", "output": "else", "to": "respond_body_blank" },
+    { "from": "find_article", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "insert_comment" },
+    { "from": "check_found", "output": "else", "to": "respond_not_found" },
+    { "from": "insert_comment", "to": "author" },
+    { "from": "author", "to": "respond" }
+  ]
+}

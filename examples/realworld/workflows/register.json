@@ -1,0 +1,119 @@
+{
+  "id": "register",
+  "name": "Register",
+  "description": "Field-specific blank checks (username/email/password, each its own control.if) plus explicit pre-checks for username/email uniqueness replace a single transform.validate: the RealWorld conformance suite asserts `errors.<field>[0]` for each distinct blank field and a 409 `errors.<field>[0] == \"has already been taken\"` for each distinct duplicate field, which a single flattened validation-error string (transform.validate's `nodes.X.error`) cannot express, and auth.create_user's `exists` output doesn't say which of email/username collided. auth_users has no DB-level uniqueness on metadata->>'username' (migration 0004 adds one) so the pre-check is load-bearing, not just a nicer error message; `create`'s own `exists` branch is kept as a rare TOCTOU backstop between the pre-checks and the insert.",
+  "nodes": {
+    "check_username_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.username != nil && input.username != '' }}" }
+    },
+    "respond_username_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "username": ["can't be blank"] } } }
+    },
+    "check_email_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.email != nil && input.email != '' }}" }
+    },
+    "respond_email_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "email": ["can't be blank"] } } }
+    },
+    "check_password_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.password != nil && input.password != '' }}" }
+    },
+    "respond_password_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "password": ["can't be blank"] } } }
+    },
+    "check_username_taken": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id FROM auth_users WHERE metadata->>'username' = $1",
+        "params": ["{{ input.username }}"]
+      }
+    },
+    "check_username_free": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.check_username_taken) == 0 }}" }
+    },
+    "respond_username_taken": {
+      "type": "response.json",
+      "config": { "status": 409, "body": { "errors": { "username": ["has already been taken"] } } }
+    },
+    "check_email_taken": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id FROM auth_users WHERE email = lower(trim($1))",
+        "params": ["{{ input.email }}"]
+      }
+    },
+    "check_email_free": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.check_email_taken) == 0 }}" }
+    },
+    "respond_email_taken": {
+      "type": "response.json",
+      "config": { "status": 409, "body": { "errors": { "email": ["has already been taken"] } } }
+    },
+    "create": {
+      "type": "auth.create_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": {
+        "email": "{{ input.email }}",
+        "password": "{{ input.password }}",
+        "metadata": { "username": "{{ input.username }}", "bio": null, "image": null }
+      }
+    },
+    "respond_exists": {
+      "type": "response.json",
+      "config": {
+        "status": 409,
+        "body": { "errors": { "body": ["email or username has already been taken"] } }
+      }
+    },
+    "sign": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": { "sub": "{{ nodes.create.id }}", "username": "{{ input.username }}" },
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "72h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "user": {
+            "email": "{{ nodes.create.email }}",
+            "username": "{{ input.username }}",
+            "bio": "{{ nodes.create.metadata.bio }}",
+            "image": "{{ nodes.create.metadata.image }}",
+            "token": "{{ nodes.sign }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "check_username_blank", "output": "then", "to": "check_email_blank" },
+    { "from": "check_username_blank", "output": "else", "to": "respond_username_blank" },
+    { "from": "check_email_blank", "output": "then", "to": "check_password_blank" },
+    { "from": "check_email_blank", "output": "else", "to": "respond_email_blank" },
+    { "from": "check_password_blank", "output": "then", "to": "check_username_taken" },
+    { "from": "check_password_blank", "output": "else", "to": "respond_password_blank" },
+    { "from": "check_username_taken", "to": "check_username_free" },
+    { "from": "check_username_free", "output": "then", "to": "check_email_taken" },
+    { "from": "check_username_free", "output": "else", "to": "respond_username_taken" },
+    { "from": "check_email_taken", "to": "check_email_free" },
+    { "from": "check_email_free", "output": "then", "to": "create" },
+    { "from": "check_email_free", "output": "else", "to": "respond_email_taken" },
+    { "from": "create", "to": "sign" },
+    { "from": "create", "output": "exists", "to": "respond_exists" },
+    { "from": "sign", "to": "respond" }
+  ]
+}

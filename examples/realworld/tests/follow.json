@@ -1,0 +1,45 @@
+{
+  "id": "follow",
+  "workflow": "follow",
+  "tests": [
+    {
+      "name": "follows an existing user",
+      "input": {
+        "follower_id": "u1",
+        "username": "jake"
+      },
+      "mocks": {
+        "find_user": {
+          "output": [{ "id": "u2", "bio": "", "image": "" }]
+        },
+        "insert_follow": {
+          "output": { "rows_affected": 1 }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200
+        }
+      }
+    },
+    {
+      "name": "404s for an unknown username",
+      "input": {
+        "follower_id": "u1",
+        "username": "nobody"
+      },
+      "mocks": {
+        "find_user": {
+          "output": []
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond_not_found.status": 404
+        }
+      }
+    }
+  ]
+}

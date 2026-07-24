@@ -1,0 +1,8 @@
+{
+  "type": "object",
+  "properties": {
+    "title": { "type": ["string", "null"] },
+    "description": { "type": ["string", "null"] },
+    "body": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "id": "feed",
+  "name": "Article Feed",
+  "description": "Authenticated (`auth.jwt` middleware, viewer = `auth.sub`), so `favorited`/`author.following` are real per-row values, unlike list-articles' optional-identity gap. Articles authored by anyone the caller follows, same envelope shape and single-query author-join approach as list-articles (see its description for the `GROUP BY a.id, u.id` rationale).",
+  "nodes": {
+    "list": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, to_json(COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}')) AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $1) AS favorited, u.metadata->>'username' AS username, u.metadata->>'bio' AS bio, u.metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $1 AND fo.followee_id = a.author_id) AS following FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id JOIN auth_users u ON u.id = a.author_id WHERE a.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1) GROUP BY a.id, u.id ORDER BY a.created_at DESC LIMIT $2 OFFSET $3",
+        "params": ["{{ input.viewer }}", "{{ toInt(input.limit) }}", "{{ toInt(input.offset) }}"]
+      }
+    },
+    "count": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT count(*) AS count FROM articles a WHERE a.author_id IN (SELECT followee_id FROM follows WHERE follower_id = $1)",
+        "params": ["{{ input.viewer }}"]
+      }
+    },
+    "articles": {
+      "type": "transform.map",
+      "config": {
+        "collection": "{{ nodes.list }}",
+        "expression": "{{ { 'slug': $item.slug, 'title': $item.title, 'description': $item.description, 'tagList': fromJSON($item.tag_list), 'createdAt': $item.created_at, 'updatedAt': $item.updated_at, 'favorited': $item.favorited, 'favoritesCount': $item.favorites_count, 'author': { 'username': $item.username, 'bio': $item.bio, 'image': $item.image, 'following': $item.following } } }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "articles": "{{ nodes.articles }}",
+          "articlesCount": "{{ nodes.count[0].count }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "list", "to": "count" },
+    { "from": "count", "to": "articles" },
+    { "from": "articles", "to": "respond" }
+  ]
+}

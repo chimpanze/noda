@@ -1,0 +1,17 @@
+{
+  "id": "update-article",
+  "method": "PUT",
+  "path": "/api/articles/:slug",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "update-article",
+    "input": {
+      "user_id": "{{ auth.sub }}",
+      "slug": "{{ params.slug }}",
+      "title": "{{ body.article.title }}",
+      "description": "{{ body.article.description }}",
+      "body": "{{ body.article.body }}",
+      "article_raw": "{{ body.article }}"
+    }
+  }
+}

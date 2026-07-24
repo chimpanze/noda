@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -271,46 +272,48 @@ func parseWasmModuleConfig(name string, raw any) wasm.ModuleConfig {
 	return cfg
 }
 
-func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
-	suite, err := LoadSuite(filepath.Join(dir, "verify.json"))
-	if err != nil {
-		return err
-	}
-	if len(suite.Deps) > 0 && !rctx.hadEnv {
-		return fmt.Errorf("deps %v declared but no environment provided (run via the integration walker)", suite.Deps)
-	}
-
+// bootRuntime loads dir's config through the production pipeline (secrets,
+// validation), registers plugins, bootstraps services/nodes, runs
+// migrations/ if present, builds the workflow cache, constructs the server,
+// and starts any configured workers/wasm runtimes — the portion of
+// runProject's boot sequence that is identical whether the suite drives the
+// server in-process or over a real TCP listener. On success the returned
+// stop func tears everything down in the same order runProject's defer
+// stack used to (LIFO across StopRealtime, workers, wasm): call it exactly
+// once, after any listener-serving Shutdown. On error, everything already
+// started is torn down before returning.
+func bootRuntime(dir string, plugins []api.Plugin) (srv *server.Server, stop func(), err error) {
 	sm, err := config.NewSecretsManager(dir, "")
 	if err != nil {
-		return fmt.Errorf("secrets manager: %w", err)
+		return nil, nil, fmt.Errorf("secrets manager: %w", err)
 	}
 	rc, verrs := config.ValidateAll(dir, "", sm)
 	if len(verrs) > 0 {
-		return fmt.Errorf("config validation: %v", verrs)
+		return nil, nil, fmt.Errorf("config validation: %v", verrs)
 	}
 
 	preg := registry.NewPluginRegistry()
 	for _, p := range plugins {
 		if err := preg.Register(p); err != nil {
-			return fmt.Errorf("registering plugin %s: %w", p.Name(), err)
+			return nil, nil, fmt.Errorf("registering plugin %s: %w", p.Name(), err)
 		}
 	}
 	boot, berrs := registry.Bootstrap(context.Background(), rc, preg)
 	if len(berrs) > 0 {
-		return fmt.Errorf("bootstrap: %v", berrs)
+		return nil, nil, fmt.Errorf("bootstrap: %v", berrs)
 	}
 
 	if fi, err := os.Stat(filepath.Join(dir, "migrations")); err == nil && fi.IsDir() {
 		svc, ok := boot.Services.Get("main-db")
 		if !ok {
-			return fmt.Errorf("migrations/ present but no main-db service")
+			return nil, nil, fmt.Errorf("migrations/ present but no main-db service")
 		}
 		gdb, ok := svc.(*gorm.DB)
 		if !ok {
-			return fmt.Errorf("main-db service is %T, not *gorm.DB", svc)
+			return nil, nil, fmt.Errorf("main-db service is %T, not *gorm.DB", svc)
 		}
 		if _, err := migrate.Up(gdb, filepath.Join(dir, "migrations")); err != nil {
-			return fmt.Errorf("migrations: %w", err)
+			return nil, nil, fmt.Errorf("migrations: %w", err)
 		}
 	}
 
@@ -320,26 +323,40 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 	// is already present at construction time (server.go NewServer).
 	wfCache, err := engine.NewWorkflowCache(rc.Workflows, boot.Nodes)
 	if err != nil {
-		return fmt.Errorf("workflow cache: %w", err)
+		return nil, nil, fmt.Errorf("workflow cache: %w", err)
 	}
 
 	secretsCtx := sm.ExpressionContext()
-	srv, err := server.NewServer(rc, boot.Services, boot.Nodes,
+	s, err := server.NewServer(rc, boot.Services, boot.Nodes,
 		server.WithWorkflowCache(wfCache),
 		server.WithCompiler(boot.Compiler),
 		server.WithSecretsContext(secretsCtx),
 	)
 	if err != nil {
-		return fmt.Errorf("server: %w", err)
+		return nil, nil, fmt.Errorf("server: %w", err)
 	}
-	if err := srv.Setup(); err != nil {
-		return fmt.Errorf("server setup: %w", err)
+	if err := s.Setup(); err != nil {
+		return nil, nil, fmt.Errorf("server setup: %w", err)
 	}
+
+	// stopFns accumulates teardown steps in start order; both the success
+	// path (stop, called by the caller) and the error path (the ok-guarded
+	// defer below) run them LIFO, mirroring runProject's old defer stack.
+	var stopFns []func()
+	ok := false
+	defer func() {
+		if !ok {
+			for _, fn := range slices.Backward(stopFns) {
+				fn()
+			}
+		}
+	}()
+
 	// StopRealtime cancels any cross-instance sync subscriber goroutines
 	// registerConnections started (connections/*.json with a "sync" block).
 	// Without this, every realtime-suite run leaks one subscriber goroutine
 	// per synced endpoint for the lifetime of the test binary.
-	defer func() { _ = srv.StopRealtime(context.Background()) }()
+	stopFns = append(stopFns, func() { _ = s.StopRealtime(context.Background()) })
 
 	if len(rc.Workers) > 0 {
 		workerConfigs := worker.ParseWorkerConfigs(rc.Workers)
@@ -347,9 +364,9 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 		wr := worker.NewRuntime(workerConfigs, boot.Services, boot.Nodes, rc.Workflows, wfCache,
 			mw, boot.Compiler, nil, testLogger(), secretsCtx)
 		if err := wr.Start(context.Background()); err != nil {
-			return fmt.Errorf("workers: %w", err)
+			return nil, nil, fmt.Errorf("workers: %w", err)
 		}
-		defer func() { _ = wr.Stop(context.Background()) }()
+		stopFns = append(stopFns, func() { _ = wr.Stop(context.Background()) })
 	}
 
 	if wasmRuntimes, _ := rc.Root["wasm_runtimes"].(map[string]any); len(wasmRuntimes) > 0 {
@@ -362,20 +379,90 @@ func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
 			}
 			if _, err := wrt.LoadModule(context.Background(), cfg); err != nil {
 				_ = wrt.StopAll(context.Background()) // release already-loaded modules (#365)
-				return fmt.Errorf("loading wasm module %q: %w", name, err)
+				return nil, nil, fmt.Errorf("loading wasm module %q: %w", name, err)
 			}
 			wasmSvc := wasm.NewWasmService(wrt, name)
 			// Intentional divergence from cmd/noda's createWasm, which only
 			// warns on registration failure: the test harness fails loud.
 			if err := boot.Services.Register(name, wasmSvc, nil); err != nil {
-				return fmt.Errorf("registering wasm service %q: %w", name, err)
+				return nil, nil, fmt.Errorf("registering wasm service %q: %w", name, err)
 			}
 		}
 		if err := wrt.StartAll(context.Background()); err != nil {
-			return fmt.Errorf("wasm start: %w", err)
+			return nil, nil, fmt.Errorf("wasm start: %w", err)
 		}
-		defer func() { _ = wrt.StopAll(context.Background()) }()
+		stopFns = append(stopFns, func() { _ = wrt.StopAll(context.Background()) })
 	}
+
+	ok = true
+	return s, func() {
+		for _, fn := range slices.Backward(stopFns) {
+			fn()
+		}
+	}, nil
+}
+
+// BootListen boots dir's project (see bootRuntime: config load, plugin
+// registration, bootstrap, migrations, workflow cache, server setup, and any
+// configured workers/wasm runtimes) and serves it over a real TCP listener
+// on 127.0.0.1, for callers that drive the booted app with an external tool
+// rather than replaying verify.json steps (e.g. the RealWorld conformance
+// gate driving Hurl). It waits for the server to accept connections before
+// returning. The returned stop func shuts down in the same order
+// runProject's listen path used to — HTTP listener shutdown (bounded, like
+// production's Stop), then bootRuntime's stop (wasm, workers, realtime),
+// then the listener itself — and is safe to call at most once (defer it).
+func BootListen(t *testing.T, dir string, plugins []api.Plugin) (baseURL string, stop func()) {
+	t.Helper()
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("boot %s: reserve listener: %v", filepath.Base(dir), err)
+	}
+	baseURL = "http://" + ln.Addr().String()
+
+	srv, stopRuntime, err := bootRuntime(dir, plugins)
+	if err != nil {
+		_ = ln.Close()
+		t.Fatalf("boot %s: %v", filepath.Base(dir), err)
+	}
+
+	go func() { _ = srv.App().Listener(ln) }()
+	if err := waitReady(baseURL + "/"); err != nil {
+		_ = srv.App().ShutdownWithTimeout(3 * time.Second)
+		stopRuntime()
+		_ = ln.Close()
+		t.Fatalf("boot %s: %v", filepath.Base(dir), err)
+	}
+
+	stopped := false
+	return baseURL, func() {
+		if stopped {
+			return
+		}
+		stopped = true
+		// Bound shutdown the same way production does (internal/server/server.go's
+		// Stop, via a context deadline): an unbounded Shutdown() waits for every
+		// open connection to go idle.
+		_ = srv.App().ShutdownWithTimeout(3 * time.Second)
+		stopRuntime()
+		_ = ln.Close()
+	}
+}
+
+func runProject(dir string, plugins []api.Plugin, rctx *runContext) error {
+	suite, err := LoadSuite(filepath.Join(dir, "verify.json"))
+	if err != nil {
+		return err
+	}
+	if len(suite.Deps) > 0 && !rctx.hadEnv {
+		return fmt.Errorf("deps %v declared but no environment provided (run via the integration walker)", suite.Deps)
+	}
+
+	srv, stopRuntime, err := bootRuntime(dir, plugins)
+	if err != nil {
+		return err
+	}
+	defer stopRuntime()
 
 	if suite.Listen {
 		go func() { _ = srv.App().Listener(rctx.ln) }()

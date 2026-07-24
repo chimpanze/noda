@@ -1,0 +1,16 @@
+{
+  "id": "create-article",
+  "method": "POST",
+  "path": "/api/articles",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "create-article",
+    "input": {
+      "author_id": "{{ auth.sub }}",
+      "title": "{{ body.article.title }}",
+      "description": "{{ body.article.description }}",
+      "body": "{{ body.article.body }}",
+      "tagList": "{{ body.article.tagList }}"
+    }
+  }
+}

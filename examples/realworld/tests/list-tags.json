@@ -1,0 +1,38 @@
+{
+  "id": "list-tags",
+  "workflow": "list-tags",
+  "tests": [
+    {
+      "name": "lists tag names",
+      "input": {},
+      "mocks": {
+        "list": {
+          "output": [{ "name": "go" }, { "name": "noda" }]
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200,
+          "respond.body.tags": ["go", "noda"]
+        }
+      }
+    },
+    {
+      "name": "empty tag table returns an empty list",
+      "input": {},
+      "mocks": {
+        "list": {
+          "output": []
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 200,
+          "respond.body.tags": []
+        }
+      }
+    }
+  ]
+}

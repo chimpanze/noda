@@ -1,0 +1,100 @@
+{
+  "id": "create-article",
+  "name": "Create Article",
+  "description": "Slug is generated in SQL (no slugify expr function exists — grep of internal/expr confirmed this; documented finding). Uniqueness is guaranteed by appending a value pulled from articles_id_seq (the BIGSERIAL sequence backing articles.id) to the kebab-cased title, all inside the single INSERT, so no separate uniqueness round-trip or retry is needed. tagList insert uses one db.exec with unnest($2::text[]) for both the tags upsert and the article_tags link (see 'insert_tags'); this is the canonical article-select's first use (see 'article' + 'author' nodes), reused verbatim by get/update-article and by later tasks.",
+  "nodes": {
+    "check_title_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.title != nil && input.title != '' }}" }
+    },
+    "respond_title_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "title": ["can't be blank"] } } }
+    },
+    "check_description_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.description != nil && input.description != '' }}" }
+    },
+    "respond_description_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "description": ["can't be blank"] } } }
+    },
+    "check_body_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.body != nil && input.body != '' }}" }
+    },
+    "respond_body_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "body": ["can't be blank"] } } }
+    },
+    "insert": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "INSERT INTO articles (slug, title, description, body, author_id) VALUES (lower(regexp_replace($1, '[^a-zA-Z0-9]+', '-', 'g')) || '-' || nextval('articles_id_seq'), $1, $2, $3, $4) RETURNING id",
+        "params": ["{{ input.title }}", "{{ input.description }}", "{{ input.body }}", "{{ input.author_id }}"]
+      }
+    },
+    "insert_tags": {
+      "type": "db.exec",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "WITH ins_tags AS (INSERT INTO tags (name) SELECT unnest($2::text[]) ON CONFLICT DO NOTHING) INSERT INTO article_tags (article_id, tag) SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING",
+        "params": ["{{ nodes.insert[0].id }}", "{{ input.tagList ?? [] }}"]
+      }
+    },
+    "article": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT a.slug, a.title, a.description, a.body, a.created_at, a.updated_at, a.author_id, to_json(COALESCE(array_agg(DISTINCT at.tag) FILTER (WHERE at.tag IS NOT NULL), '{}')) AS tag_list, (SELECT count(*) FROM favorites f WHERE f.article_id = a.id) AS favorites_count, EXISTS(SELECT 1 FROM favorites f WHERE f.article_id = a.id AND f.user_id = $2) AS favorited FROM articles a LEFT JOIN article_tags at ON at.article_id = a.id WHERE a.id = $1 GROUP BY a.id",
+        "params": ["{{ nodes.insert[0].id }}", "{{ input.author_id }}"]
+      }
+    },
+    "author": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT metadata->>'username' AS username, metadata->>'bio' AS bio, metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $2 AND fo.followee_id = $1) AS following FROM auth_users WHERE id = $1",
+        "params": ["{{ input.author_id }}", "{{ input.author_id }}"]
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": {
+          "article": {
+            "slug": "{{ nodes.article[0].slug }}",
+            "title": "{{ nodes.article[0].title }}",
+            "description": "{{ nodes.article[0].description }}",
+            "body": "{{ nodes.article[0].body }}",
+            "tagList": "{{ fromJSON(nodes.article[0].tag_list) }}",
+            "createdAt": "{{ nodes.article[0].created_at }}",
+            "updatedAt": "{{ nodes.article[0].updated_at }}",
+            "favorited": "{{ nodes.article[0].favorited }}",
+            "favoritesCount": "{{ nodes.article[0].favorites_count }}",
+            "author": {
+              "username": "{{ nodes.author[0].username }}",
+              "bio": "{{ nodes.author[0].bio }}",
+              "image": "{{ nodes.author[0].image }}",
+              "following": "{{ nodes.author[0].following }}"
+            }
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "check_title_blank", "output": "then", "to": "check_description_blank" },
+    { "from": "check_title_blank", "output": "else", "to": "respond_title_blank" },
+    { "from": "check_description_blank", "output": "then", "to": "check_body_blank" },
+    { "from": "check_description_blank", "output": "else", "to": "respond_description_blank" },
+    { "from": "check_body_blank", "output": "then", "to": "insert" },
+    { "from": "check_body_blank", "output": "else", "to": "respond_body_blank" },
+    { "from": "insert", "to": "insert_tags" },
+    { "from": "insert_tags", "to": "article" },
+    { "from": "article", "to": "author" },
+    { "from": "author", "to": "respond" }
+  ]
+}

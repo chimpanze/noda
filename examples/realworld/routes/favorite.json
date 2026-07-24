@@ -1,0 +1,13 @@
+{
+  "id": "favorite",
+  "method": "POST",
+  "path": "/api/articles/:slug/favorite",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "favorite",
+    "input": {
+      "slug": "{{ params.slug }}",
+      "user_id": "{{ auth.sub }}"
+    }
+  }
+}

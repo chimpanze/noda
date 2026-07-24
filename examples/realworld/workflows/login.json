@@ -1,0 +1,66 @@
+{
+  "id": "login",
+  "name": "Login",
+  "nodes": {
+    "check_email_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.email != nil && input.email != '' }}" }
+    },
+    "respond_email_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "email": ["can't be blank"] } } }
+    },
+    "check_password_blank": {
+      "type": "control.if",
+      "config": { "condition": "{{ input.password != nil && input.password != '' }}" }
+    },
+    "respond_password_blank": {
+      "type": "response.json",
+      "config": { "status": 422, "body": { "errors": { "password": ["can't be blank"] } } }
+    },
+    "verify": {
+      "type": "auth.verify_credentials",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "email": "{{ input.email }}", "password": "{{ input.password }}" }
+    },
+    "respond_invalid": {
+      "type": "response.json",
+      "config": {
+        "status": 401,
+        "body": { "errors": { "credentials": ["invalid"] } }
+      }
+    },
+    "sign": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": { "sub": "{{ nodes.verify.id }}", "username": "{{ nodes.verify.metadata.username }}" },
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "72h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "user": {
+            "email": "{{ nodes.verify.email }}",
+            "username": "{{ nodes.verify.metadata.username }}",
+            "bio": "{{ nodes.verify.metadata.bio }}",
+            "image": "{{ nodes.verify.metadata.image }}",
+            "token": "{{ nodes.sign }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "check_email_blank", "output": "then", "to": "check_password_blank" },
+    { "from": "check_email_blank", "output": "else", "to": "respond_email_blank" },
+    { "from": "check_password_blank", "output": "then", "to": "verify" },
+    { "from": "check_password_blank", "output": "else", "to": "respond_password_blank" },
+    { "from": "verify", "to": "sign" },
+    { "from": "verify", "output": "invalid", "to": "respond_invalid" },
+    { "from": "sign", "to": "respond" }
+  ]
+}

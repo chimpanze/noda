@@ -1,0 +1,55 @@
+{
+  "id": "list-comments",
+  "name": "List Comments",
+  "description": "Deliberately unauthenticated (no `auth.jwt` middleware, must not 401 anonymously). Noda has no in-workflow JWT decode/verify node (only `util.jwt_sign` exists), so the caller's identity cannot be recovered here without the hard-401'ing `auth.jwt` middleware; the viewer id passed to the `following` subquery is therefore always the literal empty string, making every comment's `author.following` always false. Documented gap, same pattern as get-article/get-profile/list-articles (see task-3/task-4/task-5 reports, noda-limitation).",
+  "nodes": {
+    "find_article": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT id FROM articles WHERE slug = $1",
+        "params": ["{{ input.slug }}"]
+      }
+    },
+    "check_found": {
+      "type": "control.if",
+      "config": { "condition": "{{ len(nodes.find_article) > 0 }}" }
+    },
+    "respond_not_found": {
+      "type": "response.json",
+      "config": {
+        "status": 404,
+        "body": { "errors": { "article": ["not found"] } }
+      }
+    },
+    "list": {
+      "type": "db.query",
+      "services": { "database": "main-db" },
+      "config": {
+        "query": "SELECT c.id, c.body, c.created_at, c.updated_at, u.metadata->>'username' AS username, u.metadata->>'bio' AS bio, u.metadata->>'image' AS image, EXISTS(SELECT 1 FROM follows fo WHERE fo.follower_id = $2 AND fo.followee_id = c.author_id) AS following FROM comments c JOIN auth_users u ON u.id = c.author_id WHERE c.article_id = $1 ORDER BY c.created_at DESC",
+        "params": ["{{ nodes.find_article[0].id }}", "{{ input.viewer }}"]
+      }
+    },
+    "comments": {
+      "type": "transform.map",
+      "config": {
+        "collection": "{{ nodes.list }}",
+        "expression": "{{ { 'id': $item.id, 'createdAt': $item.created_at, 'updatedAt': $item.updated_at, 'body': $item.body, 'author': { 'username': $item.username, 'bio': $item.bio, 'image': $item.image, 'following': $item.following } } }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": { "comments": "{{ nodes.comments }}" }
+      }
+    }
+  },
+  "edges": [
+    { "from": "find_article", "to": "check_found" },
+    { "from": "check_found", "output": "then", "to": "list" },
+    { "from": "check_found", "output": "else", "to": "respond_not_found" },
+    { "from": "list", "to": "comments" },
+    { "from": "comments", "to": "respond" }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "email": { "type": ["string", "null"] },
+    "username": { "type": ["string", "null"] },
+    "password": { "type": ["string", "null"] },
+    "bio": { "type": ["string", "null"] },
+    "image": { "type": ["string", "null"] }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "id": "get-current-user",
+  "method": "GET",
+  "path": "/api/user",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "get-current-user",
+    "input": { "user_id": "{{ auth.sub }}" }
+  }
+}

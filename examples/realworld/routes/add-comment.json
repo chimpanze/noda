@@ -1,0 +1,14 @@
+{
+  "id": "add-comment",
+  "method": "POST",
+  "path": "/api/articles/:slug/comments",
+  "middleware": ["auth.jwt"],
+  "trigger": {
+    "workflow": "add-comment",
+    "input": {
+      "slug": "{{ params.slug }}",
+      "author_id": "{{ auth.sub }}",
+      "body": "{{ body.comment.body }}"
+    }
+  }
+}

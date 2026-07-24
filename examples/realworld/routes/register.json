@@ -1,0 +1,13 @@
+{
+  "id": "register",
+  "method": "POST",
+  "path": "/api/users",
+  "trigger": {
+    "workflow": "register",
+    "input": {
+      "username": "{{ body.user.username }}",
+      "email": "{{ body.user.email }}",
+      "password": "{{ body.user.password }}"
+    }
+  }
+}

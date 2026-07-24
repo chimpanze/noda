@@ -1,0 +1,46 @@
+{
+  "id": "get-current-user",
+  "name": "Get Current User",
+  "nodes": {
+    "fetch": {
+      "type": "auth.get_user",
+      "services": { "auth": "auth", "database": "main-db" },
+      "config": { "user_id": "{{ input.user_id }}" }
+    },
+    "respond_missing": {
+      "type": "response.json",
+      "config": {
+        "status": 401,
+        "body": { "errors": { "body": ["invalid token"] } }
+      }
+    },
+    "sign": {
+      "type": "util.jwt_sign",
+      "config": {
+        "claims": { "sub": "{{ nodes.fetch.id }}", "username": "{{ nodes.fetch.metadata.username }}" },
+        "secret": "{{ secrets.JWT_SECRET }}",
+        "expiry": "72h"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "user": {
+            "email": "{{ nodes.fetch.email }}",
+            "username": "{{ nodes.fetch.metadata.username }}",
+            "bio": "{{ nodes.fetch.metadata.bio }}",
+            "image": "{{ nodes.fetch.metadata.image }}",
+            "token": "{{ nodes.sign }}"
+          }
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "fetch", "to": "sign" },
+    { "from": "fetch", "output": "not_found", "to": "respond_missing" },
+    { "from": "sign", "to": "respond" }
+  ]
+}
