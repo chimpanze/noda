@@ -92,6 +92,9 @@ func runHurl(t *testing.T, projectDir, baseURL string) (failing map[string]bool,
 		"--report-json", reportDir,
 	}
 	args = append(args, files...)
+	//nolint:gosec // G204: the binary is the constant "hurl"; args are test-controlled
+	// (vendored harness/hurl/*.hurl paths, a t.TempDir report dir, and the local
+	// listener URL this test just started) — no external input reaches this call.
 	cmd := exec.Command("hurl", args...)
 	cmd.Stderr = os.Stderr
 	// Hurl exits non-zero when any test fails — expected here. Parse the

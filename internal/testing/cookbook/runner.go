@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -345,8 +346,8 @@ func bootRuntime(dir string, plugins []api.Plugin) (srv *server.Server, stop fun
 	ok := false
 	defer func() {
 		if !ok {
-			for i := len(stopFns) - 1; i >= 0; i-- {
-				stopFns[i]()
+			for _, fn := range slices.Backward(stopFns) {
+				fn()
 			}
 		}
 	}()
@@ -395,8 +396,8 @@ func bootRuntime(dir string, plugins []api.Plugin) (srv *server.Server, stop fun
 
 	ok = true
 	return s, func() {
-		for i := len(stopFns) - 1; i >= 0; i-- {
-			stopFns[i]()
+		for _, fn := range slices.Backward(stopFns) {
+			fn()
 		}
 	}, nil
 }
