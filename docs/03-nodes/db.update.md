@@ -20,6 +20,8 @@ Output: `{rows_affected: <count>}`
 
 Updates all rows in the specified table that match the `where` conditions, setting the fields specified in `data`. Returns the number of affected rows. Fires `error` with `ConflictError` if the update violates a unique constraint.
 
+`data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
+
 ## Service Dependencies
 
 | Slot | Prefix | Required |

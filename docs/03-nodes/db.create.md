@@ -19,6 +19,8 @@ Output: The inserted row data (with generated fields like `id`). Returns `Confli
 
 Inserts a new record into the specified table using the key-value pairs in `data`. Returns the created record including any database-generated fields. Fires `error` with `ConflictError` if a unique constraint is violated.
 
+`data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
+
 ## Service Dependencies
 
 | Slot | Prefix | Required |

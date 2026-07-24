@@ -21,6 +21,8 @@ Output: The upserted row data.
 
 Inserts a new record into the specified table. If a conflict occurs on the specified column(s), updates the existing row instead. Returns the `data` map as it was resolved and sent — unlike `db.create`, the output does **not** include database-generated fields (no RETURNING clause is used). If you need generated columns (e.g. an auto id), follow up with a `db.findOne` on the conflict key.
 
+`data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
+
 ## Service Dependencies
 
 | Slot | Prefix | Required |
