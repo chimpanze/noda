@@ -303,7 +303,7 @@ After the happy path, add tests for each failure mode:
 >
 > In particular, the scaffolded `tests/*.test.json` is **illustrative**: it asserts the output of the *original* scaffolded workflow. As soon as you change that workflow to do something else, update (or delete) the scaffolded test — otherwise its `expect` block is stale and only `noda test` will reveal the mismatch.
 >
-> **The reverse does hold:** `noda test` validates the project before it runs anything. It performs the same checks as `noda validate` — node config schemas, service slot references, service config schemas, edge outputs, and unwired outcome outputs — and stops with those errors without executing a single test. A project that cannot boot cannot be tested.
+> **The reverse does hold:** `noda test` validates the project before it runs anything. It performs the same checks as `noda validate` — node config schemas, service slot references, service config schemas, edge outputs, unwired outcome outputs, and middleware builds — and stops with those errors without executing a single test. A project that cannot boot cannot be tested.
 
 ### CLI Command
 

@@ -39,10 +39,14 @@ var envForDir = map[string][]string{
 
 // dummyEnvValue returns a placeholder for an example's $env() variable. Most
 // only need to be non-empty to satisfy config.ValidateAll's unresolved-$env()
-// check, but a JWT secret must also clear auth.jwt's 32-byte minimum or
-// ValidateMiddlewareBuilds rejects every route using it (#444).
+// check, but any variable whose name contains "SECRET" must also clear
+// auth.jwt's 32-byte minimum or ValidateMiddlewareBuilds rejects every route
+// using it (#444) — matching by substring, not the single name "JWT_SECRET",
+// so an example that names its secret e.g. AUTH_JWT_SECRET or SESSION_SECRET
+// doesn't silently get the short value and fail with a confusing middleware
+// error instead of an obvious harness gap.
 func dummyEnvValue(name string) string {
-	if name == "JWT_SECRET" {
+	if strings.Contains(name, "SECRET") {
 		return "dummy-jwt-secret-at-least-32-bytes-long"
 	}
 	return "dummy"

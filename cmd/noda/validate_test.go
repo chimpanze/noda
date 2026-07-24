@@ -41,12 +41,15 @@ func TestValidateProject_RejectsProjectThatCannotBoot(t *testing.T) {
 
 	reg, err := buildCoreNodeRegistry()
 	require.NoError(t, err)
+	ran := 0
 	for _, suite := range suites {
 		for _, res := range nodatesting.RunTestSuite(suite, rc, reg, sm.ExpressionContext()) {
+			ran++
 			require.Truef(t, res.Passed,
 				"fixture's own tests must pass: suite %q case %q: %s", suite.ID, res.CaseName, res.Error)
 		}
 	}
+	require.Positive(t, ran, "fixture must actually define test cases — an empty tests array would make the assertion above vacuous")
 
 	err = validateProject(rc)
 	require.Error(t, err, "unwired outcome output must fail startup validation")
