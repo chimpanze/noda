@@ -290,6 +290,58 @@ func TestRoute_NoResponseNode_202Accepted(t *testing.T) {
 	assert.Equal(t, "accepted", result["status"])
 }
 
+func TestRoute_NoResponseNode_DeclaredResponses_500(t *testing.T) {
+	// Same harness as TestRoute_NoResponseNode_202Accepted, except the route
+	// declares a response schema. A workflow that then produces no response
+	// contradicts the route's own contract — that must surface as a 500, not
+	// a 202 that reads as success (#442).
+	srv := newTestServer(t,
+		map[string]map[string]any{
+			"fire-forget": {
+				"method": "POST",
+				"path":   "/fire",
+				"trigger": map[string]any{
+					"workflow": "fire-forget",
+					"input":    map[string]any{},
+				},
+				"response": map[string]any{
+					"200": map[string]any{
+						"schema": map[string]any{"type": "object"},
+					},
+				},
+			},
+		},
+		map[string]map[string]any{
+			"fire-forget": {
+				"nodes": map[string]any{
+					"log-it": map[string]any{
+						"type": "util.log",
+						"config": map[string]any{
+							"level":   "info",
+							"message": "fire and forget",
+						},
+					},
+				},
+				"edges": []any{},
+			},
+		},
+		nil,
+	)
+
+	req := httptest.NewRequest("POST", "/fire", nil)
+	resp, err := srv.App().Test(req)
+	require.NoError(t, err)
+	assert.Equal(t, 500, resp.StatusCode)
+
+	body, _ := io.ReadAll(resp.Body)
+	var errBody map[string]any
+	require.NoError(t, json.Unmarshal(body, &errBody))
+	errData, ok := errBody["error"].(map[string]any)
+	require.True(t, ok, "expected error body, got: %s", string(body))
+	assert.Equal(t, "INTERNAL_ERROR", errData["code"])
+	assert.NotEmpty(t, errData["trace_id"])
+}
+
 func TestRoute_WorkflowError_MappedResponse(t *testing.T) {
 	// Use a workflow that references an unknown node type to trigger an error
 	srv := newTestServer(t,
