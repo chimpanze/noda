@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -63,22 +64,25 @@ func ExecuteGraph(
 		"trigger_type": execCtx.Trigger().Type,
 	})
 
-	// Track pending dependency counts per node.
-	// CONCURRENCY SAFETY: The map structure is populated here before any goroutines
-	// launch, then only the atomic values within are modified concurrently. The map
-	// keys are never added or removed after this point, so no mutex is needed.
-	pending := make(map[string]*atomic.Int32)
-	for id, count := range graph.DepCount {
-		p := &atomic.Int32{}
-		p.Store(int32(count))
-		pending[id] = p
-	}
-
-	// For OR-join nodes, track whether they've already been dispatched.
-	// Same concurrency invariant as pending: map is read-only after init.
-	dispatched := make(map[string]*atomic.Bool)
+	// Track join arrivals per node, counted once per mutually-exclusive group.
+	// A node runs when every one of its groups has delivered an arrival, which
+	// covers all join shapes uniformly: a parallel join is N groups of one leg,
+	// a conditional join is one group of N legs, and a mixed join is somewhere
+	// between (e.g. an always-firing leg plus an either/or pair → 2 groups).
+	//
+	// CONCURRENCY SAFETY: Both maps (and the slices within groupSeen) are fully
+	// populated here before any goroutine launches, then only the atomic values
+	// inside are mutated concurrently. Keys are never added or removed after
+	// this point, so no mutex is needed.
+	groupSeen := make(map[string][]*atomic.Bool, len(graph.Nodes))
+	arrived := make(map[string]*atomic.Int32, len(graph.Nodes))
 	for id := range graph.Nodes {
-		dispatched[id] = &atomic.Bool{}
+		seen := make([]*atomic.Bool, graph.JoinGroupCount[id])
+		for i := range seen {
+			seen[i] = &atomic.Bool{}
+		}
+		groupSeen[id] = seen
+		arrived[id] = &atomic.Int32{}
 	}
 
 	// Track output eviction for memory management
@@ -222,21 +226,15 @@ func ExecuteGraph(
 					"from": nodeID,
 					"to":   targetID,
 				})
-				joinType := graph.JoinTypes[targetID]
-
-				switch joinType {
-				case JoinOR:
-					// OR-join: dispatch on first arrival
-					if dispatched[targetID].CompareAndSwap(false, true) {
-						dispatchIfReady(targetID)
-					}
-				case JoinAND:
-					// AND-join: decrement counter, dispatch when all arrive
-					if pending[targetID].Add(-1) == 0 {
-						dispatchIfReady(targetID)
-					}
-				default:
-					// Single inbound edge
+				// Count this arrival against the group its source belongs to.
+				// Repeat arrivals within a group (only possible via redundant
+				// edges) collapse, so the counter reaches the group total
+				// exactly once and the node dispatches exactly once.
+				group := graph.JoinGroups[targetID][nodeID]
+				if !groupSeen[targetID][group].CompareAndSwap(false, true) {
+					continue
+				}
+				if int(arrived[targetID].Add(1)) == graph.JoinGroupCount[targetID] {
 					dispatchIfReady(targetID)
 				}
 			}
@@ -245,7 +243,6 @@ func ExecuteGraph(
 
 	// Start all entry nodes
 	for _, entryID := range graph.EntryNodes {
-		dispatched[entryID].Store(true)
 		dispatchIfReady(entryID)
 	}
 
@@ -275,18 +272,28 @@ func ExecuteGraph(
 	}
 
 	if resultErr == nil {
-		for id, jt := range graph.JoinTypes {
-			if jt != JoinAND {
+		// Deterministic order: a graph can contain more than one starved join
+		// and the reported one must not depend on map iteration order.
+		ids := make([]string, 0, len(graph.JoinGroupCount))
+		for id := range graph.JoinGroupCount {
+			ids = append(ids, id)
+		}
+		sort.Strings(ids)
+
+		for _, id := range ids {
+			total := graph.JoinGroupCount[id]
+			// A single-group node fires on its one arrival, so it can never be
+			// starved: either it ran or its whole branch was unreached.
+			if total <= 1 {
 				continue
 			}
-			total := graph.DepCount[id]
-			remaining := int(pending[id].Load())
-			// Received at least one leg (remaining < total) but never fired
-			// (an AND-join fires only when remaining reaches 0). remaining == total
-			// means zero legs arrived — a normal unreached branch, not an error.
-			if remaining > 0 && remaining < total {
-				resultErr = fmt.Errorf("workflow %q incomplete: AND-join %q received %d of %d legs and never fired",
-					graph.WorkflowID, id, total-remaining, total)
+			got := int(arrived[id].Load())
+			// Received at least one group but never fired. got == 0 means the
+			// node was simply never reached — a normal unreached branch, not
+			// an error.
+			if got > 0 && got < total {
+				resultErr = fmt.Errorf("workflow %q incomplete: %s %q received %d of %d branches and never fired",
+					graph.WorkflowID, graph.JoinTypes[id], id, got, total)
 				break
 			}
 		}

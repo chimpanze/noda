@@ -53,10 +53,6 @@
         "params": ["{{ nodes.find_article[0].id }}", "{{ input.article_raw.tagList }}"]
       }
     },
-    "skip_tags": {
-      "type": "transform.set",
-      "config": { "fields": { "skipped": true } }
-    },
     "update": {
       "type": "db.exec",
       "services": { "database": "main-db" },
@@ -116,9 +112,8 @@
     { "from": "check_taglist_null", "output": "then", "to": "respond_taglist_invalid" },
     { "from": "check_taglist_null", "output": "else", "to": "check_taglist_present" },
     { "from": "check_taglist_present", "output": "then", "to": "replace_tags" },
-    { "from": "check_taglist_present", "output": "else", "to": "skip_tags" },
+    { "from": "check_taglist_present", "output": "else", "to": "update" },
     { "from": "replace_tags", "to": "update" },
-    { "from": "skip_tags", "to": "update" },
     { "from": "update", "to": "article" },
     { "from": "article", "to": "author" },
     { "from": "author", "to": "respond" }

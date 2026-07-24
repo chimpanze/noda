@@ -230,6 +230,27 @@ Check the cache first. If the cached value is `nil`, fall back to the database, 
 
 ## Parallelism
 
+### Join behavior
+
+A node with more than one inbound edge is a *join*. The engine works out at compile time how many of those legs can actually arrive at runtime, and waits for exactly that many.
+
+It does this by grouping the inbound legs. Two legs are in the same group when they descend from different outputs of the same upstream node -- a node fires exactly one of its outputs per execution, so those legs are mutually exclusive and only one of them can ever arrive. Legs in different groups are independent and all of them arrive. **The join waits for one leg from every group.**
+
+This covers the three shapes you will meet in practice:
+
+| Shape | Groups | Waits for |
+|---|---|---|
+| Parallel branches merging (`a → c`, `b → c`) | one per leg | every leg |
+| Conditional branches merging (`if → then → merge`, `if → else → merge`) | one group | the single leg that fires |
+| A mix of both | one per independent branch | one leg from each |
+
+The mixed shape is the one worth knowing about, because it looks like a parallel join but is not. The [parallel-with-error-handling](#parallel-with-error-handling) pattern below is the common example: a `respond` node with three inbound edges that only ever receives two, because two of those edges are the success and fallback paths of the same branch.
+
+Two notes:
+
+- A conditional branch that reaches the join *directly* (`if --else--> merge`, with no node in between) is handled the same as one that goes through an intermediate node. You do not need to insert a no-op node to make a diamond work.
+- If a join receives some of its groups but not all of them, the workflow fails with an explicit `received N of M branches and never fired` error rather than hanging.
+
 ### Independent Parallel Nodes
 
 Nodes with no edge connecting them execute in parallel automatically. The engine builds a dependency graph at compile time -- any node whose dependencies are all satisfied is dispatched immediately. No special configuration is needed.
@@ -388,7 +409,9 @@ When parallel branches run concurrently, any node that fires `error` without an 
 }
 ```
 
-**Behavior:** `fetch_user` and `fetch_prefs` run in parallel. If the cache miss fires `error` on `fetch_prefs`, the workflow falls back to `default_prefs` instead of failing entirely. The `respond` node is an AND-join -- it waits for both the user data and preferences (from cache or defaults) before sending the response. If `fetch_user` fails, the workflow goes to `error_response` immediately.
+**Behavior:** `fetch_user` and `fetch_prefs` run in parallel. If the cache miss fires `error` on `fetch_prefs`, the workflow falls back to `default_prefs` instead of failing entirely. If `fetch_user` fails, the workflow goes to `error_response` immediately.
+
+`respond` has three inbound edges but only ever receives two, because `fetch_prefs` and `default_prefs` are mutually exclusive -- the preferences arrive from the cache or from the fallback, never both. The engine detects this and waits for one leg from each independent branch: the user data, and whichever preferences leg fires. See [Join behavior](#join-behavior).
 
 ---
 
