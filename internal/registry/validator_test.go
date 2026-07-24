@@ -776,3 +776,124 @@ func TestValidateStartupDryRun_EdgeUnknownTargetNode(t *testing.T) {
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), `workflow "wf1": edge references unknown target node "missing"`)
 }
+
+// outcomeStubDescriptor is a stubDescriptor that declares outcome outputs.
+type outcomeStubDescriptor struct {
+	stubDescriptor
+	outcomes []string
+}
+
+func (d *outcomeStubDescriptor) OutcomeOutputs() []string { return d.outcomes }
+
+// setupOutcomeValidation registers a "db"-like plugin with one node that
+// declares an outcome output ("create": exists) and one that doesn't
+// ("findOne"), so the unwired-outcome-output check (#442) can be exercised
+// without pulling in plugins/db.
+func setupOutcomeValidation(t *testing.T) (*PluginRegistry, *NodeRegistry) {
+	t.Helper()
+
+	plugins := NewPluginRegistry()
+	dbPlugin := pluginWithNodes("test-db", "db", []api.NodeRegistration{
+		{
+			Descriptor: &outcomeStubDescriptor{stubDescriptor: stubDescriptor{name: "create"}, outcomes: []string{"exists"}},
+			Factory: func(map[string]any) api.NodeExecutor {
+				return &stubExecutor{outputs: []string{"success", "exists", "error"}}
+			},
+		},
+		{
+			Descriptor: &stubDescriptor{name: "findOne"},
+			Factory: func(map[string]any) api.NodeExecutor {
+				return &stubExecutor{outputs: []string{"success", "error"}}
+			},
+		},
+	})
+	require.NoError(t, plugins.Register(dbPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(dbPlugin))
+	return plugins, nodes
+}
+
+func TestValidateStartupDryRun_OutcomeOutput_UnwiredRejected(t *testing.T) {
+	plugins, nodes := setupOutcomeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"insert": edgeWorkflowNode("db.create", nil),
+					"next":   edgeWorkflowNode("db.findOne", nil),
+				},
+				"edges": []any{edge("insert", "next", "success")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `workflow "wf1", node "insert" (db.create): outcome output "exists" has no outbound edge`)
+}
+
+func TestValidateStartupDryRun_OutcomeOutput_WiredAccepted(t *testing.T) {
+	plugins, nodes := setupOutcomeValidation(t)
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"insert": edgeWorkflowNode("db.create", nil),
+					"next":   edgeWorkflowNode("db.findOne", nil),
+				},
+				"edges": []any{
+					edge("insert", "next", "success"),
+					edge("insert", "next", "exists"),
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
+
+func TestValidateStartupDryRun_OutcomeOutput_NoEdgesAtAllRejected(t *testing.T) {
+	plugins, nodes := setupOutcomeValidation(t)
+
+	// A workflow with no "edges" key at all still fails: the outcome output
+	// is unwired regardless of whether the edge list exists.
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"insert": edgeWorkflowNode("db.create", nil),
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+	assert.Contains(t, errs[0].Error(), `outcome output "exists" has no outbound edge`)
+}
+
+func TestValidateStartupDryRun_OutcomeOutput_ControlFlowExempt(t *testing.T) {
+	plugins, nodes := setupEdgeValidation(t)
+
+	// control.if with only "then" wired is a legitimate shape ("do nothing
+	// when false") — stubDescriptor implements no OutcomeOutputsProvider,
+	// exactly like the real control descriptors.
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"wf1": {
+				"nodes": map[string]any{
+					"decide": edgeWorkflowNode("control.if", nil),
+					"next":   edgeWorkflowNode("control.if", nil),
+				},
+				"edges": []any{edge("decide", "next", "then")},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	assert.Empty(t, errs)
+}
