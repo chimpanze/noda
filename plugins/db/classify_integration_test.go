@@ -83,9 +83,13 @@ func runOneCtx(t *testing.T, svcReg *registry.ServiceRegistry, nodeReg *registry
 	return execCtx, engine.ExecuteGraph(t.Context(), graph, execCtx, svcReg, nodeReg)
 }
 
-// Regression: this returned a raw 500 on SQLite because the old matcher
-// looked for lowercase "unique constraint" but SQLite emits "UNIQUE
-// constraint failed".
+// db.create answers a unique-constraint violation on its "exists" output
+// rather than as an error (#436).
+//
+// Regression context: this once returned a raw 500 on SQLite because the old
+// matcher looked for lowercase "unique constraint" but SQLite emits "UNIQUE
+// constraint failed". Classification is now keyed on the driver's typed code,
+// which is what IsUniqueViolation consults here.
 //
 // The seed row is id=1. This insert supplies a distinct id=2 so that on
 // Postgres (where "id" has no default) the row satisfies the NOT NULL/PK
@@ -94,13 +98,16 @@ func TestClassify_UniqueViolation_BothDrivers(t *testing.T) {
 	for _, driver := range []string{"postgres", "sqlite"} {
 		t.Run(driver, func(t *testing.T) {
 			svcReg, nodeReg := setupClassify(t, driver)
-			err := runOne(t, svcReg, nodeReg, "db.create", map[string]any{
+			execCtx, err := runOneCtx(t, svcReg, nodeReg, "db.create", map[string]any{
 				"table": "cls",
 				"data":  map[string]any{"id": 2, "age": 1, "email": "a@example.com"},
 			})
-			require.Error(t, err)
-			var ce *api.ConflictError
-			assert.True(t, errors.As(err, &ce), "want ConflictError, got %v", err)
+			require.NoError(t, err, "a unique violation is routed to the exists output, not raised")
+
+			out, ok := execCtx.GetOutput("n1")
+			require.True(t, ok)
+			// A successful create would have returned the inserted row.
+			assert.NotContains(t, out, "email", "insert must not have applied")
 		})
 	}
 }

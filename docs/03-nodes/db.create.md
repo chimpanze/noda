@@ -11,13 +11,17 @@ Inserts a row into a table.
 
 ## Outputs
 
-`success`, `error`
+`success`, `exists`, `error`
 
-Output: The inserted row data (with generated fields like `id`). Returns `ConflictError` on duplicate key.
+Output: The inserted row data (with generated fields like `id`).
 
 ## Behavior
 
-Inserts a new record into the specified table using the key-value pairs in `data`. Returns the created record including any database-generated fields. Fires `error` with `ConflictError` if a unique constraint is violated.
+Inserts a new record into the specified table using the key-value pairs in `data`. Returns the created record including any database-generated fields.
+
+If the insert collides with a unique constraint, the node fires `exists` rather than `error`, so a duplicate value can be answered with a field-scoped 409/422 without also catching unrelated database failures. Any other database error fires `error`.
+
+> **Wire `exists` if you care about duplicates.** An output with no outbound edge silently ends that path — the workflow neither continues nor fails.
 
 `data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
 

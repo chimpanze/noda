@@ -35,6 +35,7 @@ func (d *upsertDescriptor) ConfigSchema() map[string]any {
 func (d *upsertDescriptor) OutputDescriptions() map[string]string {
 	return map[string]string{
 		"success": "The upserted row object",
+		"exists":  "A unique constraint other than the conflict target blocked the write",
 		"error":   "Database error details",
 	}
 }
@@ -45,7 +46,11 @@ func newUpsertExecutor(_ map[string]any) api.NodeExecutor {
 	return &upsertExecutor{}
 }
 
-func (e *upsertExecutor) Outputs() []string { return api.DefaultOutputs() }
+// Outputs adds "exists" for consistency with db.create and db.update (#436).
+// Note the narrower meaning here: a conflict on the declared conflict target
+// is absorbed by ON CONFLICT and reported as success, so "exists" fires only
+// when some *other* unique constraint blocked the write.
+func (e *upsertExecutor) Outputs() []string { return []string{api.OutputSuccess, "exists", "error"} }
 
 func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	db, err := plugin.GetService[*gorm.DB](services, "database")
@@ -89,6 +94,9 @@ func (e *upsertExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	tx := db.WithContext(ctx).Table(table).Clauses(onConflict).Create(row)
 	if tx.Error != nil {
+		if dberr.IsUniqueViolation(tx.Error) {
+			return "exists", map[string]any{}, nil
+		}
 		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.upsert")
 	}
 

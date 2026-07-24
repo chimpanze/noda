@@ -33,13 +33,28 @@ func registerFakeDuplicateKeyErr(t *testing.T, db *gorm.DB, name string) {
 	require.NoError(t, err)
 }
 
-// TestConflictError_ReasonIsSafe drives db.create against a duplicate-key
-// error and asserts the returned *api.ConflictError.Reason is the safe,
-// constant string "unique constraint violation" — not the raw driver error
-// (which would leak the constraint name and offending value).
+// registerFakeForeignKeyErr is registerFakeDuplicateKeyErr for a foreign-key
+// violation. Foreign-key violations still surface as *api.ConflictError (only
+// unique violations were rerouted to the "exists" output in #436), so this is
+// what now exercises the Reason-is-safe guarantee.
+func registerFakeForeignKeyErr(t *testing.T, db *gorm.DB, name string) {
+	t.Helper()
+	err := db.Callback().Create().Before("gorm:create").Register(name, func(tx *gorm.DB) {
+		_ = tx.AddError(sqlite3.Error{
+			Code:         sqlite3.ErrConstraint,
+			ExtendedCode: sqlite3.ErrConstraintForeignKey,
+		})
+	})
+	require.NoError(t, err)
+}
+
+// TestConflictError_ReasonIsSafe drives db.create against a constraint
+// violation and asserts the returned *api.ConflictError.Reason is the safe,
+// constant lookup-table string — not the raw driver error (which would leak
+// the constraint name and offending value).
 func TestConflictError_ReasonIsSafe(t *testing.T) {
 	db := newTestDB(t)
-	registerFakeDuplicateKeyErr(t, db, "fake_dup_err_create")
+	registerFakeForeignKeyErr(t, db, "fake_fk_err_create")
 
 	exec := &createExecutor{}
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
@@ -54,13 +69,13 @@ func TestConflictError_ReasonIsSafe(t *testing.T) {
 	var cfErr *api.ConflictError
 	require.ErrorAs(t, err, &cfErr)
 	require.Equal(t, "tasks", cfErr.Resource)
-	require.Equal(t, "unique constraint violation", cfErr.Reason)
+	require.Equal(t, "foreign key constraint violation", cfErr.Reason)
 }
 
 // TestUpsertConflictError_ReasonIsSafe is the same check for db.upsert.
 func TestUpsertConflictError_ReasonIsSafe(t *testing.T) {
 	db := newTestDB(t)
-	registerFakeDuplicateKeyErr(t, db, "fake_dup_err_upsert")
+	registerFakeForeignKeyErr(t, db, "fake_fk_err_upsert")
 
 	exec := &upsertExecutor{}
 	nCtx := &mockExecCtx{resolveFunc: identityResolve}
@@ -76,5 +91,49 @@ func TestUpsertConflictError_ReasonIsSafe(t *testing.T) {
 	var cfErr *api.ConflictError
 	require.ErrorAs(t, err, &cfErr)
 	require.Equal(t, "tasks", cfErr.Resource)
-	require.Equal(t, "unique constraint violation", cfErr.Reason)
+	require.Equal(t, "foreign key constraint violation", cfErr.Reason)
+}
+
+// A unique violation is routed to the "exists" output instead of raising,
+// for every write node that has one (#436).
+func TestUniqueViolation_FiresExistsOutput(t *testing.T) {
+	cases := []struct {
+		name   string
+		exec   api.NodeExecutor
+		config map[string]any
+	}{
+		{"create", &createExecutor{}, map[string]any{
+			"table": "tasks", "data": map[string]any{"title": "dup"},
+		}},
+		{"update", &updateExecutor{}, map[string]any{
+			"table": "tasks", "data": map[string]any{"title": "dup"},
+			"where": map[string]any{"id": 1},
+		}},
+		{"upsert", &upsertExecutor{}, map[string]any{
+			"table": "tasks", "data": map[string]any{"title": "dup"},
+			"conflict": "id",
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			db := newTestDB(t)
+			registerFakeDuplicateKeyErr(t, db, "fake_dup_"+tc.name)
+			// db.update goes through the Update callback, not Create.
+			if tc.name == "update" {
+				require.NoError(t, db.Callback().Update().Before("gorm:update").
+					Register("fake_dup_upd", func(tx *gorm.DB) {
+						_ = tx.AddError(sqlite3.Error{
+							Code:         sqlite3.ErrConstraint,
+							ExtendedCode: sqlite3.ErrConstraintUnique,
+						})
+					}))
+			}
+
+			nCtx := &mockExecCtx{resolveFunc: identityResolve}
+			output, data, err := tc.exec.Execute(t.Context(), nCtx, tc.config, testServices(db))
+			require.NoError(t, err, "a unique violation must not raise")
+			require.Equal(t, "exists", output)
+			require.NotNil(t, data)
+		})
+	}
 }

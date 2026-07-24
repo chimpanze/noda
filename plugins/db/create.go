@@ -33,7 +33,8 @@ func (d *createDescriptor) ConfigSchema() map[string]any {
 func (d *createDescriptor) OutputDescriptions() map[string]string {
 	return map[string]string{
 		"success": "The created row object including generated fields (id, created_at, etc.)",
-		"error":   "Database error details (e.g. unique constraint violation)",
+		"exists":  "The insert collided with a unique constraint — a row already holds one of these values",
+		"error":   "Database error details",
 	}
 }
 
@@ -43,7 +44,10 @@ func newCreateExecutor(_ map[string]any) api.NodeExecutor {
 	return &createExecutor{}
 }
 
-func (e *createExecutor) Outputs() []string { return api.DefaultOutputs() }
+// Outputs adds "exists" to the defaults so a workflow can answer a duplicate
+// value with a field-scoped 409/422 without also catching unrelated database
+// failures. See the note on db.update's Outputs (#436).
+func (e *createExecutor) Outputs() []string { return []string{api.OutputSuccess, "exists", "error"} }
 
 func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	db, err := plugin.GetService[*gorm.DB](services, "database")
@@ -74,6 +78,9 @@ func (e *createExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 	// are populated back into the row map.
 	tx := db.WithContext(ctx).Table(table).Clauses(clause.Returning{}).Create(row)
 	if tx.Error != nil {
+		if dberr.IsUniqueViolation(tx.Error) {
+			return "exists", map[string]any{}, nil
+		}
 		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.create")
 	}
 
