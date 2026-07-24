@@ -282,6 +282,37 @@ This is the behavior change. The fixture is the exact #444 shape: a project whos
 }
 ```
 
+- [ ] **Step 3b: Fix `testdata/valid-project`'s JWT secret**
+
+Discovered during Task 1: `testdata/valid-project` does *not* pass `noda validate`. Its `noda.json` hardcodes `"secret": "dev-secret-change-in-production"` — 30 bytes, below `auth.jwt`'s 32-byte minimum — so `server.ValidateMiddlewareBuilds` rejects it:
+
+```
+route ".../testdata/valid-project/routes/create-task.json": middleware "auth.jwt":
+  auth.jwt: secret is shorter than 32 bytes; use a stronger secret
+```
+
+Nothing caught this because `TestShippedProjectsValidate` runs only `ValidateAll` + dry-run `Bootstrap`, never the middleware check. This is a real defect in a fixture literally named "valid-project", and it must be fixed here: Step 7 makes `noda test` run the middleware check, and three pre-existing tests (`TestTestCmd_RunsAgainstTestdata`, `TestTestCmd_WithWorkflowFilter`, `TestTestCmd_VerboseMode`) point at this fixture.
+
+In `testdata/valid-project/noda.json`, under `security.jwt`, replace:
+
+```json
+        "secret": "dev-secret-change-in-production",
+```
+
+with:
+
+```json
+        "secret": "dev-secret-change-in-production-not-for-real-use",
+```
+
+Verify the fixture now passes the full pipeline:
+
+```bash
+go run ./cmd/noda validate --config ./testdata/valid-project 2>&1 | grep -v "^2026"
+```
+
+Expected: `✓ All config files valid (N files checked)`. Do not change anything else in that file — the fixture is referenced by many tests.
+
 - [ ] **Step 4: Write the characterization test proving the fixture has the #444 shape**
 
 Create `cmd/noda/validate_test.go`. This test does not depend on the fix — it asserts the fixture is genuinely the trap #444 describes, and it will keep the fixture honest if someone later "fixes" the workflow by wiring `exists`.
@@ -428,11 +459,61 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 `runProjectTestSuites` documents itself as mirroring `newTestCmd` exactly. Task 2 made that false. Fixing it also makes every shipped example and the `noda init` scaffold enforce the new rule for free.
 
 **Files:**
-- Modify: `cmd/noda/shipped_tests_test.go:18-39` (`runProjectTestSuites`)
+- Modify: `cmd/noda/validate_projects_test.go` (add `dummyEnvValue`, use it in both places `"dummy"` is currently injected; extend `TestShippedProjectsValidate`)
+- Modify: `cmd/noda/shipped_tests_test.go:18-39` (`runProjectTestSuites`) and its `t.Setenv` loop at line ~97
 
 **Interfaces:**
 - Consumes: `validateProject(rc *config.ResolvedConfig) error` from Task 1.
-- Produces: nothing new.
+- Produces: `dummyEnvValue(name string) string` in `cmd/noda/validate_projects_test.go`, used by both test files.
+
+- [ ] **Step 0a: Fix the test harness's JWT secret dummy**
+
+The examples reference `{{ $env('JWT_SECRET') }}`, and both test files inject the literal `"dummy"` (5 bytes) for every variable in `envForDir`. That is below `auth.jwt`'s 32-byte minimum, so once the helper runs `validateProject`, `examples/realtime-collab`, `realworld`, `rest-api`, and `saas-backend` would all fail on a *test-harness* artifact rather than a real defect. Verified: with a ≥32-byte `JWT_SECRET`, every example and cookbook fixture passes the full `noda validate` pipeline.
+
+In `cmd/noda/validate_projects_test.go`, add this function directly below the `envForDir` map:
+
+```go
+// dummyEnvValue returns a placeholder for an example's $env() variable. Most
+// only need to be non-empty to satisfy config.ValidateAll's unresolved-$env()
+// check, but a JWT secret must also clear auth.jwt's 32-byte minimum or
+// ValidateMiddlewareBuilds rejects every route using it (#444).
+func dummyEnvValue(name string) string {
+	if name == "JWT_SECRET" {
+		return "dummy-jwt-secret-at-least-32-bytes-long"
+	}
+	return "dummy"
+}
+```
+
+Then replace the injection in `TestShippedProjectsValidate` (currently `t.Setenv(name, "dummy")` at line ~62):
+
+```go
+				t.Setenv(name, dummyEnvValue(name))
+```
+
+and make the identical replacement in `cmd/noda/shipped_tests_test.go` inside `TestShippedExamplesPassTheirTests` (currently `t.Setenv(name, "dummy")` at line ~97).
+
+- [ ] **Step 0b: Make `TestShippedProjectsValidate` run the pipeline its comment claims**
+
+That test's comment says every shipped project "must pass the exact pipeline `noda validate` runs", but it stops after the dry-run bootstrap and never runs the middleware check — which is exactly why `testdata/valid-project`'s short JWT secret (fixed in Task 2, Step 3b) went unnoticed. Make the claim true.
+
+In `cmd/noda/validate_projects_test.go`, inside `TestShippedProjectsValidate`, replace the plugin-registry and `Bootstrap` block (currently lines ~70-74):
+
+```go
+			plugins := registry.NewPluginRegistry()
+			require.NoError(t, registerCorePlugins(plugins))
+			_, bootErrs := registry.Bootstrap(context.Background(), rc, plugins,
+				registry.BootstrapOptions{DryRun: true})
+			require.Empty(t, bootErrs)
+```
+
+with:
+
+```go
+			require.NoError(t, validateProject(rc))
+```
+
+Leave `TestValidate_Harness04AuthRegression` alone — it asserts on the raw `bootErrs` slice and needs the registry/`Bootstrap` calls it makes directly. Because of that, `context` and `registry` stay in use in this file; run `go build ./...` rather than hand-editing imports.
 
 - [ ] **Step 1: Add the `validateProject` call to the helper**
 
@@ -459,7 +540,7 @@ Replace the existing comment above `runProjectTestSuites` (lines 14-17) with:
 - [ ] **Step 3: Run every test that uses the helper**
 
 ```bash
-go test ./cmd/noda/ -run 'TestScaffoldedProjectPassesItsOwnTests|TestShippedExamplesPassTheirTests' -v 2>&1 | tail -30
+go test ./cmd/noda/ -run 'TestShippedProjectsValidate|TestScaffoldedProjectPassesItsOwnTests|TestShippedExamplesPassTheirTests' -v 2>&1 | tail -30
 ```
 
 Expected: PASS, including subtests for `auth-demo`, `init-example`, `realtime-collab`, `realworld`, `rest-api`, `saas-backend`. All six already pass the dry-run under `TestShippedProjectsValidate`, so this should be green on the first run. If one fails, that is a real pre-existing defect in that example — report it rather than weakening the helper.
