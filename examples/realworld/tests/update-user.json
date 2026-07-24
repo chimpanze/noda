@@ -73,7 +73,7 @@
             "metadata": { "username": "user1", "bio": "bio", "image": "img" }
           }
         },
-        "update": { "error": { "message": "unique constraint violation" } }
+        "update": { "output_name": "exists", "output": {} }
       },
       "expect": {
         "status": "success",

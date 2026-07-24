@@ -248,19 +248,11 @@ func ResolveOptionalMap(nCtx api.ExecutionContext, config map[string]any, key st
 func resolveMapValue(nCtx api.ExecutionContext, raw any, key string) (map[string]any, error) {
 	switch v := raw.(type) {
 	case map[string]any:
-		result := make(map[string]any, len(v))
-		for k, val := range v {
-			if expr, ok := val.(string); ok {
-				resolved, err := nCtx.Resolve(expr)
-				if err != nil {
-					return nil, fmt.Errorf("resolve %s.%s: %w", key, k, err)
-				}
-				result[k] = resolved
-			} else {
-				result[k] = val
-			}
+		resolved, err := resolveNested(nCtx, v, key)
+		if err != nil {
+			return nil, err
 		}
-		return result, nil
+		return resolved.(map[string]any), nil
 	case string:
 		val, err := nCtx.Resolve(v)
 		if err != nil {
@@ -273,6 +265,51 @@ func resolveMapValue(nCtx api.ExecutionContext, raw any, key string) (map[string
 		return m, nil
 	default:
 		return nil, fmt.Errorf("field %q must be an object or expression string", key)
+	}
+}
+
+// resolveNested recursively resolves every string leaf of a config value,
+// walking into nested objects and arrays. Nested structures matter for columns
+// that hold structured data (a JSONB column, a permissions object): resolving
+// only the top level silently wrote unevaluated "{{ ... }}" template text into
+// the database (#438).
+//
+// path is the dotted config location used in error messages, so a failure deep
+// in a nested object says which leaf broke.
+//
+// Non-string leaves pass through untouched. Plain strings that contain no
+// template are literals and resolve to themselves, so recursing costs nothing
+// for configs that were already correct.
+func resolveNested(nCtx api.ExecutionContext, raw any, path string) (any, error) {
+	switch v := raw.(type) {
+	case string:
+		resolved, err := nCtx.Resolve(v)
+		if err != nil {
+			return nil, fmt.Errorf("resolve %s: %w", path, err)
+		}
+		return resolved, nil
+	case map[string]any:
+		result := make(map[string]any, len(v))
+		for k, val := range v {
+			resolved, err := resolveNested(nCtx, val, path+"."+k)
+			if err != nil {
+				return nil, err
+			}
+			result[k] = resolved
+		}
+		return result, nil
+	case []any:
+		result := make([]any, len(v))
+		for i, item := range v {
+			resolved, err := resolveNested(nCtx, item, fmt.Sprintf("%s[%d]", path, i))
+			if err != nil {
+				return nil, err
+			}
+			result[i] = resolved
+		}
+		return result, nil
+	default:
+		return v, nil
 	}
 }
 

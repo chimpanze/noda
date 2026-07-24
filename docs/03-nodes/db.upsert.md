@@ -13,13 +13,17 @@ Inserts a row or updates it on conflict.
 
 ## Outputs
 
-`success`, `error`
+`success`, `exists`, `error`
 
 Output: The upserted row data.
 
 ## Behavior
 
 Inserts a new record into the specified table. If a conflict occurs on the specified column(s), updates the existing row instead. Returns the `data` map as it was resolved and sent — unlike `db.create`, the output does **not** include database-generated fields (no RETURNING clause is used). If you need generated columns (e.g. an auto id), follow up with a `db.findOne` on the conflict key.
+
+A conflict on the declared `conflict` column(s) is absorbed by the upsert itself and reported as `success`. The `exists` output therefore has a narrower meaning here than on `db.create`/`db.update`: it fires only when some *other* unique constraint blocked the write.
+
+`data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
 
 ## Service Dependencies
 

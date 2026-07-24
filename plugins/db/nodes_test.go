@@ -330,9 +330,11 @@ func TestCreateNode_UniqueConstraintViolation(t *testing.T) {
 		"data":  map[string]any{"title": "Existing"},
 	}
 
-	_, _, err := exec.Execute(context.Background(), nCtx, config, testServices(db))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "constraint")
+	// A real unique-index violation is routed to the "exists" output rather
+	// than raised, so a workflow can answer a duplicate distinctly (#436).
+	output, _, err := exec.Execute(context.Background(), nCtx, config, testServices(db))
+	require.NoError(t, err)
+	assert.Equal(t, "exists", output)
 }
 
 // --- db.update tests ---
