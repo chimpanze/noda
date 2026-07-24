@@ -605,6 +605,48 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - **BREAKING:** `noda test` now runs the same startup validation as `noda validate` before executing any test, and fails with those errors instead of running the suite (#444). Previously it ran only config-file validation, so the startup dry-run — node config schemas, service slot references, service config schemas (#376), edge outputs (#379), and the unwired-outcome-output rule (#442) — never applied to a test run. A workflow that `noda validate` and boot both rejected still reported a green `noda test`, which inverts the expectation that tests are the stricter gate. Migration: run `noda validate` and fix what it reports; any project that already validates is unaffected.
 ```
 
+- [ ] **Step 3b: Fix the two `.env.example` templates that hand users a too-short JWT secret**
+
+Surfaced by the Task 2 review. These files are documentation — `noda validate` reads `.env`, not `.env.example` — so neither causes a validation failure today. But both hand a user a value that fails `auth.jwt`'s 32-byte minimum the moment they copy it to `.env`, which is exactly the error this branch makes `noda test` surface. Every per-example `.env.example` already uses a compliant value; these two were missed.
+
+In `.env.example` (repo root), replace:
+
+```
+JWT_SECRET=dev-secret-change-in-production
+```
+
+with:
+
+```
+JWT_SECRET=dev-secret-change-in-production-min-32-bytes
+```
+
+In `cmd/noda/templates/.env.example`, the placeholder promises a length it does not have — `replace-with-at-least-32-bytes` is itself 30 bytes. Replace:
+
+```
+JWT_SECRET=replace-with-at-least-32-bytes
+```
+
+with:
+
+```
+JWT_SECRET=replace-with-a-secret-of-at-least-32-bytes
+```
+
+Confirm both are now at least 32 bytes:
+
+```bash
+awk -F= '/^JWT_SECRET=/{printf "%s: %d bytes\n", FILENAME, length($2)}' .env.example cmd/noda/templates/.env.example
+```
+
+Expected: both report 32 or more. Then confirm the scaffold still validates, since `noda init` generates a real `.env` and this template is only copied alongside it:
+
+```bash
+rm -rf /tmp/noda-envcheck && go run ./cmd/noda init /tmp/noda-envcheck >/dev/null 2>&1 && (cd /tmp/noda-envcheck && go run "$OLDPWD/cmd/noda" validate 2>&1 | grep -v "^2026") ; rm -rf /tmp/noda-envcheck
+```
+
+Expected: `✓ All config files valid (N files checked)`.
+
 - [ ] **Step 4: Verify the docs claims are true, not just plausible**
 
 ```bash
