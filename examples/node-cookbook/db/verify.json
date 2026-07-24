@@ -11,6 +11,11 @@
       "capture": { "book_id": "body.id" }
     },
     {
+      "name": "duplicate insert answers 409",
+      "request": { "method": "POST", "path": "/api/books", "body": { "title": "Dune", "author": "Herbert", "year": 1965 } },
+      "expect": { "status": 409, "body": [ { "path": "error.code", "equals": "CONFLICT" } ] }
+    },
+    {
       "name": "second row for aggregates",
       "request": { "method": "POST", "path": "/api/books", "body": { "title": "Hyperion", "author": "Simmons", "year": 1989 } },
       "expect": { "status": 201 }

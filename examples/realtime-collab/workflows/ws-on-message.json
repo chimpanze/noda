@@ -52,12 +52,20 @@
         "level": "warn",
         "message": "Unknown WS message type: {{ input.data.type }}"
       }
+    },
+    "log_conflict": {
+      "type": "util.log",
+      "config": {
+        "level": "warn",
+        "message": "unique constraint conflict — row not written"
+      }
     }
   },
   "edges": [
     { "from": "route", "output": "edit", "to": "save_edit" },
     { "from": "save_edit", "to": "broadcast_edit" },
     { "from": "route", "output": "cursor", "to": "broadcast_cursor" },
-    { "from": "route", "output": "default", "to": "log_unknown" }
+    { "from": "route", "output": "default", "to": "log_unknown" },
+    { "from": "save_edit", "output": "exists", "to": "log_conflict" }
   ]
 }

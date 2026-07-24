@@ -134,6 +134,7 @@
     { "from": "check_password_valid", "output": "then", "to": "set_password" },
     { "from": "check_password_valid", "output": "else", "to": "respond_password_invalid" },
     { "from": "set_password", "to": "update" },
+    { "from": "set_password", "output": "invalid", "to": "respond_password_invalid" },
     { "from": "update", "to": "sign" },
     { "from": "update", "output": "exists", "to": "respond_conflict" },
     { "from": "sign", "to": "respond" }

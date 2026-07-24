@@ -15,6 +15,11 @@
     {
       "from": "emit",
       "to": "respond"
+    },
+    {
+      "from": "insert",
+      "output": "exists",
+      "to": "respond_conflict"
     }
   ],
   "id": "invite-member",
@@ -66,6 +71,14 @@
         "status": 201
       },
       "type": "response.json"
+    },
+    "respond_conflict": {
+      "config": {
+        "code": "CONFLICT",
+        "message": "a row with one of these unique values already exists",
+        "status": 409
+      },
+      "type": "response.error"
     },
     "validate": {
       "config": {

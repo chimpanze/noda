@@ -13,6 +13,11 @@
     {
       "from": "thumbnail",
       "to": "update_record"
+    },
+    {
+      "from": "update_record",
+      "output": "exists",
+      "to": "log_conflict"
     }
   ],
   "id": "generate-thumbnail",
@@ -23,6 +28,13 @@
         "condition": "{{ input.content_type contains 'image/' }}"
       },
       "type": "control.if"
+    },
+    "log_conflict": {
+      "config": {
+        "level": "warn",
+        "message": "unique constraint conflict — row not written"
+      },
+      "type": "util.log"
     },
     "skip": {
       "config": {

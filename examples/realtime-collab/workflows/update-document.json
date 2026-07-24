@@ -40,11 +40,16 @@
         "status": 200,
         "body": "{{ nodes.update }}"
       }
+    },
+    "respond_conflict": {
+      "type": "response.error",
+      "config": { "status": 409, "code": "CONFLICT", "message": "a row with one of these unique values already exists" }
     }
   },
   "edges": [
     { "from": "validate", "to": "update" },
     { "from": "update", "to": "broadcast" },
-    { "from": "broadcast", "to": "respond" }
+    { "from": "broadcast", "to": "respond" },
+    { "from": "update", "output": "exists", "to": "respond_conflict" }
   ]
 }
