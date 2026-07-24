@@ -62,6 +62,15 @@ func setupClassifyStrict(t *testing.T) (*registry.ServiceRegistry, *registry.Nod
 func runOne(t *testing.T, svcReg *registry.ServiceRegistry, nodeReg *registry.NodeRegistry,
 	nodeType string, config map[string]any) error {
 	t.Helper()
+	_, err := runOneCtx(t, svcReg, nodeReg, nodeType, config)
+	return err
+}
+
+// runOneCtx also returns the execution context, so a test can inspect which
+// output a node fired rather than only whether the workflow failed.
+func runOneCtx(t *testing.T, svcReg *registry.ServiceRegistry, nodeReg *registry.NodeRegistry,
+	nodeType string, config map[string]any) (*engine.ExecutionContextImpl, error) {
+	t.Helper()
 	wf := engine.WorkflowConfig{
 		ID: "wf",
 		Nodes: map[string]engine.NodeConfig{
@@ -70,7 +79,8 @@ func runOne(t *testing.T, svcReg *registry.ServiceRegistry, nodeReg *registry.No
 	}
 	graph, err := engine.Compile(wf, nodeReg)
 	require.NoError(t, err)
-	return engine.ExecuteGraph(t.Context(), graph, engine.NewExecutionContext(), svcReg, nodeReg)
+	execCtx := engine.NewExecutionContext()
+	return execCtx, engine.ExecuteGraph(t.Context(), graph, execCtx, svcReg, nodeReg)
 }
 
 // Regression: this returned a raw 500 on SQLite because the old matcher
@@ -95,8 +105,10 @@ func TestClassify_UniqueViolation_BothDrivers(t *testing.T) {
 	}
 }
 
-// Regression: update.go had no conflict handling, so the same violation
-// returned 500 from db.update and 409 from db.create.
+// db.update answers a unique-constraint violation on its "exists" output
+// rather than as an error, so a workflow can distinguish a duplicate value
+// from an unrelated database failure (#436). db.create still raises a
+// ConflictError — see TestClassify_UniqueViolation_BothDrivers above.
 //
 // The created row uses id=3 with a fresh email, then the update tries to
 // rename that email to the seed row's email — only the UNIQUE constraint on
@@ -109,14 +121,36 @@ func TestClassify_UpdateUniqueViolation_BothDrivers(t *testing.T) {
 				"table": "cls",
 				"data":  map[string]any{"id": 3, "age": 40, "email": "b@example.com"},
 			}))
-			err := runOne(t, svcReg, nodeReg, "db.update", map[string]any{
+			execCtx, err := runOneCtx(t, svcReg, nodeReg, "db.update", map[string]any{
 				"table": "cls",
 				"where": map[string]any{"email": "b@example.com"},
 				"data":  map[string]any{"email": "a@example.com"},
 			})
+			require.NoError(t, err, "a unique violation is routed to the exists output, not raised")
+
+			out, ok := execCtx.GetOutput("n1")
+			require.True(t, ok)
+			// The "exists" payload is empty; a successful update would have
+			// reported rows_affected instead.
+			assert.NotContains(t, out, "rows_affected", "update must not have applied")
+		})
+	}
+}
+
+// A non-unique database failure must still surface as a typed error rather
+// than being swallowed by the new exists path.
+func TestClassify_UpdateNonUniqueError_StillRaises(t *testing.T) {
+	for _, driver := range []string{"postgres", "sqlite"} {
+		t.Run(driver, func(t *testing.T) {
+			svcReg, nodeReg := setupClassify(t, driver)
+			err := runOne(t, svcReg, nodeReg, "db.update", map[string]any{
+				"table": "cls",
+				"where": map[string]any{"id": 1},
+				"data":  map[string]any{"age": nil}, // age is NOT NULL
+			})
 			require.Error(t, err)
-			var ce *api.ConflictError
-			assert.True(t, errors.As(err, &ce), "want ConflictError, got %v", err)
+			var ve *api.ValidationError
+			assert.True(t, errors.As(err, &ve), "want ValidationError, got %v", err)
 		})
 	}
 }

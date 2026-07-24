@@ -12,15 +12,19 @@ Updates rows matching a condition.
 
 ## Outputs
 
-`success`, `error`
+`success`, `exists`, `error`
 
 Output: `{rows_affected: <count>}`
 
 ## Behavior
 
-Updates all rows in the specified table that match the `where` conditions, setting the fields specified in `data`. Returns the number of affected rows. Fires `error` with `ConflictError` if the update violates a unique constraint.
+Updates all rows in the specified table that match the `where` conditions, setting the fields specified in `data`. Returns the number of affected rows.
 
 `data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
+
+If the update collides with a unique constraint, the node fires `exists` rather than `error`, so a duplicate value can be answered with a field-scoped 409/422 without also catching unrelated database failures. Any other database error fires `error`.
+
+> **Wire `exists` if you care about duplicates.** An output with no outbound edge silently ends that path — the workflow neither continues nor fails. A workflow that wired `error` to catch duplicates must move that edge to `exists`.
 
 ## Service Dependencies
 

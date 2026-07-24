@@ -33,6 +33,7 @@ func (d *updateDescriptor) ConfigSchema() map[string]any {
 func (d *updateDescriptor) OutputDescriptions() map[string]string {
 	return map[string]string{
 		"success": "Object with rows_affected count",
+		"exists":  "The update collided with a unique constraint — another row already holds one of these values",
 		"error":   "Database error details",
 	}
 }
@@ -43,7 +44,12 @@ func newUpdateExecutor(_ map[string]any) api.NodeExecutor {
 	return &updateExecutor{}
 }
 
-func (e *updateExecutor) Outputs() []string { return api.DefaultOutputs() }
+// Outputs adds "exists" to the defaults so a workflow can answer a duplicate
+// value with a field-scoped 409/422 without also catching unrelated database
+// failures. The generic "error" edge carries a "code" of CONFLICT for unique,
+// foreign-key and exclusion violations alike, which is too coarse to build
+// that response on (#436).
+func (e *updateExecutor) Outputs() []string { return []string{api.OutputSuccess, "exists", "error"} }
 
 func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext, config map[string]any, services map[string]any) (string, any, error) {
 	db, err := plugin.GetService[*gorm.DB](services, "database")
@@ -77,6 +83,9 @@ func (e *updateExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 	tx := db.WithContext(ctx).Table(table).Where(where).Updates(row)
 	if tx.Error != nil {
+		if dberr.IsUniqueViolation(tx.Error) {
+			return "exists", map[string]any{}, nil
+		}
 		return "", nil, dberr.ClassifyOr(tx.Error, table, "db.update")
 	}
 

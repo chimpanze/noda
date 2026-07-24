@@ -1,7 +1,7 @@
 {
   "id": "update-user",
   "name": "Update User",
-  "description": "The `update` (`db.update`) node's `error` output is wired to `respond_conflict`, mirroring register's duplicate-email envelope/status (422, 'email or username has already been taken'); db.update has only a single generic `error` output (no `exists`-style discriminator like auth.create_user), so any database error on this node — not just a unique-constraint violation — surfaces that message. `check_email_invalid`/`check_username_invalid`/`has_password`+`check_password_valid` read `input.user_raw` (the route maps the WHOLE `body.user` sub-object, not just individual fields) because Noda's trigger-input mapping flattens presence: `\"email\": \"{{ body.user.email }}\"` always creates the `input.email` key (as nil) whether the client sent `\"email\": null` or omitted the key — the conformance suite requires the former (explicit null/blank) to 422 while the latter (omitted, 'don't change this field') must succeed, and only the raw sub-object preserves that distinction (checked via expr's `'key' in map` membership test, which is presence-aware unlike a nil comparison on a flattened field).",
+  "description": "The `update` (`db.update`) node's `exists` output is wired to `respond_conflict`, mirroring register's duplicate-email envelope/status (422, 'email or username has already been taken'). `exists` fires only on a unique-constraint violation, so an unrelated database failure leaves the generic `error` output unwired and fails the request loudly as a 500 rather than mislabelling it a duplicate. `check_email_invalid`/`check_username_invalid`/`has_password`+`check_password_valid` read `input.user_raw` (the route maps the WHOLE `body.user` sub-object, not just individual fields) because Noda's trigger-input mapping flattens presence: `\"email\": \"{{ body.user.email }}\"` always creates the `input.email` key (as nil) whether the client sent `\"email\": null` or omitted the key — the conformance suite requires the former (explicit null/blank) to 422 while the latter (omitted, 'don't change this field') must succeed, and only the raw sub-object preserves that distinction (checked via expr's `'key' in map` membership test, which is presence-aware unlike a nil comparison on a flattened field).",
   "nodes": {
     "validate": {
       "type": "transform.validate",
@@ -135,7 +135,7 @@
     { "from": "check_password_valid", "output": "else", "to": "respond_password_invalid" },
     { "from": "set_password", "to": "update" },
     { "from": "update", "to": "sign" },
-    { "from": "update", "output": "error", "to": "respond_conflict" },
+    { "from": "update", "output": "exists", "to": "respond_conflict" },
     { "from": "sign", "to": "respond" }
   ]
 }
