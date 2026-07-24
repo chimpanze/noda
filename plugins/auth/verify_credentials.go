@@ -42,6 +42,10 @@ func (d *verifyCredentialsDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+// OutcomeOutputs declares "invalid" as an outcome the workflow must wire:
+// an unwired outcome output silently ends the path (#442).
+func (d *verifyCredentialsDescriptor) OutcomeOutputs() []string { return []string{"invalid"} }
+
 type verifyCredentialsExecutor struct{}
 
 func newVerifyCredentialsExecutor(_ map[string]any) api.NodeExecutor {

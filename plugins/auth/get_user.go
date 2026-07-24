@@ -43,6 +43,10 @@ func (d *getUserDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+// OutcomeOutputs declares "not_found" as an outcome the workflow must wire:
+// an unwired outcome output silently ends the path (#442).
+func (d *getUserDescriptor) OutcomeOutputs() []string { return []string{"not_found"} }
+
 type getUserExecutor struct{}
 
 func newGetUserExecutor(_ map[string]any) api.NodeExecutor { return &getUserExecutor{} }

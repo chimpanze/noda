@@ -38,6 +38,10 @@ func (d *createDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+// OutcomeOutputs declares "exists" as an outcome the workflow must wire:
+// an unwired outcome output silently ends the path (#442).
+func (d *createDescriptor) OutcomeOutputs() []string { return []string{"exists"} }
+
 type createExecutor struct{}
 
 func newCreateExecutor(_ map[string]any) api.NodeExecutor {

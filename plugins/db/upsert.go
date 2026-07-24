@@ -40,6 +40,10 @@ func (d *upsertDescriptor) OutputDescriptions() map[string]string {
 	}
 }
 
+// OutcomeOutputs declares "exists" as an outcome the workflow must wire:
+// an unwired outcome output silently ends the path (#442).
+func (d *upsertDescriptor) OutcomeOutputs() []string { return []string{"exists"} }
+
 type upsertExecutor struct{}
 
 func newUpsertExecutor(_ map[string]any) api.NodeExecutor {
