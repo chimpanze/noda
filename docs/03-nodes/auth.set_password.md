@@ -19,6 +19,8 @@ Sets a new password (argon2id) and revokes the user's sessions.
 
 `invalid` is returned only in token mode when the token is unknown, expired, or already used (undifferentiated, mirroring `auth.consume_token`).
 
+> `invalid` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
+
 `error` is also returned (not a dedicated output) when `user_id` does not match any row — there is no `not_found` output for this node.
 
 ## Behavior

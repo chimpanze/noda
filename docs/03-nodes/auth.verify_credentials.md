@@ -17,6 +17,8 @@ Verifies email+password with timing-safe comparison.
 - `invalid` — credentials rejected. Unknown email, wrong password, and a non-`active` user status all route here identically — no reason is disclosed.
 - `error` — infrastructure error.
 
+> `invalid` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
+
 ## Behavior
 
 Looks up the user by normalized email. If no row matches, the node still runs a full argon2id verification against a fixed dummy hash (`VerifyDummy`) before returning `invalid`, so a request for an unknown email takes the same time as one for a known email with a wrong password — this defeats email-enumeration-by-timing attacks.

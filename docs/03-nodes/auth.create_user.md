@@ -19,6 +19,8 @@ Creates a user with an argon2id-hashed password.
 - `exists` — a user with this email already exists (unique constraint on `email`).
 - `error` — infrastructure error.
 
+> `exists` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
+
 ## Behavior
 
 Normalizes the email (lowercased, trimmed), validates the password (8–512 characters), hashes it with argon2id (`Service.HashPassword`, using the service's `argon2` parameters), and inserts a row into `auth_users` with `status: "active"` and `email_verified_at: null`. If the email already exists, the unique constraint violation is caught and routed to `exists` instead of `error`. Roles and metadata are stored as JSON columns and decoded back into arrays/objects on output.

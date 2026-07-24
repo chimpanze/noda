@@ -23,6 +23,8 @@ Inserts a new record into the specified table. If a conflict occurs on the speci
 
 A conflict on the declared `conflict` column(s) is absorbed by the upsert itself and reported as `success`. The `exists` output therefore has a narrower meaning here than on `db.create`/`db.update`: it fires only when some *other* unique constraint blocked the write.
 
+> `exists` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
+
 `data` values are resolved at any depth, so a nested object destined for a JSON/JSONB column may use expressions in its leaves.
 
 ## Service Dependencies

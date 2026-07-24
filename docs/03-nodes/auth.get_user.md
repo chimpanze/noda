@@ -17,6 +17,8 @@ Fetches a user by id or email (password hash stripped).
 - `not_found` — no matching user.
 - `error` — infrastructure error, or neither/both of `user_id`/`email` were supplied.
 
+> `not_found` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
+
 ## Behavior
 
 Looks up a row in `auth_users` by `id` (if `user_id` is set) or by normalized `email` (if `email` is set). Exactly one of the two must be provided — supplying both, or neither, is an `error`, not `invalid`/`not_found`. On a match, returns the row with `password_hash` stripped and `roles`/`metadata` decoded from their JSON columns.

@@ -17,6 +17,8 @@ Atomically consumes a single-use token.
 - `invalid` — the token is unknown, expired, has the wrong purpose, or was already used. These cases are undifferentiated by design — the caller cannot distinguish "expired" from "already used" from "never existed".
 - `error` — infrastructure error.
 
+> `invalid` is an **outcome output**: validation rejects a workflow that leaves it without an outbound edge, because a fired output with no edge would silently end the path (#442). Wire it to an error response, or to the same target as `success` if the distinction does not matter.
+
 ## Behavior
 
 Consumption is atomic: the node issues a single `UPDATE auth_tokens SET consumed_at = now() WHERE token_hash = ? AND purpose = ? AND consumed_at IS NULL AND expires_at > now()`. The `consumed_at IS NULL` guard in the `WHERE` clause means the database itself enforces single-use — under concurrent requests presenting the same token, exactly one `UPDATE` can match and affect a row; every other concurrent attempt sees zero rows affected and gets `invalid`. There is no separate read-then-write race window.
