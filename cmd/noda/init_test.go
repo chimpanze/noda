@@ -46,7 +46,7 @@ func TestScaffoldProject_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
 	exampleB, err := os.ReadFile(filepath.Join(projA, ".env.example"))
 	require.NoError(t, err)
 	require.Contains(t, string(exampleB), "at least 32 bytes")
-	require.Contains(t, string(exampleB), "replace-with-at-least-32-bytes")
+	require.Contains(t, string(exampleB), "replace-with-a-secret-of-at-least-32-bytes")
 
 	envA, err := os.ReadFile(filepath.Join(projA, ".env"))
 	require.NoError(t, err)
