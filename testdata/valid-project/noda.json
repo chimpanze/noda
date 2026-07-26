@@ -33,7 +33,7 @@
   },
   "security": {
     "jwt": {
-      "secret": "dev-secret-change-in-production",
+      "secret": "dev-secret-change-in-production-not-for-real-use",
       "algorithm": "HS256",
       "token_lookup": "header:Authorization"
     }

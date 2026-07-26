@@ -1,0 +1,26 @@
+{
+  "id": "create-widget",
+  "name": "Create Widget",
+  "nodes": {
+    "insert": {
+      "type": "db.create",
+      "services": { "database": "main-db" },
+      "config": {
+        "table": "widgets",
+        "data": {
+          "name": "{{ input.name }}"
+        }
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 201,
+        "body": "{{ nodes.insert }}"
+      }
+    }
+  },
+  "edges": [
+    { "from": "insert", "to": "respond" }
+  ]
+}
