@@ -236,6 +236,7 @@ func TestFunctionRegistry_RegisteredFunctions(t *testing.T) {
 		{"now", "() time.Time", "Returns the current time"},
 		{"lower", "(string) string", "Convert string to lowercase"},
 		{"upper", "(string) string", "Convert string to uppercase"},
+		{"slugify", "(string) string", "Convert a string to a URL slug: lowercased, with runs of non-alphanumeric characters collapsed to single hyphens"},
 		{"toInt", "(any) int", "Convert value to integer (coerces strings and floats)"},
 		{"toFloat", "(any) float64", "Convert value to float64 (coerces strings and ints)"},
 		{"sha256", "(string) string", "Returns hex-encoded SHA-256 hash"},
@@ -266,11 +267,12 @@ func TestFunctionRegistry_RegisteredNames(t *testing.T) {
 	reg := NewFunctionRegistry()
 	names := reg.RegisteredNames()
 
-	assert.Len(t, names, 13)
+	assert.Len(t, names, 14)
 	assert.Contains(t, names, "$uuid")
 	assert.Contains(t, names, "lower")
 	assert.Contains(t, names, "bcrypt_verify")
 	assert.Contains(t, names, "hmac_verify")
+	assert.Contains(t, names, "slugify")
 
 	// Verify sorted
 	for i := 1; i < len(names); i++ {
@@ -280,7 +282,7 @@ func TestFunctionRegistry_RegisteredNames(t *testing.T) {
 	// With vars adds $var
 	regWithVars := NewFunctionRegistryWithVars(map[string]string{"K": "V"})
 	namesWithVars := regWithVars.RegisteredNames()
-	assert.Len(t, namesWithVars, 14)
+	assert.Len(t, namesWithVars, 15)
 	assert.Contains(t, namesWithVars, "$var")
 }
 
@@ -409,5 +411,48 @@ func TestHmacVerify_InvalidAlgorithm(t *testing.T) {
 func TestHmacVerify_WrongArity(t *testing.T) {
 	c := NewCompilerWithFunctions()
 	_, err := c.Compile(`{{ hmac_verify("hello", "key", "sha256") }}`)
+	require.Error(t, err)
+}
+
+func TestFunction_Slugify(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"the motivating case", "How to train your dragon", "how-to-train-your-dragon"},
+		{"collapses whitespace runs", "a   b", "a-b"},
+		{"collapses punctuation runs", "a---b", "a-b"},
+		{"trims leading and trailing separators", "  !Hello!  ", "hello"},
+		{"keeps digits", "Top 10 Things", "top-10-things"},
+		{"already a slug is unchanged", "already-a-slug", "already-a-slug"},
+		{"underscores separate", "hello_world", "hello-world"},
+		{"apostrophes are dropped, not split", "Don't Stop", "dont-stop"},
+		{"typographic apostrophes are dropped too", "Don’t Stop", "dont-stop"},
+		{"keeps unicode letters", "Héllo Wörld", "héllo-wörld"},
+		{"keeps non-latin scripts", "文章标题", "文章标题"},
+		{"keeps combining marks with their base letter", "नमस्ते", "नमस्ते"},
+		{"does not split words on a virama", "श्री गणेश", "श्री-गणेश"},
+		{"keeps decomposed accents", "cafe\u0301 shop", "cafe\u0301-shop"},
+		{"punctuation only yields empty", "!!!", ""},
+		{"empty input yields empty", "", ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := compileAndEvalWithFunctions(t, `{{ slugify(input) }}`, map[string]any{"input": tc.input})
+			assert.Equal(t, tc.want, result)
+		})
+	}
+}
+
+func TestFunction_Slugify_WrongArity(t *testing.T) {
+	c := NewCompilerWithFunctions()
+	_, err := c.Compile(`{{ slugify("a", "b") }}`)
+	require.Error(t, err)
+}
+
+func TestFunction_Slugify_WrongType(t *testing.T) {
+	c := NewCompilerWithFunctions()
+	_, err := c.Compile(`{{ slugify(123) }}`)
 	require.Error(t, err)
 }

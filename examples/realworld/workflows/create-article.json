@@ -1,7 +1,7 @@
 {
   "id": "create-article",
   "name": "Create Article",
-  "description": "Slug is generated in SQL (no slugify expr function exists — grep of internal/expr confirmed this; documented finding). Uniqueness is guaranteed by appending a value pulled from articles_id_seq (the BIGSERIAL sequence backing articles.id) to the kebab-cased title, all inside the single INSERT, so no separate uniqueness round-trip or retry is needed. tagList insert uses one db.exec with unnest($2::text[]) for both the tags upsert and the article_tags link (see 'insert_tags'); this is the canonical article-select's first use (see 'article' + 'author' nodes), reused verbatim by get/update-article and by later tasks.",
+  "description": "Slug is generated in SQL: slugify() exists as an expression function (#437), but the uniqueness suffix comes from articles_id_seq inside this same INSERT, so building the slug here keeps generation and uniqueness atomic. Uniqueness is guaranteed by appending a value pulled from articles_id_seq (the BIGSERIAL sequence backing articles.id) to the kebab-cased title, all inside the single INSERT, so no separate uniqueness round-trip or retry is needed. tagList insert uses one db.exec with unnest($2::text[]) for both the tags upsert and the article_tags link (see 'insert_tags'); this is the canonical article-select's first use (see 'article' + 'author' nodes), reused verbatim by get/update-article and by later tasks.",
   "nodes": {
     "check_title_blank": {
       "type": "control.if",
