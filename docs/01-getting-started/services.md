@@ -590,7 +590,7 @@ A complete setup with a database, cache, and HTTP client -- a route that fetches
       "type": "http.get",
       "services": { "client": "billing-api" },
       "config": {
-        "path": "{{ '/customers/' + input.user_id + '/balance' }}"
+        "url": "{{ '/customers/' + input.user_id + '/balance' }}"
       }
     },
     "cache_user": {

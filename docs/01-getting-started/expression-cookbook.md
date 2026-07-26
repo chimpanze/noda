@@ -513,6 +513,7 @@ response instead (see [authentication.md](../04-guides/authentication.md)).
       "type": "response.error",
       "config": {
         "status": 401,
+        "code": "INVALID_CREDENTIALS",
         "message": "Invalid email or password"
       }
     }

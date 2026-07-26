@@ -136,7 +136,9 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
     "fetch": {
       "type": "http.get",
       "services": { "client": "inventory" },
-      "config": { "url": "/items", "query": "{{ query }}" }
+      "config": {
+        "url": "{{ '/items' + (len(query) > 0 ? '?' + join(map(keys(query), {# + '=' + query[#]}), '&') : '') }}"
+      }
     },
     "remap": {
       "type": "control.if",
@@ -153,8 +155,8 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
   },
   "edges": [
     { "from": "fetch", "to": "remap" },
-    { "from": "remap", "to": "unauthorized", "when": "true" },
-    { "from": "remap", "to": "pass_through", "when": "false" }
+    { "from": "remap", "to": "unauthorized", "output": "then" },
+    { "from": "remap", "to": "pass_through", "output": "else" }
   ]
 }
 ```

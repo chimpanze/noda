@@ -276,18 +276,19 @@ When a user joins, add them to the presence set and broadcast a join notificatio
   "nodes": {
     "add_presence": {
       "type": "cache.set",
+      "services": { "cache": "app-cache" },
       "config": {
-        "service": "app-cache",
         "key": "presence:{{ input.channel }}:{{ input.user_id }}",
         "value": {
           "user_id": "{{ input.user_id }}",
           "joined_at": "{{ $now() }}"
         },
-        "ttl": "120s"
+        "ttl": 120
       }
     },
     "broadcast_join": {
       "type": "ws.send",
+      "services": { "connections": "chat-ws" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -315,13 +316,14 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     "route": {
       "type": "control.switch",
       "config": {
-        "value": "{{ input.data.type }}"
+        "expression": "{{ input.data.type }}",
+        "cases": ["message", "typing"]
       }
     },
     "save_message": {
       "type": "db.create",
+      "services": { "database": "main-db" },
       "config": {
-        "service": "main-db",
         "table": "messages",
         "data": {
           "id": "{{ $uuid() }}",
@@ -334,6 +336,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     },
     "broadcast_message": {
       "type": "ws.send",
+      "services": { "connections": "chat-ws" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -347,6 +350,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     },
     "broadcast_typing": {
       "type": "ws.send",
+      "services": { "connections": "chat-ws" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -358,6 +362,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     "log_unknown": {
       "type": "util.log",
       "config": {
+        "level": "warn",
         "message": "Unknown message type: {{ input.data.type }}"
       }
     }
@@ -382,13 +387,14 @@ Remove the user from presence and broadcast a leave notification:
   "nodes": {
     "remove_presence": {
       "type": "cache.del",
+      "services": { "cache": "app-cache" },
       "config": {
-        "service": "app-cache",
         "key": "presence:{{ input.channel }}:{{ input.user_id }}"
       }
     },
     "broadcast_leave": {
       "type": "ws.send",
+      "services": { "connections": "chat-ws" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {

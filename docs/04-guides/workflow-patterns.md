@@ -63,6 +63,7 @@ Use retries for transient failures: network timeouts, database locks, rate-limit
   "nodes": {
     "fetch": {
       "type": "http.request",
+      "services": { "client": "payment-api" },
       "config": {
         "method": "POST",
         "url": "{{ secrets.PAYMENT_API_URL }}",
