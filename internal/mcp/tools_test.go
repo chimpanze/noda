@@ -472,12 +472,13 @@ func TestValidateConfigHandler(t *testing.T) {
 		data := parseTextResult(t, result)
 		require.False(t, data["valid"].(bool), "must not report a project valid that cannot boot")
 
-		var joined string
+		var joined strings.Builder
 		for _, e := range data["errors"].([]any) {
-			joined += e.(map[string]any)["error"].(string) + "\n"
+			joined.WriteString(e.(map[string]any)["error"].(string))
+			joined.WriteString("\n")
 		}
-		assert.Contains(t, joined, "limiter")
-		assert.Contains(t, joined, "max=0")
+		assert.Contains(t, joined.String(), "limiter")
+		assert.Contains(t, joined.String(), "max=0")
 	})
 
 	t.Run("nonexistent project", func(t *testing.T) {
