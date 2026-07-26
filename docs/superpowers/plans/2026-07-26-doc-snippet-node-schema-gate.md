@@ -208,8 +208,13 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 Factor the scanning logic from Task 1's throwaway into `tools/docverify/snippets/main.go`, reusing the existing `extractJSONBlocks` and `stripComments` rather than duplicating them. It must:
 - consider only blocks whose parsed JSON has a top-level `nodes` object;
 - run each through `registry.ValidateStartupDryRun` with a registry built from `all.Core()`;
+- **also run each through `engine.Compile`** — see below;
 - drop errors containing `not found in config (slot:` — a snippet has no `services` block, so that class is a harness artifact and not a doc defect. Put that reasoning in a comment; a future reader will otherwise "fix" the filter and drown the gate in noise.
 - report every other error with file and line.
+
+**Why `engine.Compile` as well, and not just the dry-run.** The Task 1 review found a snippet in `docs/02-config/workflows.md` that put a `retry` block on a `success` edge. `internal/engine/compiler.go:223` rejects `retry` on any non-`error` edge — but `ValidateStartupDryRun` never calls `engine.Compile`, so that snippet passed both `noda validate` and the node-schema scan while hard-failing at real `noda start`/`noda dev` boot (`engine.NewWorkflowCache` → `buildGraphs` → `Compile`). A gate that only checks node `ConfigSchema` would certify that snippet as good. Graph-level rules — edge outputs, retry placement, unknown edge targets, cycles — live in the compiler, so the gate has to run it or it inherits the same blind spot that let this ship.
+
+`engine.Compile` needs a node resolver; construct it the same way the test runner does (see `internal/testing/runner.go`'s `buildTestRegistry`/`engine.Compile` call for the shape). If a snippet cannot be compiled for a reason inherent to being a fragment rather than a defect, treat that the same way as the `not found in config (slot:` filter — narrowly, by message, with the reasoning in a comment. Do not broaden the filter to make the count go down.
 
 Include the violations in the tool's existing report output so `go run ./tools/docverify/snippets` shows them.
 
