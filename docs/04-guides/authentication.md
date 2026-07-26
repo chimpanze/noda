@@ -314,7 +314,7 @@ A registration workflow that hashes the password and creates a user:
       "services": { "database": "main-db" },
       "config": {
         "table": "users",
-        "fields": {
+        "data": {
           "email": "{{ input.email }}",
           "name": "{{ input.name }}",
           "password_hash": "{{ bcrypt_hash(input.password) }}",
@@ -543,7 +543,7 @@ Use the OIDC nodes to implement the full authorization code flow: redirect the u
       "config": {
         "table": "users",
         "conflict": ["provider_id"],
-        "fields": {
+        "data": {
           "provider_id": "{{ nodes.exchange_code.claims.sub }}",
           "email": "{{ nodes.exchange_code.claims.email }}",
           "name": "{{ nodes.exchange_code.claims.name }}",
@@ -985,7 +985,7 @@ Expired or revoked `auth_sessions` rows and consumed or expired `auth_tokens` ro
       "type": "db.exec",
       "services": { "database": "main-db" },
       "config": {
-        "sql": "DELETE FROM auth_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL",
+        "query": "DELETE FROM auth_sessions WHERE expires_at < ? OR revoked_at IS NOT NULL",
         "params": ["{{ now() }}"]
       }
     },
@@ -993,7 +993,7 @@ Expired or revoked `auth_sessions` rows and consumed or expired `auth_tokens` ro
       "type": "db.exec",
       "services": { "database": "main-db" },
       "config": {
-        "sql": "DELETE FROM auth_tokens WHERE expires_at < ? OR consumed_at IS NOT NULL",
+        "query": "DELETE FROM auth_tokens WHERE expires_at < ? OR consumed_at IS NOT NULL",
         "params": ["{{ now() }}"]
       }
     }
