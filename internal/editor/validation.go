@@ -18,9 +18,7 @@ func (e *API) startupDryRunErrors(rc *config.ResolvedConfig) []error {
 	if rc == nil || e.plugins == nil || e.nodes == nil || e.compiler == nil {
 		return nil
 	}
-	deferred, errs := registry.CollectDeferredServices(rc)
-	errs = append(errs, registry.ValidateStartupDryRun(rc, e.plugins, e.nodes, e.compiler, deferred)...)
-	return errs
+	return registry.DryRun(rc, e.plugins, e.nodes, e.compiler)
 }
 
 // validateFile validates a single JSON config against its schema.
