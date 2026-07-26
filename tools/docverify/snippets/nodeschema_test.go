@@ -39,18 +39,38 @@ func TestNodeSchemaGate(t *testing.T) {
 		t.Fatalf("no markdown files found under %q — docs root resolution is broken", root)
 	}
 
-	violations, scanned, err := nodeSchemaViolations(files)
+	violations, counts, err := nodeSchemaViolations(files)
 	if err != nil {
 		t.Fatalf("nodeSchemaViolations: %v", err)
 	}
 
-	// A future refactor that breaks block extraction (e.g. changes the
-	// ```json fence convention or the "nodes" detection) must not silently
-	// scan zero blocks and report a spuriously clean gate.
-	if scanned == 0 {
-		t.Fatal("scanned 0 workflow-shaped blocks — block extraction is broken, not the docs")
+	// Coverage floors. A refactor that breaks block extraction (a change to
+	// the ```json fence convention, the "nodes" detection, or the node
+	// fragment shapes) must fail here rather than silently scan a handful of
+	// blocks and report a spuriously clean gate. "scanned > 0" is far too weak
+	// for that: extraction that only survived for unindented ```json fences
+	// would drop coverage by two orders of magnitude and stay green.
+	//
+	// As of 2026-07-26 the gate scans 243 blocks: 48 workflow-shaped and 195
+	// node fragments, across 117 files. The floors are set just under those,
+	// so ordinary doc churn does not trip them but a structural regression
+	// does. Raise them when the docs grow.
+	const (
+		minFiles     = 100
+		minWorkflow  = 40
+		minFragments = 180
+	)
+	if len(files) < minFiles {
+		t.Errorf("scanned %d markdown files, want >= %d — file discovery is broken, not the docs", len(files), minFiles)
 	}
-	t.Logf("scanned %d workflow-shaped blocks across %d files", scanned, len(files))
+	if counts.Workflow < minWorkflow {
+		t.Errorf("scanned %d workflow-shaped blocks, want >= %d — block extraction is broken, not the docs", counts.Workflow, minWorkflow)
+	}
+	if counts.Fragment < minFragments {
+		t.Errorf("scanned %d node-fragment blocks, want >= %d — fragment detection is broken, not the docs", counts.Fragment, minFragments)
+	}
+	t.Logf("scanned %d blocks (%d workflow-shaped, %d node fragments, %d ignored) across %d files",
+		counts.Total(), counts.Workflow, counts.Fragment, counts.Ignored, len(files))
 
 	if len(violations) > 0 {
 		t.Errorf("%d doc snippet(s) failed node/graph validation:", len(violations))

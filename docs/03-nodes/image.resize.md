@@ -60,7 +60,7 @@ An upload handler stores the original path, then a resize node reads it and a re
 {
   "handle_upload": {
     "type": "upload.handle",
-    "services": { "storage": "uploads" },
+    "services": { "destination": "uploads" },
     "config": {
       "field": "image",
       "path": "{{ 'originals/' + $uuid() + '.' + input.ext }}"

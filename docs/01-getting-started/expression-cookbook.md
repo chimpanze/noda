@@ -557,6 +557,7 @@ Use `$var()` for non-sensitive configuration from `vars.json`. Use `secrets.*` f
 ```json
 {
   "type": "http.request",
+  "services": { "client": "api" },
   "config": {
     "method": "POST",
     "url": "{{ $var('PAYMENT_API_URL') }}/charges",

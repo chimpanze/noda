@@ -355,7 +355,7 @@ Each node that needs a service declares a **slot** -- a logical role name. In th
 
 ```json
 {
-  "type": "db.query",
+  "type": "db.findOne",
   "services": { "database": "postgres" },
   "config": {
     "table": "users",
@@ -455,9 +455,8 @@ You can define multiple instances of the same plugin. This is common for connect
 In your workflows, each node picks the instance it needs:
 
 ```json
-[
-  {
-    "id": "get-user",
+{
+  "get_user": {
     "type": "db.findOne",
     "services": { "database": "main-db" },
     "config": {
@@ -465,8 +464,7 @@ In your workflows, each node picks the instance it needs:
       "where": { "id": "{{ input.user_id }}" }
     }
   },
-  {
-    "id": "log-event",
+  "log_event": {
     "type": "db.create",
     "services": { "database": "analytics-db" },
     "config": {
@@ -475,10 +473,9 @@ In your workflows, each node picks the instance it needs:
         "user_id": "{{ input.user_id }}",
         "action": "login"
       }
-    },
-    "depends_on": ["get-user"]
+    }
   }
-]
+}
 ```
 
 ---

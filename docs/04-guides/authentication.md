@@ -1129,7 +1129,7 @@ Always include the user ID in database queries to ensure users only access their
     "type": "db.query",
     "services": { "database": "main-db" },
     "config": {
-      "sql": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC",
+      "query": "SELECT * FROM tasks WHERE user_id = $1 ORDER BY created_at DESC",
       "params": ["{{ input.user_id }}"]
     }
   }

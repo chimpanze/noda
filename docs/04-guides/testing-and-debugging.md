@@ -398,11 +398,15 @@ Add `util.log` nodes to your workflow to output values during execution. These a
 
 ```json
 {
-  "id": "debug_input",
-  "type": "util.log",
-  "config": {
-    "message": "Received input",
-    "data": "{{ input }}"
+  "debug_input": {
+    "type": "util.log",
+    "config": {
+      "level": "debug",
+      "message": "Received input",
+      "fields": {
+        "input": "{{ input }}"
+      }
+    }
   }
 }
 ```
@@ -411,7 +415,18 @@ Place `util.log` nodes between other nodes to inspect intermediate values. They 
 
 ## Doc Snippet Validation
 
-Every fenced ` ```json ` workflow example in these docs (`docs/01-getting-started` through `docs/05-examples`) is checked in CI by `tools/docverify/snippets`, via `go test ./tools/docverify/snippets/`. Blocks that parse as a workflow (a top-level `nodes` object) are run through the same `registry.ValidateStartupDryRun` node-config validation and `engine.Compile` graph validation that `noda validate` and real boot use, so a snippet with an invalid config field (like `fields` where a node's schema requires `data`) or an invalid graph (like `retry` on a non-`error` edge) fails the gate instead of shipping broken. If this test fails, the failure message names the doc file, the line the block starts at, and the exact validator error -- fix the snippet's JSON directly; there's nothing else to rerun.
+Fenced ` ```json ` blocks in these docs (`docs/01-getting-started` through `docs/05-examples`, recursively) are checked in CI by `tools/docverify/snippets`, via `go test ./tools/docverify/snippets/`.
+
+Two block shapes are validated against the runtime:
+
+- **Workflow blocks** -- a top-level `nodes` object, optionally with `edges`.
+- **Node-config blocks** -- a single node object (`{"type": "db.query", "config": {...}}`) or a map of node id to node object, which is how the per-node pages in `docs/03-nodes/` present their examples. These are wrapped in a synthetic edgeless workflow before validation.
+
+Both shapes go through the same `registry.ValidateStartupDryRun` node-config validation and `engine.Compile` graph validation that `noda validate` and real boot use, so a snippet with an invalid config field (like `data` where `util.log`'s schema requires `fields`), an unknown node type, a missing required service slot, or an invalid graph (like `retry` on a non-`error` edge) fails the gate instead of shipping broken.
+
+What is *not* validated: blocks that are neither shape -- `noda.json` fragments, route and connection configs, test files, output-shape illustrations. Two narrow exemptions apply to the shapes above: the unwired-outcome-output rule is not applied to node-config blocks (a synthetic wrapper has no edges, so it would fire on every fragment), and service-slot *references* are not resolved (a fragment has no `services` block to resolve them against), though a node that omits a required slot entirely is still reported. A block preceded by `<!-- docverify:ignore <reason> -->` is skipped; that directive is for deliberately hypothetical snippets only.
+
+If this test fails, the failure message names the doc file, the line the block starts at, and the exact validator error -- fix the snippet's JSON directly; there's nothing else to rerun.
 
 ## Common Errors and Fixes
 

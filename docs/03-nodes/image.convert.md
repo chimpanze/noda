@@ -52,7 +52,7 @@ An upload handler stores a PNG, then the convert node creates a WebP version for
 {
   "handle_upload": {
     "type": "upload.handle",
-    "services": { "storage": "uploads" },
+    "services": { "destination": "uploads" },
     "config": {
       "field": "photo",
       "path": "{{ 'originals/' + $uuid() + '.png' }}"

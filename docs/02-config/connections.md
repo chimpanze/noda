@@ -147,6 +147,7 @@ The `sse.send` node supports an `event` field that maps to the SSE `event:` line
 {
   "send_notification": {
     "type": "sse.send",
+    "services": { "connections": "notifications" },
     "config": {
       "channel": "notify.{{ input.user_id }}",
       "event": "new_message",
@@ -288,7 +289,7 @@ When a user joins, add them to the presence set and broadcast a join notificatio
     },
     "broadcast_join": {
       "type": "ws.send",
-      "services": { "connections": "chat-ws" },
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -336,7 +337,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     },
     "broadcast_message": {
       "type": "ws.send",
-      "services": { "connections": "chat-ws" },
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -350,7 +351,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     },
     "broadcast_typing": {
       "type": "ws.send",
-      "services": { "connections": "chat-ws" },
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -394,7 +395,7 @@ Remove the user from presence and broadcast a leave notification:
     },
     "broadcast_leave": {
       "type": "ws.send",
-      "services": { "connections": "chat-ws" },
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {

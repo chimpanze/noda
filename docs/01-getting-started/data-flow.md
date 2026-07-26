@@ -73,6 +73,7 @@ Use the `"as"` field to give a node a more descriptive reference name:
   "fetch_user": {
     "type": "db.findOne",
     "as": "user",
+    "services": { "database": "postgres" },
     "config": {
       "table": "users",
       "where": { "id": "{{ input.user_id }}" }
