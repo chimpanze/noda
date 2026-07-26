@@ -367,7 +367,6 @@ When parallel branches run concurrently, any node that fires `error` without an 
     },
     "fetch_prefs": {
       "type": "cache.get",
-      "as": "prefs",
       "services": { "cache": "redis" },
       "config": {
         "key": "{{ 'prefs:' + input.user_id }}"
@@ -375,7 +374,6 @@ When parallel branches run concurrently, any node that fires `error` without an 
     },
     "default_prefs": {
       "type": "transform.set",
-      "as": "prefs",
       "config": {
         "fields": {
           "value": { "theme": "light", "lang": "en" }
@@ -388,7 +386,7 @@ When parallel branches run concurrently, any node that fires `error` without an 
         "status": 200,
         "body": {
           "user": "{{ nodes.user }}",
-          "preferences": "{{ nodes.prefs.value }}"
+          "preferences": "{{ nodes.fetch_prefs.value ?? nodes.default_prefs.value }}"
         }
       }
     },
@@ -414,6 +412,8 @@ When parallel branches run concurrently, any node that fires `error` without an 
 **Behavior:** `fetch_user` and `fetch_prefs` run in parallel. If the cache miss fires `error` on `fetch_prefs`, the workflow falls back to `default_prefs` instead of failing entirely. If `fetch_user` fails, the workflow goes to `error_response` immediately.
 
 `respond` has three inbound edges but only ever receives two, because `fetch_prefs` and `default_prefs` are mutually exclusive -- the preferences arrive from the cache or from the fallback, never both. The engine detects this and waits for one leg from each independent branch: the user data, and whichever preferences leg fires. See [Join behavior](#join-behavior).
+
+Since a node can't share its `as` alias with another node, `respond` reads whichever leg actually produced preferences with `{{ nodes.fetch_prefs.value ?? nodes.default_prefs.value }}`. `??` short-circuits: on a cache hit, `nodes.fetch_prefs.value` is present and `nodes.default_prefs.value` is never evaluated (`default_prefs` didn't even run). On a cache miss, `fetch_prefs` still ran -- it just fired `error` instead of `success` -- so `nodes.fetch_prefs` exists but has no `value` key; that resolves to `nil`, and `??` falls through to `nodes.default_prefs.value`, which by then has run.
 
 ---
 
