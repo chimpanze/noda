@@ -405,7 +405,12 @@ func slugify(s string) string {
 		switch {
 		case r == '\'' || r == '’':
 			// Intra-word punctuation: drop it without breaking the word.
-		case unicode.IsLetter(r) || unicode.IsDigit(r):
+		// Marks are combining characters — a vowel sign, a virama, a
+		// standalone accent. They belong to the letter they follow, so they
+		// must not start a new run: treating them as separators shreds
+		// Devanagari, Thai, and Vietnamese words mid-syllable and silently
+		// drops accents from decomposed (NFD) input.
+		case unicode.IsLetter(r) || unicode.IsDigit(r) || unicode.IsMark(r):
 			if pendingSep && b.Len() > 0 {
 				b.WriteByte('-')
 			}

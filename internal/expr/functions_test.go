@@ -431,6 +431,9 @@ func TestFunction_Slugify(t *testing.T) {
 		{"typographic apostrophes are dropped too", "Don’t Stop", "dont-stop"},
 		{"keeps unicode letters", "Héllo Wörld", "héllo-wörld"},
 		{"keeps non-latin scripts", "文章标题", "文章标题"},
+		{"keeps combining marks with their base letter", "नमस्ते", "नमस्ते"},
+		{"does not split words on a virama", "श्री गणेश", "श्री-गणेश"},
+		{"keeps decomposed accents", "cafe\u0301 shop", "cafe\u0301-shop"},
 		{"punctuation only yields empty", "!!!", ""},
 		{"empty input yields empty", "", ""},
 	}
