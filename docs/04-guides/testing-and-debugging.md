@@ -409,6 +409,10 @@ Add `util.log` nodes to your workflow to output values during execution. These a
 
 Place `util.log` nodes between other nodes to inspect intermediate values. They pass through without affecting workflow execution. Remove or disable them before deploying to production.
 
+## Doc Snippet Validation
+
+Every fenced ` ```json ` workflow example in these docs (`docs/01-getting-started` through `docs/05-examples`) is checked in CI by `tools/docverify/snippets`, via `go test ./tools/docverify/snippets/`. Blocks that parse as a workflow (a top-level `nodes` object) are run through the same `registry.ValidateStartupDryRun` node-config validation and `engine.Compile` graph validation that `noda validate` and real boot use, so a snippet with an invalid config field (like `fields` where a node's schema requires `data`) or an invalid graph (like `retry` on a non-`error` edge) fails the gate instead of shipping broken. If this test fails, the failure message names the doc file, the line the block starts at, and the exact validator error -- fix the snippet's JSON directly; there's nothing else to rerun.
+
 ## Common Errors and Fixes
 
 | Error | Cause | Fix |
