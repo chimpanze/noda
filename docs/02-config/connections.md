@@ -224,14 +224,14 @@ A common pattern is using the cache service for presence tracking and the databa
 {
   "add_presence": {
     "type": "cache.set",
+    "services": { "cache": "app-cache" },
     "config": {
-      "service": "app-cache",
       "key": "presence:{{ input.channel }}:{{ input.user_id }}",
       "value": {
         "user_id": "{{ input.user_id }}",
         "connected_at": "{{ $now() }}"
       },
-      "ttl": "60s"
+      "ttl": 60
     }
   }
 }

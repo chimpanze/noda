@@ -49,30 +49,26 @@ Put the host in the service config, use relative paths in workflows. This is the
 
 ## 2. Forwarding query parameters
 
-The HTTP request context exposes `query` as a map. Forward it wholesale to the backend for pagination and filters:
+`http.get`'s config accepts only `url`, `headers`, `body`, and `timeout` — there is no dedicated query-parameter field, and no way to forward the incoming `query` map wholesale. Forward parameters explicitly by building the query string into `url`:
 
 ```json
 {
   "type": "http.get",
   "services": { "client": "inventory" },
   "config": {
-    "url": "/items",
-    "query": "{{ query }}"
+    "url": "/items?limit={{ query.limit }}&offset={{ query.offset }}"
   }
 }
 ```
 
-Or forward specific keys:
+Provide defaults for parameters that might be missing from the request:
 
 ```json
 {
+  "type": "http.get",
+  "services": { "client": "inventory" },
   "config": {
-    "url": "/items",
-    "query": {
-      "page": "{{ query.page ?? 1 }}",
-      "per_page": "{{ query.per_page ?? 20 }}",
-      "sort": "{{ query.sort }}"
-    }
+    "url": "/items?page={{ query.page ?? 1 }}&per_page={{ query.per_page ?? 20 }}&sort={{ query.sort ?? '' }}"
   }
 }
 ```
@@ -137,7 +133,7 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
       "type": "http.get",
       "services": { "client": "inventory" },
       "config": {
-        "url": "{{ '/items' + (len(query) > 0 ? '?' + join(map(keys(query), {# + '=' + query[#]}), '&') : '') }}"
+        "url": "/items?limit={{ query.limit ?? 20 }}&offset={{ query.offset ?? 0 }}"
       }
     },
     "remap": {

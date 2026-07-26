@@ -65,6 +65,15 @@ Every node's `config` object is validated against the node's schema at two point
         "code": "ORDER_EXISTS",
         "message": "Order already exists"
       }
+    },
+    "notify": {
+      "type": "email.send",
+      "services": { "mailer": "smtp" },
+      "config": {
+        "to": "{{ input.email }}",
+        "subject": "Order confirmed",
+        "body": "Your order {{ nodes.create.id }} for {{ input.total }} has been placed."
+      }
     }
   },
   "edges": [

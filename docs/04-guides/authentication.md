@@ -854,8 +854,8 @@ If your tokens already carry roles (e.g. an OIDC provider issues `roles: ["admin
     }
   },
   "edges": [
-    { "from": "check_admin", "to": "report", "output": "true" },
-    { "from": "check_admin", "to": "forbidden", "output": "false" }
+    { "from": "check_admin", "to": "report", "output": "then" },
+    { "from": "check_admin", "to": "forbidden", "output": "else" }
   ]
 }
 ```
