@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -26,6 +27,24 @@ func TestValidateProject_AcceptsValidProject(t *testing.T) {
 // three here is what makes TestTestCmd_FailsOnProjectThatDoesNotValidate
 // meaningful — without the middle assertion, that test could pass for the
 // boring reason that the fixture's tests were failing anyway.
+// The middleware phase has its own heading, and "output unchanged" is the
+// contract of the #448 refactor — so the formatter needs pinning, not just
+// the bootstrap path above it.
+func TestValidateProject_RejectsMiddlewareBuildFailure(t *testing.T) {
+	dir := "../../testdata/bad-middleware-project"
+
+	sm, err := config.NewSecretsManager(dir, "")
+	require.NoError(t, err)
+	rc, errs := config.ValidateAll(dir, "", sm)
+	require.Empty(t, errs)
+
+	err = validateProject(rc)
+	require.Error(t, err)
+	assert.True(t, strings.HasPrefix(err.Error(), "middleware validation failed:\n  "),
+		"unexpected heading or indent: %q", err.Error())
+	assert.Contains(t, err.Error(), "limiter")
+}
+
 func TestValidateProject_RejectsProjectThatCannotBoot(t *testing.T) {
 	dir := "../../testdata/test-cmd-invalid-project"
 

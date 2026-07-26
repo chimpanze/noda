@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/server"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,12 +61,25 @@ func TestProject_ReportsMiddlewareFailures(t *testing.T) {
 // Bootstrap failures short-circuit the middleware phase, matching what
 // `noda validate` has always printed. If this changes, the CLI's output
 // changes with it.
+//
+// The fixture must fail BOTH phases or this asserts nothing: a project with
+// no middleware at all yields an empty Middleware slice whether or not the
+// short-circuit exists. testdata/bad-both-phases-project pairs an unwired
+// outcome output with a route whose limiter has no max, so removing the
+// early return makes Middleware non-empty and reddens this test.
 func TestProject_BootstrapFailureSkipsMiddlewarePhase(t *testing.T) {
-	res, err := Project(context.Background(), resolve(t, "test-cmd-invalid-project"))
+	rc := resolve(t, "bad-both-phases-project")
+
+	// Guard the guard: prove the fixture really does have a middleware fault
+	// waiting behind the bootstrap one.
+	assert.NotEmpty(t, server.ValidateMiddlewareBuilds(rc),
+		"fixture must have a middleware failure for the short-circuit to hide")
+
+	res, err := Project(context.Background(), rc)
 	require.NoError(t, err)
 
 	require.NotEmpty(t, res.Bootstrap)
-	assert.Empty(t, res.Middleware)
+	assert.Empty(t, res.Middleware, "middleware phase must not run once bootstrap has failed")
 }
 
 func TestResult_OKAndErrorOrdering(t *testing.T) {

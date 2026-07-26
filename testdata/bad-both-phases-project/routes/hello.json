@@ -1,0 +1,11 @@
+{
+  "id": "hello",
+  "method": "GET",
+  "path": "/hello",
+  "trigger": {
+    "workflow": "create-widget"
+  },
+  "middleware": [
+    "limiter"
+  ]
+}
