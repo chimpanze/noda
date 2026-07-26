@@ -456,6 +456,31 @@ func TestValidateConfigHandler(t *testing.T) {
 		assert.True(t, data["valid"].(bool))
 	})
 
+	// #448: the MCP tool ran only the dry-run bootstrap and skipped
+	// server.ValidateMiddlewareBuilds, so it answered {"valid": true} for a
+	// project `noda validate` and boot both reject. An agent driving Noda
+	// through MCP got a green validation and then a boot failure it had been
+	// told could not happen.
+	t.Run("project the CLI rejects for a middleware build failure", func(t *testing.T) {
+		dir, err := filepath.Abs("../../testdata/bad-middleware-project")
+		require.NoError(t, err)
+
+		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": dir})
+		result, err := validateConfigHandler(context.Background(), req)
+		require.NoError(t, err)
+
+		data := parseTextResult(t, result)
+		require.False(t, data["valid"].(bool), "must not report a project valid that cannot boot")
+
+		var joined strings.Builder
+		for _, e := range data["errors"].([]any) {
+			joined.WriteString(e.(map[string]any)["error"].(string))
+			joined.WriteString("\n")
+		}
+		assert.Contains(t, joined.String(), "limiter")
+		assert.Contains(t, joined.String(), "max=0")
+	})
+
 	t.Run("nonexistent project", func(t *testing.T) {
 		req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": "/nonexistent/path"})
 		result, err := validateConfigHandler(context.Background(), req)

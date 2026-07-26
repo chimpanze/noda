@@ -405,8 +405,7 @@ func newDevCmd() *cobra.Command {
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rtCtx.RC, hub, rtCtx.Logger)
 			reloader.SetDryRun(func(rc *config.ResolvedConfig) []error {
-				deferred, errs := registry.CollectDeferredServices(rc)
-				return append(errs, registry.ValidateStartupDryRun(rc, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Compiler, deferred)...)
+				return registry.DryRun(rc, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Compiler)
 			})
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
 				if err := rtCtx.WorkflowCache.Invalidate(newRC.Workflows, rtCtx.Bootstrap.Nodes); err != nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scaffold"
+	"github.com/chimpanze/noda/internal/validate"
 	"github.com/chimpanze/noda/pkg/api"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -782,19 +783,20 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		})
 	}
 
-	// File-level validation is clean — run the same startup dry-run
-	// `noda validate` performs (node/service/expression checks, no live
-	// connections) so the MCP tool catches what schema validation alone
-	// cannot (e.g. a node config missing a field its plugin requires).
-	plugins := registry.NewPluginRegistry()
-	for _, p := range servicePlugins() {
-		if err := plugins.Register(p); err != nil {
-			return mcp.NewToolResultError("registering plugin " + p.Name() + ": " + err.Error()), nil
-		}
+	// File-level validation is clean — run the same startup validation
+	// `noda validate` and `noda test` run, through the same shared helper, so
+	// this tool cannot answer "valid" for a project the CLI rejects. It did
+	// exactly that before #448: it ran only the dry-run bootstrap and skipped
+	// the middleware build checks, so a route wired to a misconfigured
+	// limiter or auth.jwt validated clean here and failed at boot.
+	res, vErr := validate.Project(ctx, rc)
+	if vErr != nil {
+		return mcp.NewToolResultError(vErr.Error()), nil
 	}
-	if _, bootErrs := registry.Bootstrap(ctx, rc, plugins, registry.BootstrapOptions{DryRun: true}); len(bootErrs) > 0 {
-		errList := make([]map[string]any, len(bootErrs))
-		for i, e := range bootErrs {
+	if !res.OK() {
+		startupErrs := res.Errors()
+		errList := make([]map[string]any, len(startupErrs))
+		for i, e := range startupErrs {
 			errList[i] = map[string]any{
 				"error":   e.Error(),
 				"file":    "",

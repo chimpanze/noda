@@ -6,48 +6,42 @@ import (
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
-	"github.com/chimpanze/noda/internal/registry"
-	"github.com/chimpanze/noda/internal/server"
+	"github.com/chimpanze/noda/internal/validate"
 )
 
-// validateProject runs every check `noda validate` performs after
-// config.ValidateAll: plugin/service/node startup validation in dry-run mode
-// (no database connections, no external calls) and middleware build
-// validation.
+// validateProject runs the shared startup validation (internal/validate) and
+// renders its result as the single error `noda validate` and `noda test`
+// print.
 //
-// The validate command, the test command, and the runProjectTestSuites test
-// helper all call this one function on purpose. When these checks lived only
-// inside the validate command, `noda test` happily executed workflows that
-// `noda validate` and boot both rejected — an unwired outcome output, an
-// unknown node config field, a missing service slot — so a green test run did
-// not imply the project could start (#444). Keeping a single implementation is
-// what stops those surfaces from drifting apart again, the same way
-// ValidateStartup and ValidateStartupDryRun drifted in #442.
+// The formatting lives here rather than in internal/validate because it is a
+// CLI concern: the MCP tool consumes the same Result and emits a structured
+// JSON list from it instead. The checks themselves must not be duplicated —
+// keeping one implementation is what stops these surfaces drifting, which they
+// have now done twice (#444, #448).
 func validateProject(rc *config.ResolvedConfig) error {
-	// Plugin/service/node startup validation (dry-run: no database connections)
-	plugins := registry.NewPluginRegistry()
-	if err := registerCorePlugins(plugins); err != nil {
+	res, err := validate.Project(context.Background(), rc)
+	if err != nil {
 		return err
 	}
-	_, bootstrapErrs := registry.Bootstrap(context.Background(), rc, plugins, registry.BootstrapOptions{DryRun: true})
-	if len(bootstrapErrs) > 0 {
-		var errMsgs []string
-		for _, e := range bootstrapErrs {
-			errMsgs = append(errMsgs, e.Error())
-		}
-		return fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
+	if msgs := joinErrors(res.Bootstrap); msgs != "" {
+		return fmt.Errorf("bootstrap failed:\n  %s", msgs)
 	}
-
-	// Middleware factories validate config at build time (limiter max,
-	// jwt secret, durations); building them here catches boot-time
-	// failures that the schema and bootstrap dry-run can't see.
-	if mwErrs := server.ValidateMiddlewareBuilds(rc); len(mwErrs) > 0 {
-		var errMsgs []string
-		for _, e := range mwErrs {
-			errMsgs = append(errMsgs, e.Error())
-		}
-		return fmt.Errorf("middleware validation failed:\n  %s", strings.Join(errMsgs, "\n  "))
+	if msgs := joinErrors(res.Middleware); msgs != "" {
+		return fmt.Errorf("middleware validation failed:\n  %s", msgs)
 	}
-
 	return nil
+}
+
+// joinErrors renders errors one per line, indented to sit under the heading
+// its caller prints. Returns "" for an empty slice so callers can test the
+// result directly.
+func joinErrors(errs []error) string {
+	if len(errs) == 0 {
+		return ""
+	}
+	msgs := make([]string, len(errs))
+	for i, e := range errs {
+		msgs[i] = e.Error()
+	}
+	return strings.Join(msgs, "\n  ")
 }
