@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/expr-lang/expr"
 	"github.com/google/uuid"
@@ -75,6 +76,18 @@ func NewFunctionRegistry() *FunctionRegistry {
 		}
 		return strings.ToUpper(s), nil
 	}, "Convert string to uppercase", "(string) string", new(func(string) string))
+
+	// slugify(string) → URL slug
+	r.RegisterWithInfo("slugify", func(params ...any) (any, error) {
+		if len(params) != 1 {
+			return nil, fmt.Errorf("slugify: expected 1 argument, got %d", len(params))
+		}
+		s, ok := params[0].(string)
+		if !ok {
+			return nil, fmt.Errorf("slugify: expected string argument, got %T", params[0])
+		}
+		return slugify(s), nil
+	}, "Convert a string to a URL slug: lowercased, with runs of non-alphanumeric characters collapsed to single hyphens", "(string) string", new(func(string) string))
 
 	// toInt(value) → int (coerces strings and floats)
 	r.RegisterWithInfo("toInt", func(params ...any) (any, error) {
@@ -369,4 +382,38 @@ func coerceToFloat(v any) (float64, error) {
 	default:
 		return 0, fmt.Errorf("toFloat: unsupported type %T", v)
 	}
+}
+
+// slugify lowercases s and reduces it to a URL slug: runs of characters that
+// are neither letters nor digits collapse to a single "-", and leading and
+// trailing separators are dropped.
+//
+// Unicode letters and digits are preserved rather than stripped, so a
+// non-Latin title yields a usable slug instead of an empty string (#437);
+// callers who need pure ASCII should transliterate before calling. Apostrophes
+// are removed rather than treated as separators, because they sit inside words
+// rather than between them — "Don't Stop" becomes "dont-stop", not
+// "don-t-stop".
+func slugify(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	// Separators are written lazily, immediately before the next kept rune.
+	// That collapses runs and drops leading and trailing separators without a
+	// second pass.
+	pendingSep := false
+	for _, r := range strings.ToLower(s) {
+		switch {
+		case r == '\'' || r == '’':
+			// Intra-word punctuation: drop it without breaking the word.
+		case unicode.IsLetter(r) || unicode.IsDigit(r):
+			if pendingSep && b.Len() > 0 {
+				b.WriteByte('-')
+			}
+			pendingSep = false
+			b.WriteRune(r)
+		default:
+			pendingSep = true
+		}
+	}
+	return b.String()
 }

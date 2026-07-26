@@ -19,7 +19,7 @@ All nodes have access to these variables in expressions:
 
 ## Built-in Functions
 
-`len()`, `lower()`, `upper()`, `now()`, `$uuid()`, `$var()`, `toInt()`, `toFloat()`.
+`len()`, `lower()`, `upper()`, `slugify()`, `now()`, `$uuid()`, `$var()`, `toInt()`, `toFloat()`.
 
 ### Type Conversion Functions
 

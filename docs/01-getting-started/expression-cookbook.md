@@ -15,6 +15,7 @@ These functions are registered by Noda and available in all `{{ }}` expressions.
 | `now()` | `() time.Time` | Returns the current time | `{{ now() }}` |
 | `lower(s)` | `(string) string` | Convert string to lowercase | `{{ lower(input.email) }}` |
 | `upper(s)` | `(string) string` | Convert string to uppercase | `{{ upper(input.code) }}` |
+| `slugify(s)` | `(string) string` | Convert to a URL slug: lowercased, non-alphanumeric runs collapsed to single hyphens | `{{ slugify(input.title) }}` |
 | `toInt(v)` | `(any) int` | Convert value to integer (coerces strings, floats) | `{{ toInt(input.page) }}` |
 | `toFloat(v)` | `(any) float64` | Convert value to float64 (coerces strings, ints) | `{{ toFloat(input.price) }}` |
 | `sha256(s)` | `(string) string` | Hex-encoded SHA-256 hash | `{{ sha256(input.payload) }}` |
@@ -180,7 +181,7 @@ Concatenate strings with `+` or use interpolated expressions.
     "fields": {
       "full_name": "{{ input.first_name + ' ' + input.last_name }}",
       "greeting": "Hello, {{ input.first_name }}!",
-      "slug": "{{ lower(replace(input.title, ' ', '-')) }}",
+      "slug": "{{ slugify(input.title) }}",
       "initials": "{{ upper(input.first_name[0:1] + input.last_name[0:1]) }}",
       "api_url": "{{ $var('API_BASE') }}/users/{{ input.user_id }}"
     }
