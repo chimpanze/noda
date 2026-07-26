@@ -52,6 +52,7 @@ The node produces no output data. A downstream retry node references the origina
 {
   "retry_call": {
     "type": "http.request",
+    "services": { "client": "api" },
     "config": {
       "method": "POST",
       "url": "{{ nodes.build_request.url }}",

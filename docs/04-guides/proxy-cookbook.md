@@ -49,33 +49,62 @@ Put the host in the service config, use relative paths in workflows. This is the
 
 ## 2. Forwarding query parameters
 
-The HTTP request context exposes `query` as a map. Forward it wholesale to the backend for pagination and filters:
+`http.get`'s config accepts only `url`, `headers`, `body`, and `timeout` — there is no dedicated query-parameter field, and no way to forward the incoming `query` map wholesale. Forward parameters explicitly, in two steps.
+
+**`query.*` is not available inside a node config.** The node expression context is exactly `input`, `auth`, `trigger`, `nodes`, and `secrets` (see [Expressions](../01-getting-started/expressions.md)). `query`, `params`, `body`, and `headers` exist *only* in a route's `trigger.input` mapping. A node config that says `{{ query.limit }}` fails at runtime with `cannot fetch limit from <nil>` — and `??` does not rescue it, because the member access on the nil root fails before the fallback is considered.
+
+So: map the query parameters into the workflow input on the route, then read them as `input.*` in the node.
+
+```json
+// routes/list-items.json
+{
+  "id": "list-items",
+  "method": "GET",
+  "path": "/api/items",
+  "trigger": {
+    "workflow": "list-items",
+    "input": {
+      "limit": "{{ query.limit }}",
+      "offset": "{{ query.offset }}"
+    }
+  }
+}
+```
+
+```json
+// workflows/list-items.json
+{
+  "id": "list-items",
+  "nodes": {
+    "fetch": {
+      "type": "http.get",
+      "services": { "client": "inventory" },
+      "config": {
+        "url": "/items?limit={{ input.limit }}&offset={{ input.offset }}"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": { "body": "{{ nodes.fetch.body }}" }
+    }
+  },
+  "edges": [{ "from": "fetch", "to": "respond" }]
+}
+```
+
+Provide defaults for parameters that might be missing from the request. A query parameter that was not sent maps to `null`, so `??` in the *node* config supplies the fallback:
 
 ```json
 {
   "type": "http.get",
   "services": { "client": "inventory" },
   "config": {
-    "url": "/items",
-    "query": "{{ query }}"
+    "url": "/items?page={{ input.page ?? 1 }}&per_page={{ input.per_page ?? 20 }}&sort={{ input.sort ?? '' }}"
   }
 }
 ```
 
-Or forward specific keys:
-
-```json
-{
-  "config": {
-    "url": "/items",
-    "query": {
-      "page": "{{ query.page ?? 1 }}",
-      "per_page": "{{ query.per_page ?? 20 }}",
-      "sort": "{{ query.sort }}"
-    }
-  }
-}
-```
+Keep the matching keys in `trigger.input` (`"page": "{{ query.page }}"`, and so on) — a key that is never mapped is absent from `input` entirely, which `??` also handles, but mapping it keeps the route self-documenting and lets `query.schema` validate it.
 
 ## 3. Binary passthrough (PDFs, images)
 
@@ -127,16 +156,18 @@ Every route under `/api/public` gets the 403→401 rewrite automatically. Workfl
 
 ### Advanced: per-endpoint remap in the workflow
 
-If a single endpoint needs logic that branches on the upstream status (e.g. log differently, trigger a refresh workflow), do it in the workflow itself with `control.if`:
+If a single endpoint needs logic that branches on the upstream status (e.g. log differently, trigger a refresh workflow), do it in the workflow itself with `control.if`. `limit` and `offset` reach the node as `input.*` via the route's `trigger.input` mapping shown in section 2:
 
 ```json
 {
-  "id": "list-items",
+  "id": "list-items-remap",
   "nodes": {
     "fetch": {
       "type": "http.get",
       "services": { "client": "inventory" },
-      "config": { "url": "/items", "query": "{{ query }}" }
+      "config": {
+        "url": "/items?limit={{ input.limit ?? 20 }}&offset={{ input.offset ?? 0 }}"
+      }
     },
     "remap": {
       "type": "control.if",
@@ -153,8 +184,8 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
   },
   "edges": [
     { "from": "fetch", "to": "remap" },
-    { "from": "remap", "to": "unauthorized", "when": "true" },
-    { "from": "remap", "to": "pass_through", "when": "false" }
+    { "from": "remap", "to": "unauthorized", "output": "then" },
+    { "from": "remap", "to": "pass_through", "output": "else" }
   ]
 }
 ```

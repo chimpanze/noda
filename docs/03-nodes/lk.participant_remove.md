@@ -64,6 +64,7 @@ A kick-participant endpoint looks up the room from the database, removes the use
   "log_action": {
     "type": "util.log",
     "config": {
+      "level": "info",
       "message": "{{ 'Removed ' + input.user_id + ' from ' + nodes.get_meeting.room_name }}"
     }
   }

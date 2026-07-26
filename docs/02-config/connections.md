@@ -147,6 +147,7 @@ The `sse.send` node supports an `event` field that maps to the SSE `event:` line
 {
   "send_notification": {
     "type": "sse.send",
+    "services": { "connections": "notifications" },
     "config": {
       "channel": "notify.{{ input.user_id }}",
       "event": "new_message",
@@ -224,14 +225,14 @@ A common pattern is using the cache service for presence tracking and the databa
 {
   "add_presence": {
     "type": "cache.set",
+    "services": { "cache": "app-cache" },
     "config": {
-      "service": "app-cache",
       "key": "presence:{{ input.channel }}:{{ input.user_id }}",
       "value": {
         "user_id": "{{ input.user_id }}",
         "connected_at": "{{ $now() }}"
       },
-      "ttl": "60s"
+      "ttl": 60
     }
   }
 }
@@ -276,18 +277,19 @@ When a user joins, add them to the presence set and broadcast a join notificatio
   "nodes": {
     "add_presence": {
       "type": "cache.set",
+      "services": { "cache": "app-cache" },
       "config": {
-        "service": "app-cache",
         "key": "presence:{{ input.channel }}:{{ input.user_id }}",
         "value": {
           "user_id": "{{ input.user_id }}",
           "joined_at": "{{ $now() }}"
         },
-        "ttl": "120s"
+        "ttl": 120
       }
     },
     "broadcast_join": {
       "type": "ws.send",
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -315,13 +317,14 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     "route": {
       "type": "control.switch",
       "config": {
-        "value": "{{ input.data.type }}"
+        "expression": "{{ input.data.type }}",
+        "cases": ["message", "typing"]
       }
     },
     "save_message": {
       "type": "db.create",
+      "services": { "database": "main-db" },
       "config": {
-        "service": "main-db",
         "table": "messages",
         "data": {
           "id": "{{ $uuid() }}",
@@ -334,6 +337,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     },
     "broadcast_message": {
       "type": "ws.send",
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -347,6 +351,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     },
     "broadcast_typing": {
       "type": "ws.send",
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {
@@ -358,6 +363,7 @@ Route incoming messages by type -- chat messages are stored and broadcast, typin
     "log_unknown": {
       "type": "util.log",
       "config": {
+        "level": "warn",
         "message": "Unknown message type: {{ input.data.type }}"
       }
     }
@@ -382,13 +388,14 @@ Remove the user from presence and broadcast a leave notification:
   "nodes": {
     "remove_presence": {
       "type": "cache.del",
+      "services": { "cache": "app-cache" },
       "config": {
-        "service": "app-cache",
         "key": "presence:{{ input.channel }}:{{ input.user_id }}"
       }
     },
     "broadcast_leave": {
       "type": "ws.send",
+      "services": { "connections": "chat" },
       "config": {
         "channel": "{{ input.channel }}",
         "data": {

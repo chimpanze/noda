@@ -182,21 +182,22 @@ Delete expired sessions and soft-deleted records older than 30 days:
   "nodes": {
     "delete_sessions": {
       "type": "db.exec",
+      "services": { "database": "main-db" },
       "config": {
-        "sql": "DELETE FROM sessions WHERE expires_at < NOW()",
-        "service": "main-db"
+        "query": "DELETE FROM sessions WHERE expires_at < NOW()"
       }
     },
     "delete_soft_deleted": {
       "type": "db.exec",
+      "services": { "database": "main-db" },
       "config": {
-        "sql": "DELETE FROM users WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days'",
-        "service": "main-db"
+        "query": "DELETE FROM users WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '30 days'"
       }
     },
     "log_result": {
       "type": "util.log",
       "config": {
+        "level": "info",
         "message": "Cleanup complete: sessions={{ nodes.delete_sessions.rows_affected }}, users={{ nodes.delete_soft_deleted.rows_affected }}"
       }
     }

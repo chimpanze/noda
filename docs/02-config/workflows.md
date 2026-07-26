@@ -31,7 +31,7 @@ Every node's `config` object is validated against the node's schema at two point
 | `from` | string | yes | Source node ID |
 | `to` | string | yes | Target node ID |
 | `output` | string | no | Named output (e.g., `"then"`, `"else"`, `"error"`) |
-| `retry` | object | no | Retry configuration |
+| `retry` | object | no | Retry configuration. Valid only on an edge whose `output` is `"error"` — retries the source node before falling back to the error edge. Rejected at validate/boot on any other output. |
 | `retry.attempts` | integer | no | Max retry attempts |
 | `retry.backoff` | string | no | `"fixed"` or `"exponential"` |
 | `retry.delay` | string | no | Base delay between retries |
@@ -65,18 +65,42 @@ Every node's `config` object is validated against the node's schema at two point
         "code": "ORDER_EXISTS",
         "message": "Order already exists"
       }
+    },
+    "notify": {
+      "type": "email.send",
+      "services": { "mailer": "smtp" },
+      "config": {
+        "to": "{{ input.email }}",
+        "subject": "Order confirmed",
+        "body": "Your order {{ nodes.create.id }} for {{ input.total }} has been placed."
+      }
+    },
+    "creation_failed": {
+      "type": "response.error",
+      "config": {
+        "status": 503,
+        "code": "ORDER_CREATE_FAILED",
+        "message": "Failed to create order"
+      }
     }
   },
   "edges": [
     { "from": "validate", "to": "create" },
+    { "from": "create", "to": "notify", "output": "success" },
+    { "from": "create", "to": "conflict", "output": "exists" },
     {
-      "from": "create", "to": "notify", "output": "success",
+      "from": "create", "to": "creation_failed", "output": "error",
       "retry": { "attempts": 3, "backoff": "exponential", "delay": "1s" }
-    },
-    { "from": "create", "to": "conflict", "output": "exists" }
+    }
   ]
 }
 ```
+
+`retry` is only valid on an edge whose `output` is `"error"` — it retries the
+*source* node itself (here, `create`) before giving up and following the
+error edge; on any other output it fails validation. Here, a transient
+database error retries the insert up to 3 times before returning `503` to
+the caller.
 
 ### Outcome outputs must be wired
 

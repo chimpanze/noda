@@ -77,6 +77,7 @@ A downstream node can save this metadata:
 {
   "save_file_record": {
     "type": "db.create",
+    "services": { "database": "postgres" },
     "config": {
       "table": "files",
       "data": {

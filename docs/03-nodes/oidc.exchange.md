@@ -10,7 +10,7 @@ Exchanges an authorization code for OIDC tokens.
 | `client_id` | string (expr) | yes | OAuth2 client ID |
 | `client_secret` | string (expr) | yes | OAuth2 client secret |
 | `redirect_uri` | string (expr) | yes | Callback URL used during authorization |
-| `code` | string (expr) | yes | Authorization code to exchange (typically `{{ query.code }}`) |
+| `code` | string (expr) | yes | Authorization code to exchange. Read it as `{{ input.code }}` — `query.*` is not in the node expression context; map it on the route with `"code": "{{ query.code }}"` in `trigger.input`. |
 
 ## Outputs
 
@@ -58,7 +58,7 @@ An OAuth callback endpoint exchanges the authorization code, then uses the retur
       "client_id": "{{ secrets.OIDC_CLIENT_ID }}",
       "client_secret": "{{ secrets.OIDC_CLIENT_SECRET }}",
       "redirect_uri": "{{ secrets.APP_URL + '/auth/callback' }}",
-      "code": "{{ query.code }}"
+      "code": "{{ input.code }}"
     }
   },
   "upsert_user": {

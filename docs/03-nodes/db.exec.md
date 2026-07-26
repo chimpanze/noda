@@ -68,6 +68,7 @@ The `error` port fires on SQL errors such as constraint violations, syntax error
   "log_result": {
     "type": "util.log",
     "config": {
+      "level": "info",
       "message": "{{ 'Deactivated ' + string(nodes.deactivate_users.rows_affected) + ' users' }}"
     }
   }
