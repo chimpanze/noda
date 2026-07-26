@@ -154,6 +154,19 @@ func TestTestCmd_VerboseMode(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// `noda test` must refuse to run a project that `noda validate` rejects.
+// Before #444 the test runner skipped the startup dry-run entirely, so a
+// workflow with an unwired outcome output, an unknown node config field, or a
+// missing service slot ran green here while validate and boot both failed.
+func TestTestCmd_FailsOnProjectThatDoesNotValidate(t *testing.T) {
+	root := testRootCmd(newTestCmd())
+	root.SetArgs([]string{"test", "--config", "../../testdata/test-cmd-invalid-project"})
+
+	err := root.Execute()
+	require.Error(t, err, "test must fail on a project that cannot boot")
+	assert.Contains(t, err.Error(), "outcome output")
+}
+
 // --- init command ---
 
 func TestInitCmd_Scaffolds(t *testing.T) {

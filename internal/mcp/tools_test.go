@@ -826,7 +826,12 @@ func TestScaffoldProjectHandler_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
 	exampleData, err := os.ReadFile(filepath.Join(projectA, ".env.example"))
 	require.NoError(t, err)
 	assert.Contains(t, string(exampleData), "at least 32 bytes")
-	assert.Contains(t, string(exampleData), "replace-with-at-least-32-bytes")
+	assert.Contains(t, string(exampleData), "replace-with-a-secret-of-at-least-32-bytes")
+	// The invariant that matters: the placeholder itself must satisfy auth.jwt's
+	// >=32-byte minimum, so a shortened placeholder fails here even if the
+	// literal string above is updated to match.
+	assert.GreaterOrEqual(t, len(extractJWTSecret(t, string(exampleData))), 32,
+		"JWT_SECRET placeholder in .env.example must be at least 32 bytes")
 
 	envA, err := os.ReadFile(filepath.Join(projectA, ".env"))
 	require.NoError(t, err)
@@ -838,7 +843,7 @@ func TestScaffoldProjectHandler_GeneratesEnvWithUniqueJWTSecret(t *testing.T) {
 	assert.Len(t, secretA, 64)
 	assert.Len(t, secretB, 64)
 	assert.NotEqual(t, secretA, secretB, "each scaffold must generate a unique secret")
-	assert.NotContains(t, string(envA), "replace-with-at-least-32-bytes")
+	assert.NotContains(t, string(envA), "replace-with-a-secret-of-at-least-32-bytes")
 	assert.Contains(t, string(envA), "DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable")
 }
 

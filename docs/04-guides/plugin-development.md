@@ -296,6 +296,7 @@ func (e *QueryExecutor) Execute(ctx context.Context, nCtx api.ExecutionContext,
 
 In the workflow config, users bind service instances to slots:
 
+<!-- docverify:ignore my.query is the hypothetical plugin being written in this guide, not a registered node type -->
 ```json
 {
   "type": "my.query",

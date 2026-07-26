@@ -57,7 +57,7 @@ A profile avatar workflow reads the uploaded image path from a previous node, cr
 {
   "handle_upload": {
     "type": "upload.handle",
-    "services": { "storage": "uploads" },
+    "services": { "destination": "uploads" },
     "config": {
       "field": "avatar",
       "path": "{{ 'avatars/raw/' + auth.sub + '.' + input.ext }}"

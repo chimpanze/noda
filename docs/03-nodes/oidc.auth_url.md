@@ -50,7 +50,9 @@ A login flow generates a state token, caches it for CSRF verification, then buil
   "gen_state": {
     "type": "transform.set",
     "config": {
-      "state": "{{ $uuid() }}"
+      "fields": {
+        "state": "{{ $uuid() }}"
+      }
     }
   },
   "cache_state": {

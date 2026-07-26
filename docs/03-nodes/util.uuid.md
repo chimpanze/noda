@@ -48,6 +48,7 @@ A downstream node can reference this value:
 {
   "create_record": {
     "type": "db.create",
+    "services": { "database": "postgres" },
     "config": {
       "table": "documents",
       "data": {

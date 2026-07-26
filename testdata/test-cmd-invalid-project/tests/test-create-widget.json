@@ -1,0 +1,35 @@
+{
+  "id": "test-create-widget",
+  "workflow": "create-widget",
+  "tests": [
+    {
+      "name": "creates widget successfully",
+      "input": {
+        "name": "Test Widget"
+      },
+      "mocks": {
+        "insert": {
+          "output": {
+            "id": "uuid-123",
+            "name": "Test Widget"
+          }
+        },
+        "respond": {
+          "output": {
+            "status": 201,
+            "body": {
+              "id": "uuid-123",
+              "name": "Test Widget"
+            }
+          }
+        }
+      },
+      "expect": {
+        "status": "success",
+        "output": {
+          "respond.status": 201
+        }
+      }
+    }
+  ]
+}

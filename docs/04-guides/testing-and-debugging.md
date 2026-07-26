@@ -302,6 +302,8 @@ After the happy path, add tests for each failure mode:
 > **Validation does not run tests.** `noda_validate_config` (and the `noda validate` CLI) only check that test files are *structurally* valid — they never execute a workflow or compare its output against a test's `expect` block. Only `noda test` actually runs tests and catches a **stale assertion**. There is no MCP tool that runs tests, so when you edit a workflow through the MCP surface, a passing `validate_config` does **not** mean the tests still match.
 >
 > In particular, the scaffolded `tests/*.test.json` is **illustrative**: it asserts the output of the *original* scaffolded workflow. As soon as you change that workflow to do something else, update (or delete) the scaffolded test — otherwise its `expect` block is stale and only `noda test` will reveal the mismatch.
+>
+> **The reverse does hold:** `noda test` validates the project before it runs anything. It performs the same checks as `noda validate` — node config schemas, service slot references, service config schemas, edge outputs, unwired outcome outputs, and middleware builds — and stops with those errors without executing a single test. A project that cannot boot cannot be tested.
 
 ### CLI Command
 
@@ -398,16 +400,35 @@ Add `util.log` nodes to your workflow to output values during execution. These a
 
 ```json
 {
-  "id": "debug_input",
-  "type": "util.log",
-  "config": {
-    "message": "Received input",
-    "data": "{{ input }}"
+  "debug_input": {
+    "type": "util.log",
+    "config": {
+      "level": "debug",
+      "message": "Received input",
+      "fields": {
+        "input": "{{ input }}"
+      }
+    }
   }
 }
 ```
 
 Place `util.log` nodes between other nodes to inspect intermediate values. They pass through without affecting workflow execution. Remove or disable them before deploying to production.
+
+## Doc Snippet Validation
+
+Fenced ` ```json ` blocks in these docs (`docs/01-getting-started` through `docs/05-examples`, recursively) are checked in CI by `tools/docverify/snippets`, via `go test ./tools/docverify/snippets/`.
+
+Two block shapes are validated against the runtime:
+
+- **Workflow blocks** -- a top-level `nodes` object, optionally with `edges`.
+- **Node-config blocks** -- a single node object (`{"type": "db.query", "config": {...}}`) or a map of node id to node object, which is how the per-node pages in `docs/03-nodes/` present their examples. These are wrapped in a synthetic edgeless workflow before validation.
+
+Both shapes go through the same `registry.ValidateStartupDryRun` node-config validation and `engine.Compile` graph validation that `noda validate` and real boot use, so a snippet with an invalid config field (like `data` where `util.log`'s schema requires `fields`), an unknown node type, a missing required service slot, or an invalid graph (like `retry` on a non-`error` edge) fails the gate instead of shipping broken.
+
+What is *not* validated: blocks that are neither shape -- `noda.json` fragments, route and connection configs, test files, output-shape illustrations. Two narrow exemptions apply to the shapes above: the unwired-outcome-output rule is not applied to node-config blocks (a synthetic wrapper has no edges, so it would fire on every fragment), and service-slot *references* are not resolved (a fragment has no `services` block to resolve them against), though a node that omits a required slot entirely is still reported. A block preceded by `<!-- docverify:ignore <reason> -->` is skipped; that directive is for deliberately hypothetical snippets only.
+
+If this test fails, the failure message names the doc file, the line the block starts at, and the exact validator error -- fix the snippet's JSON directly; there's nothing else to rerun.
 
 ## Common Errors and Fixes
 

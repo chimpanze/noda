@@ -42,6 +42,7 @@ Each node produces output data when it executes. The output is stored and access
   "nodes": {
     "lookup": {
       "type": "db.findOne",
+      "services": { "database": "postgres" },
       "config": {
         "table": "users",
         "where": { "id": "{{ input.user_id }}" }
@@ -72,6 +73,7 @@ Use the `"as"` field to give a node a more descriptive reference name:
   "fetch_user": {
     "type": "db.findOne",
     "as": "user",
+    "services": { "database": "postgres" },
     "config": {
       "table": "users",
       "where": { "id": "{{ input.user_id }}" }
@@ -140,6 +142,7 @@ A 3-node workflow that creates a user and returns the result:
     },
     "create": {
       "type": "db.create",
+      "services": { "database": "postgres" },
       "config": {
         "table": "users",
         "data": {

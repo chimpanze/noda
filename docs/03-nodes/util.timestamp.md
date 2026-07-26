@@ -52,6 +52,7 @@ A downstream node uses the timestamp:
 {
   "save_event": {
     "type": "db.create",
+    "services": { "database": "postgres" },
     "config": {
       "table": "audit_log",
       "data": {
