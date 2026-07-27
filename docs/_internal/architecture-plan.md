@@ -332,7 +332,7 @@ Note: workers also support **middleware** for cross-cutting concerns — logging
   "services": {
     "lock": "app-cache"
   },
-  "cron": "0 */6 * * *",
+  "cron": "0 0 */6 * * *",
   "timezone": "UTC",
   "description": "Remove expired refresh tokens",
   "trigger": {

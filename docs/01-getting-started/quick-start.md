@@ -381,7 +381,7 @@ noda validate
 noda test --verbose
 ```
 
-`noda validate` checks config schemas, cross-references, workflow compilation, and — without opening any external connections — that every middleware referenced by your routes, groups, presets, and connections would actually build at boot (e.g. a `limiter` without an explicit `max` fails here instead of crashing the server).
+`noda validate` checks config schemas and cross-references, then runs — without opening any external connections — every startup step that can fail from configuration alone. It compiles each workflow graph, so a cycle or an edge to a node that does not exist is caught here rather than at boot. It builds every middleware your routes, groups, presets, and connections reference, so a `limiter` without an explicit `max` fails here instead of crashing the server. And it parses every schedule's cron spec and every worker's concurrency setting, so a five-field cron expression (Go's cron wants six) or a concurrency above the allowed maximum is reported now, not after your services have been dialed.
 
 `noda test` runs those same checks first and stops on failure, so it never executes a workflow that would be rejected at boot.
 

@@ -296,7 +296,13 @@ func detectCycle(g *CompiledGraph) error {
 	var dfs func(node string) error
 	dfs = func(node string) error {
 		color[node] = gray
-		for _, targets := range g.Adjacency[node] {
+		outputs := make([]string, 0, len(g.Adjacency[node]))
+		for output := range g.Adjacency[node] {
+			outputs = append(outputs, output)
+		}
+		sort.Strings(outputs)
+		for _, output := range outputs {
+			targets := g.Adjacency[node][output]
 			for _, target := range targets {
 				if color[target] == gray {
 					// Build cycle path
@@ -324,7 +330,12 @@ func detectCycle(g *CompiledGraph) error {
 		return nil
 	}
 
+	ids := make([]string, 0, len(g.Nodes))
 	for id := range g.Nodes {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
 		if color[id] == white {
 			if err := dfs(id); err != nil {
 				return err

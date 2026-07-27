@@ -12,7 +12,13 @@ import (
 
 // BootstrapResult holds all registries after startup initialization.
 type BootstrapResult struct {
-	Plugins  *PluginRegistry
+	Plugins *PluginRegistry
+	// Services is nil on internal/startup's live-validation path (the editor
+	// and dev-mode reload), which assembles a BootstrapResult from registries
+	// the caller already holds and never creates services. Check it before
+	// use: ServiceRegistry's methods lock the receiver's mutex
+	// unconditionally, so a nil one panics on first call rather than behaving
+	// as an empty registry.
 	Services *ServiceRegistry
 	Nodes    *NodeRegistry
 	Compiler *expr.Compiler

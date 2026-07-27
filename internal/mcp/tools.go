@@ -19,8 +19,9 @@ import (
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scaffold"
-	"github.com/chimpanze/noda/internal/validate"
+	"github.com/chimpanze/noda/internal/startup"
 	"github.com/chimpanze/noda/pkg/api"
+	"github.com/chimpanze/noda/plugins/all"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -784,25 +785,31 @@ func validateConfigHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		})
 	}
 
-	// File-level validation is clean — run the same startup validation
-	// `noda validate` and `noda test` run, through the same shared helper, so
-	// this tool cannot answer "valid" for a project the CLI rejects. It did
-	// exactly that before #448: it ran only the dry-run bootstrap and skipped
-	// the middleware build checks, so a route wired to a misconfigured
-	// limiter or auth.jwt validated clean here and failed at boot.
-	res, vErr := validate.Project(ctx, rc)
-	if vErr != nil {
-		return mcp.NewToolResultError(vErr.Error()), nil
-	}
-	if !res.OK() {
-		startupErrs := res.Errors()
-		errList := make([]map[string]any, len(startupErrs))
-		for i, e := range startupErrs {
+	// File-level validation is clean — run the same startup phases `noda
+	// validate`, `noda test`, the editor, and boot run, through the same
+	// shared list, so this tool cannot answer "valid" for a project the CLI
+	// rejects. It did exactly that before #448: it ran only the dry-run
+	// bootstrap and skipped the middleware builds, so a route wired to a
+	// misconfigured limiter validated clean here and failed at boot.
+	_, failures := startup.Run(ctx, startup.Input{
+		RC:             rc,
+		Plugins:        all.All(),
+		RootConfigPath: filepath.Join(configDir, "noda.json"),
+		DryRun:         true,
+	})
+	if len(failures) > 0 {
+		errList := make([]map[string]any, len(failures))
+		for i, f := range failures {
+			file := ""
+			if len(f.Files) > 0 {
+				file = f.Files[0]
+			}
 			errList[i] = map[string]any{
-				"error":   e.Error(),
-				"file":    "",
-				"pointer": "",
-				"message": e.Error(),
+				"error":   f.Err.Error(),
+				"phase":   string(f.Phase),
+				"file":    file,
+				"pointer": f.JSONPath,
+				"message": f.Err.Error(),
 			}
 		}
 		return jsonResult(map[string]any{

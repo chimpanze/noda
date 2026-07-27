@@ -1,27 +1,39 @@
 package editor
 
 import (
-	"errors"
+	"context"
+	"slices"
 
 	"github.com/chimpanze/noda/internal/config"
 	nodaexpr "github.com/chimpanze/noda/internal/expr"
-	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/startup"
 	"github.com/gofiber/fiber/v3"
 )
 
-// startupDryRunErrors runs the same node/service/expression startup checks
-// `noda validate` performs, but without live service connections. It only
-// runs when file-level validation was clean and the registries needed for
-// it (plugins, nodes, compiler) are available — dev-mode API always
-// has them, but tests may construct a bare instance.
-func (e *API) startupDryRunErrors(rc *config.ResolvedConfig) []error {
+// startupFailures runs the same startup phases boot and `noda validate` run,
+// reusing the editor's live registries and without opening any connection.
+//
+// It returns nil when the registries needed for it are absent — dev-mode
+// always has them, but tests may construct a bare instance.
+func (e *API) startupFailures(rc *config.ResolvedConfig) []startup.Failure {
 	if rc == nil || e.plugins == nil || e.nodes == nil || e.compiler == nil {
 		return nil
 	}
-	return registry.DryRun(rc, e.plugins, e.nodes, e.compiler)
+	_, failures := startup.Run(context.Background(), startup.Input{
+		RC: rc,
+		Live: &startup.Registries{
+			Plugins:  e.plugins,
+			Nodes:    e.nodes,
+			Compiler: e.compiler,
+		},
+		RootConfigPath: e.root.Join("noda.json"),
+		DryRun:         true,
+	})
+	return failures
 }
 
-// validateFile validates a single JSON config against its schema.
+// validateFile validates a single JSON config against its schema, then reports
+// the startup failures implicating that file.
 func (e *API) validateFile(c fiber.Ctx) error {
 	var req struct {
 		Path string `json:"path"`
@@ -30,20 +42,18 @@ func (e *API) validateFile(c fiber.Ctx) error {
 		return c.Status(400).JSON(map[string]any{"error": "invalid request body"})
 	}
 
-	// Run full validation to catch cross-references.
-	// Create a fresh secrets manager for validation (reuses same providers).
 	sm, smErr := config.NewSecretsManager(e.root.String(), e.envFlag)
 	if smErr != nil {
 		return c.Status(500).JSON(map[string]any{"error": smErr.Error()})
 	}
 	rc, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
 
-	// Filter errors for the requested file
-	var filtered []map[string]any
 	absPath, err := e.root.Resolve(req.Path)
 	if err != nil {
 		return c.Status(403).JSON(map[string]any{"error": "invalid path"})
 	}
+
+	var filtered []map[string]any
 	for _, ve := range errs {
 		if ve.FilePath == absPath {
 			filtered = append(filtered, map[string]any{
@@ -55,32 +65,22 @@ func (e *API) validateFile(c fiber.Ctx) error {
 	}
 
 	if len(errs) == 0 {
-		// Scope dry-run errors to the requested file's workflows (#349):
-		// rc.Workflows is keyed by file path, so restrict to this file.
-		scoped := *rc
-		if wf, ok := rc.Workflows[absPath]; ok {
-			scoped.Workflows = map[string]map[string]any{absPath: wf}
-		} else {
-			scoped.Workflows = nil // non-workflow file: workflow dry-run errors are unrelated here
-		}
-
-		// Service-schema errors (registry.ServiceConfigError) always
-		// originate from rc.Root — services are declared project-wide, not
-		// per-file — so scoping workflows to this file doesn't scope them.
-		// Attribute them to this file only when the requested file *is* the
-		// root config (noda.json); otherwise they belong to a different
-		// file than the one being saved and would be misleading here.
-		// validateAll (below) still reports them unconditionally.
-		isRootConfig := absPath == e.root.Join("noda.json")
-		for _, dErr := range e.startupDryRunErrors(&scoped) {
-			var svcErr *registry.ServiceConfigError
-			if errors.As(dErr, &svcErr) && !isRootConfig {
+		// Every startup failure names the files it implicates, so scoping is
+		// one containment check. This replaces two workarounds that existed
+		// only because the failures were untyped: a special case for
+		// registry.ServiceConfigError, which has no file and belongs to the
+		// root config, and a trick that pre-trimmed rc.Workflows to this file
+		// so other files' errors would not appear (#349). The trick *hid*
+		// cross-file failures rather than attributing them, so a file could
+		// read clean while the project could not boot.
+		for _, f := range e.startupFailures(rc) {
+			if !slices.Contains(f.Files, absPath) {
 				continue
 			}
 			filtered = append(filtered, map[string]any{
 				"file":    absPath,
-				"path":    "",
-				"message": dErr.Error(),
+				"path":    f.JSONPath,
+				"message": f.Err.Error(),
 			})
 		}
 	}
@@ -99,9 +99,9 @@ func (e *API) validateAll(c fiber.Ctx) error {
 	}
 	rc, errs := config.ValidateAll(e.root.String(), e.envFlag, sm)
 
-	var errors []map[string]any
+	var out []map[string]any
 	for _, ve := range errs {
-		errors = append(errors, map[string]any{
+		out = append(out, map[string]any{
 			"file":    e.root.Rel(ve.FilePath),
 			"path":    ve.JSONPath,
 			"message": ve.Message,
@@ -109,18 +109,22 @@ func (e *API) validateAll(c fiber.Ctx) error {
 	}
 
 	if len(errs) == 0 {
-		for _, dErr := range e.startupDryRunErrors(rc) {
-			errors = append(errors, map[string]any{
-				"file":    "",
-				"path":    "",
-				"message": dErr.Error(),
+		for _, f := range e.startupFailures(rc) {
+			file := ""
+			if len(f.Files) > 0 {
+				file = e.root.Rel(f.Files[0])
+			}
+			out = append(out, map[string]any{
+				"file":    file,
+				"path":    f.JSONPath,
+				"message": f.Err.Error(),
 			})
 		}
 	}
 
 	return c.JSON(map[string]any{
-		"valid":  len(errors) == 0,
-		"errors": errors,
+		"valid":  len(out) == 0,
+		"errors": out,
 	})
 }
 

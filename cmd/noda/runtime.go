@@ -20,6 +20,7 @@ import (
 	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/secrets"
 	"github.com/chimpanze/noda/internal/server"
+	"github.com/chimpanze/noda/internal/startup"
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/internal/wasm"
 	"github.com/chimpanze/noda/internal/worker"
@@ -77,31 +78,28 @@ func initRuntime(configDir, envFlag string, opts initOptions) (*runtimeContext, 
 		logger.Warn("tracer initialization failed", "error", err.Error())
 	}
 
-	// Bootstrap plugins and services
-	plugins := registry.NewPluginRegistry()
-	if err := registerCorePlugins(plugins); err != nil {
-		return nil, err
-	}
+	// Run the startup phases. Boot takes its registries and workflow cache
+	// from here rather than building them alongside, so a phase cannot be
+	// dropped from the list without breaking this. That is what keeps
+	// `noda validate` honest: the phases it runs are the ones boot runs.
+	//
 	// Background is intentional: initRuntime runs before setupLifecycle, so no
-	// lifecycle root ctx exists yet. If Bootstrap hangs past createTimeout, it
-	// returns an error → initRuntime returns error → cobra exits → process
-	// terminates, so the cleanup goroutine the cleared-via-ctx fix protects
-	// against is functionally moot here. The protection is meaningful when
-	// InitializeServices is called in a context that actually has a root ctx
-	// (the test in lifecycle_test.go exercises it).
-	bootstrap, bootstrapErrs := registry.Bootstrap(context.Background(), rc, plugins)
-	if len(bootstrapErrs) > 0 {
-		var errMsgs []string
-		for _, e := range bootstrapErrs {
-			errMsgs = append(errMsgs, e.Error())
+	// lifecycle root ctx exists yet. If service initialization hangs past
+	// createTimeout, it returns an error → initRuntime returns error → cobra
+	// exits → process terminates, so the cleanup goroutine the cleared-via-ctx
+	// fix protects against is functionally moot here. The protection is
+	// meaningful when InitializeServices is called in a context that actually
+	// has a root ctx (the test in lifecycle_test.go exercises it).
+	arts, failures := startup.Run(context.Background(), startup.Input{
+		RC:      rc,
+		Plugins: allPlugins(),
+	})
+	if len(failures) > 0 {
+		var msgs []string
+		for _, f := range failures {
+			msgs = append(msgs, f.Err.Error())
 		}
-		return nil, fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
-	}
-
-	// Pre-compile all workflows
-	workflowCache, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes)
-	if err != nil {
-		return nil, fmt.Errorf("compiling workflows: %w", err)
+		return nil, fmt.Errorf("%s validation failed:\n  %s", failures[0].Phase, strings.Join(msgs, "\n  "))
 	}
 
 	secretsCtx := sm.ExpressionContext()
@@ -110,10 +108,10 @@ func initRuntime(configDir, envFlag string, opts initOptions) (*runtimeContext, 
 		RC:             rc,
 		SecretsCtx:     secretsCtx,
 		SecretsManager: sm,
-		Bootstrap:      bootstrap,
-		WorkflowCache:  workflowCache,
+		Bootstrap:      arts.Bootstrap,
+		WorkflowCache:  arts.WorkflowCache,
 		TraceProvider:  traceProvider,
-		Plugins:        plugins,
+		Plugins:        arts.Bootstrap.Plugins,
 		Logger:         logger,
 		ConfigDir:      configDir,
 	}, nil
@@ -357,4 +355,33 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 	}
 
 	return lc, doneCh, nil
+}
+
+// devModeDryRun returns the hook devmode.Reloader calls before swapping in a
+// reloaded config: it runs the same startup phases boot ran, against the
+// running server's registries, and refuses the reload if any of them fails.
+//
+// It is a named function rather than a closure inside `noda dev` so it can be
+// tested. As a closure it had no test at all: the one that claimed to guard it
+// called startup.Run itself, so reverting this body to the registries phase
+// alone — undoing the dev-mode half of #456, after which a reload accepts a
+// cyclic workflow or a bad cron spec — left the suite entirely green.
+func devModeDryRun(rtCtx *runtimeContext, configDir string) func(*config.ResolvedConfig) []error {
+	return func(rc *config.ResolvedConfig) []error {
+		// Live reuses the running server's registries and never initializes
+		// services, so Artifacts.Bootstrap.Services would be nil here —
+		// discard the returned Artifacts entirely and read only the failures
+		// (see startup.Input.Live's doc comment).
+		_, failures := startup.Run(context.Background(), startup.Input{
+			RC: rc,
+			Live: &startup.Registries{
+				Plugins:  rtCtx.Plugins,
+				Nodes:    rtCtx.Bootstrap.Nodes,
+				Compiler: rtCtx.Bootstrap.Compiler,
+			},
+			RootConfigPath: filepath.Join(configDir, "noda.json"),
+			DryRun:         true,
+		})
+		return startup.Errors(failures)
+	}
 }

@@ -23,7 +23,13 @@ import (
 
 // WorkerConfig holds the parsed configuration for a single worker.
 type WorkerConfig struct {
-	ID          string
+	ID string
+
+	// SourceFile is the rc.Workers map key — the absolute path of the file
+	// declaring this worker. Carried so validation can attribute failures to a
+	// file; ID comes from the JSON "id" field and does not identify one.
+	SourceFile string
+
 	StreamSvc   string // service name for stream
 	Topic       string
 	Group       string
@@ -112,11 +118,12 @@ func (r *Runtime) Start(ctx context.Context) error {
 	r.opCtx.Store(&parent)
 	ctx, r.cancel = context.WithCancel(ctx)
 
+	if errs := ValidateConfigs(r.workers); len(errs) > 0 {
+		return errs[0]
+	}
+
 	for _, w := range r.workers {
 		concurrency := max(w.Concurrency, 1)
-		if concurrency > maxConcurrency {
-			return fmt.Errorf("worker %q: concurrency %d exceeds maximum %d", w.ID, concurrency, maxConcurrency)
-		}
 
 		// Get the stream service
 		svcInstance, ok := r.services.Get(w.StreamSvc)
@@ -687,7 +694,8 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 	for _, k := range keys {
 		raw := workers[k]
 		wc := WorkerConfig{
-			ID: engine.MapStrVal(raw, "id"),
+			ID:         engine.MapStrVal(raw, "id"),
+			SourceFile: k,
 		}
 
 		if svc, ok := raw["services"].(map[string]any); ok {
@@ -762,4 +770,38 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 		configs = append(configs, wc)
 	}
 	return configs
+}
+
+// ConfigError reports worker configuration Start would reject, carrying the
+// worker it came from so callers can attribute it to a file.
+type ConfigError struct {
+	Config WorkerConfig
+	Err    error
+}
+
+func (e *ConfigError) Error() string { return e.Err.Error() }
+
+func (e *ConfigError) Unwrap() error { return e.Err }
+
+// ValidateConfigs reports worker configuration that would abort Start.
+//
+// Only the concurrency bound lives here. Everything else Start can reject —
+// an unknown stream service, a service with the wrong plugin, a missing
+// workflow, an unparseable timeout — is already caught by config.ValidateAll's
+// cross-reference checks, and the remaining Start failures (service not
+// reachable, consumer group creation) need a live Redis and cannot be checked
+// offline.
+//
+// Start calls this too, so a worker that validates is one Start accepts.
+func ValidateConfigs(configs []WorkerConfig) []*ConfigError {
+	var errs []*ConfigError
+	for _, w := range configs {
+		if w.Concurrency > maxConcurrency {
+			errs = append(errs, &ConfigError{
+				Config: w,
+				Err:    fmt.Errorf("worker %q: concurrency %d exceeds maximum %d", w.ID, w.Concurrency, maxConcurrency),
+			})
+		}
+	}
+	return errs
 }

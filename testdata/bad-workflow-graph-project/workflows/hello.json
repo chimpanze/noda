@@ -1,0 +1,13 @@
+{
+  "id": "hello",
+  "nodes": {
+    "a": { "type": "util.log", "config": { "level": "info", "message": "a" } },
+    "b": { "type": "util.log", "config": { "level": "info", "message": "b" } },
+    "respond": { "type": "response.json", "config": { "status": 200, "body": {} } }
+  },
+  "edges": [
+    { "from": "a", "to": "b" },
+    { "from": "b", "to": "a" },
+    { "from": "b", "to": "respond" }
+  ]
+}

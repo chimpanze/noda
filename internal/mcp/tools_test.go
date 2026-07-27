@@ -626,6 +626,46 @@ func TestValidateConfigHandler(t *testing.T) {
 	})
 }
 
+// callValidateConfig runs noda_validate_config against an absolute project
+// directory and returns the parsed JSON result, the way every test above
+// drives the handler.
+func callValidateConfig(t *testing.T, configDir string) map[string]any {
+	t.Helper()
+	req := makeCallToolRequest("noda_validate_config", map[string]any{"config_dir": configDir})
+	result, err := validateConfigHandler(context.Background(), req)
+	require.NoError(t, err)
+	require.False(t, result.IsError)
+	return parseTextResult(t, result)
+}
+
+// MCP must not answer {"valid": true} for a project the CLI rejects — the bug
+// #448 was filed for. Every startup phase must reach this tool: the
+// registries phase (test-cmd-invalid-project), the workflow-graph phase
+// (bad-workflow-graph-project), the middleware phase (bad-middleware-project,
+// already covered above but repeated here for the full phase list), the
+// schedules phase (bad-schedule-project), and the workers phase
+// (bad-worker-project).
+func TestValidateConfigHandler_ReportsEveryPhase(t *testing.T) {
+	for _, fixture := range []string{
+		"test-cmd-invalid-project",
+		"bad-workflow-graph-project",
+		"bad-middleware-project",
+		"bad-schedule-project",
+		"bad-worker-project",
+	} {
+		t.Run(fixture, func(t *testing.T) {
+			abs, err := filepath.Abs(filepath.Join("../../testdata", fixture))
+			require.NoError(t, err)
+
+			result := callValidateConfig(t, abs)
+
+			assert.False(t, result["valid"].(bool),
+				"a project that fails a startup phase is not valid")
+			assert.NotEmpty(t, result["errors"])
+		})
+	}
+}
+
 func TestExplainWorkflowHandler(t *testing.T) {
 	nodeReg := buildNodeRegistry()
 	handler := explainWorkflowHandler(nodeReg)

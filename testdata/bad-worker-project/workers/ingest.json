@@ -1,0 +1,14 @@
+{
+  "id": "ingest",
+  "concurrency": 5000,
+  "services": {
+    "stream": "stream"
+  },
+  "subscribe": {
+    "topic": "events",
+    "group": "ingest"
+  },
+  "trigger": {
+    "workflow": "ingest"
+  }
+}

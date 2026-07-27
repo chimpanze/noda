@@ -404,9 +404,7 @@ func newDevCmd() *cobra.Command {
 
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rtCtx.RC, hub, rtCtx.Logger)
-			reloader.SetDryRun(func(rc *config.ResolvedConfig) []error {
-				return registry.DryRun(rc, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Compiler)
-			})
+			reloader.SetDryRun(devModeDryRun(rtCtx, configDir))
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
 				if err := rtCtx.WorkflowCache.Invalidate(newRC.Workflows, rtCtx.Bootstrap.Nodes); err != nil {
 					rtCtx.Logger.Error("workflow cache invalidation failed", "error", err)
@@ -725,6 +723,13 @@ func corePlugins() []api.Plugin { return all.Core() }
 // used by workflows (stream, pubsub, storage). These are registered in the
 // full runtime but not needed for the test runner's node registry.
 func serviceOnlyPlugins() []api.Plugin { return all.ServiceOnly() }
+
+// allPlugins returns every plugin the runtime registers, in the order
+// registerCorePlugins registered them. startup.Run does the registering, so
+// this supplies the list rather than a populated registry.
+func allPlugins() []api.Plugin {
+	return append(corePlugins(), serviceOnlyPlugins()...)
+}
 
 func buildCoreNodeRegistry() (*registry.NodeRegistry, error) {
 	nodeReg := registry.NewNodeRegistry()
