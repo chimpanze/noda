@@ -466,9 +466,9 @@ func containsStr(slice []string, s string) bool {
 // services and runs ValidateStartupDryRun over them.
 //
 // Callers that start from a config directory rather than a live server want
-// internal/validate.Project instead: it builds the registries and also runs
-// the middleware-build checks, which need no live connections but do need
-// the full plugin list.
+// internal/startup.Run instead: it builds the registries and also runs the
+// middleware, schedule, and worker checks, which need no live connections but
+// do need the full plugin list.
 func DryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, nodes *NodeRegistry, compiler *expr.Compiler) []error {
 	deferred, errs := CollectDeferredServices(rc)
 	return append(errs, ValidateStartupDryRun(rc, plugins, nodes, compiler, deferred)...)
