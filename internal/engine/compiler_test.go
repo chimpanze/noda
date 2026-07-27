@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -175,6 +176,38 @@ func TestCompile_EntryNodes(t *testing.T) {
 	assert.Len(t, g.EntryNodes, 2)
 	assert.Contains(t, g.EntryNodes, "a")
 	assert.Contains(t, g.EntryNodes, "b")
+}
+
+// TestCompile_EntryNodesAreSorted pins the *order* of EntryNodes, not just its
+// membership. executor.go dispatches entry nodes by ranging this slice, so an
+// unsorted map range there made which entry node starts first vary between runs
+// of the same unchanged config (#460).
+//
+// It compiles repeatedly because one compile of an unsorted range can come out
+// sorted by chance. With 8 entry nodes that is 1/8! per compile, so the loop
+// makes a false green vanishingly unlikely while a sorted build passes every
+// iteration. TerminalNodes is asserted alongside it: its consumer builds a set
+// from it, so its order is inert today, but it is the same map range two lines
+// below and would be the next occurrence of this bug.
+func TestCompile_EntryNodesAreSorted(t *testing.T) {
+	nodes := map[string]NodeConfig{"sink": {Type: "mock.pass"}}
+	var entries []string
+	var edges []EdgeConfig
+	for _, id := range []string{"delta", "alpha", "echo", "charlie", "bravo", "golf", "foxtrot", "hotel"} {
+		nodes[id] = NodeConfig{Type: "mock.pass"}
+		entries = append(entries, id)
+		edges = append(edges, EdgeConfig{From: id, To: "sink"})
+	}
+	sort.Strings(entries)
+
+	wf := WorkflowConfig{ID: "sorted-entries", Nodes: nodes, Edges: edges}
+
+	for i := range 50 {
+		g, err := Compile(wf, nil)
+		require.NoError(t, err)
+		require.Equalf(t, entries, g.EntryNodes, "compile %d: entry nodes not in sorted order", i)
+		require.Equalf(t, []string{"sink"}, g.TerminalNodes, "compile %d: terminal nodes not in sorted order", i)
+	}
 }
 
 func TestCompile_TerminalNodes(t *testing.T) {

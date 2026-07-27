@@ -238,8 +238,19 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 		}
 	}
 
-	// Identify entry nodes (no inbound edges)
+	// Both classification loops below walk the node IDs in sorted order rather
+	// than ranging g.Nodes directly. Go randomizes map iteration per process,
+	// and executor.go dispatches entry nodes by ranging EntryNodes — so an
+	// unsorted range made which entry node starts first vary between runs of
+	// the same unchanged config (#460).
+	nodeIDs := make([]string, 0, len(g.Nodes))
 	for id := range g.Nodes {
+		nodeIDs = append(nodeIDs, id)
+	}
+	sort.Strings(nodeIDs)
+
+	// Identify entry nodes (no inbound edges)
+	for _, id := range nodeIDs {
 		if len(g.Reverse[id]) == 0 {
 			g.EntryNodes = append(g.EntryNodes, id)
 		}
@@ -248,7 +259,7 @@ func Compile(wf WorkflowConfig, resolver NodeOutputResolver) (*CompiledGraph, er
 	// Identify terminal nodes (no non-error outbound edges).
 	// A node is terminal if it has no outbound edges other than "error" edges.
 	// This correctly handles nodes with outputs like "then"/"else", "done", etc.
-	for id := range g.Nodes {
+	for _, id := range nodeIDs {
 		hasNonErrorEdge := false
 		for output, targets := range g.Adjacency[id] {
 			if output != "error" && len(targets) > 0 {
