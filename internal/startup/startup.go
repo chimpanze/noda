@@ -27,7 +27,11 @@
 // modules, binding the port, health checks — cannot be checked offline and
 // stay in cmd/noda.
 //
-// Add a phase here, not at a call site, and every surface gains it.
+// Add a phase here, not at a call site, and every surface gains it: renderers
+// iterate Phases() rather than a list of their own, so a new phase reaches all
+// of them without an edit. A literal at a call site would recreate the same
+// drift channel one level out — `noda validate` would print "all config files
+// valid" for a project the new phase rejects.
 package startup
 
 import (
@@ -54,7 +58,27 @@ const (
 	PhaseMiddleware Phase = "middleware"
 	PhaseSchedules  Phase = "schedules"
 	PhaseWorkers    Phase = "workers"
+
+	// PhaseArtifacts labels checkArtifactsComplete's failure. It is
+	// deliberately absent from Phases(): it is not a step Run executes but a
+	// self-check that runs after every phase has reported success, so a caller
+	// iterating Phases() must not expect it. Its failure reaches a renderer
+	// through the catch-all every renderer is required to have — which is what
+	// keeps that catch-all exercised rather than dead.
+	PhaseArtifacts Phase = "artifacts"
 )
+
+// Phases lists every startup phase in the order Run executes them. Renderers
+// iterate this rather than a literal of their own: a hardcoded list is how a
+// caller silently ignores a phase added later, which is the drift this package
+// exists to end (#442, #444, #448, #456).
+//
+// Iterating it is necessary but not sufficient. A renderer must also handle a
+// failure whose phase is not in this list — PhaseArtifacts today — or it drops
+// it, so every renderer pairs the loop with a catch-all.
+func Phases() []Phase {
+	return []Phase{PhaseRegistries, PhaseWorkflows, PhaseMiddleware, PhaseSchedules, PhaseWorkers}
+}
 
 // Registries holds live registries a caller already has, so the editor and
 // dev-mode reload can validate without rebuilding them.
@@ -195,9 +219,15 @@ func runMiddleware(in Input) []Failure {
 	for _, err := range server.ValidateMiddlewareBuilds(in.RC) {
 		f := Failure{Phase: PhaseMiddleware, Err: err}
 
-		var mwErr *server.MiddlewareBuildError
+		// Matched as an interface, not as *server.MiddlewareBuildError: a
+		// route's chain can also fail to resolve before any middleware is
+		// built (unknown preset, violated ordering), and matching the one
+		// concrete type left those two faults with no Files at all — the
+		// editor's per-file filter then dropped them and a route that cannot
+		// boot reported valid.
+		var mwErr server.MiddlewareFilesError
 		if errors.As(err, &mwErr) {
-			f.Files = append(f.Files, mwErr.Files...)
+			f.Files = append(f.Files, mwErr.MiddlewareFiles()...)
 			// A middleware's config lives in the root config, so that file is
 			// implicated alongside every route referencing it — editing it is
 			// where the fix goes.
@@ -330,7 +360,8 @@ func runWorkflows(in Input, boot *registry.BootstrapResult) (*engine.WorkflowCac
 func checkArtifactsComplete(arts *Artifacts) []Failure {
 	if arts.Bootstrap == nil || arts.WorkflowCache == nil {
 		return []Failure{{
-			Err: fmt.Errorf("internal/startup: incomplete artifacts — a phase returned success without populating its result"),
+			Phase: PhaseArtifacts,
+			Err:   fmt.Errorf("internal/startup: incomplete artifacts — a phase returned success without populating its result"),
 		}}
 	}
 	return nil

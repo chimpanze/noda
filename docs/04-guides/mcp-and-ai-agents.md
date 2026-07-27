@@ -88,7 +88,7 @@ rejected rather than resolved against some ambiguous working directory.
 
 | Tool | Parameters | Purpose |
 |---|---|---|
-| `noda_validate_config` | `config_dir` (required) | Validate a whole project: schema errors, missing references, cross-file issues, and the full startup validation `noda validate` runs (node config schemas, service slots, edge outputs, unwired outcome outputs, and middleware builds). A `valid: true` means the project passes everything `noda validate` checks; live service connectivity is not verified, so an unreachable database still validates clean. |
+| `noda_validate_config` | `config_dir` (required) | Validate a whole project: schema errors, missing references, cross-file issues, and the full startup validation `noda validate` runs (node config schemas, service slots, edge outputs, unwired outcome outputs, middleware builds, workflow graph compilation, cron specs, and worker concurrency limits). A `valid: true` means the project passes everything `noda validate` checks; live service connectivity is not verified, so an unreachable database still validates clean. |
 | `noda_scaffold_project` | `path` (required) | Create a new project with the standard layout and a generated `JWT_SECRET`. Refuses to overwrite existing files. |
 | `noda_read_project_file` | `config_dir`, `path` (both required) | Read one config file. `path` is relative to the project, e.g. `workflows/hello.json`. |
 | `noda_list_project_files` | `config_dir` (required) | List a project's config files, categorized by type. |

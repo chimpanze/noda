@@ -1139,7 +1139,7 @@ func TestValidateStartup_EveryWorkflowErrorIsWorkflowScoped(t *testing.T) {
 			},
 		},
 		{
-			name:          "service slot / service reference failure",
+			name:          "service slot missing",
 			file:          "slot-wf",
 			wantErrSubstr: "missing required service slot",
 			build: func(t *testing.T) workflowScopedFixture {
@@ -1149,6 +1149,60 @@ func TestValidateStartup_EveryWorkflowErrorIsWorkflowScoped(t *testing.T) {
 						"slot-wf": {
 							"nodes": map[string]any{
 								"fetch": map[string]any{"type": "db.query"}, // no "services" key at all
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes, services: services}
+			},
+		},
+		{
+			// The three service-slot branches are separate rows, not one: the
+			// missing-slot row above was the only one covered, and deleting the
+			// wrap from either of the two below — in both entry points, six call
+			// sites in all — left the suite green.
+			name:          "service slot names an unknown service",
+			file:          "slot-unknown-wf",
+			wantErrSubstr: `service "nope" not found`,
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, services, nodes := setupValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"slot-unknown-wf": {
+							"nodes": map[string]any{
+								"fetch": map[string]any{
+									"type":     "db.query",
+									"services": map[string]any{"database": "nope"},
+								},
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes, services: services}
+			},
+		},
+		{
+			name:          "service slot names a service of the wrong prefix",
+			file:          "slot-prefix-wf",
+			wantErrSubstr: `has prefix "cache", but slot "database" requires prefix "db"`,
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, services, nodes := setupValidation(t)
+				rc := &config.ResolvedConfig{
+					// ValidateStartup reads the prefix from the live registry
+					// and ValidateStartupDryRun from this declaration, so both
+					// are needed for the row to run against both entry points.
+					Root: map[string]any{
+						"services": map[string]any{
+							"redis": map[string]any{"plugin": "test-cache"},
+						},
+					},
+					Workflows: map[string]map[string]any{
+						"slot-prefix-wf": {
+							"nodes": map[string]any{
+								"fetch": map[string]any{
+									"type":     "db.query",
+									"services": map[string]any{"database": "redis"},
+								},
 							},
 						},
 					},

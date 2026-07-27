@@ -51,8 +51,9 @@ func TestNewWorkflowCache_CompileFailureCarriesSourceFile(t *testing.T) {
 }
 
 // The text is load-bearing: it is what `noda start` prints today, and what
-// the CLI's "compiling workflows:" wrapper reads. Adding the type must not
-// change a single byte of it.
+// `noda validate` prints under its "workflows validation failed:" heading now
+// that the workflow phase is shared. Adding the type must not change a single
+// byte of it.
 func TestWorkflowCompileError_TextIsUnchanged(t *testing.T) {
 	_, err := NewWorkflowCache(cyclicWorkflows(), testResolver{})
 	require.Error(t, err)

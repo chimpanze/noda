@@ -1,15 +1,14 @@
 package main
 
 import (
-	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/chimpanze/noda/internal/config"
-	"github.com/chimpanze/noda/internal/startup"
 )
 
 // Boot must reject every project a validation surface rejects, and for the
@@ -61,32 +60,69 @@ func TestInitRuntime_TakesArtifactsFromTheStartupPhases(t *testing.T) {
 
 // Dev-mode reload must refuse a config that fails any startup phase, or the
 // editor's save reports success for a project that will not boot.
+//
+// This calls devModeDryRun — the function `noda dev` hands to the reloader —
+// and not startup.Run directly. Calling startup.Run is what the previous
+// version of this test did, which made it vacuous: reverting devModeDryRun's
+// body to registry.DryRun, undoing the dev-mode half of #456 and letting a
+// reload accept a cyclic workflow or a five-field cron spec, left the whole
+// suite green.
+//
+// The shape is dev-mode's own: a good project boots and supplies the live
+// registries, then a reload delivers a config that fails a phase.
 func TestDevModeDryRun_RefusesEveryFailingPhase(t *testing.T) {
-	for _, fixture := range []string{
-		"bad-workflow-graph-project",
-		"bad-middleware-project",
-		"bad-schedule-project",
-		"bad-worker-project",
+	// minimal-project declares no services, so initRuntime needs no network
+	// (see TestInitRuntime_TakesArtifactsFromTheStartupPhases).
+	bootDir, err := filepath.Abs(filepath.Join("../../testdata", "minimal-project"))
+	require.NoError(t, err)
+	rtCtx, err := initRuntime(bootDir, "", initOptions{})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		fixture string
+		phase   string
+	}{
+		{"bad-workflow-graph-project", "cycle detected"},
+		{"bad-middleware-project", "limiter"},
+		{"bad-schedule-project", "expected exactly 6 fields"},
+		{"bad-worker-project", "exceeds maximum"},
 	} {
-		t.Run(fixture, func(t *testing.T) {
-			abs, err := filepath.Abs(filepath.Join("../../testdata", fixture))
+		t.Run(tc.fixture, func(t *testing.T) {
+			abs, err := filepath.Abs(filepath.Join("../../testdata", tc.fixture))
 			require.NoError(t, err)
 			sm, err := config.NewSecretsManager(abs, "")
 			require.NoError(t, err)
 			rc, cfgErrs := config.ValidateAll(abs, "", sm)
 			require.Empty(t, cfgErrs)
 
-			// The same call the dev-mode hook makes, with fresh registries
-			// standing in for the running server's.
-			_, failures := startup.Run(context.Background(), startup.Input{
-				RC:             rc,
-				Plugins:        allPlugins(),
-				RootConfigPath: filepath.Join(abs, "noda.json"),
-				DryRun:         true,
-			})
+			errs := devModeDryRun(rtCtx, abs)(rc)
 
-			assert.NotEmpty(t, startup.Errors(failures),
-				"a reload of this project must be refused")
+			require.NotEmpty(t, errs, "a reload of this project must be refused")
+			// Pinning the reason, not just "some error": without it this
+			// passes for any phase failing, so dropping four of the five
+			// phases would still look fine.
+			var joined strings.Builder
+			for _, e := range errs {
+				joined.WriteString(e.Error())
+				joined.WriteString("\n")
+			}
+			assert.Contains(t, joined.String(), tc.phase)
 		})
 	}
+}
+
+// A reload of a project that boots must be accepted — the guard above would
+// otherwise be satisfied by a hook that refuses everything.
+func TestDevModeDryRun_AcceptsAReloadableProject(t *testing.T) {
+	abs, err := filepath.Abs(filepath.Join("../../testdata", "minimal-project"))
+	require.NoError(t, err)
+	rtCtx, err := initRuntime(abs, "", initOptions{})
+	require.NoError(t, err)
+
+	sm, err := config.NewSecretsManager(abs, "")
+	require.NoError(t, err)
+	rc, cfgErrs := config.ValidateAll(abs, "", sm)
+	require.Empty(t, cfgErrs)
+
+	assert.Empty(t, devModeDryRun(rtCtx, abs)(rc))
 }

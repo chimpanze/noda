@@ -25,20 +25,37 @@ func validateProject(rc *config.ResolvedConfig) error {
 		Plugins: all.All(),
 		DryRun:  true,
 	})
+	return renderStartupFailures(failures)
+}
+
+// renderStartupFailures renders a phase run's failures as one CLI error, or nil
+// if there were none.
+//
+// It is separate from validateProject only so a test can hand it a failure
+// whose phase no renderer knows — the case that must not be silently dropped
+// and cannot be produced by running a real project.
+func renderStartupFailures(failures []startup.Failure) error {
+	if len(failures) == 0 {
+		return nil
+	}
 
 	// Run stops at the first failing phase, so at most one of these fires.
-	for _, phase := range []startup.Phase{
-		startup.PhaseRegistries,
-		startup.PhaseWorkflows,
-		startup.PhaseMiddleware,
-		startup.PhaseSchedules,
-		startup.PhaseWorkers,
-	} {
+	// startup.Phases() is iterated rather than a literal listed here: a literal
+	// is how this command silently ignores a phase added later, which is the
+	// drift the phase list exists to end.
+	for _, phase := range startup.Phases() {
 		if msgs := joinErrors(startup.OfPhase(failures, phase)); msgs != "" {
 			return fmt.Errorf("%s validation failed:\n  %s", phase, msgs)
 		}
 	}
-	return nil
+
+	// A failure whose phase is not in Phases() — startup.PhaseArtifacts, or a
+	// phase added to the package but not to the list — must still be reported.
+	// Returning nil here would make `noda validate` print "✓ All config files
+	// valid" and exit 0 for a project that cannot boot, which is precisely the
+	// bug the phase list exists to prevent; failing loudly under a generic
+	// heading is always better than that.
+	return fmt.Errorf("startup validation failed:\n  %s", joinErrors(startup.Errors(failures)))
 }
 
 // joinErrors renders errors one per line, indented to sit under the heading

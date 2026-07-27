@@ -25,7 +25,6 @@ import (
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/server"
-	"github.com/chimpanze/noda/internal/startup"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/internal/wasm"
@@ -405,23 +404,7 @@ func newDevCmd() *cobra.Command {
 
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rtCtx.RC, hub, rtCtx.Logger)
-			reloader.SetDryRun(func(rc *config.ResolvedConfig) []error {
-				// Live reuses the running server's registries and never
-				// initializes services, so Artifacts.Bootstrap.Services would be
-				// nil here — discard the returned Artifacts entirely and read
-				// only the failures (see Input.Live's doc comment).
-				_, failures := startup.Run(context.Background(), startup.Input{
-					RC: rc,
-					Live: &startup.Registries{
-						Plugins:  rtCtx.Plugins,
-						Nodes:    rtCtx.Bootstrap.Nodes,
-						Compiler: rtCtx.Bootstrap.Compiler,
-					},
-					RootConfigPath: filepath.Join(configDir, "noda.json"),
-					DryRun:         true,
-				})
-				return startup.Errors(failures)
-			})
+			reloader.SetDryRun(devModeDryRun(rtCtx, configDir))
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
 				if err := rtCtx.WorkflowCache.Invalidate(newRC.Workflows, rtCtx.Bootstrap.Nodes); err != nil {
 					rtCtx.Logger.Error("workflow cache invalidation failed", "error", err)

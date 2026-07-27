@@ -1,9 +1,12 @@
 package server
 
 import (
+	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/chimpanze/noda/internal/config"
 )
@@ -245,5 +248,148 @@ func TestValidateMiddlewareBuilds_CountsScopesBeyondTheListedLimit(t *testing.T)
 	}
 	if strings.Contains(got, `route "route05"`) {
 		t.Errorf("only %d scopes should be listed, got: %s", maxReportedScopes, got)
+	}
+}
+
+// Two middleware faults are found before any middleware is built: a preset
+// that does not expand, and a violated ordering constraint. Both were returned
+// as bare fmt.Errorf values, so internal/startup could attribute neither and
+// the editor — which shows a file only the failures naming it — dropped them
+// both. A route with either fault saved as valid while the project could not
+// boot. rc.Routes and rc.Connections are keyed by absolute source path, so the
+// attribution is available at the point the error is made.
+func TestValidateMiddlewareBuilds_AttributesChainFaultsToTheirFile(t *testing.T) {
+	const routeFile = "/proj/routes/r.json"
+	const connFile = "/proj/connections/chat.json"
+
+	for _, tc := range []struct {
+		name     string
+		rc       func() *config.ResolvedConfig
+		wantFile string
+		wantText string
+	}{
+		{
+			name: "middleware ordering violation on a route",
+			rc: func() *config.ResolvedConfig {
+				return vmRC(nil, map[string]map[string]any{
+					routeFile: {"id": "r", "path": "/x", "middleware": []any{"casbin.enforce", "auth.jwt"}},
+				})
+			},
+			wantFile: routeFile,
+			wantText: `route "` + routeFile + `": middleware "auth.jwt" must appear before "casbin.enforce" in the chain`,
+		},
+		{
+			name: "unknown middleware preset on a route",
+			rc: func() *config.ResolvedConfig {
+				return vmRC(nil, map[string]map[string]any{
+					routeFile: {"id": "r", "path": "/x", "middleware_preset": "nope"},
+				})
+			},
+			wantFile: routeFile,
+			wantText: `route "` + routeFile + `": route r: unknown middleware preset "nope"`,
+		},
+		{
+			name: "unknown middleware preset on a connection endpoint",
+			rc: func() *config.ResolvedConfig {
+				rc := vmRC(nil, nil)
+				rc.Connections = map[string]map[string]any{
+					connFile: {"endpoints": map[string]any{
+						"room": map[string]any{"middleware_preset": "nope"},
+					}},
+				}
+				return rc
+			},
+			wantFile: connFile,
+			wantText: `connection "` + connFile + `" endpoint "room": unknown middleware preset "nope"`,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			errs := ValidateMiddlewareBuilds(tc.rc())
+			if len(errs) != 1 {
+				t.Fatalf("expected exactly one error, got %d: %v", len(errs), errs)
+			}
+
+			var chainErr *MiddlewareChainError
+			if !errors.As(errs[0], &chainErr) {
+				t.Fatalf("error must be a *MiddlewareChainError so callers can attribute it, got %T: %v", errs[0], errs[0])
+			}
+			if got := chainErr.MiddlewareFiles(); len(got) != 1 || got[0] != tc.wantFile {
+				t.Errorf("MiddlewareFiles() = %v, want [%s]", got, tc.wantFile)
+			}
+			// Typing these errors must not have changed a byte of what the CLI
+			// prints — #450's determinism tests pin this text.
+			if got := errs[0].Error(); got != tc.wantText {
+				t.Errorf("message text changed:\n got: %s\nwant: %s", got, tc.wantText)
+			}
+		})
+	}
+}
+
+// Every error ValidateMiddlewareBuilds returns must carry file attribution, so
+// that a fault added later cannot reach the editor unattributed the way these
+// two did. errors.As on the interface is what internal/startup matches.
+func TestValidateMiddlewareBuilds_EveryErrorCarriesAttribution(t *testing.T) {
+	routes := brokenLimiterRoutes("/proj/routes/a.json", "/proj/routes/b.json")
+	routes["/proj/routes/order.json"] = map[string]any{
+		"id": "order", "path": "/order", "middleware": []any{"casbin.enforce", "auth.jwt"},
+	}
+	routes["/proj/routes/preset.json"] = map[string]any{
+		"id": "preset", "path": "/preset", "middleware_preset": "nope",
+	}
+
+	errs := ValidateMiddlewareBuilds(vmRC(nil, routes))
+	if len(errs) == 0 {
+		t.Fatal("fixture must produce errors")
+	}
+	for _, err := range errs {
+		var filesErr MiddlewareFilesError
+		if !errors.As(err, &filesErr) {
+			t.Errorf("error carries no file attribution (%T): %v", err, err)
+			continue
+		}
+		if len(filesErr.MiddlewareFiles()) == 0 {
+			t.Errorf("attribution is empty, so a per-file caller drops it: %v", err)
+		}
+	}
+}
+
+// security.csrf must be checked offline like the other side-effecting
+// factories. fiber's csrf.New defaults to in-memory storage, whose constructor
+// starts a GC goroutine on a 10-second ticker that nothing closes — and this
+// validation now runs on every `noda start`, every dev-mode reload, and every
+// editor save, so building it leaked one goroutine per run for the life of a
+// dev session.
+func TestValidateMiddlewareBuilds_CSRFLeaksNoGoroutines(t *testing.T) {
+	rc := vmRC(nil, map[string]map[string]any{
+		"r1": {"id": "r1", "path": "/x", "middleware": []any{"security.csrf"}},
+	})
+	if errs := ValidateMiddlewareBuilds(rc); len(errs) != 0 {
+		t.Fatalf("security.csrf must validate cleanly, got %v", errs)
+	}
+
+	// Settle first, so goroutines left by earlier tests are not counted here.
+	settle()
+	before := runtime.NumGoroutine()
+
+	const runs = 30
+	for range runs {
+		ValidateMiddlewareBuilds(rc)
+	}
+
+	settle()
+	// A threshold rather than equality: unrelated runtime goroutines come and
+	// go. The leak this guards adds one per run, so anything under a handful
+	// cannot be it, and 30 runs makes the leaking case unmistakable.
+	if grew := runtime.NumGoroutine() - before; grew > 5 {
+		t.Errorf("%d validation runs left %d extra goroutines; security.csrf must not be built to be validated", runs, grew)
+	}
+}
+
+// settle gives goroutines started or stopped by the code under test a chance
+// to be scheduled before they are counted.
+func settle() {
+	for range 10 {
+		runtime.Gosched()
+		time.Sleep(2 * time.Millisecond)
 	}
 }

@@ -338,3 +338,44 @@ func fixtureDir(t *testing.T, dir string) string {
 	require.NoError(t, err)
 	return abs
 }
+
+// A middleware fault must reach the caller with its file attached whether it
+// comes from building a middleware or from resolving the chain that names it.
+// runMiddleware matched only *server.MiddlewareBuildError, so a violated
+// ordering constraint and an unexpandable preset arrived with Files empty —
+// and the editor, which shows a file only the failures naming it, dropped
+// both. The route saved as valid; the project could not boot.
+func TestRunMiddleware_AttributesChainFaultsToTheirRouteFile(t *testing.T) {
+	const routeFile = "/proj/routes/r.json"
+	const rootPath = "/proj/noda.json"
+
+	for _, tc := range []struct {
+		name  string
+		route map[string]any
+	}{
+		{"ordering violation", map[string]any{
+			"id": "r", "path": "/x", "middleware": []any{"casbin.enforce", "auth.jwt"},
+		}},
+		{"unknown preset", map[string]any{
+			"id": "r", "path": "/x", "middleware_preset": "nope",
+		}},
+		{"middleware that fails to build", map[string]any{
+			"id": "r", "path": "/x", "middleware": []any{"limiter"},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			failures := runMiddleware(Input{
+				RC: &config.ResolvedConfig{
+					Root:   map[string]any{},
+					Routes: map[string]map[string]any{routeFile: tc.route},
+				},
+				RootConfigPath: rootPath,
+			})
+
+			require.Len(t, failures, 1)
+			assert.Equal(t, PhaseMiddleware, failures[0].Phase)
+			assert.Equal(t, []string{routeFile, rootPath}, failures[0].Files,
+				"the editor marks the route file this fault is in")
+		})
+	}
+}

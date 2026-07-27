@@ -76,7 +76,13 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 	for _, id := range sortedSectionKeys(s.config.Routes) {
 		names, err := s.resolveMiddlewareNames(s.config.Routes[id])
 		if err != nil {
-			errs = append(errs, fmt.Errorf("route %q: %w", id, err))
+			// Typed, not a bare fmt.Errorf: the section keys are the absolute
+			// source paths, so this fault knows its file, and a caller that
+			// filters failures by file drops anything that arrives without one.
+			errs = append(errs, &MiddlewareChainError{
+				Files: []string{id},
+				Err:   fmt.Errorf("route %q: %w", id, err),
+			})
 			continue
 		}
 		for _, name := range names {
@@ -100,7 +106,10 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 			scope := fmt.Sprintf("connection %q endpoint %q", connID, epName)
 			names, err := s.resolveEndpointMiddlewareNames(ep)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("%s: %w", scope, err))
+				errs = append(errs, &MiddlewareChainError{
+					Files: []string{connID},
+					Err:   fmt.Errorf("%s: %w", scope, err),
+				})
 				continue
 			}
 			for _, name := range names {
@@ -151,6 +160,17 @@ func (s *Server) checkMiddlewareBuild(name string) error {
 	baseType, _ := ParseMiddlewareName(name)
 	switch baseType {
 	case "auth.session":
+		return nil
+	case "security.csrf":
+		// Offline like auth.session, but for the opposite reason: there is
+		// nothing to check (newCSRFMiddleware only copies cookie settings out
+		// of the config and sets no TrustedOrigins, the one field csrf.New
+		// panics on), and calling it is not free. fiber's csrf.New defaults to
+		// in-memory storage, whose constructor starts a goroutine with a
+		// 10-second GC ticker that nothing here can close. This runs on every
+		// `noda start`, every dev-mode reload, and every editor save, so
+		// building it to learn it always succeeds leaked a goroutine per
+		// validation for the life of a dev session.
 		return nil
 	case "auth.oidc":
 		cfg, err := s.middlewareConfigFor(name)

@@ -356,3 +356,32 @@ func setupLifecycle(rtCtx *runtimeContext, comps lifecycleComponents) (*lifecycl
 
 	return lc, doneCh, nil
 }
+
+// devModeDryRun returns the hook devmode.Reloader calls before swapping in a
+// reloaded config: it runs the same startup phases boot ran, against the
+// running server's registries, and refuses the reload if any of them fails.
+//
+// It is a named function rather than a closure inside `noda dev` so it can be
+// tested. As a closure it had no test at all: the one that claimed to guard it
+// called startup.Run itself, so reverting this body to the registries phase
+// alone — undoing the dev-mode half of #456, after which a reload accepts a
+// cyclic workflow or a bad cron spec — left the suite entirely green.
+func devModeDryRun(rtCtx *runtimeContext, configDir string) func(*config.ResolvedConfig) []error {
+	return func(rc *config.ResolvedConfig) []error {
+		// Live reuses the running server's registries and never initializes
+		// services, so Artifacts.Bootstrap.Services would be nil here —
+		// discard the returned Artifacts entirely and read only the failures
+		// (see startup.Input.Live's doc comment).
+		_, failures := startup.Run(context.Background(), startup.Input{
+			RC: rc,
+			Live: &startup.Registries{
+				Plugins:  rtCtx.Plugins,
+				Nodes:    rtCtx.Bootstrap.Nodes,
+				Compiler: rtCtx.Bootstrap.Compiler,
+			},
+			RootConfigPath: filepath.Join(configDir, "noda.json"),
+			DryRun:         true,
+		})
+		return startup.Errors(failures)
+	}
+}
