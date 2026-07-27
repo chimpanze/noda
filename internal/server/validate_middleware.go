@@ -43,9 +43,13 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 	// and the resulting error is shared by every scope that names it.
 	buildErr := map[string]error{}
 	scopes := map[string][]string{}
+	files := map[string][]string{}
 	var failed []string
 
-	check := func(scope, name string) {
+	// check records that `scope` references `name`. file is the source path of
+	// the config declaring that scope, or "" for project-wide scopes such as
+	// global_middleware.
+	check := func(scope, file, name string) {
 		err, built := buildErr[name]
 		if !built {
 			err = s.checkMiddlewareBuild(name)
@@ -60,10 +64,13 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 		if !slices.Contains(scopes[name], scope) {
 			scopes[name] = append(scopes[name], scope)
 		}
+		if file != "" && !slices.Contains(files[name], file) {
+			files[name] = append(files[name], file)
+		}
 	}
 
 	for _, name := range s.getGlobalMiddleware() {
-		check("global_middleware", name)
+		check("global_middleware", "", name)
 	}
 
 	for _, id := range sortedSectionKeys(s.config.Routes) {
@@ -73,7 +80,7 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 			continue
 		}
 		for _, name := range names {
-			check(fmt.Sprintf("route %q", id), name)
+			check(fmt.Sprintf("route %q", id), id, name)
 		}
 	}
 
@@ -97,13 +104,17 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 				continue
 			}
 			for _, name := range names {
-				check(scope, name)
+				check(scope, connID, name)
 			}
 		}
 	}
 
 	for _, name := range failed {
-		errs = append(errs, fmt.Errorf("%s: middleware %q: %w", joinScopes(scopes[name]), name, buildErr[name]))
+		errs = append(errs, &MiddlewareBuildError{
+			Name:  name,
+			Files: files[name],
+			Err:   fmt.Errorf("%s: middleware %q: %w", joinScopes(scopes[name]), name, buildErr[name]),
+		})
 	}
 
 	return errs
