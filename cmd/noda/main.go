@@ -25,6 +25,7 @@ import (
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/scheduler"
 	"github.com/chimpanze/noda/internal/server"
+	"github.com/chimpanze/noda/internal/startup"
 	nodatesting "github.com/chimpanze/noda/internal/testing"
 	"github.com/chimpanze/noda/internal/trace"
 	"github.com/chimpanze/noda/internal/wasm"
@@ -405,7 +406,21 @@ func newDevCmd() *cobra.Command {
 			// Set up hot-reload
 			reloader := devmode.NewReloader(configDir, envFlag, rtCtx.RC, hub, rtCtx.Logger)
 			reloader.SetDryRun(func(rc *config.ResolvedConfig) []error {
-				return registry.DryRun(rc, rtCtx.Plugins, rtCtx.Bootstrap.Nodes, rtCtx.Bootstrap.Compiler)
+				// Live reuses the running server's registries and never
+				// initializes services, so Artifacts.Bootstrap.Services would be
+				// nil here — discard the returned Artifacts entirely and read
+				// only the failures (see Input.Live's doc comment).
+				_, failures := startup.Run(context.Background(), startup.Input{
+					RC: rc,
+					Live: &startup.Registries{
+						Plugins:  rtCtx.Plugins,
+						Nodes:    rtCtx.Bootstrap.Nodes,
+						Compiler: rtCtx.Bootstrap.Compiler,
+					},
+					RootConfigPath: filepath.Join(configDir, "noda.json"),
+					DryRun:         true,
+				})
+				return startup.Errors(failures)
 			})
 			reloader.OnReload(func(newRC *config.ResolvedConfig) {
 				if err := rtCtx.WorkflowCache.Invalidate(newRC.Workflows, rtCtx.Bootstrap.Nodes); err != nil {
@@ -725,6 +740,13 @@ func corePlugins() []api.Plugin { return all.Core() }
 // used by workflows (stream, pubsub, storage). These are registered in the
 // full runtime but not needed for the test runner's node registry.
 func serviceOnlyPlugins() []api.Plugin { return all.ServiceOnly() }
+
+// allPlugins returns every plugin the runtime registers, in the order
+// registerCorePlugins registered them. startup.Run does the registering, so
+// this supplies the list rather than a populated registry.
+func allPlugins() []api.Plugin {
+	return append(corePlugins(), serviceOnlyPlugins()...)
+}
 
 func buildCoreNodeRegistry() (*registry.NodeRegistry, error) {
 	nodeReg := registry.NewNodeRegistry()
