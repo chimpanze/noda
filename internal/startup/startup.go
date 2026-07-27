@@ -14,8 +14,13 @@
 // in its workflow graph.
 //
 // The copy is what this package removes. cmd/noda takes its BootstrapResult
-// and WorkflowCache from Artifacts rather than building them itself, so the
-// phases producing them cannot be dropped without breaking the build.
+// and WorkflowCache from Artifacts rather than building them itself. An
+// accidental deletion of the WorkflowCache assignment into Artifacts fails to
+// compile (the local it would have assigned goes unused); a deliberate one,
+// or a dropped Bootstrap assignment, still returns nil Artifacts fields with
+// every phase reporting success — Run's own incomplete-artifacts check below
+// turns that into an explicit failure instead of a nil that would otherwise
+// reach cmd/noda's artifacts test only as a panic.
 //
 // A boot step belongs here if it can fail from configuration alone. Steps
 // needing the network or filesystem at boot — dialing services, loading Wasm
@@ -173,6 +178,10 @@ func Run(ctx context.Context, in Input) (*Artifacts, []Failure) {
 		return arts, failures
 	}
 
+	if failures := checkArtifactsComplete(arts); len(failures) > 0 {
+		return arts, failures
+	}
+
 	return arts, nil
 }
 
@@ -304,4 +313,25 @@ func runWorkflows(in Input, boot *registry.BootstrapResult) (*engine.WorkflowCac
 		f.Files = []string{compileErr.File}
 	}
 	return nil, []Failure{f}
+}
+
+// checkArtifactsComplete is Run's last check, after every phase has reported
+// success. A nil Bootstrap or WorkflowCache at this point does not fail
+// cleanly at boot: Server.Setup recompiles a nil WorkflowCache itself, and
+// the scheduler/worker runtimes degrade gracefully on a nil one, so the
+// process boots and serves ordinary traffic — it only panics later, lazily,
+// the first time a Wasm-triggered workflow runs (buildWorkflowRunner) or
+// dev-mode's next hot reload calls WorkflowCache.Invalidate. This turns that
+// into an immediate, readable startup failure instead, and is what remains
+// of the safety Task 10's "cannot be dropped without breaking the build"
+// claim overstated: deleting the WorkflowCache assignment above fails to
+// compile, but deleting the Bootstrap assignment does not — this check is
+// what catches that one instead.
+func checkArtifactsComplete(arts *Artifacts) []Failure {
+	if arts.Bootstrap == nil || arts.WorkflowCache == nil {
+		return []Failure{{
+			Err: fmt.Errorf("internal/startup: incomplete artifacts — a phase returned success without populating its result"),
+		}}
+	}
+	return nil
 }

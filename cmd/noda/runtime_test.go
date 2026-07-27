@@ -12,23 +12,30 @@ import (
 	"github.com/chimpanze/noda/internal/startup"
 )
 
-// Boot must reject every project a validation surface rejects. This is the
-// invariant the whole phase list exists to hold: if boot accepted one of
+// Boot must reject every project a validation surface rejects, and for the
+// right reason. Asserting only require.Error would pass even if the phase
+// list were bypassed entirely and some unrelated failure — e.g. a service
+// dial — happened to occur first; pinning the phase closes that gap. This is
+// the invariant the whole phase list exists to hold: if boot accepted one of
 // these, `noda validate` would be lying about it.
 func TestInitRuntime_RejectsEveryProjectValidateRejects(t *testing.T) {
-	for _, fixture := range []string{
-		"bad-workflow-graph-project",
-		"bad-middleware-project",
-		"bad-schedule-project",
-		"bad-worker-project",
+	for _, tc := range []struct {
+		fixture string
+		want    string
+	}{
+		{"bad-workflow-graph-project", "workflows validation failed"},
+		{"bad-middleware-project", "middleware validation failed"},
+		{"bad-schedule-project", "schedules validation failed"},
+		{"bad-worker-project", "workers validation failed"},
 	} {
-		t.Run(fixture, func(t *testing.T) {
-			abs, err := filepath.Abs(filepath.Join("../../testdata", fixture))
+		t.Run(tc.fixture, func(t *testing.T) {
+			abs, err := filepath.Abs(filepath.Join("../../testdata", tc.fixture))
 			require.NoError(t, err)
 
 			_, err = initRuntime(abs, "", initOptions{})
 
 			require.Error(t, err, "boot must not accept a project validate rejects")
+			require.Contains(t, err.Error(), tc.want)
 		})
 	}
 }

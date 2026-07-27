@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/server"
 	"github.com/chimpanze/noda/plugins/all"
@@ -294,6 +295,38 @@ func TestFixtures_FailExactlyOnePhaseEach(t *testing.T) {
 			for _, f := range failures {
 				assert.Equal(t, want, f.Phase,
 					"fixture must fail only %s, so a guard naming it proves that phase ran", want)
+			}
+		})
+	}
+}
+
+// checkArtifactsComplete is Run's last line of defense: every phase reporting
+// success must leave both artifacts populated, because a nil one does not
+// fail at boot — it panics much later, lazily, in the Wasm path or on the
+// next dev-mode hot reload. This pins that a partially-populated Artifacts
+// (of either field) is rejected, and that a fully-populated one is not.
+func TestCheckArtifactsComplete(t *testing.T) {
+	boot := &registry.BootstrapResult{}
+	cache := &engine.WorkflowCache{}
+
+	tests := []struct {
+		name    string
+		arts    *Artifacts
+		wantErr bool
+	}{
+		{"both populated", &Artifacts{Bootstrap: boot, WorkflowCache: cache}, false},
+		{"nil Bootstrap", &Artifacts{Bootstrap: nil, WorkflowCache: cache}, true},
+		{"nil WorkflowCache", &Artifacts{Bootstrap: boot, WorkflowCache: nil}, true},
+		{"both nil", &Artifacts{}, true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			failures := checkArtifactsComplete(tc.arts)
+			if tc.wantErr {
+				require.Len(t, failures, 1)
+				assert.Contains(t, failures[0].Err.Error(), "incomplete artifacts")
+			} else {
+				assert.Empty(t, failures)
 			}
 		})
 	}
