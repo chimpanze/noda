@@ -42,6 +42,7 @@ internal/
   scheduler/                           ← scheduler runtime
   secrets/                             ← .env loading and {{ $env(...) }} resolution
   server/                              ← Fiber HTTP server
+  startup/                             ← the startup phase list boot runs (add a check here, not at a call site)
   testing/                             ← workflow test runner
   trace/                               ← tracing, dev mode trace WebSocket
   wasm/                                ← Wasm runtime (Extism)

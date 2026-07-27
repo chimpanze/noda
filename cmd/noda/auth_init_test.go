@@ -20,11 +20,19 @@ import (
 	"github.com/chimpanze/noda/pkg/api"
 )
 
-// loadResolvedConfigForTest loads and validates a project directory through
-// the same pipeline `noda validate` and the runtime use, then compiles all
-// workflows. It's a safety net for auth-scaffold templates: bad edge/output
-// syntax, unknown node types, and unknown middleware all surface here even
-// though they'd pass the lighter checks in TestAuthInitScaffold.
+// loadResolvedConfigForTest loads a project directory exactly as `noda
+// validate` does — config.ValidateAll, then the shared startup phases — and
+// returns the resolved config. It's a safety net for auth-scaffold templates:
+// bad edge/output syntax, unknown node types, unknown middleware, cron specs
+// the scheduler cannot register, and over-limit worker concurrency all surface
+// here even though they'd pass the lighter checks in TestAuthInitScaffold.
+//
+// The phases come from validateProject rather than being spelled out again.
+// This function used to run its own registries → workflows sequence, which
+// made it a sixth copy of the boot pipeline and left it three phases short of
+// the real one within days of #459 landing (#462). A copy that can only
+// produce a false green is still a copy: the templates it guards are the ones
+// no other test would catch.
 func loadResolvedConfigForTest(dir string) (*config.ResolvedConfig, error) {
 	sm, err := config.NewSecretsManager(dir, "")
 	if err != nil {
@@ -34,25 +42,49 @@ func loadResolvedConfigForTest(dir string) (*config.ResolvedConfig, error) {
 	if len(errs) > 0 {
 		return nil, fmt.Errorf("config validation failed:\n%s", config.FormatErrors(errs))
 	}
-
-	plugins := registry.NewPluginRegistry()
-	if err := registerCorePlugins(plugins); err != nil {
+	if err := validateProject(rc); err != nil {
 		return nil, err
 	}
-	bootstrap, bootstrapErrs := registry.Bootstrap(context.Background(), rc, plugins, registry.BootstrapOptions{DryRun: true})
-	if len(bootstrapErrs) > 0 {
-		var errMsgs []string
-		for _, e := range bootstrapErrs {
-			errMsgs = append(errMsgs, e.Error())
-		}
-		return nil, fmt.Errorf("bootstrap failed:\n  %s", strings.Join(errMsgs, "\n  "))
-	}
-
-	if _, err := engine.NewWorkflowCache(rc.Workflows, bootstrap.Nodes); err != nil {
-		return nil, fmt.Errorf("compiling workflows: %w", err)
-	}
-
 	return rc, nil
+}
+
+// TestLoadResolvedConfigForTest_RunsEveryStartupPhase pins the helper above to
+// the whole phase list rather than to the three phases it once hand-rolled.
+//
+// A five-field cron spec is the cheapest fault that belongs to a phase the
+// hand-rolled copy skipped: config.ValidateAll accepts it (the schedule schema
+// puts no field count on `cron`), and the dry-run bootstrap and workflow
+// compilation never look at schedules — only startup's schedules phase rejects
+// it. So this test passes only if the helper runs phases beyond those three,
+// which is the whole point of #462. It is written against a phase rather than
+// against the call because a later refactor could keep the call and lose the
+// coverage.
+func TestLoadResolvedConfigForTest_RunsEveryStartupPhase(t *testing.T) {
+	dir := t.TempDir()
+	writeMinimalProject(t, dir, false)
+
+	for path, body := range map[string]string{
+		"workflows/cleanup.json": `{
+  "id": "cleanup",
+  "nodes": {
+    "log": { "type": "util.log", "config": { "level": "info", "message": "cleanup" } }
+  },
+  "edges": []
+}`,
+		"schedules/cleanup.json": `{
+  "id": "cleanup",
+  "cron": "0 */6 * * *",
+  "trigger": { "workflow": "cleanup" }
+}`,
+	} {
+		full := filepath.Join(dir, path)
+		require.NoError(t, os.MkdirAll(filepath.Dir(full), 0o755))
+		require.NoError(t, os.WriteFile(full, []byte(body), 0o644))
+	}
+
+	_, err := loadResolvedConfigForTest(dir)
+	require.Error(t, err, "a cron spec the scheduler cannot register must not pass the auth-scaffold safety net")
+	require.Contains(t, err.Error(), "expected exactly 6 fields")
 }
 
 func writeMinimalProject(t *testing.T, dir string, withEmail bool) {
