@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/internal/server"
 	"github.com/chimpanze/noda/plugins/all"
 	"github.com/stretchr/testify/assert"
@@ -89,6 +90,70 @@ func TestRun_StopsAtFirstFailingPhase(t *testing.T) {
 		assert.Equal(t, PhaseRegistries, f.Phase,
 			"no phase after the first failing one may run")
 	}
+}
+
+// cyclicWorkflows returns a workflow map whose graph contains a cycle, keyed
+// the way config.ValidateAll keys rc.Workflows: by source file path. Built
+// the way internal/engine/compile_error_test.go does — util.log needs
+// "level" and "message", and its outputs are "success"/"error", not "next".
+func cyclicWorkflows() map[string]map[string]any {
+	return map[string]map[string]any{
+		"/proj/workflows/loop.json": {
+			"id": "loop",
+			"nodes": map[string]any{
+				"a": map[string]any{"type": "util.log", "config": map[string]any{"level": "info", "message": "a"}},
+				"b": map[string]any{"type": "util.log", "config": map[string]any{"level": "info", "message": "b"}},
+			},
+			"edges": []any{
+				map[string]any{"from": "a", "to": "b"},
+				map[string]any{"from": "b", "to": "a"},
+			},
+		},
+	}
+}
+
+// The literal motivating bug for this package: a cycle in a workflow graph
+// used to pass `noda validate` and kill boot, because the phase that would
+// catch it did not exist. This pins that runWorkflows both runs and is
+// attributed to the right phase and file.
+func TestRun_ReportsWorkflowCycleFailure(t *testing.T) {
+	rc := &config.ResolvedConfig{Workflows: cyclicWorkflows()}
+
+	_, failures := Run(context.Background(), Input{
+		RC:      rc,
+		Plugins: all.All(),
+		DryRun:  true,
+	})
+
+	require.Len(t, failures, 1)
+	assert.Equal(t, PhaseWorkflows, failures[0].Phase)
+	assert.Equal(t, []string{"/proj/workflows/loop.json"}, failures[0].Files)
+	assert.Contains(t, failures[0].Err.Error(), "cycle detected")
+}
+
+// attributeRegistries points a ServiceConfigError at the root config, where
+// services are declared, so a caller filtering by file needs no special case
+// for registries failures that are project-wide rather than per-workflow.
+func TestAttributeRegistries_ServiceConfigErrorAttributedToRootConfig(t *testing.T) {
+	svcErr := &registry.ServiceConfigError{Service: "db", Plugin: "postgres", Err: errors.New("boom")}
+
+	failures := attributeRegistries(Input{RootConfigPath: "/abs/noda.json"}, []error{svcErr})
+
+	require.Len(t, failures, 1)
+	assert.Equal(t, PhaseRegistries, failures[0].Phase)
+	assert.Equal(t, []string{"/abs/noda.json"}, failures[0].Files)
+}
+
+// An empty RootConfigPath must leave Files empty, not [""]: a later caller
+// filtering with slices.Contains(f.Files, absPath) would otherwise behave
+// oddly against a slice holding one empty string.
+func TestAttributeRegistries_EmptyRootConfigPathLeavesFilesEmpty(t *testing.T) {
+	svcErr := &registry.ServiceConfigError{Service: "db", Plugin: "postgres", Err: errors.New("boom")}
+
+	failures := attributeRegistries(Input{RootConfigPath: ""}, []error{svcErr})
+
+	require.Len(t, failures, 1)
+	assert.Empty(t, failures[0].Files)
 }
 
 func TestOfPhase_SelectsOnePhase(t *testing.T) {

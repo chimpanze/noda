@@ -72,6 +72,14 @@ type Input struct {
 
 	// Live reuses the caller's registries instead of building fresh ones.
 	// Set by the editor and dev-mode reload, which already hold them.
+	//
+	// On this path, Artifacts.Bootstrap.Services is nil: the live path
+	// validates against registries the caller already holds and never
+	// initializes services, unlike the BootstrapResult a fresh (Live == nil)
+	// run produces. A caller consuming Artifacts on this path must not
+	// dereference .Bootstrap.Services — ServiceRegistry's methods lock its
+	// receiver's mutex unconditionally, so a nil *ServiceRegistry panics on
+	// first use.
 	Live *Registries
 
 	// RootConfigPath is the absolute path of noda.json. Failures whose fault
@@ -160,6 +168,11 @@ func Run(ctx context.Context, in Input) (*Artifacts, []Failure) {
 func runRegistries(ctx context.Context, in Input) (*registry.BootstrapResult, []Failure) {
 	if in.Live != nil {
 		errs := registry.DryRun(in.RC, in.Live.Plugins, in.Live.Nodes, in.Live.Compiler)
+		// Services is deliberately left nil here: this path validates against
+		// registries the caller already holds and never creates services, so
+		// there is nothing to populate it with. A caller reading Artifacts on
+		// this path must not dereference .Bootstrap.Services — it will panic
+		// (ServiceRegistry's methods lock the receiver's mutex unconditionally).
 		boot := &registry.BootstrapResult{
 			Plugins:  in.Live.Plugins,
 			Nodes:    in.Live.Nodes,
