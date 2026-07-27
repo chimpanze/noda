@@ -65,10 +65,11 @@ package startup // imports: config, registry, engine, server, scheduler, worker
 func Run(ctx context.Context, in Input) (*Artifacts, []Failure)
 
 type Input struct {
-    RC      *config.ResolvedConfig
-    Plugins []api.Plugin  // caller-supplied; keeps plugins/all out of the graph
-    Live    *Registries   // non-nil: reuse caller's registries (editor, devmode)
-    DryRun  bool          // skip service creation
+    RC             *config.ResolvedConfig
+    Plugins        []api.Plugin  // caller-supplied; keeps plugins/all out of the graph
+    Live           *Registries   // non-nil: reuse caller's registries (editor, devmode)
+    RootConfigPath string        // absolute path of noda.json; see Attribution
+    DryRun         bool          // skip service creation
 }
 
 type Artifacts struct {
@@ -78,11 +79,15 @@ type Artifacts struct {
 
 type Failure struct {
     Phase    Phase
-    File     string // absolute path; "" when project-wide
-    JSONPath string // optional, when a phase can point at a field
+    Files    []string // absolute paths implicated; empty when attributable to none
+    JSONPath string   // optional, when a phase can point at a field
     Err      error
 }
 ```
+
+`Files` is a slice rather than a single path because one misconfigured
+middleware breaks every route that references it, and the editor must mark all
+of them.
 
 `config.ValidateAll` stays **outside** `Run`, which takes an already-resolved
 `*ResolvedConfig`. Two reasons: it is the one step that never drifted (all five
@@ -147,7 +152,7 @@ which gaps exist, and the prediction held.
 
 ### Attribution
 
-`Failure.File` requires lifting the source file out of two error types that
+`Failure.Files` requires lifting the source file out of two error types that
 today bury it in formatted text:
 
 - `server.MiddlewareBuildError` — scopes already name the file, because
@@ -172,11 +177,17 @@ symptoms of untyped errors:
 2. The #349 workflow-scoping trick (`validation.go:60-65`), which pre-trims
    `rc.Workflows` to the saved file so that other files' errors do not appear.
 
-Both are replaced by one filter:
+Both are replaced by one filter, with no special cases at all:
 
 ```go
-f.File == absPath || (f.File == "" && absPath == rootConfigPath)
+slices.Contains(f.Files, absPath)
 ```
+
+This is what `Input.RootConfigPath` buys. Faults whose *definition* lives in
+`noda.json` — a service config, a middleware config — append it to `Files`
+alongside the referencing route files. So editing `noda.json` surfaces the
+limiter fault where the fix goes, and editing the route surfaces it where the
+breakage shows, without the caller special-casing either.
 
 The scoping trick is strictly worse than the filter — it *hides* cross-file
 errors rather than attributing them, so a file can read clean while the project
