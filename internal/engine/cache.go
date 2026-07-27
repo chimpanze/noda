@@ -3,6 +3,7 @@ package engine
 import (
 	"fmt"
 	"log/slog"
+	"sort"
 	"sync"
 )
 
@@ -21,20 +22,24 @@ func buildGraphs(workflows map[string]map[string]any, resolver NodeOutputResolve
 	source := make(map[string]string) // index key → file key that declared it
 	put := func(key, fileKey string, g *CompiledGraph) error {
 		if prev, ok := source[key]; ok {
-			return fmt.Errorf("duplicate workflow id %q (declared by %q and %q)", key, prev, fileKey)
+			return &WorkflowCompileError{
+				File: fileKey,
+				Err:  fmt.Errorf("duplicate workflow id %q (declared by %q and %q)", key, prev, fileKey),
+			}
 		}
 		source[key] = fileKey
 		graphs[key] = g
 		return nil
 	}
-	for id, raw := range workflows {
+	for _, id := range sortedWorkflowKeys(workflows) {
+		raw := workflows[id]
 		wfConfig, err := ParseWorkflowFromMap(id, raw)
 		if err != nil {
-			return nil, fmt.Errorf("parse workflow %q: %w", id, err)
+			return nil, &WorkflowCompileError{File: id, Err: fmt.Errorf("parse workflow %q: %w", id, err)}
 		}
 		graph, err := Compile(wfConfig, resolver)
 		if err != nil {
-			return nil, fmt.Errorf("compile workflow %q: %w", id, err)
+			return nil, &WorkflowCompileError{File: id, Err: fmt.Errorf("compile workflow %q: %w", id, err)}
 		}
 		if err := put(id, id, graph); err != nil {
 			return nil, err
@@ -46,6 +51,19 @@ func buildGraphs(workflows map[string]map[string]any, resolver NodeOutputResolve
 		}
 	}
 	return graphs, nil
+}
+
+// sortedWorkflowKeys returns the workflow file keys in a stable order. Which
+// of several broken workflows is reported first must not depend on Go's map
+// iteration order (#450) — that made identical input produce different errors
+// between runs.
+func sortedWorkflowKeys(workflows map[string]map[string]any) []string {
+	keys := make([]string, 0, len(workflows))
+	for k := range workflows {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // NewWorkflowCache creates a cache and pre-compiles all workflows from the given
