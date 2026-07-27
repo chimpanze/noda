@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/chimpanze/noda/internal/scaffold"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +16,13 @@ import (
 // `channels.pattern` fields are a different runtime context where `request.*`
 // remains legitimately valid and must NOT be touched by this check.
 func TestGeneratedRouteTriggersUseCanonicalNamespace(t *testing.T) {
-	require.NotContains(t, scaffoldSampleRoute, "request.",
+	// The scaffold's route now comes from the shared templates in
+	// internal/scaffold, which `noda init` writes too (#449).
+	scaffoldFiles, err := scaffold.Files("app")
+	require.NoError(t, err)
+	scaffoldRoute, ok := scaffoldFiles["routes/api.json"]
+	require.True(t, ok, "scaffold templates must contain routes/api.json")
+	require.NotContains(t, string(scaffoldRoute), "request.",
 		"scaffold route trigger must use canonical params/body")
 
 	for name, config := range examplePatterns {

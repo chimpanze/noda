@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"slices"
@@ -834,73 +835,16 @@ func scaffoldProjectHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return mcp.NewToolResultError("path must be an absolute path"), nil
 	}
 
-	// Create project directory structure
-	dirs := []string{
-		"routes",
-		"workflows",
-		"schemas",
-		"tests",
-		"migrations",
-	}
-
-	if err := os.MkdirAll(path, 0755); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to create project directory: %v", err)), nil
-	}
-
-	for _, d := range dirs {
-		if err := os.MkdirAll(filepath.Join(path, d), 0755); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("failed to create %s directory: %v", d, err)), nil
-		}
-	}
-
-	jwtSecret, err := scaffold.GenerateJWTSecret()
+	// The scaffold itself lives in internal/scaffold, shared with `noda init`,
+	// so the two entry points cannot produce different projects (#449).
+	created, err := scaffold.WriteProject(path, false)
 	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("failed to generate JWT secret: %v", err)), nil
-	}
-
-	files := map[string]string{
-		"noda.json": scaffoldNodaJSON,
-		// Write a working .env (matching docker-compose defaults, with a generated
-		// JWT_SECRET) so the project validates and runs immediately; .env.example
-		// is the committable template with a placeholder secret (#381).
-		".env":                  scaffold.ApplyJWTSecret(scaffoldEnvExample, jwtSecret),
-		".env.example":          scaffoldEnvExample,
-		"docker-compose.yml":    scaffoldDockerCompose,
-		"routes/api.json":       scaffoldSampleRoute,
-		"workflows/hello.json":  scaffoldSampleWorkflow,
-		"schemas/greeting.json": scaffoldSampleSchema,
-		"tests/hello.test.json": scaffoldSampleTest,
-		"migrations/20260101000000_create_items.up.sql":   scaffoldSampleMigrationUp,
-		"migrations/20260101000000_create_items.down.sql": scaffoldSampleMigrationDown,
-	}
-
-	var conflicts []string
-	for name := range files {
-		fullPath := filepath.Join(path, name)
-		if _, statErr := os.Stat(fullPath); statErr == nil {
-			conflicts = append(conflicts, name)
+		var conflict *scaffold.ConflictError
+		if errors.As(err, &conflict) {
+			return mcp.NewToolResultError(conflict.Error()), nil
 		}
+		return mcp.NewToolResultError(fmt.Sprintf("failed to scaffold project: %v", err)), nil
 	}
-	if len(conflicts) > 0 {
-		sort.Strings(conflicts)
-		return mcp.NewToolResultError(fmt.Sprintf("refusing to overwrite existing files: %s", strings.Join(conflicts, ", "))), nil
-	}
-
-	for name, content := range files {
-		fullPath := filepath.Join(path, name)
-		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("failed to write %s: %v", name, err)), nil
-		}
-	}
-
-	created := make([]string, 0, len(files)+len(dirs))
-	for _, d := range dirs {
-		created = append(created, d+"/")
-	}
-	for name := range files {
-		created = append(created, name)
-	}
-	sort.Strings(created)
 
 	return jsonResult(map[string]any{
 		"created": created,
@@ -1028,146 +972,3 @@ func sortedKeys(m map[string]string) []string {
 	sort.Strings(keys)
 	return keys
 }
-
-// --- Scaffold templates ---
-
-const scaffoldNodaJSON = `{
-  "server": {
-    "port": 3000,
-    "read_timeout": "30s",
-    "write_timeout": "30s",
-    "body_limit": 5242880
-  },
-  "services": {
-    "db": {
-      "plugin": "postgres",
-      "config": {
-        "url": "{{ $env('DATABASE_URL') }}"
-      }
-    },
-    "cache": {
-      "plugin": "cache",
-      "config": {
-        "url": "{{ $env('REDIS_URL') }}"
-      }
-    }
-  }
-}
-`
-
-const scaffoldEnvExample = `# Database
-DATABASE_URL=postgres://noda:noda@localhost:5432/noda?sslmode=disable
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-
-# JWT
-# auth.jwt requires a secret of at least 32 bytes; a generated one is written to .env
-JWT_SECRET=replace-with-a-secret-of-at-least-32-bytes
-`
-
-const scaffoldDockerCompose = `services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_USER: noda
-      POSTGRES_PASSWORD: noda
-      POSTGRES_DB: noda
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-
-volumes:
-  pgdata:
-`
-
-const scaffoldSampleRoute = `{
-  "id": "hello-route",
-  "method": "GET",
-  "path": "/api/hello/:name",
-  "trigger": {
-    "workflow": "hello",
-    "input": {
-      "name": "{{ params.name }}"
-    }
-  }
-}
-`
-
-const scaffoldSampleWorkflow = `{
-  "id": "hello",
-  "nodes": {
-    "greet": {
-      "type": "transform.set",
-      "config": {
-        "fields": {
-          "message": "Hello, {{ input.name }}!"
-        }
-      }
-    },
-    "respond": {
-      "type": "response.json",
-      "config": {
-        "status": 200,
-        "body": {
-          "greeting": "{{ nodes.greet.message }}"
-        }
-      }
-    }
-  },
-  "edges": [
-    { "from": "greet", "to": "respond", "output": "success" }
-  ]
-}
-`
-
-const scaffoldSampleSchema = `{
-  "type": "object",
-  "properties": {
-    "name": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 100
-    }
-  },
-  "required": ["name"]
-}
-`
-
-// Sample migration pair. Filenames follow <YYYYMMDDHHMMSS>_<name>.(up|down).sql;
-// `noda migrate create <name>` stamps the timestamp for you. See noda://docs/migrations.
-const scaffoldSampleMigrationUp = `-- Example migration. Tables are not created automatically — add a migration like
--- this for every table your workflows read or write, then run: noda migrate up
-CREATE TABLE items (
-  id         UUID PRIMARY KEY,
-  name       TEXT NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-`
-
-const scaffoldSampleMigrationDown = `DROP TABLE items;
-`
-
-const scaffoldSampleTest = `{
-  "id": "hello-test",
-  "workflow": "hello",
-  "tests": [
-    {
-      "name": "greets by name",
-      "input": { "name": "World" },
-      "expect": {
-        "status": "success",
-        "output": {
-          "greeting": "Hello, World!"
-        }
-      }
-    }
-  ]
-}
-`
