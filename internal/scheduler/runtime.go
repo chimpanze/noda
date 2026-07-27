@@ -26,7 +26,13 @@ const (
 
 // ScheduleConfig holds the parsed configuration for a single schedule.
 type ScheduleConfig struct {
-	ID          string
+	ID string
+
+	// SourceFile is the rc.Schedules map key — the absolute path of the file
+	// declaring this schedule. Carried so validation can attribute failures to
+	// a file; ID comes from the JSON "id" field and does not identify one.
+	SourceFile string
+
 	Cron        string
 	Timezone    string
 	Description string
@@ -107,6 +113,14 @@ func NewRuntime(
 	}
 }
 
+// cronOptions returns the option set the runtime installs. Start and
+// ValidateSpecs both build their cron instance from it, so a spec that
+// validates is one Start can register — a second, hand-rolled parser would be
+// free to disagree with the real one.
+func cronOptions() []cron.Option {
+	return []cron.Option{cron.WithSeconds()}
+}
+
 // Start registers all cron jobs and begins the scheduler.
 // It is safe to call multiple times; subsequent calls return nil.
 func (r *Runtime) Start() error {
@@ -114,7 +128,7 @@ func (r *Runtime) Start() error {
 		return nil
 	}
 	r.started = true
-	opts := []cron.Option{cron.WithSeconds()}
+	opts := cronOptions()
 	r.cron = cron.New(opts...)
 
 	for _, sc := range r.schedules {
@@ -446,6 +460,7 @@ func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig 
 
 		sc := ScheduleConfig{
 			ID:          engine.MapStrVal(raw, "id"),
+			SourceFile:  k,
 			Cron:        engine.MapStrVal(raw, "cron"),
 			Timezone:    tz,
 			Description: engine.MapStrVal(raw, "description"),
@@ -482,4 +497,28 @@ func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig 
 		configs = append(configs, sc)
 	}
 	return configs
+}
+
+// ValidateSpecs reports schedules whose cron expression Start would reject.
+//
+// It registers each spec against a cron instance built from cronOptions() —
+// the same construction Start uses — rather than re-deriving the field layout.
+// The instance is never started, so no goroutine or timer is created.
+//
+// This runs at validate time and at boot. Before it existed, an unparseable
+// spec surfaced only from lifecycle.StartAll, after services had been dialed
+// and the port bound, while `noda validate` reported the project clean.
+func ValidateSpecs(configs []ScheduleConfig) []error {
+	var errs []error
+	for _, sc := range configs {
+		spec := sc.Cron
+		if sc.Timezone != "" {
+			spec = "TZ=" + sc.Timezone + " " + spec
+		}
+		c := cron.New(cronOptions()...)
+		if _, err := c.AddFunc(spec, func() {}); err != nil {
+			errs = append(errs, fmt.Errorf("schedule %q: invalid cron spec %q: %w", sc.ID, sc.Cron, err))
+		}
+	}
+	return errs
 }
