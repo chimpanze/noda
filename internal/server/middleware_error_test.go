@@ -65,6 +65,49 @@ func TestValidateMiddlewareBuilds_GlobalMiddlewareHasNoFile(t *testing.T) {
 	assert.Empty(t, mwErr.Files)
 }
 
+// Files must be sorted globally, not just within routes and within
+// connections separately: ValidateMiddlewareBuilds visits routes and
+// connections as two separate sorted passes, so without a final sort the
+// slice would read "sorted within routes, then sorted within connections"
+// rather than one sorted list. The connection file here sorts before the
+// route file, so an unsorted (append-order) result would read
+// [/z-route.json, /a-conn.json] instead of the correct
+// [/a-conn.json, /z-route.json].
+func TestValidateMiddlewareBuilds_FilesSortedAcrossRoutesAndConnections(t *testing.T) {
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"middleware": map[string]any{
+				"limiter": map[string]any{"max": float64(0)},
+			},
+		},
+		Routes: map[string]map[string]any{
+			"/z-route.json": {
+				"id":         "r",
+				"method":     "GET",
+				"path":       "/r",
+				"middleware": []any{"limiter"},
+			},
+		},
+		Connections: map[string]map[string]any{
+			"/a-conn.json": {
+				"id": "c",
+				"endpoints": map[string]any{
+					"ep": map[string]any{
+						"middleware": []any{"limiter"},
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateMiddlewareBuilds(rc)
+	require.Len(t, errs, 1)
+
+	var mwErr *MiddlewareBuildError
+	require.ErrorAs(t, errs[0], &mwErr)
+	assert.Equal(t, []string{"/a-conn.json", "/z-route.json"}, mwErr.Files)
+}
+
 // The message is what `noda validate` prints and what #450's tests pin.
 func TestMiddlewareBuildError_TextIsUnchanged(t *testing.T) {
 	rc := brokenLimiterConfig("/proj/routes/a.json")

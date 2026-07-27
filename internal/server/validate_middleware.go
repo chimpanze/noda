@@ -110,6 +110,11 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 	}
 
 	for _, name := range failed {
+		// files[name] is sorted within routes and sorted within connections
+		// (each visited via sortedSectionKeys), but the two passes are not
+		// merged in file order — a middleware referenced by both needs an
+		// explicit sort here to be globally sorted.
+		sort.Strings(files[name])
 		errs = append(errs, &MiddlewareBuildError{
 			Name:  name,
 			Files: files[name],
