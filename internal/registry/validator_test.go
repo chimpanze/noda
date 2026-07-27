@@ -1,6 +1,7 @@
 package registry
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -1022,4 +1023,240 @@ func TestValidateStartupDryRun_OutcomeOutput_ControlFlowExempt(t *testing.T) {
 
 	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
 	assert.Empty(t, errs)
+}
+
+// workflowScopedFixture is what one row of
+// TestValidateStartup_EveryWorkflowErrorIsWorkflowScoped needs to call both
+// ValidateStartup and ValidateStartupDryRun. services may be nil — passed
+// straight through to ValidateStartup, which accepts a nil *ServiceRegistry
+// fine as long as the fixture's node has no required service slots.
+type workflowScopedFixture struct {
+	rc       *config.ResolvedConfig
+	plugins  *PluginRegistry
+	nodes    *NodeRegistry
+	services *ServiceRegistry
+	deferred map[string]DeferredService
+}
+
+// TestValidateStartup_EveryWorkflowErrorIsWorkflowScoped pins that every
+// "for wfName, wf := range rc.Workflows" error producer in both
+// ValidateStartup and ValidateStartupDryRun wraps its error in a
+// *WorkflowScopedError naming the declaring file — not just the
+// config-schema case exercised elsewhere in this file.
+//
+// This exists because a re-review of the #456 attribution fix deleted the
+// wrap from the edge-unknown-source-node check and reran
+// ./internal/registry/ ./internal/startup/ ./internal/editor/: everything
+// stayed green. Only the config-schema call sites and the synthetic
+// attributeRegistries unit tests had coverage that would catch a dropped
+// wrap; the node-type-prefix, unknown-node-type, service-slot, edge-output,
+// expression/static-field, and outcome-output wraps had nothing pinning
+// them. This table is that pin, one row per producer group, each verified
+// (see the fix report) to redden when its wrap is removed.
+//
+// Each row runs against both entry points except where noted — the two
+// functions are largely duplicated, which is exactly how a wrap lands in one
+// and is missed in the other.
+func TestValidateStartup_EveryWorkflowErrorIsWorkflowScoped(t *testing.T) {
+	cases := []struct {
+		name             string
+		file             string // the rc.Workflows key the error must name
+		wantErrSubstr    string
+		dryRunOnly       bool
+		dryRunOnlyReason string
+		build            func(t *testing.T) workflowScopedFixture
+	}{
+		{
+			name:          "unknown node type prefix",
+			file:          "prefix-wf",
+			wantErrSubstr: "unknown node type prefix",
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, services, nodes := setupValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"prefix-wf": {
+							"nodes": map[string]any{
+								"step1": map[string]any{"type": "email.send"},
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes, services: services}
+			},
+		},
+		{
+			name:          "unknown node type",
+			file:          "type-wf",
+			wantErrSubstr: "unknown node type",
+			build: func(t *testing.T) workflowScopedFixture {
+				// setupValidation registers "db" with only a "query" node, so
+				// "db.unknown" has a known prefix but no matching descriptor.
+				plugins, services, nodes := setupValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"type-wf": {
+							"nodes": map[string]any{
+								"step1": map[string]any{"type": "db.unknown"},
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes, services: services}
+			},
+		},
+		{
+			name:          "node config schema violation",
+			file:          "config-schema-wf",
+			wantErrSubstr: "missing required config field",
+			build: func(t *testing.T) workflowScopedFixture {
+				kvPlugin := &testKVPlugin{}
+				plugins := NewPluginRegistry()
+				require.NoError(t, plugins.Register(kvPlugin))
+				nodes := NewNodeRegistry()
+				require.NoError(t, nodes.RegisterFromPlugin(kvPlugin))
+				services := NewServiceRegistry()
+				require.NoError(t, services.Register("my-store", "kv", kvPlugin))
+
+				rc := &config.ResolvedConfig{
+					Root: map[string]any{
+						"services": map[string]any{
+							"my-store": map[string]any{"plugin": "kv"},
+						},
+					},
+					Workflows: map[string]map[string]any{
+						"config-schema-wf": {
+							"nodes": map[string]any{
+								"write": map[string]any{
+									"type":     "kv.set",
+									"services": map[string]any{"store": "my-store"},
+									"config":   map[string]any{"value": "hello"}, // missing required "key"
+								},
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes, services: services}
+			},
+		},
+		{
+			name:          "service slot / service reference failure",
+			file:          "slot-wf",
+			wantErrSubstr: "missing required service slot",
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, services, nodes := setupValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"slot-wf": {
+							"nodes": map[string]any{
+								"fetch": map[string]any{"type": "db.query"}, // no "services" key at all
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes, services: services}
+			},
+		},
+		{
+			name:             "edge output failure (edge references unknown source node)",
+			file:             "edge-wf",
+			wantErrSubstr:    `edge references unknown source node "missing"`,
+			dryRunOnly:       true,
+			dryRunOnlyReason: "ValidateStartup has no edge-output-validation phase at all — only ValidateStartupDryRun mirrors engine.Compile's edge checks (#379)",
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, nodes := setupEdgeValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"edge-wf": {
+							"nodes": map[string]any{
+								"next": edgeWorkflowNode("control.if", nil),
+							},
+							"edges": []any{edge("missing", "next", "then")},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes}
+			},
+		},
+		{
+			name:          "expression failure",
+			file:          "expr-wf",
+			wantErrSubstr: "expression error",
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, nodes := setupEdgeValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"expr-wf": {
+							"nodes": map[string]any{
+								// "{{ input.name ++ }}" is TestCompile_InvalidSyntax's
+								// known-bad expression (internal/expr/compiler_test.go).
+								"decide": edgeWorkflowNode("control.if", map[string]any{
+									"message": "{{ input.name ++ }}",
+								}),
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes}
+			},
+		},
+		{
+			name:          "outcome output failure",
+			file:          "outcome-wf",
+			wantErrSubstr: "outcome output",
+			build: func(t *testing.T) workflowScopedFixture {
+				plugins, nodes := setupOutcomeValidation(t)
+				rc := &config.ResolvedConfig{
+					Workflows: map[string]map[string]any{
+						"outcome-wf": {
+							"nodes": map[string]any{
+								"insert": edgeWorkflowNode("db.create", nil), // "exists" never wired
+							},
+						},
+					},
+				}
+				return workflowScopedFixture{rc: rc, plugins: plugins, nodes: nodes}
+			},
+		},
+	}
+
+	entryPoints := []struct {
+		name string
+		run  func(workflowScopedFixture) []error
+	}{
+		{"ValidateStartup", func(f workflowScopedFixture) []error {
+			return ValidateStartup(f.rc, f.plugins, f.services, f.nodes, expr.NewCompilerWithFunctions(), f.deferred)
+		}},
+		{"ValidateStartupDryRun", func(f workflowScopedFixture) []error {
+			return ValidateStartupDryRun(f.rc, f.plugins, f.nodes, expr.NewCompilerWithFunctions(), f.deferred)
+		}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			for _, ep := range entryPoints {
+				if tc.dryRunOnly && ep.name == "ValidateStartup" {
+					t.Logf("skipping ValidateStartup: %s", tc.dryRunOnlyReason)
+					continue
+				}
+				t.Run(ep.name, func(t *testing.T) {
+					f := tc.build(t)
+					errs := ep.run(f)
+					require.NotEmpty(t, errs, "fixture must produce at least one error")
+
+					var target error
+					for _, e := range errs {
+						if strings.Contains(e.Error(), tc.wantErrSubstr) {
+							target = e
+							break
+						}
+					}
+					require.NotNil(t, target, "expected an error containing %q, got: %v", tc.wantErrSubstr, errs)
+
+					var wfErr *WorkflowScopedError
+					require.ErrorAs(t, target, &wfErr, "error must be a *WorkflowScopedError")
+					assert.Equal(t, tc.file, wfErr.File)
+				})
+			}
+		})
+	}
 }
