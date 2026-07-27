@@ -76,13 +76,19 @@ func (s *Server) resolveMiddlewareChainFull(route map[string]any) ([]string, []f
 }
 
 // ValidatePresets checks that all preset names referenced in routes and groups exist.
+//
+// Routes and groups are visited in sorted order for the same reason as
+// ValidateMiddlewareBuilds (#450), and it bites harder here: registerRoutes
+// surfaces only errs[0], so ranging over the config maps directly meant boot
+// reported whichever offending route Go's map iteration reached first — a
+// different one on each attempt, with the rest invisible until it was fixed.
 func (s *Server) ValidatePresets() []error {
 	presets := s.getPresets()
 	var errs []error
 
 	// Check route-level presets
-	for id, route := range s.config.Routes {
-		if preset, ok := route["middleware_preset"].(string); ok && preset != "" {
+	for _, id := range sortedSectionKeys(s.config.Routes) {
+		if preset, ok := s.config.Routes[id]["middleware_preset"].(string); ok && preset != "" {
 			if _, exists := presets[preset]; !exists {
 				errs = append(errs, fmt.Errorf("route %q: unknown middleware preset %q", id, preset))
 			}
@@ -91,8 +97,8 @@ func (s *Server) ValidatePresets() []error {
 
 	// Check group-level presets
 	groups := s.getRouteGroups()
-	for prefix, group := range groups {
-		if preset, ok := group["middleware_preset"].(string); ok && preset != "" {
+	for _, prefix := range sortedSectionKeys(groups) {
+		if preset, ok := groups[prefix]["middleware_preset"].(string); ok && preset != "" {
 			if _, exists := presets[preset]; !exists {
 				errs = append(errs, fmt.Errorf("route group %q: unknown middleware preset %q", prefix, preset))
 			}

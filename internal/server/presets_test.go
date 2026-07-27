@@ -1,6 +1,7 @@
 package server
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/chimpanze/noda/internal/config"
@@ -219,4 +220,49 @@ func TestValidatePresets_ValidPreset(t *testing.T) {
 
 	errs := srv.ValidatePresets()
 	assert.Empty(t, errs)
+}
+
+// #450: registerRoutes surfaces only errs[0], so when several routes and
+// groups reference a missing preset, which one boot named came down to map
+// iteration order and changed between attempts.
+func TestValidatePresets_ErrorOrderIsStableAcrossRuns(t *testing.T) {
+	newSrv := func() *Server {
+		rc := &config.ResolvedConfig{
+			Root: map[string]any{
+				"middleware_presets": map[string]any{"known": []any{"recover"}},
+				"route_groups": map[string]any{
+					"/zulu":    map[string]any{"middleware_preset": "missing"},
+					"/whiskey": map[string]any{"middleware_preset": "missing"},
+				},
+			},
+			Routes: map[string]map[string]any{
+				"delta":   {"middleware_preset": "missing"},
+				"alpha":   {"middleware_preset": "missing"},
+				"charlie": {"middleware_preset": "missing"},
+			},
+		}
+		srv, _ := NewServer(rc, registry.NewServiceRegistry(), registry.NewNodeRegistry())
+		return srv
+	}
+
+	render := func(errs []error) string {
+		parts := make([]string, len(errs))
+		for i, e := range errs {
+			parts[i] = e.Error()
+		}
+		return strings.Join(parts, "\n")
+	}
+
+	want := render(newSrv().ValidatePresets())
+	// Guard the fixture: every offending route and group must be reported, or
+	// "stable" would hold trivially.
+	require.Len(t, newSrv().ValidatePresets(), 5, "fixture must produce one error per offending route and group")
+
+	for i := range 50 {
+		if got := render(newSrv().ValidatePresets()); got != want {
+			t.Fatalf("run %d differed from run 0\nfirst: %s\nlater: %s", i+1, want, got)
+		}
+	}
+	assert.Contains(t, want, `route "alpha"`, "routes sort before groups and alpha sorts first, so it is errs[0]")
+	assert.True(t, strings.HasPrefix(want, `route "alpha"`), "got: %s", want)
 }
