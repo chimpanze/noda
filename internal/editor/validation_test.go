@@ -13,6 +13,7 @@ import (
 	"github.com/chimpanze/noda/internal/pathutil"
 	"github.com/chimpanze/noda/internal/registry"
 	"github.com/chimpanze/noda/plugins/core/response"
+	"github.com/chimpanze/noda/plugins/core/util"
 	storageplugin "github.com/chimpanze/noda/plugins/storage"
 	"github.com/gofiber/fiber/v3"
 	"github.com/stretchr/testify/assert"
@@ -65,6 +66,7 @@ func setupValidationApp(t *testing.T, files map[string]string) *fiber.App {
 	pluginReg := registry.NewPluginRegistry()
 	require.NoError(t, pluginReg.Register(&response.Plugin{}))
 	require.NoError(t, pluginReg.Register(&storageplugin.Plugin{}))
+	require.NoError(t, pluginReg.Register(&util.Plugin{}))
 	svcReg := registry.NewServiceRegistry()
 	compiler := expr.NewCompilerWithFunctions()
 
@@ -360,4 +362,128 @@ func TestValidateAll_ServiceSchemaErrorAlwaysReported(t *testing.T) {
 		}
 	}
 	assert.True(t, found, "expected a service-schema error naming 'badstorage', got: %+v", errs)
+}
+
+// postJSON sends a JSON body to an editor endpoint and decodes the response.
+func postJSON(t *testing.T, app *fiber.App, path string, payload any) map[string]any {
+	t.Helper()
+	var body io.Reader
+	if payload != nil {
+		raw, err := json.Marshal(payload)
+		require.NoError(t, err)
+		body = strings.NewReader(string(raw))
+	}
+	req := httptest.NewRequest("POST", path, body)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := app.Test(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	raw, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	return decoded
+}
+
+// marshalJSON renders v as a JSON string, for substring assertions against
+// structured response fields (e.g. the "errors" array).
+func marshalJSON(t *testing.T, v any) string {
+	t.Helper()
+	raw, err := json.Marshal(v)
+	require.NoError(t, err)
+	return string(raw)
+}
+
+// A route wired to a misconfigured limiter showed green in the editor and
+// failed at boot — issue #456.
+func limiterProjectFiles() map[string]string {
+	return map[string]string{
+		"noda.json": `{"middleware": {"limiter": {"max": 0}}}`,
+		"routes/hello.json": `{
+  "id": "hello",
+  "method": "GET",
+  "path": "/hello",
+  "trigger": { "workflow": "hello" },
+  "middleware": ["limiter"]
+}`,
+		"workflows/hello.json": `{
+  "id": "hello",
+  "nodes": {
+    "respond": { "type": "response.json", "config": { "status": 200, "body": {} } }
+  },
+  "edges": []
+}`,
+	}
+}
+
+func TestValidateAll_ReportsMiddlewareFailures(t *testing.T) {
+	app := setupValidationApp(t, limiterProjectFiles())
+
+	body := postJSON(t, app, "/_noda/validate/all", nil)
+
+	assert.False(t, body["valid"].(bool), "a project that cannot boot is not valid")
+	assert.Contains(t, marshalJSON(t, body["errors"]), "limiter")
+}
+
+// The route file references the broken middleware, so saving it must surface
+// the error there.
+func TestValidateFile_AttributesMiddlewareErrorToReferencingRoute(t *testing.T) {
+	app := setupValidationApp(t, limiterProjectFiles())
+
+	body := postJSON(t, app, "/_noda/validate", map[string]any{"path": "routes/hello.json"})
+
+	assert.False(t, body["valid"].(bool))
+	assert.Contains(t, marshalJSON(t, body["errors"]), "limiter")
+}
+
+// The middleware's config lives in noda.json, so saving that file must surface
+// it too — that is where the fix goes.
+func TestValidateFile_AttributesMiddlewareErrorToRootConfig(t *testing.T) {
+	app := setupValidationApp(t, limiterProjectFiles())
+
+	body := postJSON(t, app, "/_noda/validate", map[string]any{"path": "noda.json"})
+
+	assert.False(t, body["valid"].(bool))
+	assert.Contains(t, marshalJSON(t, body["errors"]), "limiter")
+}
+
+// A file with no connection to the fault must stay clean, or every marker in
+// the editor becomes noise.
+func TestValidateFile_DoesNotAttributeUnrelatedFile(t *testing.T) {
+	app := setupValidationApp(t, limiterProjectFiles())
+
+	body := postJSON(t, app, "/_noda/validate", map[string]any{"path": "workflows/hello.json"})
+
+	assert.True(t, body["valid"].(bool),
+		"the workflow neither references nor defines the broken middleware")
+}
+
+// The workflow phase, also invisible to the editor before this change.
+func TestValidateAll_ReportsWorkflowGraphFailures(t *testing.T) {
+	app := setupValidationApp(t, map[string]string{
+		"noda.json": `{}`,
+		"routes/hello.json": `{
+  "id": "hello", "method": "GET", "path": "/hello",
+  "trigger": { "workflow": "hello" }
+}`,
+		"workflows/hello.json": `{
+  "id": "hello",
+  "nodes": {
+    "a": { "type": "util.log", "config": { "level": "info", "message": "a" } },
+    "b": { "type": "util.log", "config": { "level": "info", "message": "b" } }
+  },
+  "edges": [
+    { "from": "a", "to": "b" },
+    { "from": "b", "to": "a" }
+  ]
+}`,
+	})
+
+	body := postJSON(t, app, "/_noda/validate/all", nil)
+
+	assert.False(t, body["valid"].(bool))
+	assert.Contains(t, marshalJSON(t, body["errors"]), "cycle detected")
 }

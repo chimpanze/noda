@@ -29,6 +29,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/engine"
@@ -266,21 +268,47 @@ func runRegistries(ctx context.Context, in Input) (*registry.BootstrapResult, []
 	return boot, attributeRegistries(in, errs)
 }
 
-// attributeRegistries points service-config failures at the root config, where
-// services are declared. Other registries failures already name their workflow
-// file in the message and are left unattributed until a typed error exists for
-// them.
+// attributeRegistries points service-config failures at the root config,
+// where services are declared, and every other registries-phase failure at
+// the workflow file its message names.
 func attributeRegistries(in Input, errs []error) []Failure {
 	failures := make([]Failure, 0, len(errs))
 	for _, err := range errs {
 		f := Failure{Phase: PhaseRegistries, Err: err}
 		var svcErr *registry.ServiceConfigError
-		if errors.As(err, &svcErr) && in.RootConfigPath != "" {
-			f.Files = []string{in.RootConfigPath}
+		switch {
+		case errors.As(err, &svcErr):
+			if in.RootConfigPath != "" {
+				f.Files = []string{in.RootConfigPath}
+			}
+		default:
+			if file, ok := namedWorkflowFile(err, in.RC); ok {
+				f.Files = []string{file}
+			}
 		}
 		failures = append(failures, f)
 	}
 	return failures
+}
+
+// namedWorkflowFile reports the workflow file a registries-phase error names,
+// if any. Node-type, config-schema, service-slot, edge-output, and
+// expression checks are not individually typed the way MiddlewareBuildError
+// or WorkflowCompileError are — every one of them instead formats its error
+// as `workflow %q, ...` (registry/validator.go), so decoding that shared
+// convention against rc.Workflows' keys attributes all of them from one
+// place, rather than adding a typed error per check.
+func namedWorkflowFile(err error, rc *config.ResolvedConfig) (string, bool) {
+	if rc == nil {
+		return "", false
+	}
+	msg := err.Error()
+	for file := range rc.Workflows {
+		if strings.Contains(msg, strconv.Quote(file)) {
+			return file, true
+		}
+	}
+	return "", false
 }
 
 // runWorkflows parses and compiles every workflow graph. Before this was a
