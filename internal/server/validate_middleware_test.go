@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/chimpanze/noda/internal/config"
+	"github.com/chimpanze/noda/internal/registry"
 )
 
 func vmRC(root map[string]any, routes map[string]map[string]any) *config.ResolvedConfig {
@@ -409,6 +410,29 @@ func TestValidateMiddlewareBuilds_OfflineChecksResolveTheirInstanceConfig(t *tes
 			errsContain(t, ValidateMiddlewareBuilds(rc),
 				fmt.Sprintf("middleware instance %q not found in middleware_instances", name))
 		})
+	}
+}
+
+// offlineChecks is the single definition of "validated offline" — a key that
+// names no real factory would let a typo validate cleanly while boot rejects
+// it with "unknown middleware". This ranges the same offlineChecks map
+// checkMiddlewareBuild dispatches on (not a second, hand-written list of type
+// names), so an entry added there later is checked automatically with no
+// second list to maintain.
+func TestValidateMiddlewareBuilds_OfflineChecksAreRealMiddleware(t *testing.T) {
+	svcReg := registry.NewServiceRegistry()
+	rc := vmRC(nil, nil)
+	srv, err := NewServer(rc, svcReg, buildTestNodeRegistry())
+	if err != nil {
+		t.Fatalf("NewServer: %v", err)
+	}
+
+	for baseType := range offlineChecks {
+		_, inRegistry := middlewareRegistry[baseType]
+		_, inServerMiddleware := srv.serverMiddleware[baseType]
+		if !inRegistry && !inServerMiddleware {
+			t.Errorf("offlineChecks[%q] names no real middleware: not in middlewareRegistry or serverMiddleware", baseType)
+		}
 	}
 }
 
