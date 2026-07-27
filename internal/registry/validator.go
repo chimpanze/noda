@@ -51,18 +51,18 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 			// 1. Check node type prefix is registered
 			prefix := extractPrefix(nodeType)
 			if _, found := plugins.Get(prefix); !found {
-				errs = append(errs, fmt.Errorf("workflow %q, node %q: unknown node type prefix %q (type: %s)", wfName, nodeID, prefix, nodeType))
+				errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: unknown node type prefix %q (type: %s)", wfName, nodeID, prefix, nodeType)))
 				continue
 			}
 
 			// 2. Check node type is registered
 			desc, found := nodes.GetDescriptor(nodeType)
 			if !found {
-				errs = append(errs, fmt.Errorf("workflow %q, node %q: unknown node type %q", wfName, nodeID, nodeType))
+				errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: unknown node type %q", wfName, nodeID, nodeType)))
 				continue
 			}
 
-			errs = append(errs, validateNodeConfigSchema(wfName, nodeID, nodeType, desc, node)...)
+			errs = append(errs, wrapWorkflowErrors(wfName, validateNodeConfigSchema(wfName, nodeID, nodeType, desc, node))...)
 
 			// 3. Validate service slots
 			serviceDeps := desc.ServiceDeps()
@@ -74,7 +74,7 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 
 				if !hasSlot || svcNameStr == "" {
 					if dep.Required {
-						errs = append(errs, fmt.Errorf("workflow %q, node %q: missing required service slot %q", wfName, nodeID, slot))
+						errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: missing required service slot %q", wfName, nodeID, slot)))
 					}
 					continue
 				}
@@ -88,13 +88,13 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 					}
 				}
 				if !exists {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q not found (slot: %s)", wfName, nodeID, svcNameStr, slot))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: service %q not found (slot: %s)", wfName, nodeID, svcNameStr, slot)))
 					continue
 				}
 
 				// Check prefix matches
 				if svcPrefix != dep.Prefix {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q", wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q", wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix)))
 				}
 			}
 		}
@@ -114,11 +114,11 @@ func ValidateStartup(rc *config.ResolvedConfig, plugins *PluginRegistry, service
 			nodeType, _ := node["type"].(string)
 			if cfg, ok := node["config"].(map[string]any); ok {
 				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr)))
 				}
 				if fields, ok := staticFieldsByNodeType[nodeType]; ok {
 					for _, sfErr := range expr.ValidateStaticFields(cfg, fields) {
-						errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr))
+						errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr)))
 					}
 				}
 			}
@@ -218,18 +218,18 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			// 1. Check node type prefix is registered
 			prefix := extractPrefix(nodeType)
 			if _, found := plugins.Get(prefix); !found {
-				errs = append(errs, fmt.Errorf("workflow %q, node %q: unknown node type prefix %q (type: %s)", wfName, nodeID, prefix, nodeType))
+				errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: unknown node type prefix %q (type: %s)", wfName, nodeID, prefix, nodeType)))
 				continue
 			}
 
 			// 2. Check node type is registered
 			desc, found := nodes.GetDescriptor(nodeType)
 			if !found {
-				errs = append(errs, fmt.Errorf("workflow %q, node %q: unknown node type %q", wfName, nodeID, nodeType))
+				errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: unknown node type %q", wfName, nodeID, nodeType)))
 				continue
 			}
 
-			errs = append(errs, validateNodeConfigSchema(wfName, nodeID, nodeType, desc, node)...)
+			errs = append(errs, wrapWorkflowErrors(wfName, validateNodeConfigSchema(wfName, nodeID, nodeType, desc, node))...)
 
 			// 3. Validate service slot references exist in config (not live check)
 			serviceDeps := desc.ServiceDeps()
@@ -239,18 +239,18 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 				svcNameStr, _ := svcName.(string)
 				if !hasSlot || svcNameStr == "" {
 					if dep.Required {
-						errs = append(errs, fmt.Errorf("workflow %q, node %q: missing required service slot %q", wfName, nodeID, slot))
+						errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: missing required service slot %q", wfName, nodeID, slot)))
 					}
 					continue
 				}
 				svcPrefix, exists := configuredServices[svcNameStr]
 				if !exists {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q not found in config (slot: %s)", wfName, nodeID, svcNameStr, slot))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: service %q not found in config (slot: %s)", wfName, nodeID, svcNameStr, slot)))
 					continue
 				}
 				if svcPrefix != dep.Prefix {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q",
-						wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: service %q has prefix %q, but slot %q requires prefix %q",
+						wfName, nodeID, svcNameStr, svcPrefix, slot, dep.Prefix)))
 				}
 			}
 		}
@@ -281,11 +281,11 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 
 				fromNodeRaw, ok := wfNodes[from]
 				if !ok {
-					errs = append(errs, fmt.Errorf("workflow %q: edge references unknown source node %q", wfName, from))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q: edge references unknown source node %q", wfName, from)))
 					continue
 				}
 				if _, ok := wfNodes[to]; !ok {
-					errs = append(errs, fmt.Errorf("workflow %q: edge references unknown target node %q", wfName, to))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q: edge references unknown target node %q", wfName, to)))
 					continue
 				}
 				fromNode, ok := fromNodeRaw.(map[string]any)
@@ -316,8 +316,8 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 					wantOutput = "success"
 				}
 				if !containsStr(outputs, wantOutput) {
-					errs = append(errs, fmt.Errorf("workflow %q: edge %q -> %q: output %q not among declared outputs [%s]",
-						wfName, from, to, wantOutput, strings.Join(outputs, " ")))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q: edge %q -> %q: output %q not among declared outputs [%s]",
+						wfName, from, to, wantOutput, strings.Join(outputs, " "))))
 				}
 			}
 		}
@@ -341,11 +341,11 @@ func ValidateStartupDryRun(rc *config.ResolvedConfig, plugins *PluginRegistry, n
 			nodeType, _ := node["type"].(string)
 			if cfg, ok := node["config"].(map[string]any); ok {
 				for _, exprErr := range expr.ValidateExpressions(compiler, cfg) {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, exprErr)))
 				}
 				if fields, ok := staticFieldsByNodeType[nodeType]; ok {
 					for _, sfErr := range expr.ValidateStaticFields(cfg, fields) {
-						errs = append(errs, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr))
+						errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q: %w", wfName, nodeID, sfErr)))
 					}
 				}
 			}
@@ -408,8 +408,8 @@ func validateOutcomeOutputs(rc *config.ResolvedConfig, nodes *NodeRegistry) []er
 			}
 			for _, out := range provider.OutcomeOutputs() {
 				if !wiredOutputs[nodeID][out] {
-					errs = append(errs, fmt.Errorf("workflow %q, node %q (%s): outcome output %q has no outbound edge — a fired outcome output with no edge silently ends the path; wire it (e.g. to an error response, or to the same target as \"success\" if the distinction does not matter)",
-						wfName, nodeID, nodeType, out))
+					errs = append(errs, wfErr(wfName, fmt.Errorf("workflow %q, node %q (%s): outcome output %q has no outbound edge — a fired outcome output with no edge silently ends the path; wire it (e.g. to an error response, or to the same target as \"success\" if the distinction does not matter)",
+						wfName, nodeID, nodeType, out)))
 				}
 			}
 		}
@@ -434,6 +434,27 @@ func validateNodeConfigSchema(wfName, nodeID, nodeType string, desc api.NodeDesc
 		errs = append(errs, fmt.Errorf("workflow %q, node %q (%s): %w", wfName, nodeID, nodeType, scErr))
 	}
 	return errs
+}
+
+// wfErr attributes a single already-formatted error to the workflow file that
+// produced it. Error() on the result is unchanged text — see
+// WorkflowScopedError.
+func wfErr(file string, err error) error {
+	return &WorkflowScopedError{File: file, Err: err}
+}
+
+// wrapWorkflowErrors attributes every error in errs to file, preserving both
+// order and text — used where the errors come back as a slice from a helper
+// (validateNodeConfigSchema) rather than one at a time.
+func wrapWorkflowErrors(file string, errs []error) []error {
+	if len(errs) == 0 {
+		return nil
+	}
+	wrapped := make([]error, len(errs))
+	for i, e := range errs {
+		wrapped[i] = wfErr(file, e)
+	}
+	return wrapped
 }
 
 func extractPrefix(nodeType string) string {

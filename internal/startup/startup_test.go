@@ -157,34 +157,33 @@ func TestAttributeRegistries_EmptyRootConfigPathLeavesFilesEmpty(t *testing.T) {
 }
 
 // Node-type, config-schema, service-slot, edge-output, and expression checks
-// in the registries phase are not individually typed the way
-// ServiceConfigError is — attributeRegistries decodes the `workflow %q, ...`
-// convention they all share against rc.Workflows' keys instead. Without this,
-// the editor's per-file scoping (internal/editor/validation.go) would go
-// blind to the most common registries-phase fault: a node's own config
-// failing its plugin's schema.
+// in the registries phase are not individually typed per check, but each is
+// wrapped in registry.WorkflowScopedError at the loop that produces it
+// (internal/registry/validator.go) — attributeRegistries recovers the file
+// with errors.As instead of parsing the error text. Without this, the
+// editor's per-file scoping (internal/editor/validation.go) would go blind
+// to the most common registries-phase fault: a node's own config failing its
+// plugin's schema.
 func TestAttributeRegistries_WorkflowScopedErrorAttributedToItsFile(t *testing.T) {
-	rc := &config.ResolvedConfig{Workflows: map[string]map[string]any{
-		"/proj/workflows/hello.json": {},
-		"/proj/workflows/other.json": {},
-	}}
-	err := errors.New(`workflow "/proj/workflows/hello.json", node "fail" (response.error): missing required config field "code"`)
+	err := &registry.WorkflowScopedError{
+		File: "/proj/workflows/hello.json",
+		Err:  errors.New(`workflow "/proj/workflows/hello.json", node "fail" (response.error): missing required config field "code"`),
+	}
 
-	failures := attributeRegistries(Input{RC: rc}, []error{err})
+	failures := attributeRegistries(Input{}, []error{err})
 
 	require.Len(t, failures, 1)
 	assert.Equal(t, []string{"/proj/workflows/hello.json"}, failures[0].Files)
+	assert.Equal(t, err.Error(), failures[0].Err.Error(), "wrapping must not change the error text")
 }
 
-// An error naming no workflow file (or an RC with none registered) must leave
-// Files empty rather than guessing.
+// An error that is neither a ServiceConfigError nor a WorkflowScopedError
+// (e.g. a plugin registration failure) must leave Files empty rather than
+// guessing.
 func TestAttributeRegistries_UnmatchedErrorLeavesFilesEmpty(t *testing.T) {
-	rc := &config.ResolvedConfig{Workflows: map[string]map[string]any{
-		"/proj/workflows/hello.json": {},
-	}}
 	err := errors.New("register plugin \"mock\": already registered")
 
-	failures := attributeRegistries(Input{RC: rc}, []error{err})
+	failures := attributeRegistries(Input{}, []error{err})
 
 	require.Len(t, failures, 1)
 	assert.Empty(t, failures[0].Files)

@@ -319,6 +319,46 @@ func TestValidateStartupDryRun_NodeConfigSchemaEnforced(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "write")
 }
 
+// registry.WorkflowScopedError must carry the workflow file that produced the
+// error, with Error() left byte-identical to the unwrapped message — the
+// contract internal/startup.attributeRegistries relies on (errors.As) instead
+// of parsing the "workflow %q, ..." text back out.
+func TestValidateStartupDryRun_NodeConfigSchemaErrorIsWorkflowScoped(t *testing.T) {
+	kvPlugin := &testKVPlugin{}
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(kvPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(kvPlugin))
+
+	rc := &config.ResolvedConfig{
+		Root: map[string]any{
+			"services": map[string]any{
+				"my-store": map[string]any{"plugin": "kv"},
+			},
+		},
+		Workflows: map[string]map[string]any{
+			"write-wf": {
+				"nodes": map[string]any{
+					"write": map[string]any{
+						"type":     "kv.set",
+						"services": map[string]any{"store": "my-store"},
+						"config":   map[string]any{"value": "hello"}, // missing required "key"
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartupDryRun(rc, plugins, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+
+	var wfErr *WorkflowScopedError
+	require.ErrorAs(t, errs[0], &wfErr)
+	assert.Equal(t, "write-wf", wfErr.File)
+	assert.Equal(t, wfErr.Err.Error(), errs[0].Error(), "wrapping must not change the error text")
+}
+
 func TestValidateStartupDryRun_MissingConfigTreatedAsEmpty(t *testing.T) {
 	kvPlugin := &testKVPlugin{}
 	plugins := NewPluginRegistry()
@@ -383,6 +423,42 @@ func TestValidateStartup_NodeConfigSchemaEnforced(t *testing.T) {
 	assert.Contains(t, errs[0].Error(), "missing required config field")
 	assert.Contains(t, errs[0].Error(), "write-wf")
 	assert.Contains(t, errs[0].Error(), "write")
+}
+
+// Same contract as ValidateStartupDryRun's counterpart above — ValidateStartup
+// and ValidateStartupDryRun are largely duplicated, so both are checked.
+func TestValidateStartup_NodeConfigSchemaErrorIsWorkflowScoped(t *testing.T) {
+	kvPlugin := &testKVPlugin{}
+	plugins := NewPluginRegistry()
+	require.NoError(t, plugins.Register(kvPlugin))
+
+	nodes := NewNodeRegistry()
+	require.NoError(t, nodes.RegisterFromPlugin(kvPlugin))
+
+	services := NewServiceRegistry()
+	require.NoError(t, services.Register("my-store", "kv", kvPlugin))
+
+	rc := &config.ResolvedConfig{
+		Workflows: map[string]map[string]any{
+			"write-wf": {
+				"nodes": map[string]any{
+					"write": map[string]any{
+						"type":     "kv.set",
+						"services": map[string]any{"store": "my-store"},
+						"config":   map[string]any{"value": "hello"}, // missing required "key"
+					},
+				},
+			},
+		},
+	}
+
+	errs := ValidateStartup(rc, plugins, services, nodes, expr.NewCompilerWithFunctions(), nil)
+	require.Len(t, errs, 1)
+
+	var wfErr *WorkflowScopedError
+	require.ErrorAs(t, errs[0], &wfErr)
+	assert.Equal(t, "write-wf", wfErr.File)
+	assert.Equal(t, wfErr.Err.Error(), errs[0].Error(), "wrapping must not change the error text")
 }
 
 // schemaOnlyPlugin is a service-only plugin stub whose ServiceConfigSchema is
