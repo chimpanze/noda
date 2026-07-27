@@ -10,7 +10,7 @@ Files in `workers/*.json`. Each file defines one event-driven worker.
 | `subscribe` | object | yes | Subscription configuration |
 | `subscribe.topic` | string | yes | Topic or stream name |
 | `subscribe.group` | string | yes | Consumer group name |
-| `concurrency` | integer | no | Concurrent message processing (default: 1) |
+| `concurrency` | integer | no | Concurrent message processing (default: 1, maximum 1000 — rejected at validate/boot above that; values below 1 are treated as 1) |
 | `timeout` | duration string | no | Per-message processing timeout (default: `5m`) |
 | `retry` | object | no | Pending-reclaim and poison-cap configuration |
 | `retry.min_idle` | duration string | no | How long a pending message must be idle before the reaper reclaims it (default: `timeout` + 30s) |

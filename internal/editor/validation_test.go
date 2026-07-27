@@ -378,7 +378,7 @@ func postJSON(t *testing.T, app *fiber.App, path string, payload any) map[string
 
 	resp, err := app.Test(req)
 	require.NoError(t, err)
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	require.NoError(t, err)
