@@ -17,6 +17,7 @@ func TestValidateConfigs_RejectsConcurrencyOverMaximum(t *testing.T) {
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "ingest")
 	assert.Contains(t, errs[0].Error(), "exceeds maximum")
+	assert.Equal(t, "/proj/workers/ingest.json", errs[0].Config.SourceFile)
 }
 
 func TestValidateConfigs_AcceptsConcurrencyAtMaximum(t *testing.T) {

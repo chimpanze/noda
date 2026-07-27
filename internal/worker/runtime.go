@@ -772,6 +772,17 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 	return configs
 }
 
+// ConfigError reports worker configuration Start would reject, carrying the
+// worker it came from so callers can attribute it to a file.
+type ConfigError struct {
+	Config WorkerConfig
+	Err    error
+}
+
+func (e *ConfigError) Error() string { return e.Err.Error() }
+
+func (e *ConfigError) Unwrap() error { return e.Err }
+
 // ValidateConfigs reports worker configuration that would abort Start.
 //
 // Only the concurrency bound lives here. Everything else Start can reject —
@@ -782,11 +793,14 @@ func ParseWorkerConfigs(workers map[string]map[string]any) []WorkerConfig {
 // offline.
 //
 // Start calls this too, so a worker that validates is one Start accepts.
-func ValidateConfigs(configs []WorkerConfig) []error {
-	var errs []error
+func ValidateConfigs(configs []WorkerConfig) []*ConfigError {
+	var errs []*ConfigError
 	for _, w := range configs {
 		if w.Concurrency > maxConcurrency {
-			errs = append(errs, fmt.Errorf("worker %q: concurrency %d exceeds maximum %d", w.ID, w.Concurrency, maxConcurrency))
+			errs = append(errs, &ConfigError{
+				Config: w,
+				Err:    fmt.Errorf("worker %q: concurrency %d exceeds maximum %d", w.ID, w.Concurrency, maxConcurrency),
+			})
 		}
 	}
 	return errs

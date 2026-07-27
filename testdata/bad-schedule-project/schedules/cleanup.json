@@ -1,0 +1,7 @@
+{
+  "id": "cleanup",
+  "cron": "0 */6 * * *",
+  "trigger": {
+    "workflow": "cleanup"
+  }
+}

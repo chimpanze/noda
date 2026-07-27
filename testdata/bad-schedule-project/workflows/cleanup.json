@@ -1,0 +1,7 @@
+{
+  "id": "cleanup",
+  "nodes": {
+    "log": { "type": "util.log", "config": { "level": "info", "message": "cleanup" } }
+  },
+  "edges": []
+}

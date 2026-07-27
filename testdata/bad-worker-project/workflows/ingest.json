@@ -1,0 +1,7 @@
+{
+  "id": "ingest",
+  "nodes": {
+    "log": { "type": "util.log", "config": { "level": "info", "message": "ingest" } }
+  },
+  "edges": []
+}

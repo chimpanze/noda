@@ -186,3 +186,89 @@ func serverMiddlewareFaults(t *testing.T, rc *config.ResolvedConfig) []error {
 	t.Helper()
 	return server.ValidateMiddlewareBuilds(rc)
 }
+
+// The workflow phase. A cycle passes config.ValidateAll and the registries
+// phase, and killed boot at engine.NewWorkflowCache.
+func TestRun_ReportsWorkflowGraphFailures(t *testing.T) {
+	failures := dryRun(t, "bad-workflow-graph-project")
+
+	require.Len(t, failures, 1)
+	assert.Equal(t, PhaseWorkflows, failures[0].Phase)
+	assert.Contains(t, failures[0].Err.Error(), "cycle detected")
+	assert.Equal(t,
+		[]string{filepath.Join(fixtureDir(t, "bad-workflow-graph-project"), "workflows", "hello.json")},
+		failures[0].Files,
+		"the editor marks the workflow file this cycle is in")
+}
+
+// The middleware phase — issue #456's subject, and #448's before it.
+func TestRun_ReportsMiddlewareFailures(t *testing.T) {
+	failures := dryRun(t, "bad-middleware-project")
+
+	require.Len(t, failures, 1)
+	assert.Equal(t, PhaseMiddleware, failures[0].Phase)
+	assert.Contains(t, failures[0].Err.Error(), "limiter")
+
+	dir := fixtureDir(t, "bad-middleware-project")
+	assert.ElementsMatch(t,
+		[]string{
+			filepath.Join(dir, "routes", "hello.json"),
+			filepath.Join(dir, "noda.json"),
+		},
+		failures[0].Files,
+		"both the route referencing the middleware and the file defining it")
+}
+
+// The schedules phase. A five-field cron spec passed `noda validate` and
+// failed at lifecycle.StartAll, after services were dialed.
+func TestRun_ReportsScheduleFailures(t *testing.T) {
+	failures := dryRun(t, "bad-schedule-project")
+
+	require.Len(t, failures, 1)
+	assert.Equal(t, PhaseSchedules, failures[0].Phase)
+	assert.Contains(t, failures[0].Err.Error(), "expected exactly 6 fields")
+	assert.Equal(t,
+		[]string{filepath.Join(fixtureDir(t, "bad-schedule-project"), "schedules", "cleanup.json")},
+		failures[0].Files)
+}
+
+// The workers phase. The worker schema puts no bound on concurrency.
+func TestRun_ReportsWorkerFailures(t *testing.T) {
+	failures := dryRun(t, "bad-worker-project")
+
+	require.Len(t, failures, 1)
+	assert.Equal(t, PhaseWorkers, failures[0].Phase)
+	assert.Contains(t, failures[0].Err.Error(), "exceeds maximum")
+	assert.Equal(t, "/concurrency", failures[0].JSONPath)
+	assert.Equal(t,
+		[]string{filepath.Join(fixtureDir(t, "bad-worker-project"), "workers", "ingest.json")},
+		failures[0].Files)
+}
+
+// Guard the guards. Each fixture must fail ONLY its own phase — otherwise the
+// tests above prove nothing about the phase they name. Three vacuous guards
+// have shipped in this repo; this is what catches the fourth.
+func TestFixtures_FailExactlyOnePhaseEach(t *testing.T) {
+	for fixture, want := range map[string]Phase{
+		"bad-workflow-graph-project": PhaseWorkflows,
+		"bad-middleware-project":     PhaseMiddleware,
+		"bad-schedule-project":       PhaseSchedules,
+		"bad-worker-project":         PhaseWorkers,
+	} {
+		t.Run(fixture, func(t *testing.T) {
+			failures := dryRun(t, fixture)
+			require.NotEmpty(t, failures, "fixture must fail its phase")
+			for _, f := range failures {
+				assert.Equal(t, want, f.Phase,
+					"fixture must fail only %s, so a guard naming it proves that phase ran", want)
+			}
+		})
+	}
+}
+
+func fixtureDir(t *testing.T, dir string) string {
+	t.Helper()
+	abs, err := filepath.Abs(filepath.Join("../../testdata", dir))
+	require.NoError(t, err)
+	return abs
+}

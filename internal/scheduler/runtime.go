@@ -499,6 +499,17 @@ func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig 
 	return configs
 }
 
+// SpecError reports a schedule whose cron expression Start would reject,
+// carrying the schedule it came from so callers can attribute it to a file.
+type SpecError struct {
+	Config ScheduleConfig
+	Err    error
+}
+
+func (e *SpecError) Error() string { return e.Err.Error() }
+
+func (e *SpecError) Unwrap() error { return e.Err }
+
 // ValidateSpecs reports schedules whose cron expression Start would reject.
 //
 // It registers each spec against a cron instance built from cronOptions() —
@@ -508,8 +519,8 @@ func ParseScheduleConfigs(schedules map[string]map[string]any) []ScheduleConfig 
 // This runs at validate time and at boot. Before it existed, an unparseable
 // spec surfaced only from lifecycle.StartAll, after services had been dialed
 // and the port bound, while `noda validate` reported the project clean.
-func ValidateSpecs(configs []ScheduleConfig) []error {
-	var errs []error
+func ValidateSpecs(configs []ScheduleConfig) []*SpecError {
+	var errs []*SpecError
 	for _, sc := range configs {
 		spec := sc.Cron
 		if sc.Timezone != "" {
@@ -517,7 +528,10 @@ func ValidateSpecs(configs []ScheduleConfig) []error {
 		}
 		c := cron.New(cronOptions()...)
 		if _, err := c.AddFunc(spec, func() {}); err != nil {
-			errs = append(errs, fmt.Errorf("schedule %q: invalid cron spec %q: %w", sc.ID, sc.Cron, err))
+			errs = append(errs, &SpecError{
+				Config: sc,
+				Err:    fmt.Errorf("schedule %q: invalid cron spec %q: %w", sc.ID, sc.Cron, err),
+			})
 		}
 	}
 	return errs

@@ -18,6 +18,7 @@ func TestValidateSpecs_RejectsFiveFieldSpec(t *testing.T) {
 	require.Len(t, errs, 1)
 	assert.Contains(t, errs[0].Error(), "cleanup")
 	assert.Contains(t, errs[0].Error(), "expected exactly 6 fields")
+	assert.Equal(t, "/proj/schedules/cleanup.json", errs[0].Config.SourceFile)
 }
 
 func TestValidateSpecs_AcceptsSixFieldSpec(t *testing.T) {

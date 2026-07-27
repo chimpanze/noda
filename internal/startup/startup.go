@@ -34,6 +34,9 @@ import (
 	"github.com/chimpanze/noda/internal/engine"
 	"github.com/chimpanze/noda/internal/expr"
 	"github.com/chimpanze/noda/internal/registry"
+	"github.com/chimpanze/noda/internal/scheduler"
+	"github.com/chimpanze/noda/internal/server"
+	"github.com/chimpanze/noda/internal/worker"
 	"github.com/chimpanze/noda/pkg/api"
 )
 
@@ -160,7 +163,72 @@ func Run(ctx context.Context, in Input) (*Artifacts, []Failure) {
 	}
 	arts.WorkflowCache = cache
 
+	if failures := runMiddleware(in); len(failures) > 0 {
+		return arts, failures
+	}
+	if failures := runSchedules(in); len(failures) > 0 {
+		return arts, failures
+	}
+	if failures := runWorkers(in); len(failures) > 0 {
+		return arts, failures
+	}
+
 	return arts, nil
+}
+
+// runMiddleware builds every middleware the routes, groups, presets, and
+// connection endpoints reference, without connecting to Redis or performing
+// OIDC discovery. Boot runs this too: server.Setup would otherwise fail with
+// "register routes:" naming whichever route it reached first, where this
+// names every affected route in a stable order (#450).
+func runMiddleware(in Input) []Failure {
+	var failures []Failure
+	for _, err := range server.ValidateMiddlewareBuilds(in.RC) {
+		f := Failure{Phase: PhaseMiddleware, Err: err}
+
+		var mwErr *server.MiddlewareBuildError
+		if errors.As(err, &mwErr) {
+			f.Files = append(f.Files, mwErr.Files...)
+			// A middleware's config lives in the root config, so that file is
+			// implicated alongside every route referencing it — editing it is
+			// where the fix goes.
+			if in.RootConfigPath != "" {
+				f.Files = append(f.Files, in.RootConfigPath)
+			}
+		}
+		failures = append(failures, f)
+	}
+	return failures
+}
+
+// runSchedules checks that every cron spec is one the scheduler can register.
+// Before this was a phase, a five-field spec — the form every non-Go cron
+// accepts — passed `noda validate` and failed at lifecycle.StartAll, after
+// services had been dialed.
+func runSchedules(in Input) []Failure {
+	var failures []Failure
+	for _, err := range scheduler.ValidateSpecs(scheduler.ParseScheduleConfigs(in.RC.Schedules)) {
+		f := Failure{Phase: PhaseSchedules, Err: err, JSONPath: "/cron"}
+		if err.Config.SourceFile != "" {
+			f.Files = []string{err.Config.SourceFile}
+		}
+		failures = append(failures, f)
+	}
+	return failures
+}
+
+// runWorkers checks worker configuration Start would reject — today only the
+// concurrency bound, which the worker JSON schema does not express.
+func runWorkers(in Input) []Failure {
+	var failures []Failure
+	for _, err := range worker.ValidateConfigs(worker.ParseWorkerConfigs(in.RC.Workers)) {
+		f := Failure{Phase: PhaseWorkers, Err: err, JSONPath: "/concurrency"}
+		if err.Config.SourceFile != "" {
+			f.Files = []string{err.Config.SourceFile}
+		}
+		failures = append(failures, f)
+	}
+	return failures
 }
 
 // runRegistries registers plugins and nodes, initializes services (unless

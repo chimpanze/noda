@@ -1,0 +1,10 @@
+{
+  "services": {
+    "stream": {
+      "plugin": "stream",
+      "config": {
+        "url": "redis://localhost:6379/0"
+      }
+    }
+  }
+}
