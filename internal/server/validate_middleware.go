@@ -22,11 +22,10 @@ const maxReportedScopes = 5
 // invalid durations, missing jwt config) surface at validate time instead of
 // crashing the server at boot.
 //
-// Factories with build-time side effects are validated up to, but not
-// including, the external call: redis-backed limiter/idempotency storage is
-// not connected and OIDC discovery is not fetched. auth.session is
-// server-scoped (it needs the live service registry) and has no build-time
-// validation to run.
+// Factories with build-time side effects are not called; offlineChecks lists
+// every such type and the check that stands in for it. Their config is still
+// resolved the way BuildMiddleware resolves it, so a reference to a missing
+// middleware_instances entry fails here exactly as it fails at boot.
 //
 // Routes, connections, and endpoints are visited in sorted order, and a
 // middleware that fails is reported once naming every scope that references
@@ -154,49 +153,63 @@ func joinScopes(scopes []string) string {
 	return fmt.Sprintf("%s and %d more", strings.Join(scopes[:maxReportedScopes], ", "), len(scopes)-maxReportedScopes)
 }
 
+// noFactoryCheck substitutes for a factory that has nothing to validate
+// offline. Config resolution still runs for these — see offlineChecks.
+func noFactoryCheck(map[string]any) error { return nil }
+
+// offlineChecks maps a middleware base type to the check that stands in for its
+// factory when calling the factory would open a connection or start a
+// goroutine. Membership in this map is the single definition of "validated
+// offline": checkMiddlewareBuild resolves the config for every entry before
+// dispatching here, so an entry cannot skip the instance lookup the way a
+// hand-written `return nil` case could — which is how security.csrf and
+// auth.session came to accept a reference to a nonexistent middleware_instances
+// entry that boot rejects.
+var offlineChecks = map[string]func(cfg map[string]any) error{
+	// auth.session is server-scoped: it needs the live service registry, so
+	// there is nothing a validate-time build could check.
+	"auth.session": noFactoryCheck,
+
+	// security.csrf is offline for the opposite reason: there is nothing to
+	// check (newCSRFMiddleware only copies cookie settings out of the config
+	// and sets no TrustedOrigins, the one field csrf.New panics on), and
+	// calling it is not free. fiber's csrf.New defaults to in-memory storage,
+	// whose constructor starts a goroutine with a 10-second GC ticker that
+	// nothing here can close. This runs on every `noda start`, every dev-mode
+	// reload, and every editor save, so building it to learn it always
+	// succeeds leaked a goroutine per validation for the life of a dev
+	// session. Resolving the config below does not call csrf.New, so the
+	// instance lookup costs no goroutine.
+	"security.csrf": noFactoryCheck,
+
+	// The rest are validated up to, but not including, the external call:
+	// redis-backed limiter/idempotency storage is not connected, and OIDC
+	// discovery is not fetched.
+	"auth.oidc":   func(cfg map[string]any) error { _, err := parseOIDCConfig(cfg); return err },
+	"limiter":     func(cfg map[string]any) error { _, _, err := parseLimiterConfig(cfg); return err },
+	"idempotency": func(cfg map[string]any) error { _, _, err := parseIdempotencyConfig(cfg); return err },
+}
+
 // checkMiddlewareBuild validates that a middleware would build at boot,
 // substituting offline config checks for the factories that open connections.
 func (s *Server) checkMiddlewareBuild(name string) error {
 	baseType, _ := ParseMiddlewareName(name)
-	switch baseType {
-	case "auth.session":
-		return nil
-	case "security.csrf":
-		// Offline like auth.session, but for the opposite reason: there is
-		// nothing to check (newCSRFMiddleware only copies cookie settings out
-		// of the config and sets no TrustedOrigins, the one field csrf.New
-		// panics on), and calling it is not free. fiber's csrf.New defaults to
-		// in-memory storage, whose constructor starts a goroutine with a
-		// 10-second GC ticker that nothing here can close. This runs on every
-		// `noda start`, every dev-mode reload, and every editor save, so
-		// building it to learn it always succeeds leaked a goroutine per
-		// validation for the life of a dev session.
-		return nil
-	case "auth.oidc":
-		cfg, err := s.middlewareConfigFor(name)
-		if err != nil {
-			return err
-		}
-		_, err = parseOIDCConfig(cfg)
-		return err
-	case "limiter":
-		cfg, err := s.middlewareConfigFor(name)
-		if err != nil {
-			return err
-		}
-		_, _, err = parseLimiterConfig(cfg)
-		return err
-	case "idempotency":
-		cfg, err := s.middlewareConfigFor(name)
-		if err != nil {
-			return err
-		}
-		_, _, err = parseIdempotencyConfig(cfg)
-		return err
-	default:
+
+	check, offline := offlineChecks[baseType]
+	if !offline {
 		_, err := BuildMiddleware(name, s.config.Root)
 		return err
 	}
+
+	// Resolve the config exactly as BuildMiddleware would. This sits outside
+	// the per-type dispatch deliberately: a missing middleware_instances entry
+	// fails at boot, so it must fail here too, for every offline-checked type,
+	// by construction rather than by each case remembering to ask.
+	cfg, err := s.middlewareConfigFor(name)
+	if err != nil {
+		return err
+	}
+	return check(cfg)
 }
 
 // middlewareConfigFor resolves a middleware's config the same way

@@ -385,6 +385,60 @@ func TestValidateMiddlewareBuilds_CSRFLeaksNoGoroutines(t *testing.T) {
 	}
 }
 
+// An offline-checked middleware substitutes a config check for its factory,
+// but it must still resolve its config the way BuildMiddleware does, or a
+// reference to a middleware_instances entry that does not exist passes
+// validate and then fails at boot. security.csrf and auth.session both did:
+// their cases returned nil before the instance lookup ran.
+//
+// This ranges offlineChecks — the same map checkMiddlewareBuild dispatches on
+// — rather than a list of type names written out here. That is the point: an
+// offline case added to that map later is covered by this guard automatically,
+// with no second list to keep in sync. A separate list would be the same
+// defect one layer up.
+func TestValidateMiddlewareBuilds_OfflineChecksResolveTheirInstanceConfig(t *testing.T) {
+	if len(offlineChecks) == 0 {
+		t.Fatal("offlineChecks is empty, so this guard would assert nothing")
+	}
+	for baseType := range offlineChecks {
+		t.Run(baseType, func(t *testing.T) {
+			name := baseType + ":definitely-not-configured"
+			rc := vmRC(nil, map[string]map[string]any{
+				"r1": {"id": "r1", "path": "/x", "middleware": []any{name}},
+			})
+			errsContain(t, ValidateMiddlewareBuilds(rc),
+				fmt.Sprintf("middleware instance %q not found in middleware_instances", name))
+		})
+	}
+}
+
+// The counterpart: a plain, non-instance reference has no middleware_instances
+// entry to find, and middlewareConfigFor must return the extracted config with
+// a nil error for it. Resolving config for every offline type would otherwise
+// reject every project that uses security.csrf or auth.session without an
+// instance suffix — which is nearly all of them.
+func TestValidateMiddlewareBuilds_OfflineChecksAcceptTheNonInstanceForm(t *testing.T) {
+	root := map[string]any{
+		"middleware": map[string]any{
+			"limiter":     map[string]any{"max": float64(20), "expiration": "1m"},
+			"idempotency": map[string]any{},
+		},
+		"security": map[string]any{
+			"oidc": map[string]any{"issuer_url": "https://192.0.2.1/realm", "client_id": "app"},
+		},
+	}
+	for baseType := range offlineChecks {
+		t.Run(baseType, func(t *testing.T) {
+			rc := vmRC(root, map[string]map[string]any{
+				"r1": {"id": "r1", "path": "/x", "middleware": []any{baseType}},
+			})
+			if errs := ValidateMiddlewareBuilds(rc); len(errs) != 0 {
+				t.Fatalf("%s without an instance suffix must validate cleanly, got %v", baseType, errs)
+			}
+		})
+	}
+}
+
 // settle gives goroutines started or stopped by the code under test a chance
 // to be scheduled before they are counted.
 func settle() {
