@@ -1,6 +1,7 @@
 package main
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -74,4 +75,35 @@ func TestValidateProject_RejectsProjectThatCannotBoot(t *testing.T) {
 	require.Error(t, err, "unwired outcome output must fail startup validation")
 	assert.Contains(t, err.Error(), "outcome output")
 	assert.Contains(t, err.Error(), "exists")
+}
+
+// Every phase must reach the CLI's output. Deleting any one of these from the
+// startup list must redden this test — that is the whole point of the list.
+func TestValidateProject_ReportsEveryPhase(t *testing.T) {
+	for _, tc := range []struct {
+		fixture string
+		heading string
+		detail  string
+	}{
+		{"test-cmd-invalid-project", "registries validation failed", "outcome output"},
+		{"bad-workflow-graph-project", "workflows validation failed", "cycle detected"},
+		{"bad-middleware-project", "middleware validation failed", "limiter"},
+		{"bad-schedule-project", "schedules validation failed", "expected exactly 6 fields"},
+		{"bad-worker-project", "workers validation failed", "exceeds maximum"},
+	} {
+		t.Run(tc.fixture, func(t *testing.T) {
+			abs, err := filepath.Abs(filepath.Join("../../testdata", tc.fixture))
+			require.NoError(t, err)
+			sm, err := config.NewSecretsManager(abs, "")
+			require.NoError(t, err)
+			rc, cfgErrs := config.ValidateAll(abs, "", sm)
+			require.Empty(t, cfgErrs, "fixture must fail a startup phase, not file validation")
+
+			err = validateProject(rc)
+
+			require.Error(t, err, "the %s phase must reach the CLI", tc.heading)
+			assert.Contains(t, err.Error(), tc.heading)
+			assert.Contains(t, err.Error(), tc.detail)
+		})
+	}
 }

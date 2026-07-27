@@ -6,28 +6,37 @@ import (
 	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
-	"github.com/chimpanze/noda/internal/validate"
+	"github.com/chimpanze/noda/internal/startup"
+	"github.com/chimpanze/noda/plugins/all"
 )
 
-// validateProject runs the shared startup validation (internal/validate) and
-// renders its result as the single error `noda validate` and `noda test`
+// validateProject runs the shared startup phases (internal/startup) and
+// renders the failing one as the single error `noda validate` and `noda test`
 // print.
 //
-// The formatting lives here rather than in internal/validate because it is a
-// CLI concern: the MCP tool consumes the same Result and emits a structured
-// JSON list from it instead. The checks themselves must not be duplicated —
-// keeping one implementation is what stops these surfaces drifting, which they
-// have now done twice (#444, #448).
+// The formatting lives here rather than in internal/startup because it is a
+// CLI concern: the MCP tool consumes the same failures and emits structured
+// JSON, and the editor attributes them to files. The checks themselves must
+// not be duplicated — one implementation is what stops these surfaces
+// drifting, which they did four times (#442, #444, #448, #456).
 func validateProject(rc *config.ResolvedConfig) error {
-	res, err := validate.Project(context.Background(), rc)
-	if err != nil {
-		return err
-	}
-	if msgs := joinErrors(res.Bootstrap); msgs != "" {
-		return fmt.Errorf("bootstrap failed:\n  %s", msgs)
-	}
-	if msgs := joinErrors(res.Middleware); msgs != "" {
-		return fmt.Errorf("middleware validation failed:\n  %s", msgs)
+	_, failures := startup.Run(context.Background(), startup.Input{
+		RC:      rc,
+		Plugins: all.All(),
+		DryRun:  true,
+	})
+
+	// Run stops at the first failing phase, so at most one of these fires.
+	for _, phase := range []startup.Phase{
+		startup.PhaseRegistries,
+		startup.PhaseWorkflows,
+		startup.PhaseMiddleware,
+		startup.PhaseSchedules,
+		startup.PhaseWorkers,
+	} {
+		if msgs := joinErrors(startup.OfPhase(failures, phase)); msgs != "" {
+			return fmt.Errorf("%s validation failed:\n  %s", phase, msgs)
+		}
 	}
 	return nil
 }
