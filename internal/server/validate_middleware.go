@@ -2,10 +2,19 @@ package server
 
 import (
 	"fmt"
+	"slices"
+	"sort"
+	"strings"
 
 	"github.com/chimpanze/noda/internal/config"
 	"github.com/chimpanze/noda/internal/routecfg"
 )
+
+// maxReportedScopes bounds how many referencing routes or endpoints a single
+// middleware error names. Past that the remainder is counted rather than
+// listed — the count is still reported, so the scope of the problem is never
+// silently understated.
+const maxReportedScopes = 5
 
 // ValidateMiddlewareBuilds builds every middleware referenced by
 // global_middleware, route groups, presets, routes, and connection endpoints,
@@ -18,18 +27,38 @@ import (
 // not connected and OIDC discovery is not fetched. auth.session is
 // server-scoped (it needs the live service registry) and has no build-time
 // validation to run.
+//
+// Routes, connections, and endpoints are visited in sorted order, and a
+// middleware that fails is reported once naming every scope that references
+// it. Both matter for the same reason (#450): ranging over the config maps
+// directly and deduplicating on the middleware name alone meant the error
+// named whichever route Go's map iteration reached first, so it changed
+// between runs on identical input and hid how many routes were affected.
 func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 	s := &Server{config: rc}
 	var errs []error
-	checked := map[string]bool{}
+
+	// A middleware's build depends only on its name and the project config,
+	// never on the route referencing it, so each name is built at most once
+	// and the resulting error is shared by every scope that names it.
+	buildErr := map[string]error{}
+	scopes := map[string][]string{}
+	var failed []string
 
 	check := func(scope, name string) {
-		if checked[name] {
+		err, built := buildErr[name]
+		if !built {
+			err = s.checkMiddlewareBuild(name)
+			buildErr[name] = err
+			if err != nil {
+				failed = append(failed, name)
+			}
+		}
+		if err == nil {
 			return
 		}
-		checked[name] = true
-		if err := s.checkMiddlewareBuild(name); err != nil {
-			errs = append(errs, fmt.Errorf("%s: middleware %q: %w", scope, name, err))
+		if !slices.Contains(scopes[name], scope) {
+			scopes[name] = append(scopes[name], scope)
 		}
 	}
 
@@ -37,8 +66,8 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 		check("global_middleware", name)
 	}
 
-	for id, route := range s.config.Routes {
-		names, err := s.resolveMiddlewareNames(route)
+	for _, id := range sortedSectionKeys(s.config.Routes) {
+		names, err := s.resolveMiddlewareNames(s.config.Routes[id])
 		if err != nil {
 			errs = append(errs, fmt.Errorf("route %q: %w", id, err))
 			continue
@@ -48,25 +77,56 @@ func ValidateMiddlewareBuilds(rc *config.ResolvedConfig) []error {
 		}
 	}
 
-	for connID, conn := range s.config.Connections {
-		endpoints, _ := conn["endpoints"].(map[string]any)
-		for epName, epAny := range endpoints {
-			ep, _ := epAny.(map[string]any)
+	for _, connID := range sortedSectionKeys(s.config.Connections) {
+		endpoints, _ := s.config.Connections[connID]["endpoints"].(map[string]any)
+		epNames := make([]string, 0, len(endpoints))
+		for epName := range endpoints {
+			epNames = append(epNames, epName)
+		}
+		sort.Strings(epNames)
+
+		for _, epName := range epNames {
+			ep, _ := endpoints[epName].(map[string]any)
 			if ep == nil {
 				continue
 			}
+			scope := fmt.Sprintf("connection %q endpoint %q", connID, epName)
 			names, err := s.resolveEndpointMiddlewareNames(ep)
 			if err != nil {
-				errs = append(errs, fmt.Errorf("connection %q endpoint %q: %w", connID, epName, err))
+				errs = append(errs, fmt.Errorf("%s: %w", scope, err))
 				continue
 			}
 			for _, name := range names {
-				check(fmt.Sprintf("connection %q endpoint %q", connID, epName), name)
+				check(scope, name)
 			}
 		}
 	}
 
+	for _, name := range failed {
+		errs = append(errs, fmt.Errorf("%s: middleware %q: %w", joinScopes(scopes[name]), name, buildErr[name]))
+	}
+
 	return errs
+}
+
+// sortedSectionKeys returns the keys of a config section in a stable order, so
+// error messages derived from it do not depend on map iteration order.
+func sortedSectionKeys(m map[string]map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// joinScopes renders the scopes referencing one failing middleware, listing at
+// most maxReportedScopes of them and counting the rest.
+func joinScopes(scopes []string) string {
+	if len(scopes) <= maxReportedScopes {
+		return strings.Join(scopes, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(scopes[:maxReportedScopes], ", "), len(scopes)-maxReportedScopes)
 }
 
 // checkMiddlewareBuild validates that a middleware would build at boot,
