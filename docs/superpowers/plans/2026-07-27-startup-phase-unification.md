@@ -1490,85 +1490,9 @@ func fixtureDir(t *testing.T, dir string) string {
 Run: `go test ./internal/startup/ -run 'TestRun_Reports|TestFixtures_' -v`
 Expected: FAIL — the middleware, schedules, and workers phases do not run, so `failures` is empty for those three fixtures.
 
-- [ ] **Step 4: Add the three phases**
+- [ ] **Step 4: Make schedule and worker failures carry their config**
 
-In `internal/startup/startup.go`, extend `Run` after the workflows phase:
-
-```go
-	arts.WorkflowCache = cache
-
-	if failures := runMiddleware(in); len(failures) > 0 {
-		return arts, failures
-	}
-	if failures := runSchedules(in); len(failures) > 0 {
-		return arts, failures
-	}
-	if failures := runWorkers(in); len(failures) > 0 {
-		return arts, failures
-	}
-
-	return arts, nil
-}
-
-// runMiddleware builds every middleware the routes, groups, presets, and
-// connection endpoints reference, without connecting to Redis or performing
-// OIDC discovery. Boot runs this too: server.Setup would otherwise fail with
-// "register routes:" naming whichever route it reached first, where this
-// names every affected route in a stable order (#450).
-func runMiddleware(in Input) []Failure {
-	var failures []Failure
-	for _, err := range server.ValidateMiddlewareBuilds(in.RC) {
-		f := Failure{Phase: PhaseMiddleware, Err: err}
-
-		var mwErr *server.MiddlewareBuildError
-		if errors.As(err, &mwErr) {
-			f.Files = append(f.Files, mwErr.Files...)
-			// A middleware's config lives in the root config, so that file is
-			// implicated alongside every route referencing it — editing it is
-			// where the fix goes.
-			if in.RootConfigPath != "" {
-				f.Files = append(f.Files, in.RootConfigPath)
-			}
-		}
-		failures = append(failures, f)
-	}
-	return failures
-}
-
-// runSchedules checks that every cron spec is one the scheduler can register.
-func runSchedules(in Input) []Failure {
-	configs := scheduler.ParseScheduleConfigs(in.RC.Schedules)
-	byID := make(map[string]string, len(configs))
-	for _, sc := range configs {
-		byID[sc.ID] = sc.SourceFile
-	}
-
-	var failures []Failure
-	for i, err := range scheduler.ValidateSpecs(configs) {
-		f := Failure{Phase: PhaseSchedules, Err: err, JSONPath: "/cron"}
-		if i < len(configs) {
-			_ = i // index is not a config index; attribute by ID below
-		}
-		failures = append(failures, f)
-	}
-	return failures
-}
-
-// runWorkers checks worker configuration Start would reject.
-func runWorkers(in Input) []Failure {
-	var failures []Failure
-	for _, err := range worker.ValidateConfigs(worker.ParseWorkerConfigs(in.RC.Workers)) {
-		failures = append(failures, Failure{Phase: PhaseWorkers, Err: err, JSONPath: "/concurrency"})
-	}
-	return failures
-}
-```
-
-Add `"github.com/chimpanze/noda/internal/scheduler"`, `"github.com/chimpanze/noda/internal/server"`, and `"github.com/chimpanze/noda/internal/worker"` to the imports.
-
-- [ ] **Step 5: Make schedule and worker failures carry their file**
-
-The sketch above cannot attribute a schedule or worker failure, because `ValidateSpecs`/`ValidateConfigs` return bare errors with no link back to the config that produced them. Rather than matching on the ID inside the message — brittle, and it breaks the moment the wording changes — change both to return the config alongside the error.
+The phases need to attribute a failure to the file that declared it, and `ValidateSpecs`/`ValidateConfigs` as written in Tasks 3 and 4 return bare errors with no link back to the config that produced them. Matching on the ID inside the message would work today and break the moment the wording changes, so instead both return the config alongside the error.
 
 In `internal/scheduler/runtime.go`, replace `ValidateSpecs` with:
 
@@ -1647,9 +1571,51 @@ Add to `internal/worker/validate_test.go`'s `TestValidateConfigs_RejectsConcurre
 	assert.Equal(t, "/proj/workers/ingest.json", errs[0].Config.SourceFile)
 ```
 
-Now rewrite the two phases in `internal/startup/startup.go`:
+- [ ] **Step 5: Add the three phases**
+
+In `internal/startup/startup.go`, extend `Run` after the workflows phase:
 
 ```go
+	arts.WorkflowCache = cache
+
+	if failures := runMiddleware(in); len(failures) > 0 {
+		return arts, failures
+	}
+	if failures := runSchedules(in); len(failures) > 0 {
+		return arts, failures
+	}
+	if failures := runWorkers(in); len(failures) > 0 {
+		return arts, failures
+	}
+
+	return arts, nil
+}
+
+// runMiddleware builds every middleware the routes, groups, presets, and
+// connection endpoints reference, without connecting to Redis or performing
+// OIDC discovery. Boot runs this too: server.Setup would otherwise fail with
+// "register routes:" naming whichever route it reached first, where this
+// names every affected route in a stable order (#450).
+func runMiddleware(in Input) []Failure {
+	var failures []Failure
+	for _, err := range server.ValidateMiddlewareBuilds(in.RC) {
+		f := Failure{Phase: PhaseMiddleware, Err: err}
+
+		var mwErr *server.MiddlewareBuildError
+		if errors.As(err, &mwErr) {
+			f.Files = append(f.Files, mwErr.Files...)
+			// A middleware's config lives in the root config, so that file is
+			// implicated alongside every route referencing it — editing it is
+			// where the fix goes.
+			if in.RootConfigPath != "" {
+				f.Files = append(f.Files, in.RootConfigPath)
+			}
+		}
+		failures = append(failures, f)
+	}
+	return failures
+}
+
 // runSchedules checks that every cron spec is one the scheduler can register.
 // Before this was a phase, a five-field spec — the form every non-Go cron
 // accepts — passed `noda validate` and failed at lifecycle.StartAll, after
@@ -1680,6 +1646,8 @@ func runWorkers(in Input) []Failure {
 	return failures
 }
 ```
+
+Add `"github.com/chimpanze/noda/internal/scheduler"`, `"github.com/chimpanze/noda/internal/server"`, and `"github.com/chimpanze/noda/internal/worker"` to `internal/startup/startup.go`'s imports.
 
 - [ ] **Step 6: Run the tests**
 
@@ -1802,19 +1770,12 @@ Replace the `internal/validate` import with `"github.com/chimpanze/noda/internal
 Run: `go test ./cmd/noda/ -count=1`
 Expected: PASS. Any pre-existing test asserting the old `bootstrap failed:` heading now needs `registries validation failed:` — update it, since the heading genuinely changed.
 
-- [ ] **Step 5: Delete the superseded package**
+- [ ] **Step 5: Commit**
+
+`internal/validate` is left in place for now — `internal/mcp` still imports it, and deleting it here would leave the tree unbuildable. Task 8 migrates that last caller and deletes the package in the same commit.
 
 ```bash
-git rm -r internal/validate
-go build ./... && go test ./cmd/noda/ ./internal/mcp/ -count=1
-```
-
-`internal/mcp` still imports it and will fail to build. That is expected — Task 8 fixes it. If you prefer a green tree at every commit, do Task 8 before committing this step.
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add cmd/noda/ internal/validate
+git add cmd/noda/
 git commit -m "refactor(cli): run the startup phase list from noda validate and noda test
 
 Three phases are new to both commands: workflow compilation, cron specs,
@@ -1910,19 +1871,31 @@ In `internal/mcp/tools.go`, replace the `validate.Project` block:
 
 Replace the `internal/validate` import with `internal/startup` and `plugins/all`. Confirm the variable holding the project directory is named `path` at this point in the handler — if not, use whatever it is called.
 
-- [ ] **Step 4: Run the tests**
+- [ ] **Step 4: Delete the superseded package**
 
-Run: `go test ./internal/mcp/ -count=1 && go build ./...`
-Expected: PASS.
-
-- [ ] **Step 5: Commit**
+`internal/mcp` was the last caller. With it migrated, `internal/validate` has none:
 
 ```bash
-git add internal/mcp/
+grep -rn "internal/validate" --include=*.go . && echo "STILL REFERENCED — migrate the caller above first"
+git rm -r internal/validate
+```
+
+The `grep` must print nothing before the `git rm`. Its tests are not lost — Task 5 ported them to `internal/startup/startup_test.go`, where they cover the same behaviour plus three more phases.
+
+- [ ] **Step 5: Run the tests**
+
+Run: `go build ./... && go test ./internal/mcp/ ./cmd/noda/ ./internal/startup/ -count=1`
+Expected: PASS, and the build is green again — Task 7 left `internal/validate` in place precisely so it never was not.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add internal/mcp/ internal/validate
 git commit -m "refactor(mcp): run the startup phase list from validate_config
 
 Failures now carry their phase and source file, so the tool reports which
-step rejected the project."
+step rejected the project. internal/validate had no callers left and is
+deleted here; internal/startup supersedes it."
 ```
 
 ---
