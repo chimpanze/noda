@@ -1,8 +1,10 @@
-# Value and Type Layer Implementation Plan
+# vane — Value and Type Layer Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the closed `Value` type, the `Type` language, and the normative conversion table specified in §3 of `docs/superpowers/specs/2026-07-28-runtime-foundations-design.md` — stage 1 of §13.
+**Goal:** Bootstrap the `vane` repository and build the closed `Value` type, the `Type` language, and the normative conversion table specified in §3 of the runtime foundations design — stage 1 of §13.
+
+**Repository:** This plan creates a **new, standalone repository**. It does not modify the `noda` tree. Task 1 Step 1 initialises it and copies the design and this plan into it, so the new repository carries its own specification from its first commit.
 
 **Architecture:** Two Go packages with a one-way dependency. `internal/value` defines a closed union of seven value kinds, with numbers that preserve their source literal and maps that iterate deterministically; `internal/types` defines the type language and gradual assignability, and imports `value` to check a value against a type. Both are pure — no I/O, no globals, no dependencies outside the standard library.
 
@@ -10,7 +12,8 @@
 
 ## Global Constraints
 
-- **Module path:** `github.com/chimpanze/runtime`. Chosen provisionally. If you pick a different name, change it in `go.mod` and in every import in this plan before starting Task 1.
+- **Module path:** `github.com/chimpanze/vane`. Confirm the GitHub name is free before Task 1; if it is not, change it in `go.mod` and in the two imports in Task 8 before starting.
+- **Repository root:** `/Users/marten/GolandProjects/vane`, a sibling of `noda`. Every path in this plan is relative to that root, and every command runs from there. **Nothing in this plan writes to the `noda` tree.**
 - **Go version:** `go 1.26.0` in `go.mod`. Matches the toolchain the reference implementation uses.
 - **Zero third-party dependencies in these two packages.** Standard library only. A dependency here would propagate to every consumer of the runtime.
 - **No `any` in exported signatures** except `ToSQLArg`, whose return type is dictated by `database/sql`. This is the whole point of the layer — see spec §3.
@@ -42,13 +45,17 @@ internal/types/
 
 ---
 
-### Task 1: Module skeleton and the `Number` type
+### Task 1: Repository bootstrap and the `Number` type
 
 The literal-preserving number is the single highest-value piece in this layer: it is what makes `12345678901234567890` survive from source to output instead of becoming `1.2345678901234567e+19`. Spec §3.1.
 
 **Files:**
+- Create: the repository at `/Users/marten/GolandProjects/vane`
 - Create: `go.mod`
 - Create: `.gitignore`
+- Create: `README.md`
+- Create: `docs/design/runtime-foundations.md` (copied from noda)
+- Create: `docs/plans/value-and-type-layer.md` (this file, copied from noda)
 - Create: `internal/value/number.go`
 - Test: `internal/value/number_test.go`
 
@@ -66,20 +73,70 @@ The literal-preserving number is the single highest-value piece in this layer: i
   - `func (n Number) Cmp(o Number) int`
   - `func (n Number) NumberEqual(o Number) bool`
 
-- [ ] **Step 1: Create the module skeleton**
+- [ ] **Step 1: Create the repository**
+
+Run every command in this plan from `/Users/marten/GolandProjects/vane`. The design and this plan are copied in, so the repository carries its own specification rather than pointing at another project's tree.
 
 ```bash
-mkdir -p internal/value internal/types
+mkdir -p /Users/marten/GolandProjects/vane
+cd /Users/marten/GolandProjects/vane
+git init -b main
+mkdir -p internal/value internal/types docs/design docs/plans
+
+cp /Users/marten/GolandProjects/noda/docs/superpowers/specs/2026-07-28-runtime-foundations-design.md \
+   docs/design/runtime-foundations.md
+cp /Users/marten/GolandProjects/noda/docs/superpowers/plans/2026-07-28-value-and-type-layer.md \
+   docs/plans/value-and-type-layer.md
+
 cat > go.mod <<'EOF'
-module github.com/chimpanze/runtime
+module github.com/chimpanze/vane
 
 go 1.26.0
 EOF
+
 cat > .gitignore <<'EOF'
 /bin/
 *.test
 coverage.out
 EOF
+
+cat > README.md <<'EOF'
+# vane
+
+A configuration-driven API runtime. Configuration is the program: one closed
+value model, one expression rule, one parser, and one evaluation stage owned by
+the engine rather than by each node.
+
+See `docs/design/runtime-foundations.md` for the specification. It is normative:
+a divergence from it is a defect, not a variation.
+
+## Status
+
+Early. Stage 1 of `docs/design/runtime-foundations.md` §13 — the value and type
+layer — is under construction. Nothing else exists yet.
+
+## Why it exists
+
+Its predecessor delegated configuration evaluation to each node type, so every
+node was a parser. That produced, measurably: six statements of what variables
+an expression has, four validators for one schema kind, eighteen
+value-to-string conversions, and five hand-rolled trigger input builders. The
+design document opens with those numbers and what follows from them.
+EOF
+
+git add .
+git commit -m "chore: initialise vane
+
+A fresh config-driven API runtime, designed from what its predecessor
+taught. The design document is committed alongside the first line of
+code because it is normative, not descriptive."
+```
+
+Confirm you are in the right place before continuing — the rest of this plan assumes it:
+
+```bash
+test "$(git rev-parse --show-toplevel)" = "/Users/marten/GolandProjects/vane" \
+  && echo OK || echo "WRONG REPOSITORY — stop"
 ```
 
 - [ ] **Step 2: Write the failing test**
@@ -456,7 +513,7 @@ This step is not optional. A test that has never failed is not known to test any
 - [ ] **Step 7: Commit**
 
 ```bash
-git add go.mod .gitignore internal/value/number.go internal/value/number_test.go
+git add internal/value/number.go internal/value/number_test.go
 git commit -m "feat(value): literal-preserving Number type
 
 A JSON number decoded into float64 is lossy before validation runs.
@@ -3034,7 +3091,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/chimpanze/runtime/internal/value"
+	"github.com/chimpanze/vane/internal/value"
 )
 
 func TestCheck_ScalarsAndAny(t *testing.T) {
@@ -3245,7 +3302,7 @@ package types
 import (
 	"fmt"
 
-	"github.com/chimpanze/runtime/internal/value"
+	"github.com/chimpanze/vane/internal/value"
 )
 
 // CheckError reports a value that does not satisfy a type, and where.
