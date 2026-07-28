@@ -1106,17 +1106,36 @@ func TestValueUnionIsClosedAtSevenKinds(t *testing.T) {
 	// It asserts on the kindCount sentinel rather than on Kind.String()'s
 	// default case, because a String() default is not a guard: appending a
 	// kind WITHOUT extending the switch would leave String() returning
-	// "invalid" and the violation undetected. kindCount moves whenever the
-	// const block grows, wherever the new kind is inserted.
+	// "invalid" and the violation undetected. kindCount moves whenever a kind
+	// is added anywhere above it — including one declared with an explicit
+	// numeric value, which is why the sentinel carries an explicit `= iota`.
 	if kindCount != 7 {
 		t.Fatalf("kindCount = %d, want 7 — the Value union has changed size; see design §3.5", kindCount)
 	}
 
-	// Every kind below the sentinel must render; a kind added without
-	// extending String() is itself a defect.
+	// Guards a narrower defect than the loop above it: an EXISTING kind whose
+	// String() case is deleted or mistyped, with the const block untouched.
+	// It cannot see a newly added kind — its bound is the sentinel, and any
+	// added kind sits at or above it. Say so plainly rather than implying a
+	// coverage this loop does not have.
 	for k := Kind(0); k < kindCount; k++ {
 		if got := k.String(); got == "invalid" {
-			t.Errorf("Kind(%d).String() = %q — a kind exists that String() does not handle", k, got)
+			t.Errorf("Kind(%d).String() = %q — an existing kind lost its String() case", k, got)
+		}
+	}
+
+	// Values at and above the sentinel must not render. This catches a kind
+	// appended BELOW kindCount in the const block (which leaves the sentinel
+	// unmoved) in the case where String() was extended for it.
+	//
+	// Known residual gap, accepted: a kind appended below kindCount whose
+	// String() case is NOT extended is invisible to every assertion here.
+	// Detecting a bare const declaration from inside the language is not
+	// possible; the `must remain last` comment on kindCount is the control,
+	// and that mutation also yields a kind nothing can render.
+	for k := kindCount; k < kindCount+4; k++ {
+		if got := k.String(); got != "invalid" {
+			t.Errorf("Kind(%d).String() = %q, want %q — a kind was added below the kindCount sentinel", k, got, "invalid")
 		}
 	}
 }
@@ -1257,9 +1276,16 @@ const (
 	// design: a stream is a process, not a value, and adding an eighth kind
 	// would break the scope-immutability and free-capture guarantees the
 	// execution model rests on. TestValueUnionIsClosedAtSevenKinds asserts
-	// this equals 7, so any added kind fails the build's tests and forces
-	// the author to justify it against §3.5.
-	kindCount
+	// this equals 7, so an added kind fails the tests and forces the author
+	// to justify it against §3.5.
+	//
+	// The `= iota` is explicit and load-bearing — do not drop it to a bare
+	// `kindCount`. An empty ConstSpec repeats the last non-empty *expression*,
+	// not the next iota value. So with a bare sentinel, inserting a kind with
+	// an explicit literal (`KindStream Kind = 7`) makes the sentinel repeat
+	// that literal and freeze at 7, and the guard silently stops guarding.
+	// Verified: bare sentinel stays 3 under that mutation, `= iota` moves to 4.
+	kindCount = iota
 )
 
 // String renders the kind for diagnostics.
@@ -1472,7 +1498,7 @@ Expected: build clean, all tests PASS — this is the first point at which the p
 
 - [ ] **Step 6: Verify the tests have teeth**
 
-Three mutations, each reverted after observing the failure:
+Five mutations, each reverted after observing the failure:
 
 1. In `Equal`, change the `KindNumber` case to `return a.s == b.s`.
    Expected: `TestEqual_Scalars` FAILS on `1 == 1e0 (literals differ)` and on
@@ -1484,8 +1510,16 @@ Three mutations, each reverted after observing the failure:
 3. Append a dummy `KindStream` to the const block, AFTER `KindMap` and BEFORE
    `kindCount`, and do NOT extend `Kind.String()`.
    Expected: `TestValueUnionIsClosedAtSevenKinds` FAILS on `kindCount = 8, want 7`.
-   This mutation is the one that matters: an earlier version of this guard
-   asserted on `Kind.String()`'s default case and passed this mutation.
+4. Same, but declare it with an explicit value: `KindStream Kind = 7`.
+   Expected: FAILS the same way. Then change the sentinel from `kindCount = iota`
+   to a bare `kindCount` and re-run — it now PASSES, because an empty ConstSpec
+   repeats the preceding literal rather than the next iota value, freezing the
+   sentinel at 7. Restore `= iota` and confirm it fails again.
+5. Append `KindStream` BELOW `kindCount` and extend `Kind.String()` to render it.
+   Expected: FAILS on `Kind(7).String()` — the at-and-above loop catches it.
+
+Mutations 3–5 are the point of this step: two earlier versions of this guard
+passed mutations they were written to catch.
 
 - [ ] **Step 7: Commit**
 
