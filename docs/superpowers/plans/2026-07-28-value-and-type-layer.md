@@ -3156,8 +3156,63 @@ func TestAssignable_SelfReferentialTypeTerminates(t *testing.T) {
 func TestAssignable_DirectlyCyclicRefTerminates(t *testing.T) {
 	reg := MapRegistry{"Loop": Ref("Loop")}
 	// Must return rather than recurse forever. The value is unimportant; the
-	// return is the assertion.
-	_ = Assignable(Ref("Loop"), String(), reg)
+	// return is the assertion. Wrapped in a timeout for the same reason as
+	// TestAssignable_SelfReferentialTypeTerminates: a regression here should
+	// fail in seconds, not hang the binary until Go's global test timeout.
+	done := make(chan struct{})
+	go func() {
+		_ = Assignable(Ref("Loop"), String(), reg)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Assignable did not terminate on a directly cyclic ref")
+	}
+}
+
+func TestAssignable_OnPathSetDoesNotLeakAcrossSiblingBranches(t *testing.T) {
+	// The recursion guard must record what is on the CURRENT path, not what has
+	// ever been visited. If an entry survives after its call returns, a sibling
+	// branch that legitimately needs the same pair reads back the optimistic
+	// `true` and wrongly passes.
+	//
+	// Here, checking against the first union member computes
+	// assignable(Bool, Number) = false. Checking against the second member needs
+	// that same pair again, for a different field. Neither member admits the
+	// source, so the whole thing must be false.
+	//
+	// Note this requires no cycle and no reference — only that one pair recurs
+	// in two independent branches of a single call.
+	from := Record(
+		Field{Name: "a", Type: Bool()},
+		Field{Name: "b", Type: Bool()},
+	)
+	to := Union(
+		Record(Field{Name: "a", Type: Number()}),
+		Record(Field{Name: "b", Type: Number()}),
+	)
+	if Assignable(from, to, nil) {
+		t.Error("Assignable({a:Bool,b:Bool}, Union({a:Number},{b:Number})) = true, want false — a stale on-path entry leaked into a sibling branch")
+	}
+}
+
+func TestAssignable_RefNameCannotAliasAnotherKind(t *testing.T) {
+	// Type.String() is not injective: Ref(name) renders as the bare name, so a
+	// registry entry called "String" renders exactly like the scalar String
+	// type. The recursion guard's key must therefore carry the kind, or the two
+	// collide and one branch answers for the other.
+	reg := MapRegistry{"String": Record(Field{Name: "x", Type: Number()})}
+
+	// Ref("String") resolves to {x: Number} and IS assignable to it.
+	// The scalar String() is NOT. A union needs every member assignable, so the
+	// union as a whole must be rejected.
+	from := Union(Ref("String"), String())
+	to := Record(Field{Name: "x", Type: Number()})
+
+	if Assignable(from, to, reg) {
+		t.Error("Assignable(Union(Ref(\"String\"), String), {x:Number}) = true, want false — a Ref aliased a scalar in the recursion guard")
+	}
 }
 ```
 
@@ -3208,7 +3263,15 @@ func Assignable(from, to Type, reg Registry) bool {
 	return assignable(from, to, reg, make(map[pair]bool))
 }
 
-type pair struct{ from, to string }
+// pair keys the on-path set. It carries both kinds as well as the rendered
+// strings because Type.String() is NOT injective: Ref(name) renders as the bare
+// name, so a registry entry called "String" renders identically to the scalar
+// String type. Without the kind tags, those two collide in the set and one
+// branch reads back the other's answer.
+type pair struct {
+	fromKind, toKind Kind
+	from, to         string
+}
 
 func assignable(from, to Type, reg Registry, seen map[pair]bool) bool {
 	// Any short-circuits before anything else, including ref resolution.
@@ -3219,11 +3282,24 @@ func assignable(from, to Type, reg Registry, seen map[pair]bool) bool {
 	// Guard against recursive types. Assuming true on re-entry is the standard
 	// coinductive treatment: a cycle is accepted unless some finite path
 	// refutes it.
-	key := pair{from: from.String(), to: to.String()}
+	//
+	// `seen` is an ON-PATH set, not an ever-seen memo, and the deferred delete
+	// is what makes it one. Leaving entries behind after a call returns turns
+	// the optimistic `true` into a wrong answer for any sibling branch that
+	// legitimately needs the same pair: a record with two differently-typed
+	// fields checked against a union of narrower alternatives computes
+	// assignable(Bool, Number) = false for the first member, and the second
+	// member then reads back the stale `true` and wrongly passes. No cycle and
+	// no reference is required to hit it.
+	//
+	// The cost is that results are not memoised across branches, so a pathological
+	// type could be re-walked. Correctness first; the types here are small.
+	key := pair{fromKind: from.kind, toKind: to.kind, from: from.String(), to: to.String()}
 	if seen[key] {
 		return true
 	}
 	seen[key] = true
+	defer delete(seen, key)
 
 	// Resolve references.
 	if from.kind == KindRef {
@@ -3329,11 +3405,18 @@ Expected: PASS.
 
 - [ ] **Step 5: Verify the tests have teeth**
 
-Two mutations, each reverted after observing the failure:
+Four mutations, each reverted after observing the failure:
 
 1. In the `KindRecord` case, change `if want.Optional { continue }` to `return false`.
    Expected: `TestAssignable_RecordWidthSubtyping` FAILS on the optional-field case.
-2. Move the `TO a union` block above the `FROM a union` block.
+2. Delete the `defer delete(seen, key)` line.
+   Expected: `TestAssignable_OnPathSetDoesNotLeakAcrossSiblingBranches` FAILS.
+   This is the whole reason the line exists — without it the guard is an
+   ever-seen memo rather than an on-path set, and returns wrong answers for
+   types with no cycle in them at all.
+3. Drop the kind tags from the `pair` key — `pair{from: from.String(), to: to.String()}`.
+   Expected: `TestAssignable_RefNameCannotAliasAnotherKind` FAILS.
+4. Move the `TO a union` block above the `FROM a union` block.
    Expected: `TestAssignable_Unions` FAILS on the union-to-union assertion,
    `Assignable(String|Number, String|Number|Bool)`, which wrongly becomes false:
    the TO-union block asks whether the whole source union matches SOME single
