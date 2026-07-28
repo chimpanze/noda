@@ -1279,14 +1279,15 @@ const (
 	// this equals 7, so an added kind fails the tests and forces the author
 	// to justify it against §3.5.
 	//
-	// The `Kind = iota` is explicit and load-bearing. The type matters too: a bare
-	// `= iota` would make this an untyped int constant, and the test's
-	// `k.String()` would not compile. — do not drop it to a bare
-	// `kindCount`. An empty ConstSpec repeats the last non-empty *expression*,
-	// not the next iota value. So with a bare sentinel, inserting a kind with
-	// an explicit literal (`KindStream Kind = 7`) makes the sentinel repeat
-	// that literal and freeze at 7, and the guard silently stops guarding.
-	// Verified: bare sentinel stays 3 under that mutation, `= iota` moves to 4.
+	// Both halves of `Kind = iota` are load-bearing — do not simplify either.
+	//
+	// The `= iota` must be explicit: an empty ConstSpec repeats the last
+	// non-empty *expression*, not the next iota value. With a bare sentinel,
+	// inserting a kind declared as `KindStream Kind = 7` makes the sentinel
+	// repeat that literal and freeze at 7 — the guard silently stops guarding.
+	//
+	// The `Kind` type must be explicit too: a bare `= iota` yields an untyped
+	// int constant, and the test's `k.String()` would not compile.
 	kindCount Kind = iota
 )
 
