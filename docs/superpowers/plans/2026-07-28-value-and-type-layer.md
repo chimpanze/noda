@@ -3334,7 +3334,15 @@ Two mutations, each reverted after observing the failure:
 1. In the `KindRecord` case, change `if want.Optional { continue }` to `return false`.
    Expected: `TestAssignable_RecordWidthSubtyping` FAILS on the optional-field case.
 2. Move the `TO a union` block above the `FROM a union` block.
-   Expected: `TestAssignable_Unions` FAILS on `Assignable(String|Number, String)`, which would wrongly become true.
+   Expected: `TestAssignable_Unions` FAILS on the union-to-union assertion,
+   `Assignable(String|Number, String|Number|Bool)`, which wrongly becomes false:
+   the TO-union block asks whether the whole source union matches SOME single
+   member, and `String|Number` matches neither `String` nor `Number` nor `Bool`
+   on its own.
+
+   It does NOT affect `Assignable(String|Number, String)` — the target there is
+   not a union, so the TO-union block never fires and the reorder is a no-op for
+   that pair. Ordering matters only when BOTH sides are unions.
 
 - [ ] **Step 6: Commit**
 
