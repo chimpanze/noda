@@ -65,7 +65,7 @@ The literal-preserving number is the single highest-value piece in this layer: i
   - `type Number struct{ ... }` (unexported fields)
   - `func ParseNumber(lit string) (Number, error)`
   - `func NumberFromInt(i int64) Number`
-  - `func NumberFromFloat(f float64) Number`
+  - `func NumberFromFloat(f float64) (Number, error)`
   - `func (n Number) Literal() string`
   - `func (n Number) Int64() (int64, error)`
   - `func (n Number) Float64() (f float64, exact bool)`
@@ -146,7 +146,10 @@ Create `internal/value/number_test.go`:
 ```go
 package value
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestParseNumber_PreservesLiteralExactly(t *testing.T) {
 	// The whole reason this type exists: a float64 round-trip would render
@@ -292,13 +295,49 @@ func TestNumber_EqualityIsNumericNotTextual(t *testing.T) {
 
 func TestNumberFromFloat_ProducesNonScientificLiteral(t *testing.T) {
 	// The defect this layer exists to prevent.
-	n := NumberFromFloat(1e21)
+	n, err := NumberFromFloat(1e21)
+	if err != nil {
+		t.Fatalf("NumberFromFloat(1e21): %v", err)
+	}
 	if got := n.Literal(); got != "1000000000000000000000" {
 		t.Errorf("NumberFromFloat(1e21).Literal() = %q, want %q", got, "1000000000000000000000")
 	}
-	n = NumberFromFloat(0.0000001)
+	n, err = NumberFromFloat(0.0000001)
+	if err != nil {
+		t.Fatalf("NumberFromFloat(0.0000001): %v", err)
+	}
 	if got := n.Literal(); got != "0.0000001" {
 		t.Errorf("NumberFromFloat(0.0000001).Literal() = %q, want %q", got, "0.0000001")
+	}
+}
+
+func TestNumberFromFloat_RejectsNaNAndInfinity(t *testing.T) {
+	// NaN and ±Inf have no JSON representation. Coercing them to a
+	// valid-looking literal would be silent numeric corruption in the type
+	// built to prevent exactly that, so they are rejected. encoding/json
+	// takes the same position: json.Marshal(math.NaN()) is an error.
+	rejected := map[string]float64{
+		"NaN":  math.NaN(),
+		"+Inf": math.Inf(1),
+		"-Inf": math.Inf(-1),
+	}
+	for name, f := range rejected {
+		n, err := NumberFromFloat(f)
+		if err == nil {
+			t.Errorf("NumberFromFloat(%s) = %q, nil; want an error", name, n.Literal())
+		}
+	}
+
+	// The largest and smallest finite float64 are not infinities and must be
+	// accepted — the guard must test for Inf, not for magnitude.
+	for name, f := range map[string]float64{
+		"MaxFloat64":      math.MaxFloat64,
+		"-MaxFloat64":     -math.MaxFloat64,
+		"SmallestNonzero": math.SmallestNonzeroFloat64,
+	} {
+		if _, err := NumberFromFloat(f); err != nil {
+			t.Errorf("NumberFromFloat(%s) = error %v; want success", name, err)
+		}
 	}
 }
 
@@ -330,7 +369,9 @@ Create `internal/value/number.go`:
 package value
 
 import (
+	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"strconv"
 )
@@ -374,13 +415,18 @@ func NumberFromInt(i int64) Number {
 // not 1e+21. Very small magnitudes produce long literals, which is verbose but
 // exact — correctness is preferred over brevity here.
 //
-// NaN and ±Inf have no JSON representation; they render as "0". Callers that
-// can produce them should reject them before conversion.
-func NumberFromFloat(f float64) Number {
-	if f != f || f > 1.7976931348623157e308 || f < -1.7976931348623157e308 {
-		return Number{lit: "0"}
+// NaN and ±Inf have no JSON representation and are rejected. Coercing them to
+// a valid-looking literal would be silent numeric corruption in the type built
+// to prevent it; encoding/json takes the same position, erroring rather than
+// inventing a value.
+func NumberFromFloat(f float64) (Number, error) {
+	if math.IsNaN(f) {
+		return Number{}, errors.New("NaN has no JSON number representation")
 	}
-	return Number{lit: strconv.FormatFloat(f, 'f', -1, 64)}
+	if math.IsInf(f, 0) {
+		return Number{}, fmt.Errorf("%v has no JSON number representation", f)
+	}
+	return Number{lit: strconv.FormatFloat(f, 'f', -1, 64)}, nil
 }
 
 // Literal returns the exact source text of the number.
@@ -504,9 +550,15 @@ Expected: PASS, all nine test functions.
 
 - [ ] **Step 6: Verify the tests have teeth**
 
-Change `NumberFromFloat` to use `'g'` instead of `'f'` and re-run.
-Expected: `TestNumberFromFloat_ProducesNonScientificLiteral` FAILS with `"1e+21"`.
-Then revert the change and confirm the suite is green again.
+Two mutations, each reverted after observing the failure:
+
+1. Change `NumberFromFloat` to use `'g'` instead of `'f'` and re-run.
+   Expected: `TestNumberFromFloat_ProducesNonScientificLiteral` FAILS with `"1e+21"`.
+2. Change the `math.IsInf(f, 0)` guard to `f > math.MaxFloat64 || f < -math.MaxFloat64`.
+   Expected: still green — which is the point. Now also delete the `math.IsNaN` guard.
+   Expected: `TestNumberFromFloat_RejectsNaNAndInfinity` FAILS on the `NaN` case.
+
+Revert both and confirm the suite is green again.
 
 This step is not optional. A test that has never failed is not known to test anything.
 
@@ -551,7 +603,7 @@ Two things are being bought here. The closed union replaces `map[string]any`, so
   - `func (k Kind) String() string`
   - `type Value struct{ ... }`
   - `func Null() Value`, `func OfBool(b bool) Value`, `func OfNumber(n Number) Value`, `func OfString(s string) Value`, `func OfBytes(b []byte) Value`, `func OfList(l List) Value`, `func OfMap(m Map) Value`
-  - `func OfInt(i int64) Value`, `func OfFloat(f float64) Value`
+  - `func OfInt(i int64) Value`, `func OfFloat(f float64) (Value, error)`
   - `func (v Value) Kind() Kind`, `func (v Value) IsNull() bool`
   - `func (v Value) Bool() (bool, bool)`, `func (v Value) Number() (Number, bool)`, `func (v Value) Str() (string, bool)`, `func (v Value) Bytes() ([]byte, bool)`, `func (v Value) List() (List, bool)`, `func (v Value) Map() (Map, bool)`
   - `func Equal(a, b Value) bool`
@@ -862,7 +914,10 @@ Create `internal/value/value_test.go`:
 ```go
 package value
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func TestZeroValueIsNull(t *testing.T) {
 	var v Value
@@ -991,11 +1046,29 @@ func TestOfIntAndOfFloat(t *testing.T) {
 		t.Errorf("OfInt(-7) literal = %q, ok = %v", n.Literal(), ok)
 	}
 
-	v = OfFloat(1.5)
+	v, err := OfFloat(1.5)
+	if err != nil {
+		t.Fatalf("OfFloat(1.5): %v", err)
+	}
 	n, ok = v.Number()
 	if !ok || n.Literal() != "1.5" {
 		t.Errorf("OfFloat(1.5) literal = %q, ok = %v", n.Literal(), ok)
 	}
+
+	if _, err := OfFloat(math.NaN()); err == nil {
+		t.Error("OfFloat(NaN) = nil error, want rejection")
+	}
+}
+
+// mustFloat is the test-side companion to OfFloat, for table literals where an
+// error return would be noise. Package-scoped: convert_test.go uses it too.
+func mustFloat(t *testing.T, f float64) Value {
+	t.Helper()
+	v, err := OfFloat(f)
+	if err != nil {
+		t.Fatalf("OfFloat(%v): %v", f, err)
+	}
+	return v
 }
 
 func TestKindString(t *testing.T) {
@@ -1046,7 +1119,7 @@ func TestEqual_Scalars(t *testing.T) {
 		{"true != false", OfBool(true), OfBool(false), false},
 		{"\"a\" == \"a\"", OfString("a"), OfString("a"), true},
 		{"\"a\" != \"b\"", OfString("a"), OfString("b"), false},
-		{"1 == 1.0", OfInt(1), OfFloat(1.0), true},
+		{"1 == 1.0", OfInt(1), mustFloat(t, 1.0), true},
 		{"1 != 2", OfInt(1), OfInt(2), false},
 		{"1 != \"1\"", OfInt(1), OfString("1"), false},
 	}
@@ -1199,8 +1272,15 @@ func OfNumber(n Number) Value { return Value{kind: KindNumber, s: n.Literal()} }
 // OfInt returns a number value for i.
 func OfInt(i int64) Value { return OfNumber(NumberFromInt(i)) }
 
-// OfFloat returns a number value for f, in non-scientific notation.
-func OfFloat(f float64) Value { return OfNumber(NumberFromFloat(f)) }
+// OfFloat returns a number value for f, in non-scientific notation. It returns
+// an error for NaN and ±Inf, which have no JSON number representation.
+func OfFloat(f float64) (Value, error) {
+	n, err := NumberFromFloat(f)
+	if err != nil {
+		return Value{}, err
+	}
+	return OfNumber(n), nil
+}
 
 // OfString returns a string value.
 func OfString(s string) Value { return Value{kind: KindString, s: s} }
@@ -1816,7 +1896,8 @@ Replace the `json.Number` case in `decodeFromToken` with:
 ```go
 case json.Number:
     f, _ := t.Float64()
-    return OfFloat(f), nil
+    v, _ := OfFloat(f)
+    return v, nil
 ```
 
 Expected: `TestDecodeJSON_PreservesNumberLiterals` FAILS on `id` and `big`, and `TestJSON_RoundTripsByteForByte` FAILS on `{"id":12345678901234567890}`. Revert.
@@ -1878,7 +1959,7 @@ func TestToString(t *testing.T) {
 		{name: "bool false", v: OfBool(false), want: "false"},
 		{name: "string", v: OfString("hi"), want: "hi"},
 		{name: "small int", v: OfInt(10), want: "10"},
-		{name: "float", v: OfFloat(1.5), want: "1.5"},
+		{name: "float", v: mustFloat(t, 1.5), want: "1.5"},
 		// The four rows that motivated the whole layer.
 		{name: "huge int", v: OfNumber(mustParse(t, "12345678901234567890")), want: "12345678901234567890"},
 		{name: "1e21", v: OfNumber(mustParse(t, "1e21")), want: "1e21"},
@@ -2038,7 +2119,7 @@ func TestToSQLArg(t *testing.T) {
 	})
 
 	t.Run("fractional number becomes its literal", func(t *testing.T) {
-		got, err := OfFloat(1.5).ToSQLArg()
+		got, err := mustFloat(t, 1.5).ToSQLArg()
 		if err != nil {
 			t.Fatalf("ToSQLArg: %v", err)
 		}
