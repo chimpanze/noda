@@ -34,7 +34,7 @@ Rules:
 - Values are stringified. Arrays become repeated parameters (`tag=new&tag=sale`).
 - A value that resolves to null **drops the parameter entirely**, so an optional
   parameter needs no conditional.
-- Nested objects are rejected.
+- Nested objects and nested arrays (an array inside an array) are rejected.
 - If `url` already contains a query string, setting a non-empty `query` is an
   error rather than a merge — use one or the other.
 - Parameters are emitted sorted by key, and spaces encode as `+`.

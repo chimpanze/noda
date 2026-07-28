@@ -182,7 +182,7 @@ Every route under `/api/public` gets the 403→401 rewrite automatically. Workfl
 
 ### Advanced: per-endpoint remap in the workflow
 
-If a single endpoint needs logic that branches on the upstream status (e.g. log differently, trigger a refresh workflow), do it in the workflow itself with `control.if`. `limit` and `offset` reach the node as `input.*` via the route's `trigger.input` mapping shown in section 2:
+If a single endpoint needs logic that branches on the upstream status (e.g. log differently, trigger a refresh workflow), do it in the workflow itself with `control.if`. `limit` and `offset` reach the node as `input.*` because the route maps each one individually into `trigger.input` (`"limit": "{{ query.limit }}"`, `"offset": "{{ query.offset }}"` — `query.*` still only exists there, never in a node config), and the workflow reads them back as `input.limit` / `input.offset`:
 
 ```json
 {
