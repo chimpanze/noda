@@ -1061,7 +1061,7 @@ func TestOfIntAndOfFloat(t *testing.T) {
 }
 
 // mustFloat is the test-side companion to OfFloat, for table literals where an
-// error return would be noise. Package-scoped: convert_test.go uses it too.
+// error return would be noise. Package-scoped: later test files use it too.
 func mustFloat(t *testing.T, f float64) Value {
 	t.Helper()
 	v, err := OfFloat(f)
@@ -1069,6 +1069,19 @@ func mustFloat(t *testing.T, f float64) Value {
 		t.Fatalf("OfFloat(%v): %v", f, err)
 	}
 	return v
+}
+
+// mustNum parses a number literal or fails the test. Use it wherever a test
+// needs a specific literal — the literal is often the thing under test, so
+// constructing numbers from Go floats would defeat the assertion.
+// Package-scoped: later test files use it too.
+func mustNum(t *testing.T, lit string) Number {
+	t.Helper()
+	n, err := ParseNumber(lit)
+	if err != nil {
+		t.Fatalf("ParseNumber(%q): %v", lit, err)
+	}
+	return n
 }
 
 func TestKindString(t *testing.T) {
@@ -1119,7 +1132,14 @@ func TestEqual_Scalars(t *testing.T) {
 		{"true != false", OfBool(true), OfBool(false), false},
 		{"\"a\" == \"a\"", OfString("a"), OfString("a"), true},
 		{"\"a\" != \"b\"", OfString("a"), OfString("b"), false},
-		{"1 == 1.0", OfInt(1), mustFloat(t, 1.0), true},
+		// These two must have DIFFERENT literals, or the case cannot tell
+		// numeric comparison from literal comparison: OfInt(1) and
+		// OfFloat(1.0) both render "1", so a broken Equal that compared
+		// literals would pass. "1" vs "1e0" is the pair that actually
+		// distinguishes them.
+		{"1 == 1e0 (literals differ)", OfNumber(mustNum(t, "1")), OfNumber(mustNum(t, "1e0")), true},
+		{"1 == 1.50 (literals differ)", OfNumber(mustNum(t, "1.5")), OfNumber(mustNum(t, "1.50")), true},
+		{"1 == 1.0 (literals coincide)", OfInt(1), mustFloat(t, 1.0), true},
 		{"1 != 2", OfInt(1), OfInt(2), false},
 		{"1 != \"1\"", OfInt(1), OfString("1"), false},
 	}
@@ -1444,7 +1464,10 @@ Expected: build clean, all tests PASS — this is the first point at which the p
 Two mutations, each reverted after observing the failure:
 
 1. In `Equal`, change the `KindNumber` case to `return a.s == b.s`.
-   Expected: `TestEqual_Scalars` FAILS on `1 == 1.0`.
+   Expected: `TestEqual_Scalars` FAILS on `1 == 1e0 (literals differ)` and on
+   `1 == 1.50 (literals differ)`. It will NOT fail on `1 == 1.0 (literals
+   coincide)` — that row cannot detect the mutation, which is why the two
+   literal-distinct rows exist.
 2. In `Map.Build`, add `sort.Strings(keys)` after the `copy(keys, b.keys)` line (and `import "sort"`).
    Expected: `TestMap_IteratesInInsertionOrder` FAILS — it wants `zebra, apple, mango`, not sorted order.
 
@@ -1602,8 +1625,8 @@ func TestDecodeJSON_RejectsMalformedAndTrailingContent(t *testing.T) {
 
 func TestEncodeJSON_EmitsExactNumberLiterals(t *testing.T) {
 	v := OfMap(NewMapBuilder().
-		Set("id", OfNumber(mustParse(t, "12345678901234567890"))).
-		Set("big", OfNumber(mustParse(t, "1e21"))).
+		Set("id", OfNumber(mustNum(t, "12345678901234567890"))).
+		Set("big", OfNumber(mustNum(t, "1e21"))).
 		Build())
 
 	got, err := EncodeJSON(v)
@@ -1667,15 +1690,6 @@ func TestJSON_RoundTripsByteForByte(t *testing.T) {
 			t.Errorf("round trip: %s -> %s", src, got)
 		}
 	}
-}
-
-func mustParse(t *testing.T, lit string) Number {
-	t.Helper()
-	n, err := ParseNumber(lit)
-	if err != nil {
-		t.Fatalf("ParseNumber(%q): %v", lit, err)
-	}
-	return n
 }
 ```
 
@@ -1961,9 +1975,9 @@ func TestToString(t *testing.T) {
 		{name: "small int", v: OfInt(10), want: "10"},
 		{name: "float", v: mustFloat(t, 1.5), want: "1.5"},
 		// The four rows that motivated the whole layer.
-		{name: "huge int", v: OfNumber(mustParse(t, "12345678901234567890")), want: "12345678901234567890"},
-		{name: "1e21", v: OfNumber(mustParse(t, "1e21")), want: "1e21"},
-		{name: "tiny", v: OfNumber(mustParse(t, "0.0000001")), want: "0.0000001"},
+		{name: "huge int", v: OfNumber(mustNum(t, "12345678901234567890")), want: "12345678901234567890"},
+		{name: "1e21", v: OfNumber(mustNum(t, "1e21")), want: "1e21"},
+		{name: "tiny", v: OfNumber(mustNum(t, "0.0000001")), want: "0.0000001"},
 		{name: "null", v: Null(), wantErr: true},
 		{name: "bytes", v: OfBytes([]byte{1}), wantErr: true},
 		{name: "list", v: OfList(NewList(OfInt(1))), wantErr: true},
@@ -1997,7 +2011,7 @@ func TestToQueryValues(t *testing.T) {
 		{name: "null is omitted", v: Null(), want: nil},
 		{name: "bool", v: OfBool(true), want: []string{"true"}},
 		{name: "string", v: OfString("a b"), want: []string{"a b"}}, // raw; url.Values encodes
-		{name: "huge number", v: OfNumber(mustParse(t, "12345678901234567890")), want: []string{"12345678901234567890"}},
+		{name: "huge number", v: OfNumber(mustNum(t, "12345678901234567890")), want: []string{"12345678901234567890"}},
 		{name: "list becomes repeats", v: OfList(NewList(OfString("new"), OfString("sale"))), want: []string{"new", "sale"}},
 		{name: "empty list", v: OfList(NewList()), want: nil},
 		{name: "list with null drops the null", v: OfList(NewList(OfString("a"), Null())), want: []string{"a"}},
@@ -2108,7 +2122,7 @@ func TestToSQLArg(t *testing.T) {
 	})
 
 	t.Run("number too large for int64 becomes its literal", func(t *testing.T) {
-		got, err := OfNumber(mustParse(t, "12345678901234567890")).ToSQLArg()
+		got, err := OfNumber(mustNum(t, "12345678901234567890")).ToSQLArg()
 		if err != nil {
 			t.Fatalf("ToSQLArg: %v", err)
 		}
