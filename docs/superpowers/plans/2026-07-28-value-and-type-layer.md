@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- **Module path:** `github.com/chimpanze/vane`. Confirm the GitHub name is free before Task 1; if it is not, change it in `go.mod` and in the two imports in Task 8 before starting.
+- **Module path:** `github.com/chimpanze/vane`. Confirm the GitHub name is free before Task 1; if it is not, change it in `go.mod` and in the two imports in Task 7 before starting.
 - **Repository root:** `/Users/marten/GolandProjects/vane`, a sibling of `noda`. Every path in this plan is relative to that root, and every command runs from there. **Nothing in this plan writes to the `noda` tree.**
 - **Go version:** `go 1.26.0` in `go.mod`. Matches the toolchain the reference implementation uses.
 - **Zero third-party dependencies in these two packages.** Standard library only. A dependency here would propagate to every consumer of the runtime.
@@ -523,23 +523,40 @@ on demand, reporting inexactness rather than losing it silently."
 
 ---
 
-### Task 2: `List` and `Map` with deterministic iteration
+### Task 2: `List`, `Map` and the `Value` union
 
-Spec §3.2. Go's randomized map iteration leaked into error text, cycle reports and **entry-node dispatch order** in the reference implementation — three separate defects. An insertion-ordered map type makes all three unwritable.
+Spec §3 and §3.2. These three types are mutually dependent — the composites hold `Value`s — so no smaller unit compiles. They land together.
+
+Two things are being bought here. The closed union replaces `map[string]any`, so every downstream stage knows what it is holding. And `Map`'s insertion-ordered iteration makes a whole defect class unwritable: Go randomizes map iteration per process, and in the reference implementation that reached error message text, cycle reports, and the order in which a workflow's entry nodes were dispatched — three separate shipped defects.
 
 **Files:**
 - Create: `internal/value/list.go`
 - Create: `internal/value/map.go`
+- Create: `internal/value/value.go`
+- Create: `internal/value/equal.go`
 - Test: `internal/value/list_test.go`
 - Test: `internal/value/map_test.go`
+- Test: `internal/value/value_test.go`
+- Test: `internal/value/equal_test.go`
 
 **Interfaces:**
-- Consumes: `Value` is referenced but not yet defined — Task 3 defines it. Write these files against the `Value` type name; the package will not compile until Task 3 lands, so Task 2 and Task 3 share a single verification point (Task 3 Step 5). Commit Task 2 anyway: the code is complete and reviewable on its own.
+- Consumes: `Number` (Task 1).
 - Produces:
   - `type List struct{ ... }`, `func NewList(items ...Value) List`, `func (l List) Len() int`, `func (l List) At(i int) Value`, `func (l List) Items() []Value`
+  - `type ListBuilder struct{ ... }`, `func NewListBuilder() *ListBuilder`, `func (b *ListBuilder) Append(v Value) *ListBuilder`, `func (b *ListBuilder) Build() List`
   - `type Map struct{ ... }`, `type MapBuilder struct{ ... }`
   - `func NewMapBuilder() *MapBuilder`, `func (b *MapBuilder) Set(key string, v Value) *MapBuilder`, `func (b *MapBuilder) Build() Map`
   - `func (m Map) Len() int`, `func (m Map) Get(key string) (Value, bool)`, `func (m Map) Keys() []string`, `func (m Map) Has(key string) bool`
+  - `type Kind uint8` with `KindNull`, `KindBool`, `KindNumber`, `KindString`, `KindBytes`, `KindList`, `KindMap`
+  - `func (k Kind) String() string`
+  - `type Value struct{ ... }`
+  - `func Null() Value`, `func OfBool(b bool) Value`, `func OfNumber(n Number) Value`, `func OfString(s string) Value`, `func OfBytes(b []byte) Value`, `func OfList(l List) Value`, `func OfMap(m Map) Value`
+  - `func OfInt(i int64) Value`, `func OfFloat(f float64) Value`
+  - `func (v Value) Kind() Kind`, `func (v Value) IsNull() bool`
+  - `func (v Value) Bool() (bool, bool)`, `func (v Value) Number() (Number, bool)`, `func (v Value) Str() (string, bool)`, `func (v Value) Bytes() ([]byte, bool)`, `func (v Value) List() (List, bool)`, `func (v Value) Map() (Map, bool)`
+  - `func Equal(a, b Value) bool`
+
+**Note on ordering:** Steps 1–2 write `List` and `Map` against the `Value` type name before `Value` exists. The package will not build until Step 4. That is expected — do not try to make it build early, and do not commit until Step 7.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -838,52 +855,7 @@ func (b *MapBuilder) Build() Map {
 }
 ```
 
-- [ ] **Step 3: Confirm the package does not yet compile**
-
-Run: `go build ./internal/value/`
-Expected: FAIL — `undefined: Value`, `undefined: OfString`.
-
-This is expected. `List` and `Map` hold `Value`s, which Task 3 defines. The two tasks share one verification point at Task 3 Step 5.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add internal/value/list.go internal/value/map.go internal/value/list_test.go internal/value/map_test.go
-git commit -m "feat(value): immutable List and insertion-ordered Map
-
-Go randomizes map iteration per process; in the reference implementation
-that reached error text, cycle reports and entry-node dispatch order.
-Determinism belongs in the type rather than in a convention every call
-site must remember.
-
-Does not compile standalone: both hold Value, defined in the next commit."
-```
-
----
-
-### Task 3: The `Value` union, constructors, accessors and equality
-
-Spec §3. The closed union is what replaces `map[string]any` — the single change that makes every downstream stage able to know what it is holding.
-
-**Files:**
-- Create: `internal/value/value.go`
-- Create: `internal/value/equal.go`
-- Test: `internal/value/value_test.go`
-- Test: `internal/value/equal_test.go`
-
-**Interfaces:**
-- Consumes: `Number` (Task 1), `List`, `Map` (Task 2).
-- Produces:
-  - `type Kind uint8` with `KindNull`, `KindBool`, `KindNumber`, `KindString`, `KindBytes`, `KindList`, `KindMap`
-  - `func (k Kind) String() string`
-  - `type Value struct{ ... }`
-  - `func Null() Value`, `func OfBool(b bool) Value`, `func OfNumber(n Number) Value`, `func OfString(s string) Value`, `func OfBytes(b []byte) Value`, `func OfList(l List) Value`, `func OfMap(m Map) Value`
-  - `func OfInt(i int64) Value`, `func OfFloat(f float64) Value`
-  - `func (v Value) Kind() Kind`, `func (v Value) IsNull() bool`
-  - `func (v Value) Bool() (bool, bool)`, `func (v Value) Number() (Number, bool)`, `func (v Value) Str() (string, bool)`, `func (v Value) Bytes() ([]byte, bool)`, `func (v Value) List() (List, bool)`, `func (v Value) Map() (Map, bool)`
-  - `func Equal(a, b Value) bool`
-
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 3: Write the failing tests for `Value` and `Equal`**
 
 Create `internal/value/value_test.go`:
 
@@ -1148,7 +1120,7 @@ func TestEqual_Nested(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: Write the implementation**
+- [ ] **Step 4: Write the `Value` implementation**
 
 Create `internal/value/value.go`:
 
@@ -1382,12 +1354,12 @@ func Equal(a, b Value) bool {
 }
 ```
 
-- [ ] **Step 3: Run the tests and verify they pass**
+- [ ] **Step 5: Run the tests and verify they pass**
 
-Run: `go test ./internal/value/ -v`
-Expected: PASS. This is the first point at which Task 2's `List` and `Map` tests also compile and run — confirm `TestMap_IteratesInInsertionOrder` and `TestList_IsImmutable` are among the passing tests.
+Run: `go build ./internal/value/ && go test ./internal/value/ -v`
+Expected: build clean, all tests PASS — this is the first point at which the package compiles, since `List` and `Map` hold `Value`s. Confirm `TestMap_IteratesInInsertionOrder`, `TestList_IsImmutable` and `TestValueUnionIsClosedAtSevenKinds` are among the passing tests.
 
-- [ ] **Step 4: Verify the tests have teeth**
+- [ ] **Step 6: Verify the tests have teeth**
 
 Two mutations, each reverted after observing the failure:
 
@@ -1396,21 +1368,30 @@ Two mutations, each reverted after observing the failure:
 2. In `Map.Build`, add `sort.Strings(keys)` after the `copy(keys, b.keys)` line (and `import "sort"`).
    Expected: `TestMap_IteratesInInsertionOrder` FAILS — it wants `zebra, apple, mango`, not sorted order.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-git add internal/value/value.go internal/value/equal.go internal/value/value_test.go internal/value/equal_test.go
-git commit -m "feat(value): closed Value union with structural equality
+git add internal/value/list.go internal/value/map.go internal/value/value.go internal/value/equal.go \
+        internal/value/list_test.go internal/value/map_test.go internal/value/value_test.go internal/value/equal_test.go
+git commit -m "feat(value): closed Value union over immutable List and ordered Map
 
 Replaces map[string]any as the runtime's data representation. Kind is
 always known, numbers compare by value rather than by literal, and every
 composite copies on construction and on slice-returning accessors so a
-Value can be bound into a scope and read concurrently."
+Value can be bound into a scope and read concurrently.
+
+Map iterates in insertion order: Go randomizes map iteration per process,
+and in the reference implementation that reached error text, cycle reports
+and entry-node dispatch order. Determinism belongs in the type rather than
+in a convention every call site must remember.
+
+List, Map and Value land in one commit because they are mutually
+dependent — the composites hold Values — so no smaller unit builds."
 ```
 
 ---
 
-### Task 4: JSON decoding and encoding
+### Task 3: JSON decoding and encoding
 
 Spec §3.1 and §3.2 together. `encoding/json` into `map[string]any` destroys both properties at once — numbers become `float64` and object key order is lost. Token-based decoding preserves both.
 
@@ -1419,7 +1400,7 @@ Spec §3.1 and §3.2 together. `encoding/json` into `map[string]any` destroys bo
 - Test: `internal/value/json_test.go`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1–3.
+- Consumes: everything from Tasks 1–2.
 - Produces:
   - `func DecodeJSON(data []byte) (Value, error)`
   - `func EncodeJSON(v Value) ([]byte, error)`
@@ -1853,7 +1834,7 @@ round-trips byte for byte."
 
 ---
 
-### Task 5: The conversion table
+### Task 4: The conversion table
 
 Spec §3.3. This table is normative: it is the one place a value becomes a string, a query parameter, a header, or a SQL argument. It replaces the 18 independent coercion sites the census found.
 
@@ -1867,7 +1848,7 @@ Two layering decisions, recorded here because a reviewer will ask:
 - Test: `internal/value/convert_test.go`
 
 **Interfaces:**
-- Consumes: everything from Tasks 1–4.
+- Consumes: everything from Tasks 1–3.
 - Produces:
   - `func (v Value) ToString() (string, error)`
   - `func (v Value) ToQueryValues() ([]string, error)`
@@ -2313,7 +2294,7 @@ query and header paths disagreed inside a single file twenty lines apart."
 
 ---
 
-### Task 6: The `Type` language
+### Task 5: The `Type` language
 
 Spec §3.4. Types are what make expressions checkable; this task defines the vocabulary and its rendering, and nothing else.
 
@@ -2671,7 +2652,7 @@ what diagnostics and editor forms present."
 
 ---
 
-### Task 7: Gradual assignability
+### Task 6: Gradual assignability
 
 Spec §3.4. `Assignable` answers "may a value of type `from` be used where `to` is expected." It is what the parameter type check (spec §8.1 check 2) and the binding input check (check 7) will call.
 
@@ -2680,7 +2661,7 @@ Spec §3.4. `Assignable` answers "may a value of type `from` be used where `to` 
 - Test: `internal/types/assignable_test.go`
 
 **Interfaces:**
-- Consumes: Task 6.
+- Consumes: Task 5.
 - Produces:
   - `type Registry interface{ Lookup(name string) (Type, bool) }`
   - `type MapRegistry map[string]Type` with `func (r MapRegistry) Lookup(name string) (Type, bool)`
@@ -3065,7 +3046,7 @@ recursive types terminate by visiting each pair once."
 
 ---
 
-### Task 8: Checking a `Value` against a `Type`
+### Task 7: Checking a `Value` against a `Type`
 
 Spec §3.4 and §8.1 check 7 — the runtime half. Where `Assignable` compares two types at compile time, `Check` validates an actual value at a boundary, and reports *where* it failed.
 
@@ -3074,7 +3055,7 @@ Spec §3.4 and §8.1 check 7 — the runtime half. Where `Assignable` compares t
 - Test: `internal/types/check_test.go`
 
 **Interfaces:**
-- Consumes: Task 6, Task 7, and `internal/value` (Tasks 1–5).
+- Consumes: Task 5, Task 6, and `internal/value` (Tasks 1–4).
 - Produces:
   - `type CheckError struct{ Path string; Want Type; Got string; Detail string }` with `func (e *CheckError) Error() string`
   - `func Check(v value.Value, t Type, reg Registry) error`
@@ -3494,7 +3475,7 @@ fields, matching Assignable's width subtyping."
 
 ## Verification
 
-After Task 8, the following must all hold. Run them before declaring stage 1 complete.
+After Task 7, the following must all hold. Run them before declaring stage 1 complete.
 
 ```bash
 go build ./...
