@@ -1,0 +1,14 @@
+{
+  "id": "proxy-get-query",
+  "method": "GET",
+  "path": "/api/proxy-get-query",
+  "summary": "Forwards query parameters to the echo endpoint via http.get's query field. The tag array demonstrates repeated parameters but is not asserted: inbound parsing collapses repeats to one value.",
+  "tags": ["http"],
+  "trigger": {
+    "workflow": "get-query",
+    "input": {
+      "limit": "{{ query.limit }}",
+      "cursor": "{{ query.cursor }}"
+    }
+  }
+}

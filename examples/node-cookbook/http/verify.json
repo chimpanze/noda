@@ -19,6 +19,13 @@
       "expect": { "status": 200, "body": [
         { "path": "status", "equals": 200 },
         { "path": "echo_via", "equals": "request" }
+      ] } },
+    { "name": "http.get forwards query parameters, encoded",
+      "request": { "method": "GET", "path": "/api/proxy-get-query?limit=10" },
+      "expect": { "status": 200, "body": [
+        { "path": "status", "equals": 200 },
+        { "path": "received_query.limit", "equals": "10" },
+        { "path": "received_query.note", "equals": "a&b c" }
       ] } }
   ]
 }
