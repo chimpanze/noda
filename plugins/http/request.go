@@ -112,10 +112,19 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 		// an empty or all-null query appends nothing, so it must not reject a
 		// url that legitimately carries its own query string.
 		if encoded != "" {
-			if strings.Contains(url, "?") {
+			// Split off the fragment first: a "?" inside a fragment is not a
+			// query string, and appending after the fragment would bury the
+			// encoded params where they're never transmitted (RFC 3986 — the
+			// fragment is client-side only). Cut on the *original* url so the
+			// error below still names exactly what the user wrote.
+			base, frag, hasFrag := strings.Cut(url, "#")
+			if strings.Contains(base, "?") {
 				return "", nil, fmt.Errorf("http.request: url %q already has a query string; use either the url query or the query field, not both", url)
 			}
-			url += "?" + encoded
+			url = base + "?" + encoded
+			if hasFrag {
+				url += "#" + frag
+			}
 		}
 	}
 

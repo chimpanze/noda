@@ -192,7 +192,8 @@ If a single endpoint needs logic that branches on the upstream status (e.g. log 
       "type": "http.get",
       "services": { "client": "inventory" },
       "config": {
-        "url": "/items?limit={{ input.limit ?? 20 }}&offset={{ input.offset ?? 0 }}"
+        "url": "/items",
+        "query": { "limit": "{{ input.limit ?? 20 }}", "offset": "{{ input.offset ?? 0 }}" }
       }
     },
     "remap": {

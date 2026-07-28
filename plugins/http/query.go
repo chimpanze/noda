@@ -3,6 +3,7 @@ package http
 import (
 	"fmt"
 	"net/url"
+	"strconv"
 )
 
 // encodeQuery turns an already-resolved `query` config value into a URL-encoded
@@ -56,12 +57,23 @@ func encodeQuery(raw any) (string, error) {
 }
 
 // queryScalar stringifies one query value, rejecting the shapes that have no
-// sane query-string encoding. Scalars are formatted with %v, matching what
-// plugin.ResolveHeaders already does for header values.
+// sane query-string encoding.
+//
+// float64 gets its own path: config JSON decodes all numbers to float64 (no
+// json.UseNumber, see internal/config/loader.go), and %v on a float64 is %g,
+// which switches to scientific notation for large or very small magnitudes
+// (e.g. a snowflake ID or account number written as a bare JSON number).
+// strconv.FormatFloat(f, 'f', -1, 64) — the same idiom internal/server/trigger.go
+// already uses — renders the shortest exact decimal instead. This deliberately
+// diverges from plugin.ResolveHeaders, which still formats header values with
+// %v: query parameters routinely carry numeric IDs where headers do not, so
+// the divergence is intentional, not an oversight.
 func queryScalar(key string, v any) (string, error) {
-	switch v.(type) {
+	switch val := v.(type) {
 	case map[string]any, []any:
 		return "", fmt.Errorf("query value for %q must be a scalar or array of scalars", key)
+	case float64:
+		return strconv.FormatFloat(val, 'f', -1, 64), nil
 	}
 	return fmt.Sprintf("%v", v), nil
 }

@@ -23,6 +23,13 @@ func TestEncodeQuery(t *testing.T) {
 		{"single string", map[string]any{"q": "hello"}, "q=hello"},
 		{"number stringified", map[string]any{"limit": 10}, "limit=10"},
 		{"float stringified", map[string]any{"ratio": 1.5}, "ratio=1.5"},
+		// The shape a real config actually produces: json.Unmarshal decodes
+		// every JSON number to float64, not int.
+		{"json-decoded integer float64", map[string]any{"limit": float64(10)}, "limit=10"},
+		// %v on a float64 this large would emit scientific notation
+		// (1.2345678901234567e+19); FormatFloat must not.
+		{"large integral float64", map[string]any{"id": float64(12345678901234567890)}, "id=12345678901234567000"},
+		{"small fractional float64", map[string]any{"eps": float64(0.0000001)}, "eps=0.0000001"},
 		{"bool stringified", map[string]any{"active": true}, "active=true"},
 		// Sorted by key: url.Values.Encode sorts, so output is deterministic.
 		{"keys sorted", map[string]any{"b": "2", "a": "1", "c": "3"}, "a=1&b=2&c=3"},
@@ -180,6 +187,51 @@ func TestDoRequest_NoQueryFieldLeavesURLAlone(t *testing.T) {
 	_, _, err := doRequest(context.Background(), execCtx, config, newTestService(), "GET")
 	require.NoError(t, err)
 	assert.Equal(t, "sort=name", gotRawQuery)
+}
+
+// A url fragment must not swallow the query: the encoded params belong before
+// the "#", never after, or they'd sit inside the fragment and never reach the
+// wire (fragments are never transmitted to the server).
+func TestDoRequest_QueryWithURLFragment(t *testing.T) {
+	var gotRawQuery string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawQuery = r.URL.RawQuery
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	config := map[string]any{
+		"url":   ts.URL + "/items#section",
+		"query": map[string]any{"q": "1"},
+	}
+
+	_, _, err := doRequest(context.Background(), execCtx, config, newTestService(), "GET")
+	require.NoError(t, err)
+	assert.Equal(t, "q=1", gotRawQuery, "the query must reach the server, not vanish into the fragment")
+}
+
+// A "?" that appears only inside the fragment is not a query string and must
+// not trip the conflict check.
+func TestDoRequest_QuestionMarkInsideFragmentDoesNotConflict(t *testing.T) {
+	var gotRawQuery, gotFragmentIsGone string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotRawQuery = r.URL.RawQuery
+		gotFragmentIsGone = r.URL.Fragment // fragments are never sent to the server
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer ts.Close()
+
+	execCtx := engine.NewExecutionContext(engine.WithInput(map[string]any{}))
+	config := map[string]any{
+		"url":   ts.URL + "/items#a?b",
+		"query": map[string]any{"q": "1"},
+	}
+
+	_, _, err := doRequest(context.Background(), execCtx, config, newTestService(), "GET")
+	require.NoError(t, err, "a ? inside the fragment must not be mistaken for a query string")
+	assert.Equal(t, "q=1", gotRawQuery)
+	assert.Empty(t, gotFragmentIsGone, "the server never receives the fragment at all")
 }
 
 // The conflict check runs after base_url joining, so a base_url carrying its
