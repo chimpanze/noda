@@ -2665,17 +2665,53 @@ func TestRecordPreservesFieldOrder(t *testing.T) {
 }
 
 func TestCompositesAreImmutable(t *testing.T) {
-	src := []Field{{Name: "a", Type: String()}}
-	r := Record(src...)
-	src[0].Name = "MUTATED"
-	if r.Fields()[0].Name != "a" {
-		t.Error("Record observed a mutation of its constructor input")
-	}
-	got := r.Fields()
-	got[0].Name = "MUTATED"
-	if r.Fields()[0].Name != "a" {
-		t.Error("Record observed a mutation of Fields()")
-	}
+	// Both directions matter for each composite: the constructor must copy its
+	// input (variadic spread aliases the caller's backing array otherwise), and
+	// the accessor must copy on the way out.
+	t.Run("record", func(t *testing.T) {
+		src := []Field{{Name: "a", Type: String()}}
+		r := Record(src...)
+		src[0].Name = "MUTATED"
+		if r.Fields()[0].Name != "a" {
+			t.Error("Record observed a mutation of its constructor input")
+		}
+		got := r.Fields()
+		got[0].Name = "MUTATED"
+		if r.Fields()[0].Name != "a" {
+			t.Error("Record observed a mutation of Fields()")
+		}
+	})
+
+	t.Run("union", func(t *testing.T) {
+		// Union's copies were implemented but unguarded: deleting both would
+		// have passed the whole suite.
+		src := []Type{String(), Number()}
+		u := Union(src...)
+		src[0] = Bool()
+		if got := u.Members()[0].Kind(); got != KindString {
+			t.Errorf("Union observed a mutation of its constructor input: member 0 = %v", got)
+		}
+		got := u.Members()
+		got[0] = Bool()
+		if k := u.Members()[0].Kind(); k != KindString {
+			t.Errorf("Union observed a mutation of Members(): member 0 = %v", k)
+		}
+	})
+
+	t.Run("nested record reached through a field", func(t *testing.T) {
+		// Type has no exported fields, so the only route to a nested composite
+		// is Fields()[i].Type — which copies on every read. Pin that, because a
+		// future exported field on Type would break it silently.
+		inner := Record(Field{Name: "deep", Type: String()})
+		outer := Record(Field{Name: "outer", Type: inner})
+
+		reached := outer.Fields()[0].Type.Fields()
+		reached[0].Name = "MUTATED"
+
+		if again := outer.Fields()[0].Type.Fields()[0].Name; again != "deep" {
+			t.Errorf("nested Record observed a mutation through Fields(): %q", again)
+		}
+	})
 }
 
 func TestString(t *testing.T) {
@@ -2894,8 +2930,17 @@ Expected: PASS.
 
 - [ ] **Step 5: Verify the tests have teeth**
 
-Change `KindAny` so it is no longer the zero constant — insert `kindInvalid Kind = iota` before it.
-Expected: `TestZeroTypeIsAny` FAILS. Revert.
+Two mutations, each reverted after observing the failure:
+
+1. Change `KindAny` so it is no longer the zero constant — insert
+   `kindInvalid Kind = iota` before it.
+   Expected: `TestZeroTypeIsAny` FAILS. Only that one: `Any()` assigns
+   `KindAny` explicitly rather than relying on the zero value, so
+   `TestConstructorsSetKind` is unaffected.
+2. Delete the defensive copy in `Union` (return `Type{kind: KindUnion, members: members}`),
+   then separately delete the copy in `Members()`.
+   Expected: `TestCompositesAreImmutable/union` FAILS for each.
+   Before this test existed, deleting both passed the entire suite.
 
 - [ ] **Step 6: Commit**
 
