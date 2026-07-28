@@ -157,6 +157,20 @@ body or an untyped database row is genuinely unknown at compile time. Static che
 wherever a shape is declared and step aside where it is `Any`. Every check in §8 fires only
 when the relevant shape is known.
 
+### 3.5 A stream is not a value
+
+`Value` deliberately has no `Stream` member. A stream is consumed, has a lifetime and
+backpressure, and can fail midway — so carrying one in `Value` would break three things this
+design rests on:
+
+- **§5.1 rule 3** (immutable once bound) — a stream observed twice is not the same stream
+- **§5.7** (capture is free) — capturing a scope holding a stream is unsound; the snapshot
+  is not a snapshot
+- **§3 generally** — a live stream cannot be compared, logged, traced, or nested in a `Map`
+
+A stream is not a value but a *process*. Streaming is therefore modelled as an **effect**
+(§6.5), never as a value or a return type.
+
 ---
 
 ## 4. Expressions and parameters
@@ -400,6 +414,50 @@ Terminal nodes bind to outcomes. The mirror of §5.4 applies: **every path must 
 outcome, and every declared outcome must be reachable on some path.** A workflow with a
 dangling path is a compile error.
 
+### 6.5 Emission — streaming as an effect
+
+Two distinct things get called streaming. A **long-lived connection carrying many messages**
+(WebSocket, SSE-as-subscription) is already covered by the `connection` trigger kind (§5.2,
+§7.2) and needs nothing further. What this section addresses is **one request whose response
+body is produced incrementally** — chunked HTTP, an NDJSON export, a file download, an LLM
+token proxy.
+
+A workflow that streams declares an **emission shape** alongside its signature:
+
+```
+workflow export-articles
+  input:  { author_id: String }
+  emits:  { article: Article }
+  output:
+    done:      { count: Number }
+    not_found: {}
+    failed:    Error
+```
+
+A node declares in its descriptor that it emits, and with what shape. `Run` gains one method
+(§9.1):
+
+```go
+Emit(Value) error
+```
+
+**Emission is an effect, like `db.create`.** It binds nothing into scope, so §3 and §5 are
+untouched — which was the test any answer here had to pass. It composes with everything
+already specified: a `http.stream` node emitting upstream chunks, a database cursor emitting
+rows, a for-each construct (§5.5) emitting per iteration, with transformation in between.
+
+One emission shape per workflow. Heterogeneous emissions use a `Union` shape. Multiple named
+channels can be added later if a real case demands it; they cannot be removed.
+
+**Backpressure.** `Emit` blocks, and returns an error on consumer disconnect or context
+cancellation, so a slow consumer throttles the workflow rather than accumulating unbounded
+buffer. The binding declares buffer size and overflow policy — block, drop-oldest, or fail
+(§7.4).
+
+**Testability.** A streaming workflow is tested by asserting the *sequence of emissions* plus
+the terminal outcome. Noda's `sse.send` side effects are invisible to its test runner;
+emissions are not.
+
 ---
 
 ## 7. The binding layer
@@ -432,7 +490,7 @@ completed, with the output half brought out of the workflow, where it was smuggl
 
 ### 7.2 A trigger kind is a declared contract
 
-Each trigger kind declares exactly two shapes:
+Each trigger kind declares two shapes, plus how it frames emissions (§6.5):
 
 | Kind | Event shape (inbound) | Response shape (outbound) |
 |---|---|---|
@@ -442,7 +500,20 @@ Each trigger kind declares exactly two shapes:
 | `connection` | `{ connection: {id, channel, endpoint, user}, message }` | outbound message / broadcast |
 | `wasm` | `{ module, tick }` | guest-defined |
 
-Adding a trigger kind means declaring these two shapes and writing a driver. **This is the
+And how emissions are framed, when the kind accepts them:
+
+| Kind | An emission becomes |
+|---|---|
+| `http` | a chunk — NDJSON, SSE frame, or raw bytes, per the binding's declared framing |
+| `connection` | a message to **this** connection |
+| `worker` | one publish per emission to a declared topic — fan-out |
+| `schedule` | discarded, or logged |
+| `wasm` | guest-defined |
+
+So one `export-articles` workflow can feed an HTTP NDJSON endpoint *and* a Redis topic,
+differing only by binding. That is the binding layer paying off a second time.
+
+Adding a trigger kind means declaring these shapes and writing a driver. **This is the
 structural answer to Noda's five hand-rolled input builders**: there is one place a trigger
 kind can be defined, and it is data.
 
@@ -461,17 +532,50 @@ fate — becomes the model rather than an implementation detail.
 
 A route that fails to handle a declared outcome does not compile.
 
-### 7.4 Middleware placement stops being a judgment call
+### 7.4 Streaming responses, and the head-commit rule
+
+A binding for a workflow that declares `emits` (§6.5) states **two** mappings, because an
+HTTP status must be sent before the body while the outcome is known only at the end:
+
+```
+route GET /api/articles/export → export-articles
+  output:                          ← used if the workflow terminates BEFORE any emission
+    not_found: { status: 404 }
+    failed:    { status: 500 }
+  stream:                          ← used once the first emission has occurred
+    head:   { status: 200, content_type: "application/x-ndjson", framing: ndjson }
+    buffer: { size: 256, overflow: block }        ← block | drop_oldest | fail
+    on:
+      done:   close
+      failed: { event: "error", body: {{ out.code }} }
+```
+
+**The head is committed at the first emission.** Before it, any outcome maps normally — a
+real `404`. After it, `200` has already been sent, so a failure can only be rendered *into*
+the stream. Both mappings are checked for exhaustiveness over the workflow's declared
+outcomes.
+
+This is how HTTP actually behaves. Stating it in configuration is better than discovering it
+at runtime, and it is why streaming is not simply another outcome shape.
+
+### 7.5 Middleware placement stops being a judgment call
 
 Auth, rate limiting, CORS and CSRF are trigger-layer concerns, therefore binding config by
 definition. This also removes Noda's cross-reference blind spot, where the only middleware
 form the route schema permits is the form the cross-reference pass skips — middleware
 references become part of a checked artifact rather than an array a pass happens to ignore.
 
-### 7.5 Side effects are not outcomes
+### 7.6 Emit is to the caller; publish is to someone else
 
-A mid-workflow `ws.send` is an effect like `db.create` and stays a node. Only *terminating*
-results are outcomes.
+A mid-workflow effect that targets a *different* consumer — broadcasting to a channel,
+publishing to a topic other than the binding's — stays an ordinary node, like `db.create`.
+Emission (§6.5) means "to my caller," and the binding decides how that is framed.
+
+Noda conflates these: `sse.send` and `ws.send` serve both "reply to this connection" and
+"push to that one." Separating them is what lets emissions be typed, checked and tested,
+while genuine fan-out remains an effect.
+
+Only *terminating* results are outcomes. Neither emissions nor effects are.
 
 ---
 
@@ -513,8 +617,10 @@ Each check names the Noda defect class it structurally eliminates.
 | 8 | Binding output mapping is exhaustive over outcomes (§7.3) | unhandled outcome at runtime |
 | 9 | Cross-references resolve (services, workflows, models, middleware instances) | reference blind spots |
 | 10 | Graph is acyclic; joins and exclusivity groups are well-formed | cycle detected only at boot |
+| 11 | A node that emits appears only in a workflow declaring `emits`, with a matching shape (§6.5) | untyped, untestable `sse.send` effects |
+| 12 | A binding for an emitting workflow declares `stream`, and both its mappings are exhaustive (§7.4) | status committed before the outcome is known |
 
-Checks 4, 5, 6, 8 and 10 are graph-shaped. Noda validates node configs against schemas
+Checks 4, 5, 6, 8, 10 and 12 are graph- or binding-shaped. Noda validates node configs against schemas
 without ever compiling the graph, which is why a config could pass validation and fail to boot.
 
 ### 8.2 Diagnostics
@@ -563,6 +669,11 @@ type Run interface {
     Service(slot string) (any, error)
     Log() *slog.Logger
     Tracer() Tracer
+
+    // Emit streams one value to the caller (§6.5). Valid only in a workflow
+    // declaring `emits`, which check 11 enforces at compile time. Blocks for
+    // backpressure; returns an error on consumer disconnect or cancellation.
+    Emit(Value) error
 }
 
 // Params is the single evaluation entry point. Lazy, bound to the current scope.
@@ -610,33 +721,31 @@ already a dev-mode client of that server, so it has no offline story to protect.
 
 These are unresolved. They are recorded rather than silently decided.
 
-### 10.1 Streaming outcomes
+> **Settled 2026-07-28 — streaming.** Previously listed here as the question that had to be
+> answered before §6 could be built. Resolved as an *effect*, not an outcome shape: a stream
+> cannot be a `Value` without breaking scope immutability and capture (§3.5), so streaming
+> is `emits` on the signature plus `Run.Emit` (§6.5), with the head-commit rule at the
+> binding (§7.4). `Value`, scopes, capture and the outcome union are unchanged.
 
-A workflow that streams — SSE, chunked HTTP, an LLM token stream — has no single terminal
-outcome. Either streaming is a distinct outcome kind (an outcome carrying a sequence rather
-than a value), or streaming is a connection-trigger concern and not expressible as an HTTP
-route outcome at all. **This should be settled before §6 is implemented**, because retrofitting
-a sequence-valued outcome into a tagged-union return type is invasive.
-
-### 10.2 Should `Either` be the default parameter kind?
+### 10.1 Should `Either` be the default parameter kind?
 
 Allowing a parameter to be literal-or-expression is ergonomic, and it is also the seam where
 a weaker rule could creep back. The alternative — requiring each node to state the kind
 explicitly — is more verbose but leaves no default to erode.
 
-### 10.3 Does `Any` need a shape-assertion operator?
+### 10.2 Does `Any` need a shape-assertion operator?
 
 Gradual typing (§3.4) means dynamic data flows as `Any`. A way to assert a shape and get
 static checking downstream (`as Article`, checked at runtime, typed thereafter) would recover
 checking after an HTTP call or an untyped query. Not required for a first version.
 
-### 10.4 Scope capture and memory retention
+### 10.3 Scope capture and memory retention
 
 §5.7 makes capture free, but a captured scope keeps every binding alive. Long-lived deferred
 work could retain arbitrarily large values. Needs either an eviction rule or an explicit
 narrowing capture.
 
-### 10.5 How model definitions feed output shapes
+### 10.4 How model definitions feed output shapes
 
 §6.2 sketches the mechanism — a node derives its output shape from `Literal`-kind parameters
 plus declared models — but does not specify the interface a node implements to do it.
@@ -670,15 +779,18 @@ plus declared models — but does not specify the interface a node implements to
 | Hand-rolled config-schema walker + vocabulary check | one JSON Schema library (§8.1) |
 | Editor-side validation and widget mapping | server-served `Program` (§9.2) |
 | Five hand-rolled trigger input builders | declared trigger kinds (§7.2) |
+| `sse.send` / `ws.send` conflating "reply to my caller" with "push to another" | `Run.Emit` vs. publish nodes (§7.6) |
 
 ---
 
 ## 12. Non-goals
 
 - **Not a general-purpose programming language.** Expressions stay expressions.
-- **Not a data-pipeline engine.** No item/stream model. All five trigger types are one
-  invocation per event; the one place batching could pay — the worker — deliberately reads
-  one message at a time so each has an independent ack/retry/dead-letter fate.
+- **Not a data-pipeline engine.** No item model: a node is not run once per item, and no
+  node signature carries a list. All five trigger types are one invocation per event; the one
+  place batching could pay — the worker — deliberately reads one message at a time so each
+  has an independent ack/retry/dead-letter fate. Emission (§6.5) is not a retreat from this:
+  it streams *out* of one invocation as an effect, and never makes a node run more than once.
 - **Not backwards compatible with Noda configuration.** This is a fresh start.
 
 ---
@@ -695,10 +807,12 @@ Each stage is usable before the next begins.
 4. **`Program` and the pipeline** (§8) — parse → assemble → bind → check, with positions and
    diagnostics.
 5. **Node contract and `Params`** (§9.1) — then two or three real nodes end to end.
-6. **Workflow signatures and outcomes** (§6) — after §10.1 is settled.
-7. **Binding layer and the `http` trigger kind** (§7).
-8. **Remaining trigger kinds**, one at a time, each as declared shapes plus a driver.
-9. **Surfaces** (§9.2) — `check`, `test`, editor API, MCP, all reading `Program`.
+6. **Workflow signatures and outcomes** (§6.1–6.4).
+7. **Binding layer and the `http` trigger kind** (§7.1–7.3, §7.5).
+8. **Emission** (§6.5) and streaming bindings (§7.4) — after the non-streaming path works
+   end to end, since emission is additive to the signature rather than a change to it.
+9. **Remaining trigger kinds**, one at a time, each as declared shapes plus a driver.
+10. **Surfaces** (§9.2) — `check`, `test`, editor API, MCP, all reading `Program`.
 
 Node catalogue breadth is deliberately last. Noda's 81 node types were never the hard part;
 the hard part was that each of them was a parser.
