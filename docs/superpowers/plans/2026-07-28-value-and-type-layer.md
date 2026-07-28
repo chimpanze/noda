@@ -2187,6 +2187,13 @@ func TestToHeaderValues_MirrorsQueryForRepeats(t *testing.T) {
 	// Headers and query parameters diverged on exactly this in the reference
 	// implementation: headers preserved repeats, query parameters dropped all
 	// but one. One table, one behaviour.
+	//
+	// Be clear about what this can and cannot catch. While both paths delegate
+	// to toMultiValue they agree unconditionally, so no mutation of the shared
+	// helper can redden this test. It is a guard against a FUTURE refactor that
+	// gives either path its own implementation — which is precisely how the two
+	// drifted apart inside a single file last time. Mutation 3 in this task's
+	// Step 5 is the one that exercises it.
 	v := OfList(NewList(OfString("a"), OfString("b")))
 
 	q, err := v.ToQueryValues()
@@ -2504,7 +2511,7 @@ Expected: PASS.
 
 - [ ] **Step 5: Verify the tests have teeth**
 
-Two mutations, each reverted after observing the failure:
+Three mutations, each reverted after observing the failure:
 
 1. In `ToString`, change the `KindNumber` case to:
    ```go
@@ -2513,8 +2520,24 @@ Two mutations, each reverted after observing the failure:
    return fmt.Sprintf("%v", f), nil
    ```
    Expected: `TestToString` FAILS on `huge int`, `1e21` and `tiny` — reproducing the exact defect from the reference implementation.
-2. In `toMultiValue`, change the `KindList` case to return only `out[:1]`.
-   Expected: `TestToHeaderValues_MirrorsQueryForRepeats` FAILS — reproducing the query/header divergence.
+2. In `toMultiValue`, change the `KindList` case to return only the first element
+   (guard the empty case: `if len(out) > 1 { out = out[:1] }`).
+   Expected: `TestToQueryValues` FAILS on `list becomes repeats` — reproducing the
+   silent truncation of a repeated parameter.
+
+   It does **not** redden `TestToHeaderValues_MirrorsQueryForRepeats`, and that is
+   worth understanding rather than working around: the mutation is in the shared
+   helper, so it corrupts query and header identically and they still agree.
+
+3. In `ToHeaderValues`, stop delegating — replace the `toMultiValue` call with a
+   hand-rolled version that returns at most one value.
+   Expected: `TestToHeaderValues_MirrorsQueryForRepeats` FAILS.
+
+Mutation 3 is what actually exercises that test. **`TestToHeaderValues_MirrorsQueryForRepeats`
+cannot fail while the two paths share one implementation** — it is a guard against a
+future refactor that splits them, which is exactly how the predecessor's query and
+header formatting drifted apart inside one file. Its doc comment must say so, rather
+than implying it verifies behaviour the shared helper already makes unconditional.
 
 - [ ] **Step 6: Commit**
 
