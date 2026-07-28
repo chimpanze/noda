@@ -3643,6 +3643,39 @@ func TestCheck_RecordFields(t *testing.T) {
 	})
 }
 
+func TestCheck_NonCollectionAgainstCollectionType(t *testing.T) {
+	// value.List() and value.Map() return a valid, EMPTY zero value when the
+	// kind does not match — not an error and not a panic. So if the `ok` guard
+	// in either case were dropped, Check would loop zero times over nothing and
+	// return nil: a silent false pass.
+	//
+	// This is the same shape as the record-presence defect: a mismatch
+	// collapsing into an empty, uncomplaining loop. Guard both sibling paths,
+	// not just the one that already bit.
+	scalars := map[string]value.Value{
+		"string": value.OfString("x"),
+		"number": value.OfInt(1),
+		"bool":   value.OfBool(true),
+		"null":   value.Null(),
+	}
+	for name, v := range scalars {
+		if err := Check(v, List(String()), nil); err == nil {
+			t.Errorf("Check(%s, List<String>) = nil, want error", name)
+		}
+		if err := Check(v, Map(String()), nil); err == nil {
+			t.Errorf("Check(%s, Map<String>) = nil, want error", name)
+		}
+	}
+
+	// And the two collection kinds must not satisfy each other.
+	if err := Check(value.OfList(value.NewList()), Map(String()), nil); err == nil {
+		t.Error("Check(list, Map<String>) = nil, want error")
+	}
+	if err := Check(value.OfMap(value.NewMapBuilder().Build()), List(String()), nil); err == nil {
+		t.Error("Check(map, List<String>) = nil, want error")
+	}
+}
+
 func TestCheck_Unions(t *testing.T) {
 	u := Union(String(), Number())
 	if err := Check(value.OfString("x"), u, nil); err != nil {
@@ -3871,7 +3904,7 @@ Expected: PASS across both packages.
 
 - [ ] **Step 5: Verify the tests have teeth**
 
-Two mutations, each reverted after observing the failure:
+Three mutations, each reverted after observing the failure:
 
 1. In `check`'s `KindList` case, replace `indexPath(path, i)` with `path`.
    Expected: `TestCheck_ListElements` FAILS — `Path` is `""` rather than `[1]`.
@@ -3887,6 +3920,11 @@ Two mutations, each reverted after observing the failure:
    (`required present, optional absent` and `extra fields are allowed`) do go
    red as collateral, because absent optional fields start being type-checked
    as null — informative, but neither is named for this behaviour.
+
+3. In `check`'s `KindList` case, drop the `ok` guard — `l, _ := v.List()`.
+   Expected: `TestCheck_NonCollectionAgainstCollectionType` FAILS for every
+   scalar, because a non-list yields an empty List and the loop body never runs.
+   Repeat for the `KindMap` case's guard.
 
 - [ ] **Step 6: Run the full gate**
 
