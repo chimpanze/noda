@@ -89,6 +89,29 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 		url = strings.TrimRight(svc.baseURL, "/") + "/" + strings.TrimLeft(url, "/")
 	}
 
+	// Append query parameters (#451). This runs after the base_url join so a
+	// base_url carrying its own query string is caught too, rather than
+	// producing a malformed URL.
+	queryRaw, queryOk, queryErr := plugin.ResolveOptionalDeepAny(nCtx, config, "query")
+	if queryErr != nil {
+		return "", nil, fmt.Errorf("http.request: resolve query: %w", queryErr)
+	}
+	if queryOk {
+		encoded, encErr := encodeQuery(queryRaw)
+		if encErr != nil {
+			return "", nil, fmt.Errorf("http.request: %w", encErr)
+		}
+		// Only a query that would actually contribute parameters can conflict:
+		// an empty or all-null query appends nothing, so it must not reject a
+		// url that legitimately carries its own query string.
+		if encoded != "" {
+			if strings.Contains(url, "?") {
+				return "", nil, fmt.Errorf("http.request: url %q already has a query string; use either the url query or the query field, not both", url)
+			}
+			url += "?" + encoded
+		}
+	}
+
 	// Resolve headers
 	headers, err := plugin.ResolveHeaders(nCtx, config)
 	if err != nil {
