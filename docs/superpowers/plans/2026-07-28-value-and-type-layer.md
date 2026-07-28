@@ -1108,7 +1108,7 @@ func TestValueUnionIsClosedAtSevenKinds(t *testing.T) {
 	// kind WITHOUT extending the switch would leave String() returning
 	// "invalid" and the violation undetected. kindCount moves whenever a kind
 	// is added anywhere above it — including one declared with an explicit
-	// numeric value, which is why the sentinel carries an explicit `= iota`.
+	// numeric value, which is why the sentinel carries an explicit `Kind = iota`.
 	if kindCount != 7 {
 		t.Fatalf("kindCount = %d, want 7 — the Value union has changed size; see design §3.5", kindCount)
 	}
@@ -1279,13 +1279,15 @@ const (
 	// this equals 7, so an added kind fails the tests and forces the author
 	// to justify it against §3.5.
 	//
-	// The `= iota` is explicit and load-bearing — do not drop it to a bare
+	// The `Kind = iota` is explicit and load-bearing. The type matters too: a bare
+	// `= iota` would make this an untyped int constant, and the test's
+	// `k.String()` would not compile. — do not drop it to a bare
 	// `kindCount`. An empty ConstSpec repeats the last non-empty *expression*,
 	// not the next iota value. So with a bare sentinel, inserting a kind with
 	// an explicit literal (`KindStream Kind = 7`) makes the sentinel repeat
 	// that literal and freeze at 7, and the guard silently stops guarding.
 	// Verified: bare sentinel stays 3 under that mutation, `= iota` moves to 4.
-	kindCount = iota
+	kindCount Kind = iota
 )
 
 // String renders the kind for diagnostics.
@@ -1512,7 +1514,7 @@ Five mutations, each reverted after observing the failure:
    Expected: `TestValueUnionIsClosedAtSevenKinds` FAILS on `kindCount = 8, want 7`.
 4. Same, but declare it with an explicit value: `KindStream Kind = 7`.
    Expected: FAILS the same way. Then change the sentinel from `kindCount = iota`
-   to a bare `kindCount` and re-run — it now PASSES, because an empty ConstSpec
+   to a bare `kindCount` (dropping `Kind = iota`) and re-run — it now PASSES, because an empty ConstSpec
    repeats the preceding literal rather than the next iota value, freezing the
    sentinel at 7. Restore `= iota` and confirm it fails again.
 5. Append `KindStream` BELOW `kindCount` and extend `Kind.String()` to render it.
