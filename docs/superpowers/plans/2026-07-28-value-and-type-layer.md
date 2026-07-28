@@ -3591,6 +3591,28 @@ func TestCheck_RecordFields(t *testing.T) {
 		}
 	})
 
+	t.Run("absence is distinguished from null", func(t *testing.T) {
+		// The subtest above passes for the wrong reason: an absent key yields
+		// the zero Value, which is null, and null fails the String check
+		// anyway. Delete the presence check and it stays green — so it never
+		// actually verified that presence was tested.
+		//
+		// A required field typed Any is the case that separates the two, since
+		// Any accepts null. Only a real presence check can reject the field
+		// being absent while accepting it being present-and-null.
+		anyRec := Record(Field{Name: "id", Type: Any()})
+
+		empty := value.OfMap(value.NewMapBuilder().Build())
+		if err := Check(empty, anyRec, nil); err == nil {
+			t.Error("Check(missing required field typed Any) = nil, want error")
+		}
+
+		withNull := value.OfMap(value.NewMapBuilder().Set("id", value.Null()).Build())
+		if err := Check(withNull, anyRec, nil); err != nil {
+			t.Errorf("Check(present null field typed Any) = %v, want nil", err)
+		}
+	})
+
 	t.Run("wrong field type reports a nested path", func(t *testing.T) {
 		nested := Record(Field{
 			Name: "outer",
@@ -3853,8 +3875,18 @@ Two mutations, each reverted after observing the failure:
 
 1. In `check`'s `KindList` case, replace `indexPath(path, i)` with `path`.
    Expected: `TestCheck_ListElements` FAILS — `Path` is `""` rather than `[1]`.
-2. In `check`'s `KindRecord` case, delete the `if !present` block so a missing required field is skipped.
-   Expected: `TestCheck_RecordFields/missing_required_field` FAILS.
+2. In `check`'s `KindRecord` case, delete the `if !present` block so a missing
+   required field is skipped (change `fv, present :=` to `fv, _ :=` so it still
+   compiles).
+   Expected: `TestCheck_RecordFields/absence_is_distinguished_from_null` FAILS.
+
+   It does NOT redden `TestCheck_RecordFields/missing_required_field`, which is
+   the point of the extra subtest: that case's field is typed `String`, and an
+   absent key yields the zero Value — null — which fails the String check
+   anyway. It passes for a reason unrelated to presence. Two other subtests
+   (`required present, optional absent` and `extra fields are allowed`) do go
+   red as collateral, because absent optional fields start being type-checked
+   as null — informative, but neither is named for this behaviour.
 
 - [ ] **Step 6: Run the full gate**
 
