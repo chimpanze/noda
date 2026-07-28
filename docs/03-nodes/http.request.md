@@ -10,7 +10,34 @@ Makes an HTTP request.
 | `url` | string (expr) | yes | Request URL |
 | `headers` | object | no | Request headers (expressions) |
 | `body` | any (expr) | no | Request body (auto-encodes maps as JSON) |
+| `query` | object (expr) | no | Query parameters, URL-encoded and appended to `url`. Accepts an object or an expression resolving to one. |
 | `timeout` | string | no | Per-request timeout override |
+
+### Query parameters
+
+`query` takes an object whose entries are URL-encoded and appended to `url`:
+
+```json
+{
+  "type": "http.request",
+  "services": { "client": "inventory" },
+  "config": {
+    "method": "GET",
+    "url": "/items",
+    "query": { "limit": "{{ input.limit }}", "sort": "name" }
+  }
+}
+```
+
+Rules:
+
+- Values are stringified. Arrays become repeated parameters (`tag=new&tag=sale`).
+- A value that resolves to null **drops the parameter entirely**, so an optional
+  parameter needs no conditional.
+- Nested objects and nested arrays (an array inside an array) are rejected.
+- If `url` already contains a query string, setting a non-empty `query` is an
+  error rather than a merge — use one or the other.
+- Parameters are emitted sorted by key, and spaces encode as `+`.
 
 ## Outputs
 

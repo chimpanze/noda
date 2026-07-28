@@ -39,3 +39,39 @@ func TestConfigSchemasMatchExecutors(t *testing.T) {
 		})
 	}
 }
+
+// The query field must accept BOTH shapes the docs show: a literal object and
+// a whole-map expression string. The oneOf is what makes the second legal for
+// the editor's stricter ajv validation; the Go walker short-circuits any
+// string containing "{{" before it reaches the schema at all.
+func TestQueryFieldAcceptsObjectAndExpression(t *testing.T) {
+	schemas := map[string]map[string]any{
+		"http.get":     (&getDescriptor{}).ConfigSchema(),
+		"http.post":    (&postDescriptor{}).ConfigSchema(),
+		"http.request": (&requestDescriptor{}).ConfigSchema(),
+	}
+	for nodeType, schema := range schemas {
+		t.Run(nodeType, func(t *testing.T) {
+			assert.Empty(t, registry.CheckSchemaVocabulary(schema))
+
+			base := map[string]any{"url": "/items"}
+			if nodeType == "http.request" {
+				base["method"] = "GET"
+			}
+
+			objForm := map[string]any{}
+			exprForm := map[string]any{}
+			for k, v := range base {
+				objForm[k] = v
+				exprForm[k] = v
+			}
+			objForm["query"] = map[string]any{"limit": "10"}
+			exprForm["query"] = "{{ input.q }}"
+
+			assert.Empty(t, registry.ValidateNodeConfig(schema, objForm),
+				"a literal object must validate")
+			assert.Empty(t, registry.ValidateNodeConfig(schema, exprForm),
+				"a whole-map expression must validate")
+		})
+	}
+}

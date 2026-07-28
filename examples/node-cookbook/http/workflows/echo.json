@@ -8,6 +8,7 @@
         "body": {
           "echo": "{{ input.payload }}",
           "method": "{{ input.method }}",
+          "received_query": "{{ input.received_query }}",
           "marker": "cookbook-echo"
         }
       }

@@ -1,0 +1,32 @@
+{
+  "id": "get-query",
+  "nodes": {
+    "fetch": {
+      "type": "http.get",
+      "services": { "client": "web" },
+      "config": {
+        "url": "{{ secrets.COOKBOOK_BASE_URL }}/api/echo",
+        "query": {
+          "limit": "{{ input.limit }}",
+          "note": "a&b c",
+          "tag": ["new", "sale"],
+          "cursor": "{{ input.cursor }}"
+        },
+        "timeout": "5s"
+      }
+    },
+    "respond": {
+      "type": "response.json",
+      "config": {
+        "status": 200,
+        "body": {
+          "status": "{{ nodes.fetch.status }}",
+          "received_query": "{{ nodes.fetch.body.received_query }}"
+        }
+      }
+    }
+  },
+  "edges": [
+    { "from": "fetch", "to": "respond" }
+  ]
+}

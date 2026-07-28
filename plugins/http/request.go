@@ -26,6 +26,13 @@ func (d *requestDescriptor) ConfigSchema() map[string]any {
 			"method":  map[string]any{"type": "string", "description": "HTTP method (GET, POST, PUT, etc.)"},
 			"url":     map[string]any{"type": "string", "description": "Request URL"},
 			"headers": map[string]any{"type": "object", "description": "Request headers"},
+			"query": map[string]any{
+				"description": "Query parameters, URL-encoded and appended to url",
+				"oneOf": []any{
+					map[string]any{"type": "object"},
+					map[string]any{"type": "string"},
+				},
+			},
 			"body":    map[string]any{"description": "Request body"},
 			"timeout": map[string]any{"type": "string", "description": "Per-request timeout override"},
 		},
@@ -87,6 +94,38 @@ func doRequest(ctx context.Context, nCtx api.ExecutionContext, config map[string
 	}
 	if svc.baseURL != "" && !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		url = strings.TrimRight(svc.baseURL, "/") + "/" + strings.TrimLeft(url, "/")
+	}
+
+	// Append query parameters (#451). This runs after the base_url join so a
+	// base_url carrying its own query string is caught too, rather than
+	// producing a malformed URL.
+	queryRaw, queryOk, queryErr := plugin.ResolveOptionalDeepAny(nCtx, config, "query")
+	if queryErr != nil {
+		return "", nil, fmt.Errorf("http.request: resolve query: %w", queryErr)
+	}
+	if queryOk {
+		encoded, encErr := encodeQuery(queryRaw)
+		if encErr != nil {
+			return "", nil, fmt.Errorf("http.request: %w", encErr)
+		}
+		// Only a query that would actually contribute parameters can conflict:
+		// an empty or all-null query appends nothing, so it must not reject a
+		// url that legitimately carries its own query string.
+		if encoded != "" {
+			// Split off the fragment first: a "?" inside a fragment is not a
+			// query string, and appending after the fragment would bury the
+			// encoded params where they're never transmitted (RFC 3986 — the
+			// fragment is client-side only). Cut on the *original* url so the
+			// error below still names exactly what the user wrote.
+			base, frag, hasFrag := strings.Cut(url, "#")
+			if strings.Contains(base, "?") {
+				return "", nil, fmt.Errorf("http.request: url %q already has a query string; use either the url query or the query field, not both", url)
+			}
+			url = base + "?" + encoded
+			if hasFrag {
+				url += "#" + frag
+			}
+		}
 	}
 
 	// Resolve headers

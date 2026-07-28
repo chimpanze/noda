@@ -9,7 +9,33 @@ Shorthand for POST requests. Same as `http.request` with `method: "POST"`.
 | `url` | string (expr) | yes | Request URL |
 | `headers` | object | no | Request headers |
 | `body` | any (expr) | no | Request body |
+| `query` | object (expr) | no | Query parameters, URL-encoded and appended to `url`. Accepts an object or an expression resolving to one. |
 | `timeout` | string | no | Request timeout |
+
+### Query parameters
+
+`query` takes an object whose entries are URL-encoded and appended to `url`:
+
+```json
+{
+  "type": "http.post",
+  "services": { "client": "inventory" },
+  "config": {
+    "url": "/items",
+    "query": { "limit": "{{ input.limit }}", "sort": "name" }
+  }
+}
+```
+
+Rules:
+
+- Values are stringified. Arrays become repeated parameters (`tag=new&tag=sale`).
+- A value that resolves to null **drops the parameter entirely**, so an optional
+  parameter needs no conditional.
+- Nested objects and nested arrays (an array inside an array) are rejected.
+- If `url` already contains a query string, setting a non-empty `query` is an
+  error rather than a merge — use one or the other.
+- Parameters are emitted sorted by key, and spaces encode as `+`.
 
 ## Outputs
 
