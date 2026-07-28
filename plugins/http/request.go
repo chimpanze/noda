@@ -26,6 +26,13 @@ func (d *requestDescriptor) ConfigSchema() map[string]any {
 			"method":  map[string]any{"type": "string", "description": "HTTP method (GET, POST, PUT, etc.)"},
 			"url":     map[string]any{"type": "string", "description": "Request URL"},
 			"headers": map[string]any{"type": "object", "description": "Request headers"},
+			"query": map[string]any{
+				"description": "Query parameters, URL-encoded and appended to url",
+				"oneOf": []any{
+					map[string]any{"type": "object"},
+					map[string]any{"type": "string"},
+				},
+			},
 			"body":    map[string]any{"description": "Request body"},
 			"timeout": map[string]any{"type": "string", "description": "Per-request timeout override"},
 		},
