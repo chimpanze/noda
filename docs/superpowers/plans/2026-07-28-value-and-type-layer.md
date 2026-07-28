@@ -1704,6 +1704,52 @@ func TestEncodeJSON_EscapesStrings(t *testing.T) {
 	}
 }
 
+func TestEncodeJSON_EscapesOnlyWhatRFC8259Requires(t *testing.T) {
+	// encoding/json escapes U+2028 and U+2029 unconditionally -- a JavaScript
+	// safety measure that survives SetEscapeHTML(false). Delegating to it would
+	// break byte-for-byte round-tripping for any string containing either, and
+	// would let the standard library's policy define this format. They must pass
+	// through unescaped here.
+	//
+	// Every literal below uses an explicit Go escape. Do NOT replace them with
+	// the raw characters: U+2028 and U+2029 are invisible in most editors, and
+	// an editor or tool that normalises them away turns this test into a
+	// tautology that passes against the very defect it exists to catch.
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"U+2028 line separator", "a\u2028b", "\"a\u2028b\""},
+		{"U+2029 paragraph separator", "a\u2029b", "\"a\u2029b\""},
+		{"HTML metacharacters", "<a>&b</a>", `"<a>&b</a>"`},
+		{"forward slash is not escaped", "a/b", `"a/b"`},
+		{"non-ASCII passes through", "\u00e9\u4e16", "\"\u00e9\u4e16\""},
+		{"control char without a short form", "a\x01b", `"a\u0001b"`},
+		{"NUL", "\x00", `"\u0000"`},
+		{"DEL is not a JSON control char", "\x7f", "\"\x7f\""},
+	}
+	for _, tc := range tests {
+		got, err := EncodeJSON(OfString(tc.in))
+		if err != nil {
+			t.Errorf("%s: EncodeJSON: %v", tc.name, err)
+			continue
+		}
+		if string(got) != tc.want {
+			t.Errorf("%s: EncodeJSON = %s, want %s", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestEncodeJSON_RejectsInvalidUTF8(t *testing.T) {
+	// A Go string can hold bytes that are not valid UTF-8. encoding/json would
+	// silently substitute U+FFFD; this package reports instead, for the same
+	// reason NumberFromFloat rejects NaN.
+	if _, err := EncodeJSON(OfString("a\xffb")); err == nil {
+		t.Error("EncodeJSON of invalid UTF-8 = nil error, want rejection")
+	}
+}
+
 func TestEncodeJSON_BytesAsBase64(t *testing.T) {
 	got, err := EncodeJSON(OfBytes([]byte("hello")))
 	if err != nil {
@@ -1765,6 +1811,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"unicode/utf8"
 )
 
 // DecodeJSON parses JSON into a Value.
@@ -1783,7 +1830,7 @@ func DecodeJSON(data []byte) (Value, error) {
 		return Value{}, err
 	}
 
-	// Reject trailing content: "{}{}"" and "1 2" are not single values.
+	// Reject trailing content: `{}{}` and `1 2` are not single values.
 	if _, err := dec.Token(); err != io.EOF {
 		if err == nil {
 			return Value{}, fmt.Errorf("unexpected content after top-level JSON value")
@@ -1935,18 +1982,48 @@ func encodeInto(buf *bytes.Buffer, v Value) error {
 	}
 }
 
-// encodeString writes a JSON string. It delegates escaping to encoding/json so
-// the escape rules are the standard library's, then strips the trailing newline
-// SetEscapeHTML/Encode adds.
+// encodeString writes a JSON string escaped per RFC 8259 §7.
+//
+// It does NOT delegate to encoding/json. That package always escapes U+2028 and
+// U+2029 — a JavaScript-safety measure, applied even with SetEscapeHTML(false) —
+// so a string containing either character would not round-trip byte for byte.
+// Delegating would let the standard library's escaping policy define vane's wire
+// format; this function makes the format vane's own.
+//
+// Escaped: the quote, the backslash, and control characters below U+0020 (using
+// the short forms where RFC 8259 defines them, \uXXXX otherwise). The forward
+// slash MAY be escaped and is not, since escaping it would break round-tripping.
+// Everything else is written through as UTF-8.
 func encodeString(buf *bytes.Buffer, s string) error {
-	var tmp bytes.Buffer
-	enc := json.NewEncoder(&tmp)
-	enc.SetEscapeHTML(false)
-	if err := enc.Encode(s); err != nil {
-		return err
+	if !utf8.ValidString(s) {
+		return fmt.Errorf("string is not valid UTF-8 and has no JSON representation")
 	}
-	out := tmp.Bytes()
-	buf.Write(bytes.TrimRight(out, "\n"))
+	buf.WriteByte('"')
+	for _, r := range s {
+		switch r {
+		case '"':
+			buf.WriteString(`\"`)
+		case '\\':
+			buf.WriteString(`\\`)
+		case '\b':
+			buf.WriteString(`\b`)
+		case '\f':
+			buf.WriteString(`\f`)
+		case '\n':
+			buf.WriteString(`\n`)
+		case '\r':
+			buf.WriteString(`\r`)
+		case '\t':
+			buf.WriteString(`\t`)
+		default:
+			if r < 0x20 {
+				fmt.Fprintf(buf, `\u%04x`, r)
+			} else {
+				buf.WriteRune(r)
+			}
+		}
+	}
+	buf.WriteByte('"')
 	return nil
 }
 ```
@@ -1967,7 +2044,17 @@ case json.Number:
     return v, nil
 ```
 
-Expected: `TestDecodeJSON_PreservesNumberLiterals` FAILS on `id` and `big`, and `TestJSON_RoundTripsByteForByte` FAILS on `{"id":12345678901234567890}`. Revert.
+Expected: `TestDecodeJSON_PreservesNumberLiterals` FAILS on `id` and `big`, and
+`TestJSON_RoundTripsByteForByte` FAILS on `{"id":12345678901234567890}`. Revert.
+
+Then a second mutation: replace the body of `encodeString` with a delegation to
+`encoding/json` — `json.NewEncoder` into a scratch buffer, `SetEscapeHTML(false)`,
+trailing newline trimmed.
+
+Expected: `TestEncodeJSON_EscapesOnlyWhatRFC8259Requires` FAILS on the U+2028 and
+U+2029 rows — the standard library escapes both regardless of `SetEscapeHTML`, which
+is precisely why this package does not delegate. `TestEncodeJSON_RejectsInvalidUTF8`
+FAILS too, because `encoding/json` substitutes U+FFFD instead of reporting. Revert.
 
 - [ ] **Step 6: Commit**
 
