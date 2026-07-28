@@ -3197,21 +3197,27 @@ func TestAssignable_OnPathSetDoesNotLeakAcrossSiblingBranches(t *testing.T) {
 	}
 }
 
-func TestAssignable_RefNameCannotAliasAnotherKind(t *testing.T) {
+func TestAssignable_RefNameCannotAliasAnotherKindOnTheActivePath(t *testing.T) {
 	// Type.String() is not injective: Ref(name) renders as the bare name, so a
 	// registry entry called "String" renders exactly like the scalar String
-	// type. The recursion guard's key must therefore carry the kind, or the two
-	// collide and one branch answers for the other.
-	reg := MapRegistry{"String": Record(Field{Name: "x", Type: Number()})}
+	// type. The recursion guard's key must therefore carry the kind.
+	//
+	// The collision has to happen while the outer entry is STILL ON THE PATH —
+	// sibling branches cannot collide, because the deferred delete clears each
+	// entry when its call returns. So:
+	//
+	//   Ref("String") resolves to String|Number.
+	//   Checking it against Number descends into assignable(String, Number),
+	//   whose untagged key ("String","Number") is identical to the outer
+	//   ("String","Number") still on the path — which the guard then answers
+	//   with an optimistic true.
+	//
+	// Correct answer is false: String is not assignable to Number, and a union
+	// assigned FROM requires every member to be assignable.
+	reg := MapRegistry{"String": Union(String(), Number())}
 
-	// Ref("String") resolves to {x: Number} and IS assignable to it.
-	// The scalar String() is NOT. A union needs every member assignable, so the
-	// union as a whole must be rejected.
-	from := Union(Ref("String"), String())
-	to := Record(Field{Name: "x", Type: Number()})
-
-	if Assignable(from, to, reg) {
-		t.Error("Assignable(Union(Ref(\"String\"), String), {x:Number}) = true, want false — a Ref aliased a scalar in the recursion guard")
+	if Assignable(Ref("String"), Number(), reg) {
+		t.Error("Assignable(Ref(\"String\"), Number) = true, want false — a Ref aliased a scalar in the recursion guard")
 	}
 }
 ```
@@ -3415,7 +3421,14 @@ Four mutations, each reverted after observing the failure:
    ever-seen memo rather than an on-path set, and returns wrong answers for
    types with no cycle in them at all.
 3. Drop the kind tags from the `pair` key — `pair{from: from.String(), to: to.String()}`.
-   Expected: `TestAssignable_RefNameCannotAliasAnotherKind` FAILS.
+   Expected: `TestAssignable_RefNameCannotAliasAnotherKindOnTheActivePath` FAILS.
+
+   Note the two guards are independent but only one of them can be exercised
+   by a sibling-branch scenario. With the deferred delete in place, sibling
+   branches never share an entry, so a Ref/scalar collision can only be
+   observed while the outer entry is still on the path — which is what that
+   test constructs. A sibling-shaped test for this would pass under the
+   mutation and prove nothing.
 4. Move the `TO a union` block above the `FROM a union` block.
    Expected: `TestAssignable_Unions` FAILS on the union-to-union assertion,
    `Assignable(String|Number, String|Number|Bool)`, which wrongly becomes false:
