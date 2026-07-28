@@ -1103,12 +1103,21 @@ func TestValueUnionIsClosedAtSevenKinds(t *testing.T) {
 	// the union grows, forcing whoever grows it to justify the change against
 	// §3.5 rather than discovering the consequences later.
 	//
-	// KindMap must remain the highest-valued Kind.
-	if KindMap != 6 {
-		t.Fatalf("KindMap = %d, want 6 — the Value union has changed size", KindMap)
+	// It asserts on the kindCount sentinel rather than on Kind.String()'s
+	// default case, because a String() default is not a guard: appending a
+	// kind WITHOUT extending the switch would leave String() returning
+	// "invalid" and the violation undetected. kindCount moves whenever the
+	// const block grows, wherever the new kind is inserted.
+	if kindCount != 7 {
+		t.Fatalf("kindCount = %d, want 7 — the Value union has changed size; see design §3.5", kindCount)
 	}
-	if got := Kind(7).String(); got != "invalid" {
-		t.Errorf("Kind(7).String() = %q, want %q — an eighth kind exists", got, "invalid")
+
+	// Every kind below the sentinel must render; a kind added without
+	// extending String() is itself a defect.
+	for k := Kind(0); k < kindCount; k++ {
+		if got := k.String(); got == "invalid" {
+			t.Errorf("Kind(%d).String() = %q — a kind exists that String() does not handle", k, got)
+		}
 	}
 }
 ```
@@ -1243,6 +1252,14 @@ const (
 	KindBytes
 	KindList
 	KindMap
+
+	// kindCount must remain last. It is the closure guard for §3.5 of the
+	// design: a stream is a process, not a value, and adding an eighth kind
+	// would break the scope-immutability and free-capture guarantees the
+	// execution model rests on. TestValueUnionIsClosedAtSevenKinds asserts
+	// this equals 7, so any added kind fails the build's tests and forces
+	// the author to justify it against §3.5.
+	kindCount
 )
 
 // String renders the kind for diagnostics.
@@ -1387,6 +1404,8 @@ Create `internal/value/equal.go`:
 ```go
 package value
 
+import "bytes"
+
 // Equal reports structural equality.
 //
 // Numbers compare by value, so 1, 1.0 and 1e0 are equal. Lists compare
@@ -1410,15 +1429,7 @@ func Equal(a, b Value) bool {
 	case KindBytes:
 		ab, _ := a.ref.([]byte)
 		bb, _ := b.ref.([]byte)
-		if len(ab) != len(bb) {
-			return false
-		}
-		for i := range ab {
-			if ab[i] != bb[i] {
-				return false
-			}
-		}
-		return true
+		return bytes.Equal(ab, bb)
 	case KindList:
 		al, _ := a.List()
 		bl, _ := b.List()
@@ -1461,7 +1472,7 @@ Expected: build clean, all tests PASS — this is the first point at which the p
 
 - [ ] **Step 6: Verify the tests have teeth**
 
-Two mutations, each reverted after observing the failure:
+Three mutations, each reverted after observing the failure:
 
 1. In `Equal`, change the `KindNumber` case to `return a.s == b.s`.
    Expected: `TestEqual_Scalars` FAILS on `1 == 1e0 (literals differ)` and on
@@ -1470,6 +1481,11 @@ Two mutations, each reverted after observing the failure:
    literal-distinct rows exist.
 2. In `Map.Build`, add `sort.Strings(keys)` after the `copy(keys, b.keys)` line (and `import "sort"`).
    Expected: `TestMap_IteratesInInsertionOrder` FAILS — it wants `zebra, apple, mango`, not sorted order.
+3. Append a dummy `KindStream` to the const block, AFTER `KindMap` and BEFORE
+   `kindCount`, and do NOT extend `Kind.String()`.
+   Expected: `TestValueUnionIsClosedAtSevenKinds` FAILS on `kindCount = 8, want 7`.
+   This mutation is the one that matters: an earlier version of this guard
+   asserted on `Kind.String()`'s default case and passed this mutation.
 
 - [ ] **Step 7: Commit**
 
